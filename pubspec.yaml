@@ -1,0 +1,55 @@
+name: owo_dashboard
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  fl_chart: ^1.1.1
+  flag: ^7.0.2
+  flex_color_picker: ^3.7.2
+  flutter:
+    sdk: flutter
+  flutter_local_notifications: ^19.5.0
+  http: ^1.6.0
+  logger: ^2.6.2
+  path_provider: ^2.1.5
+  provider: ^6.1.5+1
+  shared_preferences: ^2.5.3
+  timezone: ^0.10.1
+  url_launcher: ^6.3.2
+  window_manager: ^0.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+# 🖼️ **应用图标配置**：跨平台图标生成，使用flutter_launcher_icons插件。
+flutter_icons:
+  android: true  # 生成Android图标
+  ios: true  # 生成iOS图标
+  remove_alpha_ios: true
+  image_path: "assets/icons/app_icon.png"  # 源图标文件
+  min_sdk_android: 21  # Android最低SDK版本（默认21，最小16）
+
+  web:
+    generate: false  # 生成Web图标
+    image_path: "assets/icons/app_icon.png"
+    background_color: "#eeeeee"  # Web背景色
+    theme_color: "#fea31a"  # Web主题色
+
+  windows:
+    generate: true  # 生成Windows图标
+    image_path: "assets/icons/app_icon.png"
+    icon_size: 64  # 图标尺寸（范围48-256，默认48）
+
+  macos:
+    generate: false  # 生成macOS图标
+    image_path: "assets/icons/app_icon.png"
