@@ -17,6 +17,7 @@ import 'core/widgets/desktop/custom_title_bar.dart';
 import 'pages/home/home_page.dart';
 import 'pages/checklist/checklist_page.dart';
 import 'pages/settings/theme_settings_page.dart';
+import 'pages/monitor/monitor_page.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -70,6 +71,13 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       icon: Icons.checklist_outlined,
       activeIcon: Icons.checklist,
       page: ChecklistPage(),
+    ),
+    NavigationItem(
+      id: 'monitor',
+      title: '飞行监控',
+      icon: Icons.speed_outlined,
+      activeIcon: Icons.speed,
+      page: MonitorPage(),
     ),
     NavigationItem(
       id: 'settings',

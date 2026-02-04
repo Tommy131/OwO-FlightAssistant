@@ -336,6 +336,10 @@ class XPlaneService {
     // 自动驾驶
     await _subscribeDataRef(30, 'sim/cockpit/autopilot/autopilot_mode');
     await _subscribeDataRef(31, 'sim/cockpit/autopilot/autothrottle_enabled');
+
+    // 监控数据 (G力与气压)
+    await _subscribeDataRef(70, 'sim/flightmodel/forces/g_nrml');
+    await _subscribeDataRef(71, 'sim/weather/barometer_current_inhg');
   }
 
   int _debugPacketCounter = 0;
@@ -520,6 +524,12 @@ class XPlaneService {
         break;
       case 63:
         _currentData = _currentData.copyWith(engine2EGT: value);
+        break;
+      case 70:
+        _currentData = _currentData.copyWith(gForce: value);
+        break;
+      case 71:
+        _currentData = _currentData.copyWith(baroPressure: value);
         break;
       case 100:
         _currentData = _currentData.copyWith(isPaused: value > 0.5);

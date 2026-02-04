@@ -115,6 +115,10 @@ class MSFSService {
         // 自动驾驶
         {'name': 'AUTOPILOT_MASTER', 'unit': 'bool'},
         {'name': 'AUTOPILOT_THROTTLE_ARM', 'unit': 'bool'},
+
+        // 监控数据
+        {'name': 'G FORCE', 'unit': 'number'},
+        {'name': 'BAROMETER PRESSURE', 'unit': 'Inches of Mercury'},
       ],
     };
 
@@ -274,6 +278,18 @@ class MSFSService {
         autothrottleEngaged:
             data['AUTOPILOT_THROTTLE_ARM'] == true ||
             data['AUTOPILOT_THROTTLE_ARM'] == 1,
+      );
+    }
+
+    if (data.containsKey('G FORCE')) {
+      _currentData = _currentData.copyWith(
+        gForce: (data['G FORCE'] as num?)?.toDouble(),
+      );
+    }
+
+    if (data.containsKey('BAROMETER PRESSURE')) {
+      _currentData = _currentData.copyWith(
+        baroPressure: (data['BAROMETER PRESSURE'] as num?)?.toDouble(),
       );
     }
 

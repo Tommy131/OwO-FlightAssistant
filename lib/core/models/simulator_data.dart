@@ -11,6 +11,8 @@ class SimulatorData {
   final double? altitude;
   final double? heading;
   final double? verticalSpeed;
+  final double? gForce; // 重力加速度
+  final double? baroPressure; // 气压 (inHg 或 hPa)
 
   // 位置和导航
   final double? latitude;
@@ -107,10 +109,12 @@ class SimulatorData {
     this.autothrottleEngaged,
     this.activeRunway,
     this.atisFrequency,
+    this.gForce,
+    this.baroPressure,
   });
 
   factory SimulatorData.empty() {
-    return SimulatorData();
+    return SimulatorData(isConnected: false, gForce: 1.0, baroPressure: 29.92);
   }
 
   SimulatorData copyWith({
@@ -159,6 +163,8 @@ class SimulatorData {
     bool? autothrottleEngaged,
     String? activeRunway,
     double? atisFrequency,
+    double? gForce,
+    double? baroPressure,
   }) {
     return SimulatorData(
       isConnected: isConnected ?? this.isConnected,
@@ -207,6 +213,8 @@ class SimulatorData {
       autothrottleEngaged: autothrottleEngaged ?? this.autothrottleEngaged,
       activeRunway: activeRunway ?? this.activeRunway,
       atisFrequency: atisFrequency ?? this.atisFrequency,
+      gForce: gForce ?? this.gForce,
+      baroPressure: baroPressure ?? this.baroPressure,
     );
   }
 }
