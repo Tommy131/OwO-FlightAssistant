@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'core/theme/theme_provider.dart';
+import 'core/providers/checklist_provider.dart';
+import 'core/providers/simulator_provider.dart';
 import 'core/constants/app_constants.dart';
 import 'core/layouts/desktop_layout.dart';
 import 'core/layouts/mobile_layout.dart';
@@ -12,12 +14,8 @@ import 'core/layouts/responsive.dart';
 import 'core/models/navigation_item.dart';
 import 'core/widgets/common/dialog.dart';
 import 'core/widgets/desktop/custom_title_bar.dart';
-import 'pages/explore/explore_page.dart';
 import 'pages/home/home_page.dart';
-import 'pages/messages/messages_page.dart';
-import 'pages/notifications/notification_demo_page.dart';
-import 'pages/notifications/notifications_page.dart';
-import 'pages/profile/profile_page.dart';
+import 'pages/checklist/checklist_page.dart';
 import 'pages/settings/theme_settings_page.dart';
 
 class MyApp extends StatelessWidget {
@@ -26,7 +24,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => ChecklistProvider()),
+        ChangeNotifierProvider(create: (_) => SimulatorProvider()),
+      ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp(
@@ -63,41 +65,11 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       page: HomePage(),
     ),
     NavigationItem(
-      id: 'explore',
-      title: '探索',
-      icon: Icons.explore_outlined,
-      activeIcon: Icons.explore,
-      page: ExplorePage(),
-    ),
-    NavigationItem(
-      id: 'messages',
-      title: '消息',
-      icon: Icons.message_outlined,
-      activeIcon: Icons.message,
-      page: MessagesPage(),
-      badge: '3', // 示例徽章
-    ),
-    NavigationItem(
-      id: 'notifications',
-      title: '通知',
-      icon: Icons.notifications_outlined,
-      activeIcon: Icons.notifications,
-      page: NotificationsPage(),
-      badge: '12', // 示例徽章
-    ),
-    NavigationItem(
-      id: 'notifications_demo',
-      title: '通知测试页',
-      icon: Icons.notifications_outlined,
-      activeIcon: Icons.notifications,
-      page: NotificationDemoPage(),
-    ),
-    NavigationItem(
-      id: 'profile',
-      title: '我的',
-      icon: Icons.person_outline,
-      activeIcon: Icons.person,
-      page: ProfilePage(),
+      id: 'checklist',
+      title: '飞行检查单',
+      icon: Icons.checklist_outlined,
+      activeIcon: Icons.checklist,
+      page: ChecklistPage(),
     ),
     NavigationItem(
       id: 'settings',
@@ -112,6 +84,21 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
   void initState() {
     super.initState();
     windowManager.addListener(this);
+
+    // 在下一帧之后设置回调，确保 Provider 已经完全就绪
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final simProvider = context.read<SimulatorProvider>();
+        final checklistProvider = context.read<ChecklistProvider>();
+
+        simProvider.setAircraftDetectionCallback((aircraftId) {
+          if (mounted) {
+            checklistProvider.selectAircraft(aircraftId);
+          }
+        });
+      }
+    });
+
     _init();
   }
 

@@ -1,4 +1,4 @@
-name: owo_dashboard
+name: owo_flight_check_list
 description: "A new Flutter project."
 publish_to: 'none'
 version: 0.1.0
@@ -20,6 +20,7 @@ dependencies:
   shared_preferences: ^2.5.3
   timezone: ^0.10.1
   url_launcher: ^6.3.2
+  web_socket_channel: ^3.0.1
   window_manager: ^0.5.1
 
 dev_dependencies:

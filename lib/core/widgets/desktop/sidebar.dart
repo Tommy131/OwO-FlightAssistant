@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme_data.dart';
 import '../../models/navigation_item.dart';
 import '../../theme/theme_provider.dart';
+import '../../providers/simulator_provider.dart';
+import '../../models/simulator_data.dart';
 
 /// 桌面端侧边栏组件（紧凑型）
 /// 支持展开/折叠，带有流畅的动画过渡
@@ -229,64 +231,86 @@ class _DesktopSidebarState extends State<DesktopSidebar>
   }
 
   Widget _buildFooter(ThemeData theme) {
-    return Container(
-      padding: EdgeInsets.all(_isCollapsed ? 6 : AppThemeData.spacingSmall),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: AppThemeData.getBorderColor(theme), width: 1),
-        ),
-      ),
-      child: _isCollapsed
-          ? _buildCollapsedFooter(theme)
-          : _buildExpandedFooter(theme),
+    return Consumer<SimulatorProvider>(
+      builder: (context, simProvider, _) {
+        final data = simProvider.simulatorData;
+        final hasAirport = data.departureAirport != null;
+
+        // 如果未连接或没有机场数据，显示一个简洁的“模拟器未连接”提示或留空
+        if (!simProvider.isConnected || !hasAirport) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          padding: EdgeInsets.all(_isCollapsed ? 4 : AppThemeData.spacingSmall),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: AppThemeData.getBorderColor(theme),
+                width: 1,
+              ),
+            ),
+          ),
+          child: _isCollapsed
+              ? _buildCollapsedFooter(theme)
+              : _buildExpandedFooter(theme, data),
+        );
+      },
     );
   }
 
   Widget _buildCollapsedFooter(ThemeData theme) {
-    return Center(child: _buildAvatar(theme));
-  }
-
-  Widget _buildExpandedFooter(ThemeData theme) {
-    return Row(
-      children: [
-        _buildAvatar(theme),
-        const SizedBox(width: AppThemeData.spacingSmall),
-        _buildUserInfo(theme),
-      ],
-    );
-  }
-
-  Widget _buildAvatar(ThemeData theme) {
-    return CircleAvatar(
-      radius: _avatarRadius,
-      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.2),
-      child: Icon(Icons.person, color: theme.colorScheme.primary, size: 18),
-    );
-  }
-
-  Widget _buildUserInfo(ThemeData theme) {
-    return Expanded(
-      child: _buildFadeTransition(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'User',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              'user@mail.com',
-              style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+    return Center(
+      child: Tooltip(
+        message: '临近机场',
+        child: CircleAvatar(
+          radius: _avatarRadius,
+          backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+          child: Icon(
+            Icons.flight_takeoff,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildExpandedFooter(ThemeData theme, SimulatorData data) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: _avatarRadius,
+          backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+          child: Icon(
+            Icons.flight_takeoff,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(width: AppThemeData.spacingSmall),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                data.departureAirport ?? '未知机场',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                'ATIS: ${data.atisFrequency?.toStringAsFixed(2) ?? "---"}',
+                style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
