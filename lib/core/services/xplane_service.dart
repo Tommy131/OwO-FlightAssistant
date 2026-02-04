@@ -23,7 +23,6 @@ class XPlaneService {
   bool _mainLandingLightOn = false;
 
   final List<bool> _runwayTurnoffSwitches = List.filled(2, false);
-  bool _mainRunwayTurnoffOn = false;
 
   // 机型识别防抖
   String? _lastPendingAircraft;
@@ -58,6 +57,9 @@ class XPlaneService {
 
       _socket!.listen((RawSocketEvent event) {
         if (event == RawSocketEvent.read) {
+          // 安全检查：确保 socket 未被释放或重置为 null
+          if (_socket == null) return;
+
           final Datagram? dg = _socket!.receive();
           if (dg != null) {
             _handleIncomingData(dg.data);
@@ -267,7 +269,10 @@ class XPlaneService {
     );
 
     // Taxi Lights
-    await _subscribeDataRef(13, 'sim/cockpit2/switches/taxi_light_on');
+    await _subscribeDataRef(
+      13,
+      'sim/cockpit2/switches/generic_lights_switch[4]',
+    );
 
     await _subscribeDataRef(14, 'sim/cockpit2/switches/navigation_lights_on');
     await _subscribeDataRef(15, 'sim/cockpit/electrical/strobe_lights_on');
@@ -283,21 +288,17 @@ class XPlaneService {
       'sim/cockpit2/switches/generic_lights_switch[0]',
     ); // 机翼灯
 
-    // 跑道脱离灯 (Runway Turnoff - 左右双开关检测)
-    await _subscribeDataRef(
-      25,
-      'sim/cockpit2/switches/runway_turnoff_light_on',
-    ); // 总开关/Master
+    // 跑道脱离灯 (Runway Turnoff - 左右双开关，基于插件机常用的 generic 索引)
     await _subscribeDataRef(
       250,
-      'sim/cockpit2/switches/runway_turnoff_light_switch[0]',
+      'sim/cockpit2/switches/generic_lights_switch[2]',
     ); // 左开关
     await _subscribeDataRef(
       251,
-      'sim/cockpit2/switches/runway_turnoff_light_switch[1]',
+      'sim/cockpit2/switches/generic_lights_switch[3]',
     ); // 右开关
 
-    // 轮舱灯 (Wheel Well - Zibo 737 等机型常用 generic[2])
+    // 轮舱灯 (Wheel Well - 您已确认是索引5)
     await _subscribeDataRef(
       27,
       'sim/cockpit2/switches/generic_lights_switch[5]',
@@ -468,10 +469,6 @@ class XPlaneService {
       case 22:
         _currentData = _currentData.copyWith(engine2Running: value > 0.5);
         break;
-      case 25:
-        _mainRunwayTurnoffOn = value > 0.5;
-        _updateRunwayTurnoffStatus();
-        break;
       case 250:
         _runwayTurnoffSwitches[0] = value > 0.5;
         _updateRunwayTurnoffStatus();
@@ -567,7 +564,7 @@ class XPlaneService {
   void _updateRunwayTurnoffStatus() {
     final bool anySwitchOn = _runwayTurnoffSwitches.any((isOn) => isOn);
     _currentData = _currentData.copyWith(
-      runwayTurnoffLights: _mainRunwayTurnoffOn || anySwitchOn,
+      runwayTurnoffLights: anySwitchOn, // 只要左或右开了一个就算开
     );
   }
 
