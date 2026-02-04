@@ -20,8 +20,8 @@ class AppConstants {
   AppConstants._();
 
   // ========== 应用信息 ==========
-  static const String appName = 'OwO! FlightCheckList';
-  static const String appPackageName = 'com.owoblog.owo_flight_check_list';
+  static const String appName = 'OwO! FlightAssistant';
+  static const String appPackageName = 'com.owoblog.owo_flight_assistant';
   static const String appVersion = '0.0.1';
 
   // ========== 开发者信息 ==========

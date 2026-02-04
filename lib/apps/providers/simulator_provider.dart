@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/simulator_data.dart';
 import '../services/msfs_service.dart';
 import '../services/xplane_service.dart';
-import '../utils/logger.dart';
+import '../../core/utils/logger.dart';
 
 enum SimulatorType { none, msfs, xplane }
 

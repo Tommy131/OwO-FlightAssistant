@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme_data.dart';
-import '../../core/providers/checklist_provider.dart';
-import '../../core/providers/simulator_provider.dart';
-import '../../core/models/simulator_data.dart';
+import '../../apps/providers/checklist_provider.dart';
+import '../../apps/providers/simulator_provider.dart';
+import '../../apps/models/simulator_data.dart';
 import '../../core/widgets/common/dialog.dart';
 
 /// 首页 - 模拟器数据仪表盘
@@ -45,6 +45,48 @@ class HomePage extends StatelessWidget {
       builder: (context, simProvider, _) {
         final isConnected = simProvider.isConnected;
         final aircraftTitle = simProvider.simulatorData.aircraftTitle;
+        final isPaused = simProvider.simulatorData.isPaused ?? false;
+
+        String title;
+        String subtitle;
+        Widget? statusIndicator;
+
+        if (!isConnected) {
+          title = '未连接模拟器！';
+          subtitle = '等待建立数据链路...';
+        } else if (isPaused) {
+          title = '模拟器已暂停';
+          subtitle = '检测到模拟器处于暂停状态 ($aircraftTitle)';
+          statusIndicator = Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.yellow.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.pause_circle_filled,
+              color: Colors.yellow,
+              size: 32,
+            ),
+          );
+        } else {
+          title = '飞行准备就绪';
+          subtitle = aircraftTitle != null
+              ? '当前机型: $aircraftTitle'
+              : '等待识别机型...';
+          statusIndicator = Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.greenAccent.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_circle,
+              color: Colors.greenAccent,
+              size: 32,
+            ),
+          );
+        }
 
         return Container(
           width: double.infinity,
@@ -67,19 +109,25 @@ class HomePage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                '飞行准备就绪',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (statusIndicator != null) statusIndicator,
+                ],
               ),
               const SizedBox(height: AppThemeData.spacingSmall),
               Text(
-                isConnected && aircraftTitle != null
-                    ? '当前机型: $aircraftTitle'
-                    : '等待连接模拟器...',
+                subtitle,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 16,
@@ -111,14 +159,17 @@ class HomePage extends StatelessWidget {
   }
 
   Widget _buildStatusRow(BuildContext context, ThemeData theme) {
-    return Row(
-      children: [
-        // 模拟器连接状态
-        Expanded(child: _buildSimulatorConnectionCard(context, theme)),
-        const SizedBox(width: AppThemeData.spacingMedium),
-        // 当前检查阶段
-        Expanded(child: _buildChecklistPhaseCard(context, theme)),
-      ],
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 模拟器连接状态
+          Expanded(child: _buildSimulatorConnectionCard(context, theme)),
+          const SizedBox(width: AppThemeData.spacingMedium),
+          // 当前检查阶段
+          Expanded(child: _buildChecklistPhaseCard(context, theme)),
+        ],
+      ),
     );
   }
 
@@ -172,6 +223,7 @@ class HomePage extends StatelessWidget {
                   color: isConnected ? Colors.green : Colors.grey,
                 ),
               ),
+              const Spacer(),
               const SizedBox(height: 12),
               // 连接/断开按钮
               if (isConnected)
@@ -355,6 +407,7 @@ class HomePage extends StatelessWidget {
                   color: theme.colorScheme.primary,
                 ),
               ),
+              const Spacer(),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -781,7 +834,7 @@ class HomePage extends StatelessWidget {
               ),
               const Spacer(),
               // 暂停状态提示
-              if (data.isPaused == true)
+              /* if (data.isPaused == true)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -807,7 +860,7 @@ class HomePage extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
+                ), */
             ],
           ),
           const SizedBox(height: AppThemeData.spacingMedium),

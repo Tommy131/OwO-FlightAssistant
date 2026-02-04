@@ -11,7 +11,7 @@
 ### 1. 安装依赖
 
 ```bash
-cd d:\Workspace\flutter_projects\owo_flight_check_list
+cd d:\Workspace\flutter_projects\owo_flight_assistant
 flutter pub get
 ```
 

@@ -1,4 +1,4 @@
-package com.owoblog.owo_flight_check_list
+package com.owoblog.owo_flight_assistant
 
 import io.flutter.embedding.android.FlutterActivity
 

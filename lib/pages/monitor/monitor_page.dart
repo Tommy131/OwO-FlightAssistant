@@ -2,8 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../core/providers/simulator_provider.dart';
-import '../../core/models/simulator_data.dart';
+import '../../apps/providers/simulator_provider.dart';
+import '../../apps/models/simulator_data.dart';
 import '../../core/theme/app_theme_data.dart';
 
 class MonitorPage extends StatefulWidget {
@@ -20,6 +20,11 @@ class _MonitorPageState extends State<MonitorPage> {
   double _time = 0;
   static const int _maxSpots = 300; // 5次/秒 * 60秒 = 300个点 (1分钟历史)
 
+  // 用于检测变更以防过度绘制
+  double? _lastAltitude;
+  double? _lastGForce;
+  bool _initialized = false;
+
   @override
   void initState() {
     super.initState();
@@ -27,19 +32,35 @@ class _MonitorPageState extends State<MonitorPage> {
   }
 
   void _updateSpots(SimulatorData data) {
-    _time += 0.2; // 假设采样率
+    if (!data.isConnected) return;
 
-    // G-Force
+    // 如果数据和上一帧完全一样（且不是初始帧），则跳过，防止X轴空转
+    if (_initialized &&
+        data.altitude == _lastAltitude &&
+        data.gForce == _lastGForce) {
+      return;
+    }
+
+    _time += 0.2;
+    _initialized = true;
+    _lastAltitude = data.altitude;
+    _lastGForce = data.gForce;
+
+    // G-Force (保持 1.0 为默认)
     _gForceSpots.add(FlSpot(_time, data.gForce ?? 1.0));
     if (_gForceSpots.length > _maxSpots) _gForceSpots.removeAt(0);
 
-    // Altitude
-    _altitudeSpots.add(FlSpot(_time, data.altitude ?? 0));
-    if (_altitudeSpots.length > _maxSpots) _altitudeSpots.removeAt(0);
+    // Altitude (仅在有数据时记录，防止从0跳变)
+    if (data.altitude != null) {
+      _altitudeSpots.add(FlSpot(_time, data.altitude!));
+      if (_altitudeSpots.length > _maxSpots) _altitudeSpots.removeAt(0);
+    }
 
     // Air Pressure
-    _pressureSpots.add(FlSpot(_time, data.baroPressure ?? 29.92));
-    if (_pressureSpots.length > _maxSpots) _pressureSpots.removeAt(0);
+    if (data.baroPressure != null) {
+      _pressureSpots.add(FlSpot(_time, data.baroPressure!));
+      if (_pressureSpots.length > _maxSpots) _pressureSpots.removeAt(0);
+    }
   }
 
   @override
@@ -49,6 +70,9 @@ class _MonitorPageState extends State<MonitorPage> {
     return Consumer<SimulatorProvider>(
       builder: (context, simProvider, _) {
         final data = simProvider.simulatorData;
+
+        // 只有当数据真正更新或时间流逝时才更新点
+        // 这里简单处理：如果数据对象发生变化，则记录一点
         _updateSpots(data);
 
         return Scaffold(
@@ -73,7 +97,7 @@ class _MonitorPageState extends State<MonitorPage> {
 
                     if (isThreeColumn) {
                       return Row(
-                        spacing: AppThemeData.spacingLarge,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: _buildChartCard(
@@ -83,9 +107,10 @@ class _MonitorPageState extends State<MonitorPage> {
                               _gForceSpots,
                               Colors.orangeAccent,
                               0,
-                              2, // G力通常在0-2波动
+                              2,
                             ),
                           ),
+                          const SizedBox(width: AppThemeData.spacingLarge),
                           Expanded(
                             child: _buildChartCard(
                               theme,
@@ -93,10 +118,20 @@ class _MonitorPageState extends State<MonitorPage> {
                               '${data.altitude?.toStringAsFixed(0) ?? "0"} FT',
                               _altitudeSpots,
                               theme.colorScheme.primary,
-                              null,
-                              null,
+                              // 为高度设置动态缓冲区：最小值和最大值之间至少保持 100ft 的差距
+                              _calculateMinY(
+                                _altitudeSpots,
+                                100,
+                                defaultVal: 0,
+                              ),
+                              _calculateMaxY(
+                                _altitudeSpots,
+                                100,
+                                defaultVal: 100,
+                              ),
                             ),
                           ),
+                          const SizedBox(width: AppThemeData.spacingLarge),
                           Expanded(
                             child: _buildChartCard(
                               theme,
@@ -112,7 +147,6 @@ class _MonitorPageState extends State<MonitorPage> {
                       );
                     } else {
                       return Column(
-                        spacing: AppThemeData.spacingLarge,
                         children: [
                           _buildChartCard(
                             theme,
@@ -123,6 +157,7 @@ class _MonitorPageState extends State<MonitorPage> {
                             0,
                             2,
                           ),
+                          const SizedBox(height: AppThemeData.spacingLarge),
                           _buildChartCard(
                             theme,
                             '高度趋势 (Altitude)',
@@ -132,6 +167,7 @@ class _MonitorPageState extends State<MonitorPage> {
                             null,
                             null,
                           ),
+                          const SizedBox(height: AppThemeData.spacingLarge),
                           _buildChartCard(
                             theme,
                             '大气压强 (Baro)',
@@ -216,6 +252,7 @@ class _MonitorPageState extends State<MonitorPage> {
   ) {
     return Container(
       height: 300,
+      clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.all(AppThemeData.spacingMedium),
       decoration: BoxDecoration(
         color: theme.cardColor,
@@ -228,13 +265,17 @@ class _MonitorPageState extends State<MonitorPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  color: theme.hintColor,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: theme.hintColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -248,9 +289,8 @@ class _MonitorPageState extends State<MonitorPage> {
               ),
             ],
           ),
-          const Expanded(child: SizedBox(height: 10)),
+          const SizedBox(height: 16),
           Expanded(
-            flex: 8,
             child: LineChart(
               LineChartData(
                 gridData: const FlGridData(show: false),
@@ -280,6 +320,34 @@ class _MonitorPageState extends State<MonitorPage> {
         ],
       ),
     );
+  }
+
+  double _calculateMinY(
+    List<FlSpot> spots,
+    double minRange, {
+    double defaultVal = 0,
+  }) {
+    if (spots.isEmpty) return defaultVal;
+    double min = spots.map((e) => e.y).reduce(math.min);
+    double max = spots.map((e) => e.y).reduce(math.max);
+    if (max - min < minRange) {
+      return min - (minRange - (max - min)) / 2;
+    }
+    return min - (minRange * 0.1);
+  }
+
+  double _calculateMaxY(
+    List<FlSpot> spots,
+    double minRange, {
+    double defaultVal = 100,
+  }) {
+    if (spots.isEmpty) return defaultVal;
+    double min = spots.map((e) => e.y).reduce(math.min);
+    double max = spots.map((e) => e.y).reduce(math.max);
+    if (max - min < minRange) {
+      return max + (minRange - (max - min)) / 2;
+    }
+    return max + (minRange * 0.1);
   }
 }
 

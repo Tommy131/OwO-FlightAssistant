@@ -24,7 +24,7 @@ X-Plane 原生支持 UDP 数据输出，无需额外插件。
 
 ### 2. 在应用中连接
 
-1. 打开 **OwO! FlightCheckList**
+1. 打开 **OwO! FlightAssistant**
 2. 进入 **飞行检查单** 页面
 3. 点击顶部的连接状态按钮
 4. 选择 **"连接 X-Plane"**
@@ -98,7 +98,7 @@ python msfs_websocket_bridge.py
 
 1. **确保 MSFS 正在运行**
 2. **启动 WebSocket 服务器**
-3. 打开 **OwO! FlightCheckList**
+3. 打开 **OwO! FlightAssistant**
 4. 进入 **飞行检查单** 页面
 5. 点击顶部的连接状态按钮
 6. 选择 **"连接 MSFS"**

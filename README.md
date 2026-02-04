@@ -1,4 +1,4 @@
-# OwO! FlightCheckList - 飞行检查单软件
+# OwO! FlightAssistant - 飞行检查单软件
 
 ## 📋 项目简介
 

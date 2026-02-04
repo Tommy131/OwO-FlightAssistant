@@ -5,6 +5,7 @@ import 'package:web_socket_channel/status.dart' as status;
 
 import '../models/simulator_data.dart';
 import '../../core/utils/logger.dart';
+import 'config/msfs_simvars.dart';
 
 /// MSFS 连接服务（通过WebSocket中间层）
 class MSFSService {
@@ -85,44 +86,9 @@ class MSFSService {
   Future<void> _subscribeToSimVars() async {
     if (!_isConnected && _channel == null) return;
 
-    final subscriptions = {
-      'subscribe': [
-        // 飞行数据
-        {'name': 'AIRSPEED_INDICATED', 'unit': 'knots'},
-        {'name': 'INDICATED_ALTITUDE', 'unit': 'feet'},
-        {'name': 'PLANE_HEADING_DEGREES_MAGNETIC', 'unit': 'degrees'},
-        {'name': 'VERTICAL_SPEED', 'unit': 'feet per minute'},
-        {'name': 'PLANE_LATITUDE', 'unit': 'degrees'},
-        {'name': 'PLANE_LONGITUDE', 'unit': 'degrees'},
-
-        // 系统状态
-        {'name': 'BRAKE_PARKING_POSITION', 'unit': 'bool'},
-        {'name': 'LIGHT_BEACON', 'unit': 'bool'},
-        {'name': 'LIGHT_LANDING', 'unit': 'bool'},
-        {'name': 'LIGHT_TAXI', 'unit': 'bool'},
-        {'name': 'LIGHT_NAV', 'unit': 'bool'},
-        {'name': 'LIGHT_STROBE', 'unit': 'bool'},
-        {'name': 'FLAPS_HANDLE_INDEX', 'unit': 'number'},
-        {'name': 'GEAR_HANDLE_POSITION', 'unit': 'bool'},
-
-        // 发动机
-        {'name': 'APU_SWITCH', 'unit': 'bool'},
-        {'name': 'GENERAL_ENG_COMBUSTION:1', 'unit': 'bool'},
-        {'name': 'GENERAL_ENG_COMBUSTION:2', 'unit': 'bool'},
-        {'name': 'ENG_N1:1', 'unit': 'percent'},
-        {'name': 'ENG_N1:2', 'unit': 'percent'},
-
-        // 自动驾驶
-        {'name': 'AUTOPILOT_MASTER', 'unit': 'bool'},
-        {'name': 'AUTOPILOT_THROTTLE_ARM', 'unit': 'bool'},
-
-        // 监控数据
-        {'name': 'G FORCE', 'unit': 'number'},
-        {'name': 'BAROMETER PRESSURE', 'unit': 'Inches of Mercury'},
-      ],
-    };
-
-    _sendMessage(subscriptions);
+    // 使用配置类生成订阅消息
+    final subscriptionMessage = MSFSSimVars.generateSubscriptionMessage();
+    _sendMessage(subscriptionMessage);
   }
 
   /// 处理接收到的消息

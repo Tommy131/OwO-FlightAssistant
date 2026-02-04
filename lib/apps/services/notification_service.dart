@@ -26,7 +26,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
-import '../constants/app_constants.dart';
+import '../../core/constants/app_constants.dart';
 
 // ==================== 数据模型 ====================
 

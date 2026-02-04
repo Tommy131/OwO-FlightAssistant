@@ -3,7 +3,11 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../models/simulator_data.dart';
-import '../utils/logger.dart';
+import '../data/airports_database.dart';
+import '../utils/aircraft_detector.dart';
+import '../utils/data_converters.dart';
+import '../../core/utils/logger.dart';
+import 'config/xplane_datarefs.dart';
 
 /// X-Plane 连接服务（通过UDP）
 class XPlaneService {
@@ -24,10 +28,8 @@ class XPlaneService {
 
   final List<bool> _runwayTurnoffSwitches = List.filled(2, false);
 
-  // 机型识别防抖
-  String? _lastPendingAircraft;
-  int _aircraftDetectionCount = 0;
-  static const int _requiredDetectionFrames = 5; // 需要连续5帧一致
+  // 机型检测器
+  final AircraftDetector _aircraftDetector = AircraftDetector();
 
   final StreamController<SimulatorData> _dataController =
       StreamController<SimulatorData>.broadcast();
@@ -126,54 +128,22 @@ class XPlaneService {
   void _detectAircraftType() {
     if (_isDisposed) return;
 
-    final n1_1 = _currentData.engine1N1 ?? 0;
-    final n1_2 = _currentData.engine2N1 ?? 0;
-    final flapDetents = _currentData.flapsPosition ?? 0;
-
-    // 如果还没有获取到关键特征数据，继续等待
-    if (flapDetents == 0 && n1_1 < 0.1 && n1_2 < 0.1) {
-      return;
-    }
-
-    String detectedType = 'Unknown Aircraft';
-    final isJet = n1_1 > 5 || n1_2 > 5 || flapDetents >= 5;
-
-    if (isJet) {
-      if (flapDetents >= 8) {
-        detectedType = 'Boeing 737';
-      } else if (flapDetents > 0) {
-        detectedType = 'Airbus A320';
-      } else {
-        // 如果是喷气机但还没收到襟翼档位数据，先不急着下结论
-        return;
-      }
-    } else if (flapDetents > 0) {
-      detectedType = 'General Aviation Aircraft';
-    } else {
-      return;
-    }
-
-    // 防抖逻辑：必须连续多帧识别到同一机型
-    if (detectedType == _lastPendingAircraft) {
-      _aircraftDetectionCount++;
-    } else {
-      _lastPendingAircraft = detectedType;
-      _aircraftDetectionCount = 1;
-      return;
-    }
-
-    if (_aircraftDetectionCount < _requiredDetectionFrames) {
-      return;
+    // 使用 AircraftDetector 进行机型检测
+    final result = _aircraftDetector.detectAircraft(_currentData);
+    if (result == null || !result.isStable) {
+      return; // 等待更多数据或等待稳定
     }
 
     // 只有当机型真正改变时才通知
-    if (_currentData.aircraftTitle != detectedType) {
+    if (_currentData.aircraftTitle != result.aircraftType) {
       _currentData = _currentData.copyWith(
-        aircraftTitle: detectedType,
+        aircraftTitle: result.aircraftType,
         isConnected: true,
       );
       _notifyData(_currentData);
-      AppLogger.info('机型自动识别成功: $detectedType (稳定接收)');
+      AppLogger.info(
+        '机型自动识别成功: ${result.aircraftType} (稳定接收, 检测次数: ${result.detectionCount})',
+      );
     }
   }
 
@@ -181,168 +151,28 @@ class XPlaneService {
   void _detectAirportByCoords(double lat, double lon) {
     if (lat == 0 && lon == 0 || _isDisposed) return;
 
-    // TODO: 完善机场数据库
-    final Map<String, List<double>> airportDb = {
-      'ZBAA 北京首都': [40.072, 116.597],
-      'ZBSJ 石家庄正定': [38.281, 114.697],
-      'ZBTJ 天津滨海': [39.124, 117.346],
-      'ZSPD 上海浦东': [31.144, 121.805],
-      'ZSSS 上海虹桥': [31.198, 121.336],
-      'ZGGZ 广州白云': [23.392, 113.299],
-      'ZGSZ 深圳宝安': [22.639, 113.811],
-      'VHHH 香港赤鱲角': [22.308, 113.914],
-      'ZUUU 成都双流': [30.578, 103.947],
-      'RKSI 首尔仁川': [37.469, 126.451],
-      'RJTT 东京羽田': [35.549, 139.779],
-      'KJFK 纽约肯尼迪': [40.641, -73.778],
-      'EGLL 伦敦希思罗': [51.470, -0.454],
-    };
+    // 使用 AirportsDatabase 查找最近的机场
+    final nearestAirport = AirportsDatabase.findNearestByCoords(lat, lon);
 
-    String? foundAirport;
-    double minDistance = 0.05;
-
-    airportDb.forEach((icao, coords) {
-      final double dLat = (lat - coords[0]).abs();
-      final double dLon = (lon - coords[1]).abs();
-      if (dLat < minDistance && dLon < minDistance) {
-        foundAirport = icao;
-      }
-    });
-
-    if (foundAirport != null && _currentData.departureAirport != foundAirport) {
-      _currentData = _currentData.copyWith(departureAirport: foundAirport);
-      AppLogger.info('经纬度匹配到临近机场: $foundAirport');
+    if (nearestAirport != null &&
+        _currentData.departureAirport != nearestAirport.displayName) {
+      _currentData = _currentData.copyWith(
+        departureAirport: nearestAirport.displayName,
+      );
+      AppLogger.info('经纬度匹配到临近机场: ${nearestAirport.displayName}');
     }
   }
 
   /// 订阅DataRefs
   Future<void> _subscribeToDataRefs() async {
-    // 飞行数据
-    await _subscribeDataRef(0, 'sim/flightmodel/position/indicated_airspeed');
-    await _subscribeDataRef(1, 'sim/flightmodel/position/elevation');
-    await _subscribeDataRef(2, 'sim/flightmodel/position/mag_psi');
-    await _subscribeDataRef(3, 'sim/flightmodel/position/vh_ind');
-
-    // 位置和导航
-    await _subscribeDataRef(4, 'sim/flightmodel/position/latitude');
-    await _subscribeDataRef(5, 'sim/flightmodel/position/longitude');
-    await _subscribeDataRef(6, 'sim/flightmodel/position/groundspeed');
-    await _subscribeDataRef(7, 'sim/flightmodel/position/true_airspeed');
-
-    // 环境数据
-    await _subscribeDataRef(40, 'sim/weather/temperature_ambient_c');
-    await _subscribeDataRef(41, 'sim/weather/temperature_le_c');
-    await _subscribeDataRef(42, 'sim/weather/wind_speed_kt');
-    await _subscribeDataRef(43, 'sim/weather/wind_direction_degt');
-
-    // 模拟器状态
-    await _subscribeDataRef(100, 'sim/time/paused'); // 暂停状态
-    await _subscribeDataRef(
-      101,
-      'sim/flightmodel/failures/onground_any',
-    ); // 地面状态
-
-    // 系统状态
-    await _subscribeDataRef(10, 'sim/cockpit/switches/parking_brake');
-    await _subscribeDataRef(11, 'sim/cockpit/electrical/beacon_lights_on');
-
-    // Landing Lights (组合检测)
-    await _subscribeDataRef(
-      12,
-      'sim/cockpit2/switches/landing_lights_on',
-    ); // 通用开关
-    await _subscribeDataRef(
-      120,
-      'sim/cockpit2/switches/landing_lights_switch[0]',
-    );
-    await _subscribeDataRef(
-      121,
-      'sim/cockpit2/switches/landing_lights_switch[1]',
-    );
-    await _subscribeDataRef(
-      122,
-      'sim/cockpit2/switches/landing_lights_switch[2]',
-    );
-    await _subscribeDataRef(
-      123,
-      'sim/cockpit2/switches/landing_lights_switch[3]',
-    );
-
-    // Taxi Lights
-    await _subscribeDataRef(
-      13,
-      'sim/cockpit2/switches/generic_lights_switch[4]',
-    );
-
-    await _subscribeDataRef(14, 'sim/cockpit2/switches/navigation_lights_on');
-    await _subscribeDataRef(15, 'sim/cockpit/electrical/strobe_lights_on');
-
-    // 修正 Logo 和 Wing 灯的映射 (交换索引)
-    // 根据用户反馈反了，此处假设 generic[0] 是 Wing, generic[1] 是 Logo
-    await _subscribeDataRef(
-      18,
-      'sim/cockpit2/switches/generic_lights_switch[1]',
-    ); // Logo灯
-    await _subscribeDataRef(
-      19,
-      'sim/cockpit2/switches/generic_lights_switch[0]',
-    ); // 机翼灯
-
-    // 跑道脱离灯 (Runway Turnoff - 左右双开关，基于插件机常用的 generic 索引)
-    await _subscribeDataRef(
-      250,
-      'sim/cockpit2/switches/generic_lights_switch[2]',
-    ); // 左开关
-    await _subscribeDataRef(
-      251,
-      'sim/cockpit2/switches/generic_lights_switch[3]',
-    ); // 右开关
-
-    // 轮舱灯 (Wheel Well - 您已确认是索引5)
-    await _subscribeDataRef(
-      27,
-      'sim/cockpit2/switches/generic_lights_switch[5]',
-    );
-
-    await _subscribeDataRef(16, 'sim/flightmodel/controls/flaprqst');
-    await _subscribeDataRef(
-      26,
-      'sim/flightmodel2/controls/flap_handle_deploy_ratio',
-    ); // 襟翼角度
-    await _subscribeDataRef(17, 'sim/aircraft/parts/acf_gear_deploy');
-
-    // 燃油和发动机
-    await _subscribeDataRef(50, 'sim/flightmodel/weight/m_fuel_total');
-    await _subscribeDataRef(
-      51,
-      'sim/cockpit2/engine/indicators/fuel_flow_kg_sec[0]',
-    );
-    await _subscribeDataRef(20, 'sim/cockpit/engine/APU_running');
-    await _subscribeDataRef(21, 'sim/flightmodel/engine/ENGN_running[0]');
-    await _subscribeDataRef(22, 'sim/flightmodel/engine/ENGN_running[1]');
-    await _subscribeDataRef(60, 'sim/flightmodel/engine/ENGN_N1_[0]');
-    await _subscribeDataRef(61, 'sim/flightmodel/engine/ENGN_N1_[1]');
-    await _subscribeDataRef(62, 'sim/flightmodel/engine/ENGN_EGT_c[0]');
-    await _subscribeDataRef(63, 'sim/flightmodel/engine/ENGN_EGT_c[1]');
-
-    // 机型与机场辅助
-    await _subscribeDataRef(102, 'sim/aircraft/engine/acf_num_engines');
-    await _subscribeDataRef(104, 'sim/aircraft/controls/acf_flap_detents');
-    await _subscribeDataRef(
-      110,
-      'sim/cockpit2/radios/indicators/com1_frequency_hz',
-    );
-
-    // 自动驾驶
-    await _subscribeDataRef(30, 'sim/cockpit/autopilot/autopilot_mode');
-    await _subscribeDataRef(31, 'sim/cockpit/autopilot/autothrottle_enabled');
-
-    // 监控数据 (G力与气压)
-    await _subscribeDataRef(70, 'sim/flightmodel/forces/g_nrml');
-    await _subscribeDataRef(71, 'sim/weather/barometer_current_inhg');
+    // 批量订阅所有配置的 DataRefs
+    final allDataRefs = XPlaneDataRefs.getAllDataRefs();
+    for (final dataRef in allDataRefs) {
+      await _subscribeDataRef(dataRef.index, dataRef.path);
+    }
   }
 
-  int _debugPacketCounter = 0;
+  // int _debugPacketCounter = 0;
 
   void _handleIncomingData(Uint8List data) {
     if (_isDisposed) return;
@@ -356,7 +186,7 @@ class XPlaneService {
     final int dataCount = (data.length - 5) ~/ 8;
 
     // 调试输出：每100个包输出一次原始数据采样
-    _debugPacketCounter++;
+    /* _debugPacketCounter++;
     if (_debugPacketCounter >= 100) {
       _debugPacketCounter = 0;
       final List<String> parsedValues = [];
@@ -371,7 +201,7 @@ class XPlaneService {
       AppLogger.debug(
         'X-Plane 原始数据包采样: Len=${data.length}, 内容: ${parsedValues.join(", ")}...',
       );
-    }
+    } */
 
     if (dataCount > 0) {
       for (int i = 5; i < data.length; i += 8) {
@@ -405,13 +235,17 @@ class XPlaneService {
         _currentData = _currentData.copyWith(airspeed: value);
         break;
       case 1:
-        _currentData = _currentData.copyWith(altitude: value * 3.28084);
+        _currentData = _currentData.copyWith(
+          altitude: DataConverters.metersToFeet(value),
+        );
         break;
       case 2:
         _currentData = _currentData.copyWith(heading: value);
         break;
       case 3:
-        _currentData = _currentData.copyWith(verticalSpeed: value * 196.85);
+        _currentData = _currentData.copyWith(
+          verticalSpeed: DataConverters.mpsToFpm(value),
+        );
         break;
       case 4:
         _currentData = _currentData.copyWith(latitude: value);
@@ -428,10 +262,14 @@ class XPlaneService {
         );
         break;
       case 6:
-        _currentData = _currentData.copyWith(groundSpeed: value * 1.94384);
+        _currentData = _currentData.copyWith(
+          groundSpeed: DataConverters.mpsToKnots(value),
+        );
         break;
       case 7:
-        _currentData = _currentData.copyWith(trueAirspeed: value * 1.94384);
+        _currentData = _currentData.copyWith(
+          trueAirspeed: DataConverters.mpsToKnots(value),
+        );
         break;
       case 10:
         _currentData = _currentData.copyWith(parkingBrake: value > 0.5);
@@ -483,7 +321,9 @@ class XPlaneService {
         break;
       case 26:
         // 襟翼角度,0-1的比例转换为实际角度(假设最大40度)
-        _currentData = _currentData.copyWith(flapsAngle: value * 40.0);
+        _currentData = _currentData.copyWith(
+          flapsAngle: DataConverters.flapRatioToDegrees(value),
+        );
         break;
       case 27:
         _currentData = _currentData.copyWith(wheelWellLights: value > 0.5);
@@ -510,7 +350,9 @@ class XPlaneService {
         _currentData = _currentData.copyWith(fuelQuantity: value);
         break;
       case 51:
-        _currentData = _currentData.copyWith(fuelFlow: value * 3600);
+        _currentData = _currentData.copyWith(
+          fuelFlow: DataConverters.kgsToKgh(value),
+        );
         break;
       case 60:
         _currentData = _currentData.copyWith(engine1N1: value);
@@ -635,16 +477,14 @@ class XPlaneService {
   }
 
   int _bytesToInt32(Uint8List bytes) {
-    return ByteData.sublistView(bytes).getInt32(0, Endian.little);
+    return DataConverters.bytesToInt32(bytes);
   }
 
   double _bytesToFloat32(Uint8List bytes) {
-    return ByteData.sublistView(bytes).getFloat32(0, Endian.little);
+    return DataConverters.bytesToFloat32(bytes);
   }
 
   List<int> _int32ToBytes(int value) {
-    final Uint8List bytes = Uint8List(4);
-    ByteData.view(bytes.buffer).setInt32(0, value, Endian.little);
-    return bytes.toList();
+    return DataConverters.int32ToBytes(value);
   }
 }

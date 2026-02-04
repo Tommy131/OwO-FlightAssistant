@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme_data.dart';
 import '../../models/navigation_item.dart';
 import '../../theme/theme_provider.dart';
-import '../../providers/simulator_provider.dart';
-import '../../models/simulator_data.dart';
+import '../../../apps/providers/simulator_provider.dart';
+import '../../../apps/models/simulator_data.dart';
 
 /// 桌面端侧边栏组件（紧凑型）
 /// 支持展开/折叠，带有流畅的动画过渡

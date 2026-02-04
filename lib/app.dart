@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'core/theme/theme_provider.dart';
-import 'core/providers/checklist_provider.dart';
-import 'core/providers/simulator_provider.dart';
+import 'apps/providers/checklist_provider.dart';
+import 'apps/providers/simulator_provider.dart';
 import 'core/constants/app_constants.dart';
 import 'core/layouts/desktop_layout.dart';
 import 'core/layouts/mobile_layout.dart';
@@ -66,18 +66,18 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       page: HomePage(),
     ),
     NavigationItem(
-      id: 'checklist',
-      title: '飞行检查单',
-      icon: Icons.checklist_outlined,
-      activeIcon: Icons.checklist,
-      page: ChecklistPage(),
-    ),
-    NavigationItem(
       id: 'monitor',
       title: '飞行监控',
       icon: Icons.speed_outlined,
       activeIcon: Icons.speed,
       page: MonitorPage(),
+    ),
+    NavigationItem(
+      id: 'checklist',
+      title: '飞行检查单',
+      icon: Icons.checklist_outlined,
+      activeIcon: Icons.checklist,
+      page: ChecklistPage(),
     ),
     NavigationItem(
       id: 'settings',
