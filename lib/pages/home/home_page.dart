@@ -797,7 +797,7 @@ class HomePage extends StatelessWidget {
     // 着陆灯光 - 白绿色系
     const landingLightsColor = Color(0xFF7CB342); // 着陆灯 - 草绿色
 
-    // 飞行控制系统 - 蓝色系
+    // 飞行控制系统
     const gearColor = Color(0xFF5E35B1); // 起落架 - 深紫蓝
     const parkingBrakeColor = Color(0xFFFF6F00); // 停机刹车 - 深橙色
 
@@ -832,95 +832,89 @@ class HomePage extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const Spacer(),
-              // 暂停状态提示
-              /* if (data.isPaused == true)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.orange),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.pause_circle, size: 16, color: Colors.orange),
-                      const SizedBox(width: 6),
-                      Text(
-                        '模拟器已暂停',
-                        style: TextStyle(
-                          color: Colors.orange,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ), */
             ],
           ),
-          const SizedBox(height: AppThemeData.spacingMedium),
+          const SizedBox(height: AppThemeData.spacingLarge),
+
+          // 分类别显示
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppThemeData.spacingLarge,
+            runSpacing: AppThemeData.spacingLarge,
             children: [
-              // === 飞行状态 ===
-              if (data.onGround == true)
-                _buildStatusBadge(theme, '地面', onGroundColor),
+              // === 飞行与动力组 ===
+              _buildStatusSection(theme, '飞行与控制', [
+                if (data.onGround == true)
+                  _buildStatusBadge(theme, '地面', onGroundColor),
+                if (data.parkingBrake == true)
+                  _buildStatusBadge(theme, '停机刹车', parkingBrakeColor),
+                if (data.gearDown == true)
+                  _buildStatusBadge(theme, '起落架', gearColor),
+              ]),
 
-              // === 飞行控制系统 ===
-              if (data.parkingBrake == true)
-                _buildStatusBadge(theme, '停机刹车', parkingBrakeColor),
-              if (data.gearDown == true)
-                _buildStatusBadge(theme, '起落架', gearColor),
+              // === 动力与自动化组 ===
+              _buildStatusSection(theme, '动力与自动化', [
+                if (data.apuRunning == true)
+                  _buildStatusBadge(theme, 'APU', apuColor),
+                if (data.engine1Running == true)
+                  _buildStatusBadge(theme, '左发动机', engineColor),
+                if (data.engine2Running == true)
+                  _buildStatusBadge(theme, '右发动机', engineColor),
+                if (data.autopilotEngaged == true)
+                  _buildStatusBadge(theme, '自动驾驶', autopilotColor),
+                if (data.autothrottleEngaged == true)
+                  _buildStatusBadge(theme, '自动油门', autothrottleColor),
+              ]),
 
-              // === 外部警示灯光 ===
-              if (data.beacon == true)
-                _buildStatusBadge(theme, '信标灯', beaconColor),
-              if (data.strobes == true)
-                _buildStatusBadge(theme, '频闪灯', strobeColor),
-
-              // === 导航/位置灯光 ===
-              if (data.navLights == true)
-                _buildStatusBadge(theme, '导航灯', navLightsColor),
-              if (data.logoLights == true)
-                _buildStatusBadge(theme, 'Logo灯', logoLightsColor),
-              if (data.wingLights == true)
-                _buildStatusBadge(theme, '机翼灯', wingLightsColor),
-
-              // === 着陆灯光 ===
-              if (data.landingLights == true)
-                _buildStatusBadge(theme, '着陆灯', landingLightsColor),
-
-              // === 地面操作灯光 ===
-              if (data.taxiLights == true)
-                _buildStatusBadge(theme, '滑行灯', taxiLightsColor),
-              if (data.runwayTurnoffLights == true)
-                _buildStatusBadge(theme, '跑道脱离灯', runwayTurnoffColor),
-              if (data.wheelWellLights == true)
-                _buildStatusBadge(theme, '轮舱灯', wheelWellColor),
-
-              // === 动力系统 ===
-              if (data.apuRunning == true)
-                _buildStatusBadge(theme, 'APU', apuColor),
-              if (data.engine1Running == true)
-                _buildStatusBadge(theme, '发动机1', engineColor),
-              if (data.engine2Running == true)
-                _buildStatusBadge(theme, '发动机2', engineColor),
-
-              // === 自动化系统 ===
-              if (data.autopilotEngaged == true)
-                _buildStatusBadge(theme, '自动驾驶', autopilotColor),
-              if (data.autothrottleEngaged == true)
-                _buildStatusBadge(theme, '自动油门', autothrottleColor),
+              // === 外部灯光组 ===
+              _buildStatusSection(theme, '外部灯光', [
+                if (data.beacon == true)
+                  _buildStatusBadge(theme, '信标灯', beaconColor),
+                if (data.strobes == true)
+                  _buildStatusBadge(theme, '频闪灯', strobeColor),
+                if (data.navLights == true)
+                  _buildStatusBadge(theme, '导航灯', navLightsColor),
+                if (data.logoLights == true)
+                  _buildStatusBadge(theme, 'Logo灯', logoLightsColor),
+                if (data.wingLights == true)
+                  _buildStatusBadge(theme, '机翼灯', wingLightsColor),
+                if (data.landingLights == true)
+                  _buildStatusBadge(theme, '着陆灯', landingLightsColor),
+                if (data.taxiLights == true)
+                  _buildStatusBadge(theme, '滑行灯', taxiLightsColor),
+                if (data.runwayTurnoffLights == true)
+                  _buildStatusBadge(theme, '跑道脱离灯', runwayTurnoffColor),
+                if (data.wheelWellLights == true)
+                  _buildStatusBadge(theme, '轮舱灯', wheelWellColor),
+              ]),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatusSection(
+    ThemeData theme,
+    String title,
+    List<Widget> children,
+  ) {
+    if (children.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.hintColor,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: children),
+      ],
     );
   }
 
