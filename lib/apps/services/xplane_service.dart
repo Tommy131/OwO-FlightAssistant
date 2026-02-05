@@ -12,7 +12,7 @@ import 'config/xplane_datarefs.dart';
 /// X-Plane 连接服务（通过UDP）
 class XPlaneService {
   static const int _xplanePort = 49000; // X-Plane 接收端口
-  static const int _localPort = 49001; // 本地监听端口
+  static const int _localPort = 19190; // 本地监听端口
   static const Duration _connectionTimeout = Duration(seconds: 5);
 
   RawDatagramSocket? _socket;
@@ -402,6 +402,103 @@ class XPlaneService {
       case 123:
         _landingLightSwitches[3] = value > 0.5;
         _updateLandingLightsStatus();
+        break;
+      // 起落架详细状态
+      case 130:
+        _currentData = _currentData.copyWith(noseGearDown: value > 0.5);
+        break;
+      case 131:
+        _currentData = _currentData.copyWith(leftGearDown: value > 0.5);
+        break;
+      case 132:
+        _currentData = _currentData.copyWith(rightGearDown: value > 0.5);
+        break;
+      // 襟翼状态
+      case 135:
+        _currentData = _currentData.copyWith(
+          flapsDeployRatio: value,
+          flapsDeployed: value > 0.05, // 展开比例 > 5% 认为已展开
+        );
+        break;
+      case 136:
+        _currentData = _currentData.copyWith(flapsAngle: value);
+        break;
+      case 137:
+        // ZIBO 738 襟翼手柄位置: 0, 1, 2, 3, 4, 5, 6, 7, 8
+        // 对应: UP, 1, 2, 5, 10, 15, 25, 30, 40
+        final leverPos = value.round();
+        String? label;
+        double? angle;
+        const ziboFlaps = [
+          0.0, // 0 = UP
+          1.0, // 1 = 1°
+          2.0, // 2 = 2°
+          5.0, // 3 = 5°
+          10.0, // 4 = 10°
+          15.0, // 5 = 15°
+          25.0, // 6 = 25°
+          30.0, // 7 = 30°
+          40.0, // 8 = 40°
+        ];
+        if (leverPos >= 0 && leverPos < ziboFlaps.length) {
+          angle = ziboFlaps[leverPos];
+          label = leverPos == 0 ? 'UP' : angle.toInt().toString();
+          _currentData = _currentData.copyWith(
+            flapsAngle: angle,
+            flapsDeployed: leverPos > 0,
+            flapsLabel: label,
+          );
+        }
+        break;
+      // 减速板与扰流板
+      case 140:
+        _currentData = _currentData.copyWith(
+          speedBrake: value > 0.05,
+          speedBrakePosition: value,
+        );
+        break;
+      case 141:
+        _currentData = _currentData.copyWith(
+          spoilersDeployed: value > 5.0, // 角度大于5度认为展开
+        );
+        break;
+      // 自动刹车
+      case 150:
+        // 注意：-1 表示不支持或未设置，0 表示 OFF
+        final level = value.toInt();
+        _currentData = _currentData.copyWith(
+          autoBrakeLevel: (level >= 1 && level <= 5) ? level : null,
+        );
+        break;
+      case 151:
+        // ZIBO 738 自动刹车原始值：0, 1, 2, 3, 4, 5
+        // 对应：0=RTO, 1=OFF, 2=1, 3=2, 4=3, 5=MAX(4)
+        final ziboPos = value.round();
+        int? displayLevel;
+        if (ziboPos == 0) {
+          displayLevel = 5; // RTO
+        } else if (ziboPos >= 2 && ziboPos <= 5) {
+          displayLevel = ziboPos - 1; // 2->1, 3->2, 4->3, 5->4(MAX)
+        } else {
+          displayLevel = null; // OFF (1)
+        }
+        _currentData = _currentData.copyWith(autoBrakeLevel: displayLevel);
+        break;
+      // 警告系统
+      case 160:
+        _currentData = _currentData.copyWith(masterWarning: value > 0.5);
+        break;
+      case 161:
+        _currentData = _currentData.copyWith(masterCaution: value > 0.5);
+        break;
+      case 162:
+        _currentData = _currentData.copyWith(fireWarningEngine1: value > 0.5);
+        break;
+      case 163:
+        _currentData = _currentData.copyWith(fireWarningEngine2: value > 0.5);
+        break;
+      case 164:
+        _currentData = _currentData.copyWith(fireWarningAPU: value > 0.5);
         break;
     }
   }

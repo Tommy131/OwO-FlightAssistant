@@ -71,8 +71,8 @@ class XPlaneDataRefs {
 
   static const XPlaneDataRef parkingBrake = XPlaneDataRef(
     index: 10,
-    path: 'sim/cockpit/switches/parking_brake',
-    description: '停机刹车',
+    path: 'sim/flightmodel/controls/parkbrake',
+    description: '停机刹车状态',
   );
 
   static const XPlaneDataRef beaconLights = XPlaneDataRef(
@@ -325,6 +325,106 @@ class XPlaneDataRefs {
     description: '跑道脱离灯右',
   );
 
+  // ====================  起落架详细状态 ====================
+
+  static const XPlaneDataRef noseGearDeploy = XPlaneDataRef(
+    index: 130,
+    path: 'sim/flightmodel2/gear/deploy_ratio[0]',
+    description: '前起落架展开比例',
+  );
+
+  static const XPlaneDataRef leftGearDeploy = XPlaneDataRef(
+    index: 131,
+    path: 'sim/flightmodel2/gear/deploy_ratio[1]',
+    description: '左主起落架展开比例',
+  );
+
+  static const XPlaneDataRef rightGearDeploy = XPlaneDataRef(
+    index: 132,
+    path: 'sim/flightmodel2/gear/deploy_ratio[2]',
+    description: '右主起落架展开比例',
+  );
+
+  // ====================  减速板与扰流板 ====================
+
+  static const XPlaneDataRef speedBrakeRatio = XPlaneDataRef(
+    index: 140,
+    path: 'sim/cockpit2/controls/speedbrake_ratio',
+    description: '速度刹车/减速板位置',
+  );
+
+  static const XPlaneDataRef spoilersDeployed = XPlaneDataRef(
+    index: 141,
+    path: 'sim/flightmodel2/wing/spoiler1_deg[0]',
+    description: '扰流板展开角度',
+  );
+
+  // ====================  襟翼状态 ====================
+
+  static const XPlaneDataRef flapsDeployRatio = XPlaneDataRef(
+    index: 135,
+    path: 'sim/flightmodel2/controls/flap_handle_deploy_ratio',
+    description: '襟翼手柄展开比例',
+  );
+
+  static const XPlaneDataRef flapsActualDegrees = XPlaneDataRef(
+    index: 136,
+    path: 'sim/flightmodel2/wing/flap1_deg[0]',
+    description: '襟翼实际角度',
+  );
+
+  static const XPlaneDataRef flapsLeverZibo = XPlaneDataRef(
+    index: 137,
+    path: 'laminar/B738/flt_ctrls/flap_lever',
+    description: 'ZIBO 738襟翼手柄位置',
+  );
+
+  // ====================  自动刹车 ====================
+
+  static const XPlaneDataRef autoBrake = XPlaneDataRef(
+    index: 150,
+    path: 'sim/cockpit2/switches/auto_brake_level',
+    description: '自动刹车挡位（通用）',
+  );
+
+  static const XPlaneDataRef autoBrakeZibo = XPlaneDataRef(
+    index: 151,
+    path: 'laminar/B738/autobrake/autobrake_pos',
+    description: 'ZIBO 738自动刹车位置',
+  );
+
+  // ====================  警告系统 ====================
+
+  static const XPlaneDataRef masterWarning = XPlaneDataRef(
+    index: 160,
+    path: 'sim/cockpit2/annunciators/master_warning',
+    description: '主警告',
+  );
+
+  static const XPlaneDataRef masterCaution = XPlaneDataRef(
+    index: 161,
+    path: 'sim/cockpit2/annunciators/master_caution',
+    description: '主告警',
+  );
+
+  static const XPlaneDataRef fireWarningEng1 = XPlaneDataRef(
+    index: 162,
+    path: 'sim/cockpit2/annunciators/fire_warning[0]',
+    description: '发动机1火警',
+  );
+
+  static const XPlaneDataRef fireWarningEng2 = XPlaneDataRef(
+    index: 163,
+    path: 'sim/cockpit2/annunciators/fire_warning[1]',
+    description: '发动机2火警',
+  );
+
+  static const XPlaneDataRef fireWarningAPU = XPlaneDataRef(
+    index: 164,
+    path: 'sim/cockpit2/annunciators/fire_warning[2]',
+    description: 'APU火警',
+  );
+
   // ==================== 获取所有DataRefs ====================
 
   /// 获取所有需要订阅的 DataRef 列表
@@ -360,6 +460,17 @@ class XPlaneDataRefs {
       gForce, baroPressure,
       // 机型辅助
       numEngines, flapDetents, com1Frequency,
+      // 起落架详细状态
+      noseGearDeploy, leftGearDeploy, rightGearDeploy,
+      // 襟翼状态
+      flapsDeployRatio, flapsActualDegrees, flapsLeverZibo,
+      // 减速板与扰流板
+      speedBrakeRatio, spoilersDeployed,
+      // 自动刹车
+      autoBrake, autoBrakeZibo,
+      // 警告系统
+      masterWarning, masterCaution,
+      fireWarningEng1, fireWarningEng2, fireWarningAPU,
     ];
   }
 }

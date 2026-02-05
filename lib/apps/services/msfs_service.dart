@@ -145,11 +145,11 @@ class MSFSService {
       );
     }
 
-    if (data.containsKey('BRAKE_PARKING_POSITION')) {
+    if (data.containsKey('BRAKE PARKING INDICATOR')) {
       _currentData = _currentData.copyWith(
         parkingBrake:
-            data['BRAKE_PARKING_POSITION'] == true ||
-            data['BRAKE_PARKING_POSITION'] == 1,
+            data['BRAKE PARKING INDICATOR'] == true ||
+            data['BRAKE PARKING INDICATOR'] == 1,
       );
     }
 
@@ -195,6 +195,15 @@ class MSFSService {
         gearDown:
             data['GEAR_HANDLE_POSITION'] == true ||
             data['GEAR_HANDLE_POSITION'] == 1,
+      );
+    }
+
+    if (data.containsKey('TRAILING_EDGE_FLAPS_LEFT_PERCENT')) {
+      final ratio = (data['TRAILING_EDGE_FLAPS_LEFT_PERCENT'] as num?)
+          ?.toDouble();
+      _currentData = _currentData.copyWith(
+        flapsDeployRatio: ratio,
+        flapsDeployed: ratio != null && ratio > 0.05,
       );
     }
 
@@ -256,6 +265,90 @@ class MSFSService {
     if (data.containsKey('BAROMETER PRESSURE')) {
       _currentData = _currentData.copyWith(
         baroPressure: (data['BAROMETER PRESSURE'] as num?)?.toDouble(),
+      );
+    }
+
+    // 起落架详细状态
+    if (data.containsKey('GEAR CENTER POSITION')) {
+      _currentData = _currentData.copyWith(
+        noseGearDown:
+            (data['GEAR CENTER POSITION'] as num?) != null &&
+            (data['GEAR CENTER POSITION'] as num) > 0.5,
+      );
+    }
+
+    if (data.containsKey('GEAR LEFT POSITION')) {
+      _currentData = _currentData.copyWith(
+        leftGearDown:
+            (data['GEAR LEFT POSITION'] as num?) != null &&
+            (data['GEAR LEFT POSITION'] as num) > 0.5,
+      );
+    }
+
+    if (data.containsKey('GEAR RIGHT POSITION')) {
+      _currentData = _currentData.copyWith(
+        rightGearDown:
+            (data['GEAR RIGHT POSITION'] as num?) != null &&
+            (data['GEAR RIGHT POSITION'] as num) > 0.5,
+      );
+    }
+
+    // 减速板与扰流板
+    if (data.containsKey('SPOILERS HANDLE POSITION')) {
+      final position = (data['SPOILERS HANDLE POSITION'] as num?)?.toDouble();
+      _currentData = _currentData.copyWith(
+        speedBrake: position != null && position > 0.05,
+        speedBrakePosition: position,
+      );
+    }
+
+    if (data.containsKey('SPOILERS LEFT POSITION')) {
+      final position = (data['SPOILERS LEFT POSITION'] as num?)?.toDouble();
+      _currentData = _currentData.copyWith(
+        spoilersDeployed: position != null && position > 0.1,
+      );
+    }
+
+    // 自动刹车
+    if (data.containsKey('AUTOBRAKES_ACTIVE')) {
+      final level = (data['AUTOBRAKES_ACTIVE'] as num?)?.toInt();
+      _currentData = _currentData.copyWith(
+        autoBrakeLevel: level != null && level > 0 ? level : null,
+      );
+    }
+
+    // 警告系统
+    if (data.containsKey('MASTER WARNING')) {
+      _currentData = _currentData.copyWith(
+        masterWarning:
+            data['MASTER WARNING'] == true || data['MASTER WARNING'] == 1,
+      );
+    }
+
+    if (data.containsKey('MASTER CAUTION')) {
+      _currentData = _currentData.copyWith(
+        masterCaution:
+            data['MASTER CAUTION'] == true || data['MASTER CAUTION'] == 1,
+      );
+    }
+
+    if (data.containsKey('ENG ON FIRE:1')) {
+      _currentData = _currentData.copyWith(
+        fireWarningEngine1:
+            data['ENG ON FIRE:1'] == true || data['ENG ON FIRE:1'] == 1,
+      );
+    }
+
+    if (data.containsKey('ENG ON FIRE:2')) {
+      _currentData = _currentData.copyWith(
+        fireWarningEngine2:
+            data['ENG ON FIRE:2'] == true || data['ENG ON FIRE:2'] == 1,
+      );
+    }
+
+    if (data.containsKey('APU ON FIRE')) {
+      _currentData = _currentData.copyWith(
+        fireWarningAPU: data['APU ON FIRE'] == true || data['APU ON FIRE'] == 1,
       );
     }
 

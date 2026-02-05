@@ -67,7 +67,7 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
     ),
     NavigationItem(
       id: 'monitor',
-      title: '飞行监控',
+      title: '飞行仪表盘',
       icon: Icons.speed_outlined,
       activeIcon: Icons.speed,
       page: MonitorPage(),

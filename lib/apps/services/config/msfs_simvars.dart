@@ -59,9 +59,9 @@ class MSFSSimVars {
   // ==================== 系统状态 ====================
 
   static const MSFSSimVar parkingBrake = MSFSSimVar(
-    name: 'BRAKE_PARKING_POSITION',
+    name: 'BRAKE PARKING INDICATOR',
     unit: 'bool',
-    description: '停机刹车',
+    description: '停机刹车指示',
   );
 
   static const MSFSSimVar beaconLight = MSFSSimVar(
@@ -104,6 +104,12 @@ class MSFSSimVars {
     name: 'GEAR_HANDLE_POSITION',
     unit: 'bool',
     description: '起落架手柄位置',
+  );
+
+  static const MSFSSimVar flapsDeployRatio = MSFSSimVar(
+    name: 'TRAILING_EDGE_FLAPS_LEFT_PERCENT',
+    unit: 'percent over 100',
+    description: '襟翼展开比例',
   );
 
   // ==================== 发动机 ====================
@@ -166,6 +172,80 @@ class MSFSSimVars {
     description: '气压',
   );
 
+  // ====================  起落架详细状态 ====================
+
+  static const MSFSSimVar noseGearPosition = MSFSSimVar(
+    name: 'GEAR CENTER POSITION',
+    unit: 'percent over 100',
+    description: '前起落架位置',
+  );
+
+  static const MSFSSimVar leftGearPosition = MSFSSimVar(
+    name: 'GEAR LEFT POSITION',
+    unit: 'percent over 100',
+    description: '左主起落架位置',
+  );
+
+  static const MSFSSimVar rightGearPosition = MSFSSimVar(
+    name: 'GEAR RIGHT POSITION',
+    unit: 'percent over 100',
+    description: '右主起落架位置',
+  );
+
+  // ====================  减速板与扰流板 ====================
+
+  static const MSFSSimVar speedBrakePosition = MSFSSimVar(
+    name: 'SPOILERS HANDLE POSITION',
+    unit: 'percent over 100',
+    description: '减速板手柄位置',
+  );
+
+  static const MSFSSimVar spoilersDeployed = MSFSSimVar(
+    name: 'SPOILERS LEFT POSITION',
+    unit: 'percent over 100',
+    description: '扰流板展开位置',
+  );
+
+  // ====================  自动刹车 ====================
+
+  static const MSFSSimVar autoBrakeSwitch = MSFSSimVar(
+    name: 'AUTOBRAKES_ACTIVE',
+    unit: 'number',
+    description: '自动刹车激活状态',
+  );
+
+  // ====================  警告系统 ====================
+
+  static const MSFSSimVar masterWarning = MSFSSimVar(
+    name: 'MASTER WARNING',
+    unit: 'bool',
+    description: '主警告',
+  );
+
+  static const MSFSSimVar masterCaution = MSFSSimVar(
+    name: 'MASTER CAUTION',
+    unit: 'bool',
+    description: '主告警',
+  );
+
+  static const MSFSSimVar engineFire1 = MSFSSimVar(
+    name: 'ENG ON FIRE:1',
+    unit: 'bool',
+    description: '发动机1火警',
+  );
+
+  static const MSFSSimVar engineFire2 = MSFSSimVar(
+    name: 'ENG ON FIRE:2',
+    unit: 'bool',
+    description: '发动机2火警',
+  );
+
+  static const MSFSSimVar apuFire = MSFSSimVar(
+    name: 'APU ON FIRE',
+    unit: 'bool',
+    description: 'APU火警',
+  );
+
   // ==================== 获取所有SimVars ====================
 
   /// 获取所有需要订阅的 SimVar 列表
@@ -175,13 +255,22 @@ class MSFSSimVars {
       airspeed, altitude, heading, verticalSpeed, latitude, longitude,
       // 系统状态
       parkingBrake, beaconLight, landingLight, taxiLight, navLight, strobeLight,
-      flapsHandleIndex, gearHandlePosition,
+      flapsHandleIndex, flapsDeployRatio, gearHandlePosition,
       // 发动机
       apuSwitch, engine1Combustion, engine2Combustion, engine1N1, engine2N1,
       // 自动驾驶
       autopilotMaster, autopilotThrottle,
       // 监控数据
       gForce, barometerPressure,
+      // 起落架详细状态
+      noseGearPosition, leftGearPosition, rightGearPosition,
+      // 减速板与扰流板
+      speedBrakePosition, spoilersDeployed,
+      // 自动刹车
+      autoBrakeSwitch,
+      // 警告系统
+      masterWarning, masterCaution,
+      engineFire1, engineFire2, apuFire,
     ];
   }
 

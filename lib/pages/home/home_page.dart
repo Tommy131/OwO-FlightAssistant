@@ -780,6 +780,11 @@ class HomePage extends StatelessWidget {
 
   Widget _buildSystemStatus(ThemeData theme, SimulatorData data) {
     // 定义专业的颜色方案
+    // 警告系统 - 红色系
+    const warningColor = Color(0xFFD32F2F); // 主警告 - 深红色
+    const cautionColor = Color(0xFFFFA000); // 主告警 - 橙色
+    const fireColor = Color(0xFFFF5252); // 火警 - 鲜红色
+
     // 外部警示灯光 - 红色系
     const beaconColor = Color(0xFFE53935); // 信标灯 - 鲜红色
     const strobeColor = Color(0xFFFFFFFF); // 频闪灯 - 纯白色
@@ -800,6 +805,9 @@ class HomePage extends StatelessWidget {
     // 飞行控制系统
     const gearColor = Color(0xFF5E35B1); // 起落架 - 深紫蓝
     const parkingBrakeColor = Color(0xFFFF6F00); // 停机刹车 - 深橙色
+    const speedBrakeColor = Color(0xFFE91E63); // 减速板 - 粉红色
+    const autoBrakeColor = Color(0xFF00BCD4); // 自动刹车 - 青色
+    const flapsColor = Color(0xFF9C27B0); // 襟翼 - 紫色
 
     // 动力系统 - 紫色/绿色系
     const apuColor = Color(0xFF8E24AA); // APU - 紫色
@@ -841,14 +849,70 @@ class HomePage extends StatelessWidget {
             spacing: AppThemeData.spacingLarge,
             runSpacing: AppThemeData.spacingLarge,
             children: [
-              // === 飞行与动力组 ===
+              // === 警告系统(最优先显示) ===
+              _buildStatusSection(theme, '警告系统', [
+                if (data.masterWarning == true)
+                  _buildStatusBadge(theme, '主警告', warningColor),
+                if (data.masterCaution == true)
+                  _buildStatusBadge(theme, '主告警', cautionColor),
+                if (data.fireWarningEngine1 == true)
+                  _buildStatusBadge(theme, '左发火警', fireColor),
+                if (data.fireWarningEngine2 == true)
+                  _buildStatusBadge(theme, '右发火警', fireColor),
+                if (data.fireWarningAPU == true)
+                  _buildStatusBadge(theme, 'APU火警', fireColor),
+              ]),
+
+              // === 飞行与控制组 ===
               _buildStatusSection(theme, '飞行与控制', [
                 if (data.onGround == true)
                   _buildStatusBadge(theme, '地面', onGroundColor),
                 if (data.parkingBrake == true)
                   _buildStatusBadge(theme, '停机刹车', parkingBrakeColor),
+                if (data.speedBrake == true)
+                  _buildStatusBadge(
+                    theme,
+                    '减速板 ${((data.speedBrakePosition ?? 0) * 100).toStringAsFixed(0)}%',
+                    speedBrakeColor,
+                  ),
+                if (data.spoilersDeployed == true)
+                  _buildStatusBadge(theme, '扰流板', speedBrakeColor),
+                if (data.autoBrakeLevel != null && data.autoBrakeLevel! > 0)
+                  _buildStatusBadge(
+                    theme,
+                    data.autoBrakeLevel == 5
+                        ? '自动刹车 RTO'
+                        : data.autoBrakeLevel == 4
+                        ? '自动刹车 MAX'
+                        : '自动刹车 ${data.autoBrakeLevel}',
+                    autoBrakeColor,
+                  ),
+              ]),
+
+              // === 起落架组 ===
+              _buildStatusSection(theme, '起落架', [
                 if (data.gearDown == true)
                   _buildStatusBadge(theme, '起落架', gearColor),
+                if (data.noseGearDown == true)
+                  _buildStatusBadge(theme, '前轮', gearColor),
+                if (data.leftGearDown == true)
+                  _buildStatusBadge(theme, '左主轮', gearColor),
+                if (data.rightGearDown == true)
+                  _buildStatusBadge(theme, '右主轮', gearColor),
+              ]),
+
+              // === 襟翼状态组 ===
+              _buildStatusSection(theme, '襟翼状态', [
+                if (data.flapsDeployed == true)
+                  _buildStatusBadge(
+                    theme,
+                    data.flapsLabel != null
+                        ? '襟翼 ${data.flapsLabel}'
+                        : (data.flapsAngle != null && data.flapsAngle! > 0)
+                        ? '襟翼 ${data.flapsAngle!.toInt()}°'
+                        : '襟翼 ${((data.flapsDeployRatio ?? 0) * 100).toStringAsFixed(0)}%',
+                    flapsColor,
+                  ),
               ]),
 
               // === 动力与自动化组 ===
@@ -886,19 +950,19 @@ class HomePage extends StatelessWidget {
                 if (data.wheelWellLights == true)
                   _buildStatusBadge(theme, '轮舱灯', wheelWellColor),
               ]),
-            ],
+            ].whereType<Widget>().toList(), // 核心修复：过滤掉 null，确保第一个显示的区块靠左
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatusSection(
+  Widget? _buildStatusSection(
     ThemeData theme,
     String title,
     List<Widget> children,
   ) {
-    if (children.isEmpty) return const SizedBox.shrink();
+    if (children.isEmpty) return null; // 改为返回 null
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

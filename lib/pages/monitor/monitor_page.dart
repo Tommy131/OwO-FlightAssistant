@@ -93,7 +93,7 @@ class _MonitorPageState extends State<MonitorPage> {
                 // 图表网格
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    bool isThreeColumn = constraints.maxWidth > 1000;
+                    bool isThreeColumn = constraints.maxWidth > 900;
 
                     if (isThreeColumn) {
                       return Row(
