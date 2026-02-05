@@ -29,42 +29,6 @@ class CustomAppBar {
       ),
       // 右侧操作按钮
       actions: [
-        // 搜索按钮
-        IconButton(
-          icon: const Icon(Icons.search),
-          onPressed: () {
-            // TODO: 实现搜索功能
-          },
-          tooltip: '搜索',
-        ),
-        const SizedBox(width: AppThemeData.spacingSmall),
-        // 通知按钮
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.notifications_outlined),
-              onPressed: () {
-                // TODO: 实现通知功能
-              },
-              tooltip: '通知',
-            ),
-            // 未读通知徽章
-            Positioned(
-              right: 8,
-              top: 8,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(width: AppThemeData.spacingSmall),
         // 主题选择器
         Consumer<ThemeProvider>(
           builder: (context, themeProvider, child) {

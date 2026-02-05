@@ -65,6 +65,9 @@ class SimulatorProvider with ChangeNotifier {
   Future<bool> connectToXPlane() async {
     if (_status == ConnectionStatus.connecting) return false;
 
+    // 先断开/清理旧连接
+    await disconnect();
+
     _status = ConnectionStatus.connecting;
     _currentSimulator = SimulatorType.xplane;
     _errorMessage = null;
@@ -144,6 +147,9 @@ class SimulatorProvider with ChangeNotifier {
   Future<bool> connectToMSFS() async {
     if (_status == ConnectionStatus.connecting) return false;
 
+    // 先断开/清理旧连接
+    await disconnect();
+
     _status = ConnectionStatus.connecting;
     _currentSimulator = SimulatorType.msfs;
     _errorMessage = null;
@@ -174,15 +180,39 @@ class SimulatorProvider with ChangeNotifier {
 
   /// 断开连接
   Future<void> disconnect() async {
-    AppLogger.info('SimulatorProvider: 开始断开连接...');
+    // AppLogger.info('SimulatorProvider: 开始断开连接...');
 
     // 先取消数据订阅
     await _dataSubscription?.cancel();
     _dataSubscription = null;
 
-    // 断开服务连接
-    await _msfsService.disconnect();
-    await _xplaneService.disconnect();
+    // 仅在服务活跃时断开连接
+    final List<Future> disconnectFutures = [];
+
+    if (_msfsService.isActive) {
+      disconnectFutures.add(
+        _msfsService.disconnect().timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => AppLogger.error('MSFS 断开超时'),
+        ),
+      );
+    }
+
+    if (_xplaneService.isActive) {
+      disconnectFutures.add(
+        _xplaneService.disconnect().timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => AppLogger.error('X-Plane 断开超时'),
+        ),
+      );
+    }
+
+    if (disconnectFutures.isNotEmpty) {
+      await Future.wait(disconnectFutures).catchError((e) {
+        AppLogger.error('断开服务时出现异常: $e');
+        return <void>[];
+      });
+    }
 
     // 重置状态
     _status = ConnectionStatus.disconnected;
@@ -191,7 +221,7 @@ class SimulatorProvider with ChangeNotifier {
     _errorMessage = null;
     _lastDetectedAircraft = null;
 
-    AppLogger.info('SimulatorProvider: 断开连接完成');
+    // AppLogger.info('SimulatorProvider: 断开连接完成');
     notifyListeners();
   }
 

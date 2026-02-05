@@ -24,6 +24,9 @@ class MSFSService {
 
   bool get isConnected => _isConnected;
 
+  /// 服务是否正在运行（是否有活跃资源需要清理）
+  bool get isActive => _channel != null || _reconnectTimer != null;
+
   /// 连接到 MSFS WebSocket 服务器
   Future<bool> connect({String? wsUrl}) async {
     try {
@@ -410,6 +413,7 @@ class MSFSService {
 
   /// 断开连接
   Future<void> disconnect() async {
+    if (!isActive) return;
     AppLogger.info('MSFSService: 开始断开连接...');
 
     _isDisposed = true;
@@ -424,8 +428,16 @@ class MSFSService {
     _notifyData(_currentData);
 
     try {
-      await _channel?.sink.close(status.goingAway);
-    } catch (_) {}
+      // 避免某些情况下 sink.close 永远等待
+      await _channel?.sink
+          .close(status.goingAway)
+          .timeout(
+            const Duration(seconds: 1),
+            onTimeout: () => AppLogger.error('MSFSService: WebSocket 关闭超时'),
+          );
+    } catch (e) {
+      AppLogger.error('MSFSService: WebSocket 关闭异常: $e');
+    }
 
     _channel = null;
     AppLogger.info('MSFSService: MSFS 服务已断开并重置');

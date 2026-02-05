@@ -36,15 +36,22 @@ class XPlaneService {
   SimulatorData _currentData = SimulatorData();
 
   // 当前订阅的DataRefs
-  final Map<int, String> _subscribedDataRefs = {};
+  final Map<XPlaneDataRefKey, String> _subscribedDataRefs = {};
 
   bool get isConnected => _isConnected;
   Stream<SimulatorData> get dataStream => _dataController.stream;
   SimulatorData get currentData => _currentData;
 
+  /// 服务是否正在运行（是否有活跃资源需要清理）
+  bool get isActive =>
+      _socket != null ||
+      _heartbeatTimer != null ||
+      _connectionVerificationTimer != null;
+
   /// 连接到 X-Plane
   Future<bool> connect() async {
     try {
+      await disconnect(); // 确保旧的 socket 已关闭
       _isDisposed = false;
       _isConnected = false;
       _lastDataReceived = null;
@@ -168,7 +175,7 @@ class XPlaneService {
     // 批量订阅所有配置的 DataRefs
     final allDataRefs = XPlaneDataRefs.getAllDataRefs();
     for (final dataRef in allDataRefs) {
-      await _subscribeDataRef(dataRef.index, dataRef.path);
+      await _subscribeDataRef(dataRef.key, dataRef.path);
     }
   }
 
@@ -208,7 +215,11 @@ class XPlaneService {
         if (i + 8 > data.length) break;
         final index = _bytesToInt32(data.sublist(i, i + 4));
         final value = _bytesToFloat32(data.sublist(i + 4, i + 8));
-        _updateDataByIndex(index, value);
+
+        // 防止数组越界; 如果在枚举中插入新的数据ref, 需要重启XPlane; 从末尾插入不需要
+        if (index >= 0 && index < XPlaneDataRefKey.values.length) {
+          _updateDataByRefKey(XPlaneDataRefKey.values[index], value);
+        }
       }
       if (dataCount > 0) {
         // 收到有效的RREF数据包,立即标记为已连接
@@ -229,201 +240,201 @@ class XPlaneService {
     }
   }
 
-  void _updateDataByIndex(int index, double value) {
-    switch (index) {
-      case 0:
+  void _updateDataByRefKey(XPlaneDataRefKey key, double value) {
+    switch (key) {
+      case XPlaneDataRefKey.airspeed:
         _currentData = _currentData.copyWith(airspeed: value);
         break;
-      case 1:
+      case XPlaneDataRefKey.altitude:
         _currentData = _currentData.copyWith(
           altitude: DataConverters.metersToFeet(value),
         );
         break;
-      case 2:
+      case XPlaneDataRefKey.heading:
         _currentData = _currentData.copyWith(heading: value);
         break;
-      case 3:
+      case XPlaneDataRefKey.verticalSpeed:
         _currentData = _currentData.copyWith(
           verticalSpeed: DataConverters.mpsToFpm(value),
         );
         break;
-      case 4:
+      case XPlaneDataRefKey.latitude:
         _currentData = _currentData.copyWith(latitude: value);
         _detectAirportByCoords(
           _currentData.latitude ?? 0,
           _currentData.longitude ?? 0,
         );
         break;
-      case 5:
+      case XPlaneDataRefKey.longitude:
         _currentData = _currentData.copyWith(longitude: value);
         _detectAirportByCoords(
           _currentData.latitude ?? 0,
           _currentData.longitude ?? 0,
         );
         break;
-      case 6:
+      case XPlaneDataRefKey.groundSpeed:
         _currentData = _currentData.copyWith(
           groundSpeed: DataConverters.mpsToKnots(value),
         );
         break;
-      case 7:
+      case XPlaneDataRefKey.trueAirspeed:
         _currentData = _currentData.copyWith(
           trueAirspeed: DataConverters.mpsToKnots(value),
         );
         break;
-      case 10:
+      case XPlaneDataRefKey.parkingBrake:
         _currentData = _currentData.copyWith(parkingBrake: value > 0.5);
         break;
-      case 11:
+      case XPlaneDataRefKey.beaconLights:
         _currentData = _currentData.copyWith(beacon: value > 0.5);
         break;
-      case 12:
+      case XPlaneDataRefKey.landingLightsMain:
         _mainLandingLightOn = value > 0.5;
         _updateLandingLightsStatus();
         break;
-      case 13:
+      case XPlaneDataRefKey.taxiLights:
         _currentData = _currentData.copyWith(taxiLights: value > 0.01);
         break;
-      case 14:
+      case XPlaneDataRefKey.navLights:
         _currentData = _currentData.copyWith(navLights: value > 0.5);
         break;
-      case 15:
+      case XPlaneDataRefKey.strobeLights:
         _currentData = _currentData.copyWith(strobes: value > 0.5);
         break;
-      case 16:
+      case XPlaneDataRefKey.flapsRequest:
         _currentData = _currentData.copyWith(flapsPosition: value.toInt());
         break;
-      case 17:
+      case XPlaneDataRefKey.gearDeploy:
         _currentData = _currentData.copyWith(gearDown: value > 0.5);
         break;
-      case 18:
+      case XPlaneDataRefKey.logoLights:
         _currentData = _currentData.copyWith(logoLights: value > 0.5);
         break;
-      case 19:
+      case XPlaneDataRefKey.wingLights:
         _currentData = _currentData.copyWith(wingLights: value > 0.5);
         break;
-      case 20:
+      case XPlaneDataRefKey.apuRunning:
         _currentData = _currentData.copyWith(apuRunning: value > 0.5);
         break;
-      case 21:
+      case XPlaneDataRefKey.engine1Running:
         _currentData = _currentData.copyWith(engine1Running: value > 0.5);
         break;
-      case 22:
+      case XPlaneDataRefKey.engine2Running:
         _currentData = _currentData.copyWith(engine2Running: value > 0.5);
         break;
-      case 250:
+      case XPlaneDataRefKey.runwayTurnoffLeft:
         _runwayTurnoffSwitches[0] = value > 0.5;
         _updateRunwayTurnoffStatus();
         break;
-      case 251:
+      case XPlaneDataRefKey.runwayTurnoffRight:
         _runwayTurnoffSwitches[1] = value > 0.5;
         _updateRunwayTurnoffStatus();
         break;
-      case 26:
+      case XPlaneDataRefKey.flapsAngle:
         // 襟翼角度,0-1的比例转换为实际角度(假设最大40度)
         _currentData = _currentData.copyWith(
           flapsAngle: DataConverters.flapRatioToDegrees(value),
         );
         break;
-      case 27:
+      case XPlaneDataRefKey.wheelWellLights:
         _currentData = _currentData.copyWith(wheelWellLights: value > 0.5);
         break;
-      case 30:
+      case XPlaneDataRefKey.autopilotMode:
         _currentData = _currentData.copyWith(autopilotEngaged: value > 0);
         break;
-      case 31:
+      case XPlaneDataRefKey.autothrottle:
         _currentData = _currentData.copyWith(autothrottleEngaged: value > 0);
         break;
-      case 40:
+      case XPlaneDataRefKey.outsideTemp:
         _currentData = _currentData.copyWith(outsideAirTemperature: value);
         break;
-      case 41:
+      case XPlaneDataRefKey.totalTemp:
         _currentData = _currentData.copyWith(totalAirTemperature: value);
         break;
-      case 42:
+      case XPlaneDataRefKey.windSpeed:
         _currentData = _currentData.copyWith(windSpeed: value);
         break;
-      case 43:
+      case XPlaneDataRefKey.windDirection:
         _currentData = _currentData.copyWith(windDirection: value);
         break;
-      case 50:
+      case XPlaneDataRefKey.fuelTotal:
         _currentData = _currentData.copyWith(fuelQuantity: value);
         break;
-      case 51:
+      case XPlaneDataRefKey.fuelFlow:
         _currentData = _currentData.copyWith(
           fuelFlow: DataConverters.kgsToKgh(value),
         );
         break;
-      case 60:
+      case XPlaneDataRefKey.engine1N1:
         _currentData = _currentData.copyWith(engine1N1: value);
         _detectAircraftType(); // 发动机数据也可以辅助判断
         break;
-      case 61:
+      case XPlaneDataRefKey.engine2N1:
         _currentData = _currentData.copyWith(engine2N1: value);
         break;
-      case 62:
+      case XPlaneDataRefKey.engine1EGT:
         _currentData = _currentData.copyWith(engine1EGT: value);
         break;
-      case 63:
+      case XPlaneDataRefKey.engine2EGT:
         _currentData = _currentData.copyWith(engine2EGT: value);
         break;
-      case 70:
+      case XPlaneDataRefKey.gForce:
         _currentData = _currentData.copyWith(gForce: value);
         break;
-      case 71:
+      case XPlaneDataRefKey.baroPressure:
         _currentData = _currentData.copyWith(baroPressure: value);
         break;
-      case 100:
+      case XPlaneDataRefKey.isPaused:
         _currentData = _currentData.copyWith(isPaused: value > 0.5);
         break;
-      case 101:
+      case XPlaneDataRefKey.onGround:
         _currentData = _currentData.copyWith(onGround: value > 0.5);
         break;
-      case 104:
+      case XPlaneDataRefKey.flapDetents:
         _currentData = _currentData.copyWith(flapsPosition: value.toInt());
         // 收到襟翼档位数据，这是区分机型的关键特征
         _detectAircraftType();
         break;
-      case 110:
-        _currentData = _currentData.copyWith(atisFrequency: value / 100);
+      case XPlaneDataRefKey.com1Frequency:
+        _currentData = _currentData.copyWith(com1Frequency: value / 100);
         break;
-      case 120:
+      case XPlaneDataRefKey.landingLight0:
         _landingLightSwitches[0] = value > 0.5;
         _updateLandingLightsStatus();
         break;
-      case 121:
+      case XPlaneDataRefKey.landingLight1:
         _landingLightSwitches[1] = value > 0.5;
         _updateLandingLightsStatus();
         break;
-      case 122:
+      case XPlaneDataRefKey.landingLight2:
         _landingLightSwitches[2] = value > 0.5;
         _updateLandingLightsStatus();
         break;
-      case 123:
+      case XPlaneDataRefKey.landingLight3:
         _landingLightSwitches[3] = value > 0.5;
         _updateLandingLightsStatus();
         break;
       // 起落架详细状态
-      case 130:
+      case XPlaneDataRefKey.noseGearDeploy:
         _currentData = _currentData.copyWith(noseGearDown: value > 0.5);
         break;
-      case 131:
+      case XPlaneDataRefKey.leftGearDeploy:
         _currentData = _currentData.copyWith(leftGearDown: value > 0.5);
         break;
-      case 132:
+      case XPlaneDataRefKey.rightGearDeploy:
         _currentData = _currentData.copyWith(rightGearDown: value > 0.5);
         break;
       // 襟翼状态
-      case 135:
+      case XPlaneDataRefKey.flapsDeployRatio:
         _currentData = _currentData.copyWith(
           flapsDeployRatio: value,
           flapsDeployed: value > 0.05, // 展开比例 > 5% 认为已展开
         );
         break;
-      case 136:
+      case XPlaneDataRefKey.flapsActualDegrees:
         _currentData = _currentData.copyWith(flapsAngle: value);
         break;
-      case 137:
+      case XPlaneDataRefKey.flapsLeverZibo:
         // ZIBO 738 襟翼手柄位置: 0, 1, 2, 3, 4, 5, 6, 7, 8
         // 对应: UP, 1, 2, 5, 10, 15, 25, 30, 40
         final leverPos = value.round();
@@ -450,15 +461,14 @@ class XPlaneService {
           );
         }
         break;
-      case 138:
+      case XPlaneDataRefKey.gearHandle:
         // Standard Gear Handle: 0=UP, 1=DOWN
-        // Only update if we haven't received valid Zibo data recently (simple overwrite for now)
         // Map 0 -> 0 (UP), 1 -> 2 (DN)
         _currentData = _currentData.copyWith(
           gearHandlePosition: value > 0.5 ? 2 : 0,
         );
         break;
-      case 139:
+      case XPlaneDataRefKey.gearHandleZibo:
         // Zibo Gear Handle: 0=UP, 1=OFF, 2=DN
         final handlePos = value.round();
         if (handlePos >= 0 && handlePos <= 2) {
@@ -466,54 +476,48 @@ class XPlaneService {
         }
         break;
       // 减速板与扰流板
-      case 140:
+      case XPlaneDataRefKey.speedBrakeRatio:
         _currentData = _currentData.copyWith(
           speedBrake: value > 0.05,
           speedBrakePosition: value,
         );
         break;
-      case 141:
+      case XPlaneDataRefKey.spoilersDeployed:
         _currentData = _currentData.copyWith(
           spoilersDeployed: value > 5.0, // 角度大于5度认为展开
         );
         break;
       // 自动刹车
-      case 150:
+      case XPlaneDataRefKey.autoBrake:
         // 注意：-1 表示不支持或未设置，0 表示 OFF
         final level = value.toInt();
         _currentData = _currentData.copyWith(
           autoBrakeLevel: (level >= 1 && level <= 5) ? level : null,
         );
         break;
-      case 151:
+      case XPlaneDataRefKey.autoBrakeZibo:
         // ZIBO 738 自动刹车原始值：0, 1, 2, 3, 4, 5
         // 对应：0=RTO, 1=OFF, 2=1, 3=2, 4=3, 5=MAX(4)
-        final ziboPos = value.round();
-        int? displayLevel;
-        if (ziboPos == 0) {
-          displayLevel = 5; // RTO
-        } else if (ziboPos >= 2 && ziboPos <= 5) {
-          displayLevel = ziboPos - 1; // 2->1, 3->2, 4->3, 5->4(MAX)
-        } else {
-          displayLevel = null; // OFF (1)
-        }
-        _currentData = _currentData.copyWith(autoBrakeLevel: displayLevel);
+        _currentData = _currentData.copyWith(autoBrakeLevel: value.round() - 1);
         break;
       // 警告系统
-      case 160:
+      case XPlaneDataRefKey.masterWarning:
         _currentData = _currentData.copyWith(masterWarning: value > 0.5);
         break;
-      case 161:
+      case XPlaneDataRefKey.masterCaution:
         _currentData = _currentData.copyWith(masterCaution: value > 0.5);
         break;
-      case 162:
+      case XPlaneDataRefKey.fireWarningEng1:
         _currentData = _currentData.copyWith(fireWarningEngine1: value > 0.5);
         break;
-      case 163:
+      case XPlaneDataRefKey.fireWarningEng2:
         _currentData = _currentData.copyWith(fireWarningEngine2: value > 0.5);
         break;
-      case 164:
+      case XPlaneDataRefKey.fireWarningAPU:
         _currentData = _currentData.copyWith(fireWarningAPU: value > 0.5);
+        break;
+      case XPlaneDataRefKey.numEngines:
+        // 特殊处理或忽略
         break;
     }
   }
@@ -532,10 +536,11 @@ class XPlaneService {
     );
   }
 
-  Future<void> _subscribeDataRef(int index, String dref) async {
+  Future<void> _subscribeDataRef(XPlaneDataRefKey key, String dref) async {
     if (_isDisposed) return;
 
-    _subscribedDataRefs[index] = dref;
+    _subscribedDataRefs[key] = dref;
+    final int index = key.index; // 使用枚举索引作为 UDP 标识
     final List<int> data = [
       ...'RREF'.codeUnits,
       0,
@@ -555,7 +560,10 @@ class XPlaneService {
         return;
       }
       if (_isConnected && _socket != null) {
-        _subscribeDataRef(0, 'sim/flightmodel/position/indicated_airspeed');
+        _subscribeDataRef(
+          XPlaneDataRefKey.airspeed,
+          'sim/flightmodel/position/indicated_airspeed',
+        );
       }
     });
   }
@@ -567,6 +575,7 @@ class XPlaneService {
   }
 
   Future<void> disconnect() async {
+    if (!isActive) return;
     AppLogger.info('XPlaneService: 开始断开连接...');
 
     _isDisposed = true;

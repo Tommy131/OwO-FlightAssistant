@@ -84,7 +84,7 @@ class SimulatorData {
 
   // 扩展机场数据
   final String? activeRunway;
-  final double? atisFrequency;
+  final double? com1Frequency;
 
   SimulatorData({
     this.isConnected = false,
@@ -151,7 +151,7 @@ class SimulatorData {
     this.autopilotEngaged,
     this.autothrottleEngaged,
     this.activeRunway,
-    this.atisFrequency,
+    this.com1Frequency,
     this.gForce,
     this.baroPressure,
   });
@@ -224,7 +224,7 @@ class SimulatorData {
     bool? autopilotEngaged,
     bool? autothrottleEngaged,
     String? activeRunway,
-    double? atisFrequency,
+    double? com1Frequency,
     double? gForce,
     double? baroPressure,
   }) {
@@ -293,7 +293,7 @@ class SimulatorData {
       autopilotEngaged: autopilotEngaged ?? this.autopilotEngaged,
       autothrottleEngaged: autothrottleEngaged ?? this.autothrottleEngaged,
       activeRunway: activeRunway ?? this.activeRunway,
-      atisFrequency: atisFrequency ?? this.atisFrequency,
+      com1Frequency: com1Frequency ?? this.com1Frequency,
       gForce: gForce ?? this.gForce,
       baroPressure: baroPressure ?? this.baroPressure,
     );

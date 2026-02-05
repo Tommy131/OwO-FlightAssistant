@@ -1,10 +1,15 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
+
 import '../../apps/providers/simulator_provider.dart';
 import '../../apps/models/simulator_data.dart';
 import '../../core/theme/app_theme_data.dart';
+import '../../core/widgets/common/data_link_placeholder.dart';
+import 'widgets/heading_compass.dart';
+import 'widgets/landing_gear_card.dart';
+import 'widgets/systems_status_card.dart';
+import 'widgets/monitor_chart_card.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 class MonitorPage extends StatefulWidget {
   const MonitorPage({super.key});
@@ -24,12 +29,6 @@ class _MonitorPageState extends State<MonitorPage> {
   double? _lastAltitude;
   double? _lastGForce;
   bool _initialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // 数据监听在 build 中通过 Consumer 处理，这里只需处理定时清理或特殊逻辑
-  }
 
   void _updateSpots(SimulatorData data) {
     if (!data.isConnected) return;
@@ -69,10 +68,16 @@ class _MonitorPageState extends State<MonitorPage> {
 
     return Consumer<SimulatorProvider>(
       builder: (context, simProvider, _) {
+        if (!simProvider.isConnected) {
+          return const DataLinkPlaceholder(
+            title: '数据链路未就绪',
+            description: '实时飞行监控系统需要激活的模拟器连接。目前由于缺少数据流，仪表盘已进入待机模式。',
+          );
+        }
+
         final data = simProvider.simulatorData;
 
         // 只有当数据真正更新或时间流逝时才更新点
-        // 这里简单处理：如果数据对象发生变化，则记录一点
         _updateSpots(data);
 
         return Scaffold(
@@ -94,7 +99,7 @@ class _MonitorPageState extends State<MonitorPage> {
                         children: [
                           _buildCompassSection(theme, data),
                           const SizedBox(height: AppThemeData.spacingLarge),
-                          _buildSystemsStatusCard(theme, data),
+                          SystemsStatusCard(data: data),
                         ],
                       ),
                     ),
@@ -114,84 +119,21 @@ class _MonitorPageState extends State<MonitorPage> {
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: _buildChartCard(
-                              theme,
-                              '重力监控 (G-Force)',
-                              '${data.gForce?.toStringAsFixed(2) ?? "1.00"} G',
-                              _gForceSpots,
-                              Colors.orangeAccent,
-                              0,
-                              2,
-                            ),
-                          ),
+                          Expanded(child: _buildGForceChart(data)),
                           const SizedBox(width: AppThemeData.spacingLarge),
-                          Expanded(
-                            child: _buildChartCard(
-                              theme,
-                              '高度趋势 (Altitude)',
-                              '${data.altitude?.toStringAsFixed(0) ?? "0"} FT',
-                              _altitudeSpots,
-                              theme.colorScheme.primary,
-                              // 为高度设置动态缓冲区：最小值和最大值之间至少保持 100ft 的差距
-                              _calculateMinY(
-                                _altitudeSpots,
-                                100,
-                                defaultVal: 0,
-                              ),
-                              _calculateMaxY(
-                                _altitudeSpots,
-                                100,
-                                defaultVal: 100,
-                              ),
-                            ),
-                          ),
+                          Expanded(child: _buildAltitudeChart(theme, data)),
                           const SizedBox(width: AppThemeData.spacingLarge),
-                          Expanded(
-                            child: _buildChartCard(
-                              theme,
-                              '大气压强 (Baro)',
-                              '${data.baroPressure?.toStringAsFixed(2) ?? "29.92"} inHg',
-                              _pressureSpots,
-                              Colors.cyanAccent,
-                              28,
-                              31,
-                            ),
-                          ),
+                          Expanded(child: _buildPressureChart(data)),
                         ],
                       );
                     } else {
                       return Column(
                         children: [
-                          _buildChartCard(
-                            theme,
-                            '重力监控 (G-Force)',
-                            '${data.gForce?.toStringAsFixed(2) ?? "1.00"} G',
-                            _gForceSpots,
-                            Colors.orangeAccent,
-                            0,
-                            2,
-                          ),
+                          _buildGForceChart(data),
                           const SizedBox(height: AppThemeData.spacingLarge),
-                          _buildChartCard(
-                            theme,
-                            '高度趋势 (Altitude)',
-                            '${data.altitude?.toStringAsFixed(0) ?? "0"} FT',
-                            _altitudeSpots,
-                            theme.colorScheme.primary,
-                            null,
-                            null,
-                          ),
+                          _buildAltitudeChart(theme, data),
                           const SizedBox(height: AppThemeData.spacingLarge),
-                          _buildChartCard(
-                            theme,
-                            '大气压强 (Baro)',
-                            '${data.baroPressure?.toStringAsFixed(2) ?? "29.92"} inHg',
-                            _pressureSpots,
-                            Colors.cyanAccent,
-                            28,
-                            31,
-                          ),
+                          _buildPressureChart(data),
                         ],
                       );
                     }
@@ -209,13 +151,97 @@ class _MonitorPageState extends State<MonitorPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '实时飞行监控',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        Text(
-          data.isConnected ? '正在接收来自 X-Plane 的实时数据' : '模拟器未连接',
-          style: TextStyle(color: theme.hintColor),
+        if (data.masterWarning == true || data.masterCaution == true)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: AppThemeData.spacingMedium),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: (data.masterWarning == true ? Colors.red : Colors.orange)
+                  .withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(
+                AppThemeData.borderRadiusMedium,
+              ),
+              border: Border.all(
+                color: (data.masterWarning == true ? Colors.red : Colors.orange)
+                    .withValues(alpha: 0.5),
+                width: 2,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  data.masterWarning == true ? Icons.warning : Icons.info,
+                  color: data.masterWarning == true
+                      ? Colors.red
+                      : Colors.orange,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    data.masterWarning == true
+                        ? '主警告 (MASTER WARNING) - 请检查警报面板'
+                        : '主告警 (MASTER CAUTION) - 系统异常',
+                    style: TextStyle(
+                      color: data.masterWarning == true
+                          ? Colors.red
+                          : Colors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '实时飞行监控',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  data.isConnected ? '正在接收来自模拟器的实时数据' : '模拟器未连接',
+                  style: TextStyle(color: theme.hintColor),
+                ),
+              ],
+            ),
+            if (data.isConnected && data.isPaused == true)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.3,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.pause, size: 16, color: Colors.orange),
+                    const SizedBox(width: 4),
+                    const Text(
+                      '已暂停',
+                      style: TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
       ],
     );
@@ -256,644 +282,43 @@ class _MonitorPageState extends State<MonitorPage> {
     );
   }
 
-  Widget _buildSystemsStatusCard(ThemeData theme, SimulatorData data) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppThemeData.spacingLarge),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusLarge),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '飞行系统状态 (Systems Status)',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 16),
-          _buildStatusRow(
-            '停机刹车 (Parking Brake)',
-            data.parkingBrake == true ? 'SET' : 'RELEASED',
-            isHighlight: data.parkingBrake == true,
-          ),
-          const Divider(height: 20),
-          _buildStatusRow(
-            '襟翼位置 (Flaps)',
-            data.flapsLabel ?? 'UP',
-            isHighlight: (data.flapsDeployRatio ?? 0) > 0.05,
-          ),
-          const Divider(height: 20),
-          _buildStatusRow(
-            '减速板 (Speed Brake)',
-            data.speedBrake == true ? 'DEPLOYED' : 'RETRACTED',
-            isHighlight: data.speedBrake == true,
-          ),
-          const Divider(height: 20),
-          _buildStatusRow(
-            '自动刹车 (Auto Brake)',
-            data.autoBrakeLevel != null
-                ? 'LEVEL ${data.autoBrakeLevel}'
-                : 'OFF',
-            isHighlight: data.autoBrakeLevel != null,
-          ),
-        ],
-      ),
+  Widget _buildGForceChart(SimulatorData data) {
+    return MonitorChartCard(
+      title: '重力监控 (G-Force)',
+      value: '${data.gForce?.toStringAsFixed(2) ?? "1.00"} G',
+      spots: _gForceSpots,
+      color: Colors.orangeAccent,
+      minY: 0,
+      maxY: 2,
+      currentTime: _time,
     );
   }
 
-  Widget _buildStatusRow(
-    String label,
-    String value, {
-    bool isHighlight = false,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color:
-                Theme.of(
-                  context,
-                ).textTheme.bodySmall?.color?.withValues(alpha: 0.7) ??
-                Colors.grey,
-            fontSize: 13,
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: (isHighlight ? Colors.orangeAccent : Colors.blueAccent)
-                .withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            value,
-            style: TextStyle(
-              color: isHighlight ? Colors.orangeAccent : Colors.blueAccent,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-              fontFamily: 'Monospace',
-            ),
-          ),
-        ),
-      ],
+  Widget _buildAltitudeChart(ThemeData theme, SimulatorData data) {
+    return MonitorChartCard(
+      title: '高度趋势 (Altitude)',
+      value: '${data.altitude?.toStringAsFixed(0) ?? "0"} FT',
+      spots: _altitudeSpots,
+      color: theme.colorScheme.primary,
+      minY: MonitorChartCard.calculateMinY(_altitudeSpots, 100, defaultVal: 0),
+      maxY: MonitorChartCard.calculateMaxY(
+        _altitudeSpots,
+        100,
+        defaultVal: 100,
+      ),
+      currentTime: _time,
     );
   }
 
-  Widget _buildChartCard(
-    ThemeData theme,
-    String title,
-    String value,
-    List<FlSpot> spots,
-    Color color,
-    double? minY,
-    double? maxY,
-  ) {
-    return Container(
-      height: 300,
-      clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusLarge),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: theme.hintColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  value,
-                  style: TextStyle(color: color, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(show: false),
-                borderData: FlBorderData(show: false),
-                minX: spots.isNotEmpty ? _time - 60 : 0,
-                maxX: _time,
-                minY: minY,
-                maxY: maxY,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spots,
-                    isCurved: true,
-                    color: color,
-                    barWidth: 2,
-                    isStrokeCapRound: true,
-                    dotData: const FlDotData(show: false),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: color.withValues(alpha: 0.1),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  double _calculateMinY(
-    List<FlSpot> spots,
-    double minRange, {
-    double defaultVal = 0,
-  }) {
-    if (spots.isEmpty) return defaultVal;
-    double min = spots.map((e) => e.y).reduce(math.min);
-    double max = spots.map((e) => e.y).reduce(math.max);
-    if (max - min < minRange) {
-      return min - (minRange - (max - min)) / 2;
-    }
-    return min - (minRange * 0.1);
-  }
-
-  double _calculateMaxY(
-    List<FlSpot> spots,
-    double minRange, {
-    double defaultVal = 100,
-  }) {
-    if (spots.isEmpty) return defaultVal;
-    double min = spots.map((e) => e.y).reduce(math.min);
-    double max = spots.map((e) => e.y).reduce(math.max);
-    if (max - min < minRange) {
-      return max + (minRange - (max - min)) / 2;
-    }
-    return max + (minRange * 0.1);
-  }
-}
-
-/// 高度还原指南针仪表效果
-class HeadingCompass extends StatelessWidget {
-  final double heading;
-
-  const HeadingCompass({super.key, required this.heading});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: CompassPainter(
-        heading: heading,
-        color: Theme.of(context).colorScheme.primary,
-      ),
-    );
-  }
-}
-
-class CompassPainter extends CustomPainter {
-  final double heading;
-  final Color color;
-
-  CompassPainter({required this.heading, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.min(size.width, size.height) / 2;
-
-    // 绘制外圈
-    final outerCirclePaint = Paint()
-      ..color = color.withValues(alpha: 0.2)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawCircle(center, radius, outerCirclePaint);
-
-    // 旋转画布以适应航向
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(-heading * math.pi / 180);
-
-    final tickPaint = Paint()
-      ..color = color.withValues(alpha: 0.5)
-      ..strokeWidth = 1;
-    final textPainter = TextPainter(textDirection: TextDirection.ltr);
-
-    // 绘制刻度
-    for (int i = 0; i < 360; i += 10) {
-      final angle = i * math.pi / 180;
-      final isMajor = i % 30 == 0;
-      final tickLength = isMajor ? 15.0 : 8.0;
-
-      final start = Offset(
-        math.sin(angle) * (radius - tickLength),
-        -math.cos(angle) * (radius - tickLength),
-      );
-      final end = Offset(math.sin(angle) * radius, -math.cos(angle) * radius);
-
-      canvas.drawLine(start, end, tickPaint..strokeWidth = isMajor ? 2 : 1);
-
-      if (isMajor) {
-        String label = i == 0
-            ? 'N'
-            : i == 90
-            ? 'E'
-            : i == 180
-            ? 'S'
-            : i == 270
-            ? 'W'
-            : (i ~/ 10).toString();
-        textPainter.text = TextSpan(
-          text: label,
-          style: TextStyle(
-            color:
-                (label == 'N' || label == 'E' || label == 'S' || label == 'W')
-                ? Colors.orangeAccent
-                : color,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        );
-        textPainter.layout();
-
-        final textOffset = Offset(
-          math.sin(angle) * (radius - 35) - textPainter.width / 2,
-          -math.cos(angle) * (radius - 35) - textPainter.height / 2,
-        );
-
-        // 保持文字正向 (相对于仪表) - 这里我们先平移回正再画或者简单点
-        canvas.save();
-        canvas.translate(
-          textOffset.dx + textPainter.width / 2,
-          textOffset.dy + textPainter.height / 2,
-        );
-        canvas.rotate(
-          i * math.pi / 180,
-        ); // 抵消外层旋转+自身角度使文字始终垂直于圆心向外？不，航空仪表文字通常是正的。
-        canvas.rotate(heading * math.pi / 180); // 抵消全局旋转
-        canvas.translate(-textPainter.width / 2, -textPainter.height / 2);
-        textPainter.paint(canvas, Offset.zero);
-        canvas.restore();
-      }
-    }
-
-    canvas.restore();
-
-    // 绘制中央指示器 (飞机形状)
-    final airplanePaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    path.moveTo(center.dx, center.dy - 20); // 鼻
-    path.lineTo(center.dx - 15, center.dy + 10); // 左翼末
-    path.lineTo(center.dx - 3, center.dy + 5); // 躯干
-    path.lineTo(center.dx - 5, center.dy + 15); // 左尾
-    path.lineTo(center.dx, center.dy + 12); // 尾
-    path.lineTo(center.dx + 5, center.dy + 15); // 右尾
-    path.lineTo(center.dx + 3, center.dy + 5); // 躯干
-    path.lineTo(center.dx + 15, center.dy + 10); // 右翼末
-    path.close();
-
-    canvas.drawPath(path, airplanePaint);
-
-    // 绘制顶部的航向指示标
-    final topPointerPaint = Paint()..color = Colors.orangeAccent;
-    final pointerPath = Path();
-    pointerPath.moveTo(center.dx, center.dy - radius - 5);
-    pointerPath.lineTo(center.dx - 8, center.dy - radius - 20);
-    pointerPath.lineTo(center.dx + 8, center.dy - radius - 20);
-    pointerPath.close();
-    canvas.drawPath(pointerPath, topPointerPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CompassPainter oldDelegate) =>
-      oldDelegate.heading != heading;
-}
-
-class LandingGearCard extends StatelessWidget {
-  final SimulatorData data;
-
-  const LandingGearCard({super.key, required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // Dark panel background similar to the cockpit
-    final panelColor = const Color(0xFF2A2A2A);
-    final panelBorderColor = const Color(0xFF1A1A1A);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppThemeData.spacingLarge),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusLarge),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '起落架状态 (Landing Gear)',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 20),
-          Center(
-            child: Container(
-              width: 280,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: panelColor,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: panelBorderColor, width: 4),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // Indicator Lights Area
-                  _buildIndicators(data),
-                  const SizedBox(height: 24),
-                  // Gear Handle Area
-                  _buildGearHandle(
-                    context,
-                    data.gearHandlePosition ?? 0,
-                  ), // Default to DN
-                  const SizedBox(height: 16),
-                  // Limit Text (Decorative)
-                  _buildLimitText(),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIndicators(SimulatorData data) {
-    // Status logic: 0=Off/Up, 1=Red/Transit, 2=Green/Down
-
-    // Logic refinement for "High Simulation":
-    // 1. Nose Gear
-    // 2. Left Gear
-    // 3. Right Gear
-    // Each has two lights: Top (Red/Transit) and Bottom (Green/Down).
-
-    final handle = data.gearHandlePosition ?? 0; // Default Down
-    final isHandleDown = handle == 0;
-    final isHandleUp = handle == 2;
-
-    // Helper to determine status
-    // Returns: 0=Off, 1=Red, 2=Green
-    int getStatus(bool? isGearDownBool) {
-      bool gearDown = isGearDownBool ?? false;
-
-      if (isHandleDown) {
-        return gearDown
-            ? 2
-            : 1; // Handle DN: Gear Down -> Green. Not Down -> Red (Transit).
-      } else if (isHandleUp) {
-        return gearDown
-            ? 1
-            : 0; // Handle UP: Gear Down -> Red (Unsafe). Gear Up -> Off.
-      } else {
-        // OFF position (1)
-        // Used for depressurization.
-        // If gear is locked down, it stays Green.
-        // If gear is locked up, it stays Off.
-        // If in transit... usually Red.
-        return gearDown ? 2 : 0;
-      }
-    }
-
-    return Column(
-      children: [
-        // Nose Gear (Top Center)
-        _buildLightBox("NOSE\nGEAR", getStatus(data.noseGearDown)),
-        const SizedBox(height: 12),
-        // Main Gears (Row)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildLightBox("LEFT\nGEAR", getStatus(data.leftGearDown)),
-            const SizedBox(width: 24),
-            _buildLightBox("RIGHT\nGEAR", getStatus(data.rightGearDown)),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLightBox(String text, int status) {
-    // status: 0=Off, 1=Red (Transit), 2=Green (Down)
-    final bool isRedLit = status == 1; // Top Light
-    final bool isGreenLit = status == 2; // Bottom Light
-
-    return Column(
-      children: [
-        // Red Light Box (Top) - Indicates Transit/Unsafe
-        _buildSingleLight(text, Colors.redAccent, isRedLit),
-        const SizedBox(height: 4),
-        // Green Light Box (Bottom) - Indicates Down & Locked
-        _buildSingleLight(text, const Color(0xFF4CAF50), isGreenLit),
-      ],
-    );
-  }
-
-  Widget _buildSingleLight(String text, Color color, bool isLit) {
-    return Container(
-      width: 60,
-      height: 40,
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border.all(color: Colors.grey[800]!, width: 2),
-        borderRadius: BorderRadius.circular(4),
-        boxShadow: isLit
-            ? [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.6),
-                  blurRadius: 10,
-                  spreadRadius: 1,
-                ),
-              ]
-            : null,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          // If lit, use the color. If not lit, use a very dim text color (simulating text etched on glass)
-          color: isLit ? color : Colors.grey.withValues(alpha: 0.3),
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          height: 1.1,
-          fontFamily:
-              'monospace', // Use a monospaced-like font if available, or default
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGearHandle(BuildContext context, int position) {
-    // Position: 2=UP, 1=OFF, 0=DN
-    double sliderValue = 0;
-    if (position == 2) sliderValue = -1; // Top
-    if (position == 1) sliderValue = 0; // Middle
-    if (position == 0) sliderValue = 1; // Bottom
-
-    return SizedBox(
-      height: 200,
-      width: 80,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Background Track
-          Container(
-            width: 40,
-            height: 180,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.grey[800]!, width: 2),
-            ),
-          ),
-          // Labels
-          const Positioned(
-            top: 10,
-            left: 0,
-            child: Text(
-              "UP",
-              style: TextStyle(color: Colors.white70, fontSize: 10),
-            ),
-          ),
-          const Positioned(
-            top: 85,
-            left: 0,
-            child: Text(
-              "OFF",
-              style: TextStyle(color: Colors.white70, fontSize: 10),
-            ),
-          ),
-          const Positioned(
-            bottom: 10,
-            left: 0,
-            child: Text(
-              "DN",
-              style: TextStyle(color: Colors.white70, fontSize: 10),
-            ),
-          ),
-
-          // The Handle (Animated)
-          AnimatedAlign(
-            duration: const Duration(milliseconds: 300),
-            alignment: Alignment(0, sliderValue),
-            child: Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.grey[300],
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black54,
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.white, Colors.grey[400]!],
-                ),
-              ),
-              child: Center(
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle, // Wheel shape?
-                    color: Colors.transparent,
-                    border: Border.all(color: Colors.grey[600]!, width: 2),
-                  ),
-                  child: const Icon(Icons.circle, color: Colors.grey, size: 30),
-                ),
-              ),
-            ),
-          ),
-
-          // Gear text label vertical
-          const Positioned(
-            left: -25,
-            top: 50,
-            child: RotatedBox(
-              quarterTurns: 3,
-              child: Text(
-                "LANDING GEAR",
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 10,
-                  letterSpacing: 2,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLimitText() {
-    return Column(
-      children: const [
-        Text(
-          "LANDING GEAR LIMIT (IAS)",
-          style: TextStyle(
-            color: Colors.grey,
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        SizedBox(height: 4),
-        Text(
-          "OPERATING EXTEND 270K - 82M\nRETRACT 235K\nEXTENDED 320K - 82M",
-          style: TextStyle(
-            color: Colors.grey,
-            fontSize: 8,
-            fontFamily: 'Monospace',
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+  Widget _buildPressureChart(SimulatorData data) {
+    return MonitorChartCard(
+      title: '大气压强 (Baro)',
+      value: '${data.baroPressure?.toStringAsFixed(2) ?? "29.92"} inHg',
+      spots: _pressureSpots,
+      color: Colors.cyanAccent,
+      minY: 28,
+      maxY: 31,
+      currentTime: _time,
     );
   }
 }

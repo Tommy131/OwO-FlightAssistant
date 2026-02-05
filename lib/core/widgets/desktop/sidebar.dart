@@ -303,7 +303,7 @@ class _DesktopSidebarState extends State<DesktopSidebar>
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                'ATIS: ${data.atisFrequency?.toStringAsFixed(2) ?? "---"}',
+                'COM1: ${data.com1Frequency?.toStringAsFixed(2) ?? "---"} MHz',
                 style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
                 overflow: TextOverflow.ellipsis,
               ),
