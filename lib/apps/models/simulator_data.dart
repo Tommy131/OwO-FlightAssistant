@@ -57,6 +57,8 @@ class SimulatorData {
   final double? speedBrakePosition; // 减速板位置 (0-1)
   final bool? spoilersDeployed; // 扰流板展开
   final int? autoBrakeLevel; // 自动刹车挡位 (0=OFF, 1-5)
+  // 起落架手柄
+  final int? gearHandlePosition; // 0=UP, 1=OFF, 2=DN (Zibo Custom)
 
   // 警告系统
   final bool? masterWarning; // 主警告
@@ -127,6 +129,8 @@ class SimulatorData {
     this.speedBrakePosition,
     this.spoilersDeployed,
     this.autoBrakeLevel,
+    // 起落架手柄
+    this.gearHandlePosition, // 0=UP, 1=OFF, 2=DN (Zibo) or 0-1 (Standard)
     // 警告系统
     this.masterWarning,
     this.masterCaution,
@@ -199,6 +203,7 @@ class SimulatorData {
     double? speedBrakePosition,
     bool? spoilersDeployed,
     int? autoBrakeLevel,
+    int? gearHandlePosition,
     // 警告系统
     bool? masterWarning,
     bool? masterCaution,
@@ -267,6 +272,7 @@ class SimulatorData {
       speedBrakePosition: speedBrakePosition ?? this.speedBrakePosition,
       spoilersDeployed: spoilersDeployed ?? this.spoilersDeployed,
       autoBrakeLevel: autoBrakeLevel ?? this.autoBrakeLevel,
+      gearHandlePosition: gearHandlePosition ?? this.gearHandlePosition,
       // 警告系统
       masterWarning: masterWarning ?? this.masterWarning,
       masterCaution: masterCaution ?? this.masterCaution,

@@ -450,6 +450,21 @@ class XPlaneService {
           );
         }
         break;
+      case 138:
+        // Standard Gear Handle: 0=UP, 1=DOWN
+        // Only update if we haven't received valid Zibo data recently (simple overwrite for now)
+        // Map 0 -> 0 (UP), 1 -> 2 (DN)
+        _currentData = _currentData.copyWith(
+          gearHandlePosition: value > 0.5 ? 2 : 0,
+        );
+        break;
+      case 139:
+        // Zibo Gear Handle: 0=UP, 1=OFF, 2=DN
+        final handlePos = value.round();
+        if (handlePos >= 0 && handlePos <= 2) {
+          _currentData = _currentData.copyWith(gearHandlePosition: handlePos);
+        }
+        break;
       // 减速板与扰流板
       case 140:
         _currentData = _currentData.copyWith(

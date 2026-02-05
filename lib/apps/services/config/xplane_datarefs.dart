@@ -379,6 +379,18 @@ class XPlaneDataRefs {
     description: 'ZIBO 738襟翼手柄位置',
   );
 
+  static const XPlaneDataRef gearHandle = XPlaneDataRef(
+    index: 138,
+    path: 'sim/cockpit2/controls/gear_handle_down',
+    description: '起落架手柄 (Standard)',
+  );
+
+  static const XPlaneDataRef gearHandleZibo = XPlaneDataRef(
+    index: 139,
+    path: 'laminar/B738/controls/gear_handle',
+    description: '起落架手柄 (Zibo)',
+  );
+
   // ====================  自动刹车 ====================
 
   static const XPlaneDataRef autoBrake = XPlaneDataRef(
@@ -464,6 +476,7 @@ class XPlaneDataRefs {
       noseGearDeploy, leftGearDeploy, rightGearDeploy,
       // 襟翼状态
       flapsDeployRatio, flapsActualDegrees, flapsLeverZibo,
+      gearHandle, gearHandleZibo,
       // 减速板与扰流板
       speedBrakeRatio, spoilersDeployed,
       // 自动刹车
