@@ -16,9 +16,12 @@ dependencies:
   flutter_local_notifications: ^19.5.0
   http: ^1.6.0
   logger: ^2.6.2
+  path: ^1.9.1
   path_provider: ^2.1.5
   provider: ^6.1.5+1
   shared_preferences: ^2.5.3
+  sqlite3: ^2.9.4
+  sqlite3_flutter_libs: ^0.5.41
   timezone: ^0.10.1
   url_launcher: ^6.3.2
   web_socket_channel: ^3.0.1

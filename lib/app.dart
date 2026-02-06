@@ -67,18 +67,18 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       page: HomePage(),
     ),
     NavigationItem(
-      id: 'monitor',
-      title: '飞行仪表盘',
-      icon: Icons.speed_outlined,
-      activeIcon: Icons.speed,
-      page: MonitorPage(),
-    ),
-    NavigationItem(
       id: 'airport',
       title: '机场信息',
       icon: Icons.flight_outlined,
       activeIcon: Icons.flight,
       page: AirportInfoPage(),
+    ),
+    NavigationItem(
+      id: 'monitor',
+      title: '飞行仪表盘',
+      icon: Icons.speed_outlined,
+      activeIcon: Icons.speed,
+      page: MonitorPage(),
     ),
     NavigationItem(
       id: 'checklist',

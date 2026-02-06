@@ -15,7 +15,9 @@
     - `findByIcao()` - 通过ICAO代码查找
     - `findNearestByCoords()` - 通过坐标查找最近机场
     - `searchByName()` - 模糊搜索
-  - 便于未来扩展（可直接导入导航数据库）
+  - `AirportDetailService`: 统一管理不同来源的数据，目前支持 `aviationApi`, `xplaneData`, `lnmData`, `mockData`。
+  - `XPlaneAptDatParser`: 高性能解析 X-Plane 的 `apt.dat` 1100 格式文件。
+  - `LNMDatabaseParser`: 解析 Little Navmap 的 SQLite 数据库。
 
 ### 2. **机型智能检测器** ✅
 - **文件**: `lib/apps/utils/aircraft_detector.dart`
