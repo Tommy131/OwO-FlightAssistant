@@ -234,12 +234,28 @@ class _DesktopSidebarState extends State<DesktopSidebar>
     return Consumer<SimulatorProvider>(
       builder: (context, simProvider, _) {
         final data = simProvider.simulatorData;
-        final hasAirport = data.departureAirport != null;
 
-        // 如果未连接或没有机场数据，显示一个简洁的“模拟器未连接”提示或留空
-        if (!simProvider.isConnected || !hasAirport) {
+        // 如果未连接模拟器，不显示页脚
+        if (!simProvider.isConnected) {
           return const SizedBox.shrink();
         }
+
+        final nearest = simProvider.nearestAirport;
+        final departure = data.departureAirport;
+        final phase = simProvider.flightPhase;
+        final phaseIcon = simProvider.flightPhaseIcon;
+        final weather = simProvider.weatherQuality;
+        final weatherIcon = simProvider.weatherIcon;
+        final dist = simProvider.remainingDistance;
+        final ete = simProvider.estimatedTimeEnroute;
+
+        // 优先显示：机场信息。如果没有机场信息，则显示飞行阶段+天气
+        final airportName = (data.onGround == false && nearest != null)
+            ? '${nearest.icaoCode} ${nearest.nameChinese}'
+            : (departure ??
+                  (nearest != null
+                      ? '${nearest.icaoCode} ${nearest.nameChinese}'
+                      : null));
 
         return Container(
           padding: EdgeInsets.all(_isCollapsed ? 4 : AppThemeData.spacingSmall),
@@ -252,41 +268,77 @@ class _DesktopSidebarState extends State<DesktopSidebar>
             ),
           ),
           child: _isCollapsed
-              ? _buildCollapsedFooter(theme)
-              : _buildExpandedFooter(theme, data),
+              ? _buildCollapsedFooter(
+                  theme,
+                  airportName ?? phase,
+                  airportName != null ? Icons.flight_takeoff : phaseIcon,
+                )
+              : _buildExpandedFooter(
+                  theme,
+                  data,
+                  airportName,
+                  phase,
+                  phaseIcon,
+                  weather,
+                  weatherIcon,
+                  dist,
+                  ete,
+                ),
         );
       },
     );
   }
 
-  Widget _buildCollapsedFooter(ThemeData theme) {
+  Widget _buildCollapsedFooter(ThemeData theme, String tooltip, IconData icon) {
     return Center(
       child: Tooltip(
-        message: '临近机场',
+        message: tooltip,
         child: CircleAvatar(
           radius: _avatarRadius,
           backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-          child: Icon(
-            Icons.flight_takeoff,
-            size: 16,
-            color: theme.colorScheme.primary,
-          ),
+          child: Icon(icon, size: 16, color: theme.colorScheme.primary),
         ),
       ),
     );
   }
 
-  Widget _buildExpandedFooter(ThemeData theme, SimulatorData data) {
+  Widget _buildExpandedFooter(
+    ThemeData theme,
+    SimulatorData data,
+    String? airportName,
+    String phase,
+    IconData phaseIcon,
+    String weather,
+    IconData weatherIcon,
+    double? distance,
+    String? ete,
+  ) {
+    final distText = distance != null
+        ? ' | ${distance.toStringAsFixed(0)}nm'
+        : '';
+    final eteText = ete != null ? ' ($ete)' : '';
+    final comText = data.com1Frequency != null
+        ? '${data.com1Frequency!.toStringAsFixed(3)} MHz'
+        : '';
+    final visText = data.visibility != null
+        ? ' | Vis: ${(data.visibility! / 1000).toStringAsFixed(1)}km'
+        : '';
+
+    final mainText = airportName ?? (data.onGround == true ? '未知机场' : phase);
+    final subText = data.onGround == true
+        ? '$comText$visText'
+        : (airportName != null
+              ? '$phase$distText$eteText'
+              : '$weather$eteText');
+
+    final mainIcon = airportName != null ? Icons.flight_takeoff : phaseIcon;
+
     return Row(
       children: [
         CircleAvatar(
           radius: _avatarRadius,
           backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-          child: Icon(
-            Icons.flight_takeoff,
-            size: 16,
-            color: theme.colorScheme.primary,
-          ),
+          child: Icon(mainIcon, size: 16, color: theme.colorScheme.primary),
         ),
         const SizedBox(width: AppThemeData.spacingSmall),
         Expanded(
@@ -295,17 +347,27 @@ class _DesktopSidebarState extends State<DesktopSidebar>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                data.departureAirport ?? '未知机场',
+                mainText,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
-              Text(
-                'COM1: ${data.com1Frequency?.toStringAsFixed(2) ?? "---"} MHz',
-                style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  if (airportName == null) ...[
+                    Icon(weatherIcon, size: 10, color: theme.hintColor),
+                    const SizedBox(width: 4),
+                  ],
+                  Expanded(
+                    child: Text(
+                      subText,
+                      style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

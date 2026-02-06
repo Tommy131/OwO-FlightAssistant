@@ -374,6 +374,12 @@ class MSFSService {
       );
     }
 
+    if (data.containsKey('COM ACTIVE FREQUENCY:1')) {
+      _currentData = _currentData.copyWith(
+        com1Frequency: (data['COM ACTIVE FREQUENCY:1'] as num?)?.toDouble(),
+      );
+    }
+
     // MSFS 机型识别辅助 (MSFS 一般会在消息中包含更多信息，或者我们根据经纬度反查)
     if (_currentData.aircraftTitle == null ||
         _currentData.aircraftTitle == 'Unknown Aircraft') {

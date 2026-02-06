@@ -27,6 +27,7 @@ class SimulatorData {
   final double? totalAirTemperature;
   final double? windSpeed;
   final double? windDirection;
+  final double? visibility; // 可见度 (米 或 海里)
 
   // 系统状态
   final bool? parkingBrake;
@@ -100,6 +101,7 @@ class SimulatorData {
     this.totalAirTemperature,
     this.windSpeed,
     this.windDirection,
+    this.visibility,
     this.parkingBrake,
     this.beacon,
     this.landingLights,
@@ -126,8 +128,6 @@ class SimulatorData {
     this.speedBrakePosition,
     this.spoilersDeployed,
     this.autoBrakeLevel,
-    // 起落架手柄
-    this.gearHandlePosition, // 0=UP, 1=OFF, 2=DN (Zibo) or 0-1 (Standard)
     // 警告系统
     this.masterWarning,
     this.masterCaution,
@@ -174,6 +174,7 @@ class SimulatorData {
     double? totalAirTemperature,
     double? windSpeed,
     double? windDirection,
+    double? visibility,
     bool? parkingBrake,
     bool? beacon,
     bool? landingLights,
@@ -242,6 +243,7 @@ class SimulatorData {
       totalAirTemperature: totalAirTemperature ?? this.totalAirTemperature,
       windSpeed: windSpeed ?? this.windSpeed,
       windDirection: windDirection ?? this.windDirection,
+      visibility: visibility ?? this.visibility,
       parkingBrake: parkingBrake ?? this.parkingBrake,
       beacon: beacon ?? this.beacon,
       landingLights: landingLights ?? this.landingLights,
@@ -268,7 +270,6 @@ class SimulatorData {
       speedBrakePosition: speedBrakePosition ?? this.speedBrakePosition,
       spoilersDeployed: spoilersDeployed ?? this.spoilersDeployed,
       autoBrakeLevel: autoBrakeLevel ?? this.autoBrakeLevel,
-      gearHandlePosition: gearHandlePosition ?? this.gearHandlePosition,
       // 警告系统
       masterWarning: masterWarning ?? this.masterWarning,
       masterCaution: masterCaution ?? this.masterCaution,
@@ -293,5 +294,45 @@ class SimulatorData {
       gForce: gForce ?? this.gForce,
       baroPressure: baroPressure ?? this.baroPressure,
     );
+  }
+
+  /// 获取自动刹车挡位文本 (支持机型自动识别)
+  String get autoBrakeLabel {
+    if (autoBrakeLevel == null || autoBrakeLevel == 0) return 'OFF';
+
+    final title = aircraftTitle?.toLowerCase() ?? '';
+
+    // Boeing 737 系列
+    if (title.contains('737') ||
+        title.contains('738') ||
+        title.contains('boeing')) {
+      if (autoBrakeLevel == -1) return 'RTO';
+      if (autoBrakeLevel == 4) return 'MAX';
+      return autoBrakeLevel.toString();
+    }
+
+    // Airbus A320 系列
+    if (title.contains('a320') ||
+        title.contains('airbus') ||
+        title.contains('a319') ||
+        title.contains('a321')) {
+      if (autoBrakeLevel == 1) return 'LO';
+      if (autoBrakeLevel == 2) return 'MED';
+      if (autoBrakeLevel == 3 || autoBrakeLevel == 4) return 'MAX';
+      return 'L${autoBrakeLevel}';
+    }
+
+    // 通用回退
+    if (autoBrakeLevel == -1) return 'RTO';
+    if (autoBrakeLevel == 4) return 'MAX';
+    return autoBrakeLevel.toString();
+  }
+
+  /// 获取减速板展开文本
+  String get speedBrakeLabel {
+    if (speedBrake != true) return 'RETRACTED';
+    final pos = (speedBrakePosition ?? 0) * 100;
+    if (pos <= 0.01) return 'ARMED';
+    return 'DEPLOYED (${pos.toStringAsFixed(0)}%)';
   }
 }

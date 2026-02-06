@@ -9,7 +9,6 @@ import 'widgets/heading_compass.dart';
 import 'widgets/landing_gear_card.dart';
 import 'widgets/systems_status_card.dart';
 import 'widgets/monitor_chart_card.dart';
-import 'package:fl_chart/fl_chart.dart';
 
 class MonitorPage extends StatefulWidget {
   const MonitorPage({super.key});
@@ -19,49 +18,6 @@ class MonitorPage extends StatefulWidget {
 }
 
 class _MonitorPageState extends State<MonitorPage> {
-  final List<FlSpot> _gForceSpots = [];
-  final List<FlSpot> _altitudeSpots = [];
-  final List<FlSpot> _pressureSpots = [];
-  double _time = 0;
-  static const int _maxSpots = 300; // 5次/秒 * 60秒 = 300个点 (1分钟历史)
-
-  // 用于检测变更以防过度绘制
-  double? _lastAltitude;
-  double? _lastGForce;
-  bool _initialized = false;
-
-  void _updateSpots(SimulatorData data) {
-    if (!data.isConnected) return;
-
-    // 如果数据和上一帧完全一样（且不是初始帧），则跳过，防止X轴空转
-    if (_initialized &&
-        data.altitude == _lastAltitude &&
-        data.gForce == _lastGForce) {
-      return;
-    }
-
-    _time += 0.2;
-    _initialized = true;
-    _lastAltitude = data.altitude;
-    _lastGForce = data.gForce;
-
-    // G-Force (保持 1.0 为默认)
-    _gForceSpots.add(FlSpot(_time, data.gForce ?? 1.0));
-    if (_gForceSpots.length > _maxSpots) _gForceSpots.removeAt(0);
-
-    // Altitude (仅在有数据时记录，防止从0跳变)
-    if (data.altitude != null) {
-      _altitudeSpots.add(FlSpot(_time, data.altitude!));
-      if (_altitudeSpots.length > _maxSpots) _altitudeSpots.removeAt(0);
-    }
-
-    // Air Pressure
-    if (data.baroPressure != null) {
-      _pressureSpots.add(FlSpot(_time, data.baroPressure!));
-      if (_pressureSpots.length > _maxSpots) _pressureSpots.removeAt(0);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -76,9 +32,6 @@ class _MonitorPageState extends State<MonitorPage> {
         }
 
         final data = simProvider.simulatorData;
-
-        // 只有当数据真正更新或时间流逝时才更新点
-        _updateSpots(data);
 
         return Scaffold(
           backgroundColor: Colors.transparent,
@@ -119,21 +72,23 @@ class _MonitorPageState extends State<MonitorPage> {
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(child: _buildGForceChart(data)),
+                          Expanded(child: _buildGForceChart(simProvider)),
                           const SizedBox(width: AppThemeData.spacingLarge),
-                          Expanded(child: _buildAltitudeChart(theme, data)),
+                          Expanded(
+                            child: _buildAltitudeChart(theme, simProvider),
+                          ),
                           const SizedBox(width: AppThemeData.spacingLarge),
-                          Expanded(child: _buildPressureChart(data)),
+                          Expanded(child: _buildPressureChart(simProvider)),
                         ],
                       );
                     } else {
                       return Column(
                         children: [
-                          _buildGForceChart(data),
+                          _buildGForceChart(simProvider),
                           const SizedBox(height: AppThemeData.spacingLarge),
-                          _buildAltitudeChart(theme, data),
+                          _buildAltitudeChart(theme, simProvider),
                           const SizedBox(height: AppThemeData.spacingLarge),
-                          _buildPressureChart(data),
+                          _buildPressureChart(simProvider),
                         ],
                       );
                     }
@@ -282,43 +237,50 @@ class _MonitorPageState extends State<MonitorPage> {
     );
   }
 
-  Widget _buildGForceChart(SimulatorData data) {
+  Widget _buildGForceChart(SimulatorProvider simProvider) {
+    final data = simProvider.simulatorData;
     return MonitorChartCard(
       title: '重力监控 (G-Force)',
       value: '${data.gForce?.toStringAsFixed(2) ?? "1.00"} G',
-      spots: _gForceSpots,
+      spots: simProvider.gForceSpots,
       color: Colors.orangeAccent,
       minY: 0,
       maxY: 2,
-      currentTime: _time,
+      currentTime: simProvider.chartTime,
     );
   }
 
-  Widget _buildAltitudeChart(ThemeData theme, SimulatorData data) {
+  Widget _buildAltitudeChart(ThemeData theme, SimulatorProvider simProvider) {
+    final data = simProvider.simulatorData;
     return MonitorChartCard(
       title: '高度趋势 (Altitude)',
       value: '${data.altitude?.toStringAsFixed(0) ?? "0"} FT',
-      spots: _altitudeSpots,
+      spots: simProvider.altitudeSpots,
       color: theme.colorScheme.primary,
-      minY: MonitorChartCard.calculateMinY(_altitudeSpots, 100, defaultVal: 0),
+      minY: MonitorChartCard.calculateMinY(
+        simProvider.altitudeSpots,
+        100,
+        defaultVal: 0,
+      ),
       maxY: MonitorChartCard.calculateMaxY(
-        _altitudeSpots,
+        simProvider.altitudeSpots,
         100,
         defaultVal: 100,
       ),
-      currentTime: _time,
+      currentTime: simProvider.chartTime,
     );
   }
 
-  Widget _buildPressureChart(SimulatorData data) {
+  Widget _buildPressureChart(SimulatorProvider simProvider) {
+    final data = simProvider.simulatorData;
     return MonitorChartCard(
       title: '大气压强 (Baro)',
       value: '${data.baroPressure?.toStringAsFixed(2) ?? "29.92"} inHg',
-      spots: _pressureSpots,
+      spots: simProvider.pressureSpots,
       color: Colors.cyanAccent,
       minY: 28,
       maxY: 31,
-      currentTime: _time,
+      currentTime: simProvider.chartTime,
     );
   }
 }

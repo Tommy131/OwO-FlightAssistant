@@ -5,6 +5,7 @@ import '../../../apps/models/simulator_data.dart';
 import '../../../core/theme/app_theme_data.dart';
 import 'flight_data_widgets.dart';
 import 'system_status_panel.dart';
+import '../../../apps/data/airports_database.dart';
 
 class FlightDataDashboard extends StatelessWidget {
   const FlightDataDashboard({super.key});
@@ -38,7 +39,7 @@ class FlightDataDashboard extends StatelessWidget {
             const SizedBox(height: AppThemeData.spacingMedium),
 
             // 导航和位置
-            _buildNavigationData(theme, data),
+            _buildNavigationData(context, theme, data),
 
             const SizedBox(height: AppThemeData.spacingMedium),
 
@@ -98,51 +99,77 @@ class FlightDataDashboard extends StatelessWidget {
   }
 
   Widget _buildPrimaryFlightData(ThemeData theme, SimulatorData data) {
-    return GridView.count(
-      crossAxisCount: 4,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: AppThemeData.spacingMedium,
-      mainAxisSpacing: AppThemeData.spacingMedium,
-      childAspectRatio: 1.5,
-      children: [
-        DataCard(
-          icon: Icons.speed,
-          label: '指示空速',
-          value: data.airspeed != null
-              ? '${data.airspeed!.toStringAsFixed(0)} kt'
-              : 'N/A',
-          color: Colors.blue,
-        ),
-        DataCard(
-          icon: Icons.height,
-          label: '高度',
-          value: data.altitude != null
-              ? '${data.altitude!.toStringAsFixed(0)} ft'
-              : 'N/A',
-          color: Colors.green,
-        ),
-        DataCard(
-          icon: Icons.explore,
-          label: '航向',
-          value: data.heading != null
-              ? '${data.heading!.toStringAsFixed(0)}°'
-              : 'N/A',
-          color: Colors.purple,
-        ),
-        DataCard(
-          icon: Icons.trending_up,
-          label: '垂直速度',
-          value: data.verticalSpeed != null
-              ? '${data.verticalSpeed!.toStringAsFixed(0)} fpm'
-              : 'N/A',
-          color: Colors.orange,
-        ),
-      ],
+    return Consumer<SimulatorProvider>(
+      builder: (context, simProvider, _) {
+        final isFuelOk = simProvider.isFuelSufficient;
+
+        return GridView.count(
+          crossAxisCount: 5,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: AppThemeData.spacingSmall,
+          mainAxisSpacing: AppThemeData.spacingMedium,
+          childAspectRatio: 1.1,
+          children: [
+            DataCard(
+              icon: Icons.speed,
+              label: '指示空速',
+              value: data.airspeed != null
+                  ? '${data.airspeed!.toStringAsFixed(0)} kt'
+                  : 'N/A',
+              color: Colors.blue,
+            ),
+            DataCard(
+              icon: Icons.height,
+              label: '高度',
+              value: data.altitude != null
+                  ? '${data.altitude!.toStringAsFixed(0)} ft'
+                  : 'N/A',
+              color: Colors.green,
+            ),
+            DataCard(
+              icon: Icons.explore,
+              label: '航向',
+              value: data.heading != null
+                  ? '${data.heading!.toStringAsFixed(0)}°'
+                  : 'N/A',
+              color: Colors.purple,
+            ),
+            DataCard(
+              icon: Icons.trending_up,
+              label: '垂直速度',
+              value: data.verticalSpeed != null
+                  ? '${data.verticalSpeed!.toStringAsFixed(0)} fpm'
+                  : 'N/A',
+              color: Colors.orange,
+            ),
+            DataCard(
+              icon: isFuelOk == false
+                  ? Icons.local_gas_station
+                  : Icons.local_gas_station,
+              label: '燃油状态',
+              value: isFuelOk == null
+                  ? '未知'
+                  : isFuelOk
+                  ? '充足'
+                  : '不足!',
+              color: isFuelOk == null
+                  ? Colors.grey
+                  : isFuelOk
+                  ? Colors.teal
+                  : Colors.red,
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildNavigationData(ThemeData theme, SimulatorData data) {
+  Widget _buildNavigationData(
+    BuildContext context,
+    ThemeData theme,
+    SimulatorData data,
+  ) {
     return Container(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge),
       decoration: BoxDecoration(
@@ -201,7 +228,7 @@ class FlightDataDashboard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // 通信频率
+          // 通信频率与导航设置
           Row(
             children: [
               Icon(
@@ -225,10 +252,71 @@ class FlightDataDashboard extends StatelessWidget {
                   fontFamily: 'Monospace',
                 ),
               ),
+              const Spacer(),
+              _buildDestinationPicker(context),
             ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDestinationPicker(BuildContext context) {
+    final simProvider = context.watch<SimulatorProvider>();
+    final dest = simProvider.destinationAirport;
+
+    return TextButton.icon(
+      onPressed: () => _showAirportPickerDialog(context),
+      icon: Icon(
+        dest != null ? Icons.edit_location : Icons.add_location,
+        size: 16,
+      ),
+      label: Text(
+        dest != null ? '目的地: ${dest.icaoCode}' : '设置目的地',
+        style: const TextStyle(fontSize: 12),
+      ),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+
+  void _showAirportPickerDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final airports = AirportsDatabase.allAirports;
+        return AlertDialog(
+          title: const Text('选择目的地机场'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 300,
+            child: ListView.builder(
+              itemCount: airports.length,
+              itemBuilder: (context, index) {
+                final airport = airports[index];
+                return ListTile(
+                  title: Text(airport.displayName),
+                  subtitle: Text(
+                    'LAT: ${airport.latitude}, LON: ${airport.longitude}',
+                  ),
+                  onTap: () {
+                    context.read<SimulatorProvider>().setDestination(airport);
+                    Navigator.pop(context);
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -282,6 +370,16 @@ class FlightDataDashboard extends StatelessWidget {
                 label: '风向',
                 value: data.windDirection != null
                     ? '${data.windDirection!.toStringAsFixed(0)}°'
+                    : 'N/A',
+              ),
+              InfoChip(
+                label: '报告能见度',
+                value: data.visibility != null
+                    ? (data.visibility! >= 9999
+                          ? '10km+'
+                          : data.visibility! >= 1000
+                          ? '${(data.visibility! / 1000).toStringAsFixed(1)}km'
+                          : '${data.visibility!.toStringAsFixed(0)}m')
                     : 'N/A',
               ),
             ],

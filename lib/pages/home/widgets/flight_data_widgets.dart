@@ -97,15 +97,22 @@ class StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 检查颜色亮度，解决白色文字在浅色背景看不见的问题
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // 检查颜色亮度
     final isLightColor = color.computeLuminance() > 0.8;
-    final textColor = isLightColor ? Colors.black87 : color;
+
+    // 在深色模式下，即使是高亮度颜色（如白色），也应该保持浅色文字以确保对比度
+    final textColor = isLightColor ? (isDark ? color : Colors.black87) : color;
+
     final borderColor = isLightColor
-        ? Colors.black45
+        ? (isDark ? color.withValues(alpha: 0.5) : Colors.black45)
         : color.withValues(alpha: 0.3);
+
     final dotColor = color;
     final backgroundColor = isLightColor
-        ? Colors.black12
+        ? (isDark ? color.withValues(alpha: 0.2) : Colors.black12)
         : color.withValues(alpha: 0.1);
 
     return Container(

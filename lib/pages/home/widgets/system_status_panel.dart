@@ -51,7 +51,10 @@ class SystemStatusPanel extends StatelessWidget {
     const autothrottleColor = Color(0xFF00897B); // 自动油门 - 青绿色
 
     // 飞行状态 - 棕色系
-    const onGroundColor = Color(0xFF6D4C41); // 地面状态 - 棕色
+    // 飞行状态 - 棕色系 (深色模式优化)
+    final onGroundColor = theme.brightness == Brightness.dark
+        ? const Color(0xFFA1887F) // 深色模式下更浅的棕色
+        : const Color(0xFF6D4C41); // 浅色模式保持原样
 
     return Container(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge),
@@ -99,26 +102,18 @@ class SystemStatusPanel extends StatelessWidget {
               // === 飞行与控制组 ===
               _buildStatusSection(theme, '飞行与控制', [
                 if (data.onGround == true)
-                  const StatusBadge(label: '地面', color: onGroundColor),
+                  StatusBadge(label: '地面', color: onGroundColor),
                 if (data.parkingBrake == true)
                   const StatusBadge(label: '停机刹车', color: parkingBrakeColor),
                 if (data.speedBrake == true)
                   StatusBadge(
-                    label:
-                        '减速板 ${((data.speedBrakePosition ?? 0) * 100).toStringAsFixed(0)}%',
+                    label: '减速板 ${data.speedBrakeLabel}',
                     color: speedBrakeColor,
                   ),
                 if (data.spoilersDeployed == true)
                   const StatusBadge(label: '扰流板', color: speedBrakeColor),
                 StatusBadge(
-                  label:
-                      '自动刹车 ${data.autoBrakeLevel == -1
-                          ? 'RTO'
-                          : data.autoBrakeLevel == 4
-                          ? 'MAX'
-                          : data.autoBrakeLevel == 0
-                          ? 'OFF'
-                          : data.autoBrakeLevel}',
+                  label: '自动刹车 ${data.autoBrakeLabel}',
                   color: autoBrakeColor,
                 ),
               ]),

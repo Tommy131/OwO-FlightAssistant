@@ -38,10 +38,9 @@ class SystemsStatusCard extends StatelessWidget {
           _buildStatusRow(
             context,
             '自动刹车 (Auto Brake)',
-            data.autoBrakeLevel != null
-                ? 'LEVEL ${data.autoBrakeLevel}'
-                : 'OFF',
-            isHighlight: data.autoBrakeLevel != null,
+            data.autoBrakeLabel,
+            isHighlight:
+                data.autoBrakeLevel != null && data.autoBrakeLevel != 0,
             highlightColor: Colors.blueAccent,
           ),
           const Divider(height: 20),
@@ -56,7 +55,7 @@ class SystemsStatusCard extends StatelessWidget {
           _buildStatusRow(
             context,
             '减速板 (Speed Brake)',
-            data.speedBrake == true ? 'DEPLOYED' : 'RETRACTED',
+            data.speedBrakeLabel,
             isHighlight: data.speedBrake == true,
             highlightColor: Colors.orangeAccent,
           ),

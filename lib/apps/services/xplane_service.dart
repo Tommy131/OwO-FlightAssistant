@@ -242,6 +242,9 @@ class XPlaneService {
 
   void _updateDataByRefKey(XPlaneDataRefKey key, double value) {
     switch (key) {
+      case XPlaneDataRefKey.visibility:
+        _currentData = _currentData.copyWith(visibility: value);
+        break;
       case XPlaneDataRefKey.airspeed:
         _currentData = _currentData.copyWith(airspeed: value);
         break;

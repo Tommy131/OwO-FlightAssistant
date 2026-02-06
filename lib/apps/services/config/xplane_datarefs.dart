@@ -62,6 +62,7 @@ enum XPlaneDataRefKey {
   fireWarningEng1,
   fireWarningEng2,
   fireWarningAPU,
+  visibility,
 }
 
 /// X-Plane DataRef 配置项
@@ -268,6 +269,12 @@ class XPlaneDataRefs {
     key: XPlaneDataRefKey.windDirection,
     path: 'sim/weather/wind_direction_degt',
     description: '风向',
+  );
+
+  static const XPlaneDataRef visibility = XPlaneDataRef(
+    key: XPlaneDataRefKey.visibility,
+    path: 'sim/weather/visibility_reported_m',
+    description: '能见度',
   );
 
   // ==================== 燃油 ====================

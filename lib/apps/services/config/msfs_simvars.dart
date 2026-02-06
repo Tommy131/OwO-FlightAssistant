@@ -240,6 +240,12 @@ class MSFSSimVars {
     description: '能见度',
   );
 
+  static const MSFSSimVar com1Frequency = MSFSSimVar(
+    name: 'COM ACTIVE FREQUENCY:1',
+    unit: 'MHz',
+    description: 'COM1 频率',
+  );
+
   // ====================  警告系统 ====================
 
   static const MSFSSimVar masterWarning = MSFSSimVar(
@@ -300,6 +306,7 @@ class MSFSSimVars {
       // 环境数据
       outsideAirTemperature, totalAirTemperature,
       windSpeed, windDirection, visibility,
+      com1Frequency,
     ];
   }
 
