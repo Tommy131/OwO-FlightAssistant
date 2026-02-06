@@ -8,6 +8,8 @@ import '../../core/theme/app_theme_data.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/data_path_item.dart';
 
+import '../../apps/services/airport_detail_service.dart';
+
 /// 数据路径设置页面
 class DataPathSettingsPage extends StatefulWidget {
   final VoidCallback? onBack;
@@ -20,20 +22,31 @@ class DataPathSettingsPage extends StatefulWidget {
 
 class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
   String? _xplanePath;
-  String? _msfsPath;
+  String? _lnmPath;
   String? _airportDbToken;
   String? _appDataPath;
   int _metarCacheExpiry = 60; // 默认 60 分钟
+  int _airportDataExpiry = 30; // 默认 30 天
+  int _tokenThreshold = 5000;
+  int _tokenCount = 0;
+
+  bool _clearMetarCache = true;
+  bool _clearAirportCache = true;
 
   bool _isLoading = true;
   bool _isDetecting = false;
+  bool _isValidating = false;
 
   final TextEditingController _tokenController = TextEditingController();
+  final AirportDetailService _airportService = AirportDetailService();
 
   static const String _xplanePathKey = 'xplane_nav_data_path';
-  static const String _msfsPathKey = 'msfs_nav_data_path';
+  static const String _lnmPathKey = 'lnm_nav_data_path';
   static const String _airportDbTokenKey = 'airportdb_token';
   static const String _metarExpiryKey = 'metar_cache_expiry';
+  static const String _airportExpiryKey = 'airport_data_expiry';
+  static const String _tokenThresholdKey = 'token_consumption_threshold';
+  static const String _tokenCountKey = 'token_consumption_count';
 
   @override
   void initState() {
@@ -55,10 +68,13 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
 
     setState(() {
       _xplanePath = prefs.getString(_xplanePathKey);
-      _msfsPath = prefs.getString(_msfsPathKey);
+      _lnmPath = prefs.getString(_lnmPathKey);
       _airportDbToken = prefs.getString(_airportDbTokenKey);
       _tokenController.text = _airportDbToken ?? '';
       _metarCacheExpiry = prefs.getInt(_metarExpiryKey) ?? 60;
+      _airportDataExpiry = prefs.getInt(_airportExpiryKey) ?? 30;
+      _tokenThreshold = prefs.getInt(_tokenThresholdKey) ?? 5000;
+      _tokenCount = prefs.getInt(_tokenCountKey) ?? 0;
       _appDataPath = appDocDir.path;
       _isLoading = false;
     });
@@ -69,7 +85,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
 
     try {
       String? xplanePath;
-      String? msfsPath;
+      String? lnmPath;
 
       if (Platform.isWindows) {
         final possibleXPlanePaths = [
@@ -87,18 +103,19 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
         }
 
         final username = Platform.environment['USERNAME'] ?? 'User';
-        final possibleMSFSPaths = [
-          'C:\\Users\\$username\\AppData\\Local\\Packages\\Microsoft.FlightSimulator_8wekyb3d8bbwe\\LocalCache',
-          'C:\\Users\\$username\\AppData\\Roaming\\Microsoft Flight Simulator',
+        final possibleLNMPaths = [
+          'C:\\Users\\$username\\AppData\\Roaming\\ABARTHEL\\little_navmap_db\\little_navmap_navdata.sqlite',
+          'C:\\Users\\$username\\AppData\\Local\\ABARTHEL\\little_navmap_db\\little_navmap_navdata.sqlite',
         ];
 
-        for (final path in possibleMSFSPaths) {
-          if (await Directory(path).exists()) {
-            msfsPath = path;
+        for (final path in possibleLNMPaths) {
+          if (await File(path).exists()) {
+            lnmPath = path;
             break;
           }
         }
       } else if (Platform.isMacOS) {
+        // MacOS paths for X-Plane and Little Navmap
         final possibleXPlanePaths = [
           '/Applications/X-Plane 12/Resources/default data/earth_nav.dat',
           '/Applications/X-Plane 11/Resources/default data/earth_nav.dat',
@@ -110,17 +127,32 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
             break;
           }
         }
+
+        final home = Platform.environment['HOME'] ?? '';
+        final possibleLNMPaths = [
+          '$home/Library/Application Support/ABARTHEL/little_navmap_db/little_navmap_navdata.sqlite',
+        ];
+
+        for (final path in possibleLNMPaths) {
+          if (await File(path).exists()) {
+            lnmPath = path;
+            break;
+          }
+        }
       }
 
-      if (xplanePath != null || msfsPath != null) {
+      if (xplanePath != null || lnmPath != null) {
         final prefs = await SharedPreferences.getInstance();
-        if (xplanePath != null)
+        if (xplanePath != null) {
           await prefs.setString(_xplanePathKey, xplanePath);
-        if (msfsPath != null) await prefs.setString(_msfsPathKey, msfsPath);
+        }
+        if (lnmPath != null) {
+          await prefs.setString(_lnmPathKey, lnmPath);
+        }
 
         setState(() {
           if (xplanePath != null) _xplanePath = xplanePath;
-          if (msfsPath != null) _msfsPath = msfsPath;
+          if (lnmPath != null) _lnmPath = lnmPath;
         });
 
         if (mounted) {
@@ -135,7 +167,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('⚠️ 未找到模拟器数据路径，请手动选择'),
+              content: Text('⚠️ 未找到模拟器或 Little Navmap 数据路径，请手动选择'),
               backgroundColor: Colors.orange,
             ),
           );
@@ -153,6 +185,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
   }
 
   Future<void> _pickXPlanePath() async {
+    final messenger = ScaffoldMessenger.of(context);
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: '选择 X-Plane 导航数据文件 (earth_nav.dat)',
       type: FileType.any,
@@ -160,48 +193,104 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
 
     if (result != null && result.files.single.path != null) {
       final path = result.files.single.path!;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_xplanePathKey, path);
-      setState(() => _xplanePath = path);
+
+      setState(() => _isValidating = true);
+      final isValid = await _airportService.validateXPlaneData(path);
+      setState(() => _isValidating = false);
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('X-Plane 路径已保存'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (isValid) {
+          final prefs = await SharedPreferences.getInstance();
+          if (!mounted) return;
+          await prefs.setString(_xplanePathKey, path);
+          setState(() => _xplanePath = path);
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('✅ X-Plane 路径验证通过并已保存'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('❌ 无效的 X-Plane 导航数据文件，请重新选择'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
 
-  Future<void> _pickMSFSPath() async {
-    final result = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: '选择 MSFS 数据目录',
+  Future<void> _pickLNMPath() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: '选择 Little Navmap 数据库文件 (little_navmap_navdata.sqlite)',
+      type: FileType.any,
     );
-    if (result != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_msfsPathKey, result);
-      setState(() => _msfsPath = result);
+    if (result != null && result.files.single.path != null) {
+      final path = result.files.single.path!;
+
+      setState(() => _isValidating = true);
+      final isValid = await _airportService.validateLnmDatabase(path);
+      setState(() => _isValidating = false);
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('MSFS 路径已保存'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (isValid) {
+          final prefs = await SharedPreferences.getInstance();
+          if (!mounted) return;
+          await prefs.setString(_lnmPathKey, path);
+          setState(() => _lnmPath = path);
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('✅ Little Navmap 数据库验证通过并已保存'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('❌ 无效的 Little Navmap 数据库文件，请重新选择'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
 
   Future<void> _saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_airportDbTokenKey, token);
-    setState(() => _airportDbToken = token);
-    if (mounted) {
+    if (token.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Token 已保存'),
+          content: Text('⚠️ 请输入 Token'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isValidating = true);
+    final isValid = await _airportService.validateToken(token);
+    setState(() => _isValidating = false);
+
+    if (isValid && mounted) {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      await prefs.setString(_airportDbTokenKey, token);
+      setState(() => _airportDbToken = token);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('✅ API Token 验证成功并已保存'),
           backgroundColor: Colors.green,
+        ),
+      );
+    } else if (mounted) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('❌ API Token 验证失败'),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -214,11 +303,50 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
     setState(() => _metarCacheExpiry = expiry);
   }
 
+  Future<void> _updateAirportExpiry(double value) async {
+    final expiry = value.toInt();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_airportExpiryKey, expiry);
+    setState(() => _airportDataExpiry = expiry);
+  }
+
+  Future<void> _updateTokenThreshold(double value) async {
+    final threshold = value.toInt();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_tokenThresholdKey, threshold);
+    setState(() => _tokenThreshold = threshold);
+  }
+
+  Future<void> _resetTokenCount() async {
+    await _airportService.resetTokenCount();
+    setState(() => _tokenCount = 0);
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('✅ 已重置 API 消耗计数')));
+    }
+  }
+
+  Future<void> _clearSelectedCache() async {
+    if (_clearMetarCache) {
+      await _airportService.clearMetarCache();
+    }
+    if (_clearAirportCache) {
+      await _airportService.clearAirportCache(all: true);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('✅ 已清除选中的缓存数据')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (_isLoading)
+    if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -241,6 +369,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
           _buildNavDataSection(),
           _buildApiSection(),
           _buildCacheSection(theme),
+          _buildCacheManagementSection(theme),
           _buildStorageSection(theme),
         ],
       ),
@@ -294,9 +423,9 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
           ),
           const SizedBox(height: AppThemeData.spacingMedium),
           DataPathItem(
-            label: 'MSFS 2020/2024 (LocalCache)',
-            path: _msfsPath,
-            onSelect: _pickMSFSPath,
+            label: 'Little Navmap (little_navmap_navdata.sqlite)',
+            path: _lnmPath,
+            onSelect: _pickLNMPath,
           ),
         ],
       ),
@@ -308,14 +437,142 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
       title: 'API 配置',
       subtitle: '用于获取在线数据的 API 令牌',
       icon: Icons.api_rounded,
-      child: SettingsInputField(
-        label: 'AirportDB API Token',
-        hint: '输入您的 API Token',
-        controller: _tokenController,
-        icon: Icons.key_rounded,
-        obscureText: true,
-        onSave: () => _saveToken(_tokenController.text),
-        helperText: '用于访问 airportdb.io (可选)',
+      child: Column(
+        children: [
+          SettingsInputField(
+            label: 'AirportDB API Token',
+            hint: '输入您的 API Token',
+            controller: _tokenController,
+            icon: Icons.key_rounded,
+            obscureText: true,
+            onSave: () => _saveToken(_tokenController.text),
+            helperText: '用于访问 airportdb.io',
+          ),
+          if (_isValidating)
+            const Padding(
+              padding: EdgeInsets.only(top: 8.0),
+              child: LinearProgressIndicator(),
+            ),
+          if (_airportDbToken != null && _airportDbToken!.isNotEmpty) ...[
+            const SizedBox(height: AppThemeData.spacingLarge),
+            _buildTokenThresholdSection(Theme.of(context)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTokenThresholdSection(ThemeData theme) {
+    bool isExceeded = _tokenCount >= _tokenThreshold;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'API 消耗阈值',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Row(
+              children: [
+                Text(
+                  '当前消耗: $_tokenCount',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: isExceeded
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.primary,
+                  ),
+                ),
+                const Text(' / '),
+                Text(
+                  '$_tokenThreshold',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          isExceeded
+              ? '⚠️ 已达到或超过消耗阈值，在线 API 已被自动禁止使用。'
+              : '当消耗值达到此阈值时，系统将禁止选中或使用在线 API。',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: isExceeded
+                ? theme.colorScheme.error
+                : theme.colorScheme.outline,
+          ),
+        ),
+        Slider(
+          value: _tokenThreshold.toDouble(),
+          min: 10,
+          max: 5000,
+          divisions: 499,
+          label: '$_tokenThreshold',
+          onChanged: _updateTokenThreshold,
+          activeColor: isExceeded
+              ? theme.colorScheme.error
+              : theme.colorScheme.primary,
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _resetTokenCount,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('重置消耗计数'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCacheManagementSection(ThemeData theme) {
+    return SettingsCard(
+      title: '缓存管理',
+      subtitle: '手动清理已缓存的航行数据',
+      icon: Icons.delete_sweep_rounded,
+      child: Column(
+        children: [
+          CheckboxListTile(
+            title: const Text('气象报文 (METAR) 缓存'),
+            value: _clearMetarCache,
+            onChanged: (v) => setState(() => _clearMetarCache = v ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+          ),
+          CheckboxListTile(
+            title: const Text('机场详细信息缓存'),
+            value: _clearAirportCache,
+            onChanged: (v) => setState(() => _clearAirportCache = v ?? false),
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: (_clearMetarCache || _clearAirportCache)
+                  ? _clearSelectedCache
+                  : null,
+              icon: const Icon(Icons.cleaning_services_rounded, size: 18),
+              label: const Text('执行清除'),
+              style: FilledButton.styleFrom(
+                backgroundColor: theme.colorScheme.error,
+                foregroundColor: theme.colorScheme.onError,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -376,6 +633,60 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
             children: [
               Text('5 分钟', style: theme.textTheme.labelSmall),
               Text('180 分钟', style: theme.textTheme.labelSmall),
+            ],
+          ),
+          const SizedBox(height: AppThemeData.spacingLarge),
+          const Divider(),
+          const SizedBox(height: AppThemeData.spacingLarge),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '机场详细信息过期时间',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.secondary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$_airportDataExpiry 天',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.secondary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '当数据缓存时间超过该值时，系统将允许强制刷新或在获取数据时强制更新。',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+          Slider(
+            value: _airportDataExpiry.toDouble(),
+            min: 1,
+            max: 90,
+            divisions: 89,
+            label: '$_airportDataExpiry 天',
+            onChanged: _updateAirportExpiry,
+            activeColor: theme.colorScheme.secondary,
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('1 天', style: theme.textTheme.labelSmall),
+              Text('90 天', style: theme.textTheme.labelSmall),
             ],
           ),
         ],

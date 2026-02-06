@@ -383,3 +383,59 @@ Future<bool?> showDarkNeonConfirmDialog({
     },
   );
 }
+
+// Loading 加载中弹窗 (毛玻璃)
+void showLoadingDialog({
+  required BuildContext context,
+  String message = '正在加载数据...',
+}) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: Colors.black26,
+    builder: (_) => Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            width: 200,
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white,
+                    decoration: TextDecoration.none,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+void hideLoadingDialog(BuildContext context) {
+  Navigator.of(context, rootNavigator: true).pop();
+}
