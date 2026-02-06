@@ -1,5 +1,7 @@
 import 'package:http/http.dart' as http;
 
+import '../../core/utils/logger.dart';
+
 class MetarData {
   final String icao;
   final String raw;
@@ -22,6 +24,38 @@ class MetarData {
     this.clouds,
     required this.timestamp,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'icao': icao,
+      'raw': raw,
+      'time': time,
+      'wind': wind,
+      'visibility': visibility,
+      'temperature': temperature,
+      'altimeter': altimeter,
+      'clouds': clouds,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
+
+  factory MetarData.fromJson(Map<String, dynamic> json) {
+    return MetarData(
+      icao: json['icao'] as String,
+      raw: json['raw'] as String,
+      time: json['time'] as String?,
+      wind: json['wind'] as String?,
+      visibility: json['visibility'] as String?,
+      temperature: json['temperature'] as String?,
+      altimeter: json['altimeter'] as String?,
+      clouds: json['clouds'] as String?,
+      timestamp: DateTime.parse(json['timestamp'] as String),
+    );
+  }
+
+  bool isExpired(int minutes) {
+    return DateTime.now().difference(timestamp).inMinutes >= minutes;
+  }
 
   factory MetarData.parse(String icao, String raw) {
     // 简单的 METAR 解析逻辑
@@ -138,27 +172,56 @@ class MetarData {
 }
 
 class WeatherService {
+  static final WeatherService _instance = WeatherService._internal();
+  factory WeatherService() => _instance;
+  WeatherService._internal();
+
   static const String _baseUrl =
       'https://tgftp.nws.noaa.gov/data/observations/metar/stations/';
 
-  Future<MetarData?> fetchMetar(String icao) async {
+  // 内存缓存
+  final Map<String, MetarData> _cache = {};
+
+  /// 获取缓存中的 METAR
+  MetarData? getCachedMetar(String icao) => _cache[icao.toUpperCase()];
+
+  Future<MetarData?> fetchMetar(
+    String icao, {
+    bool forceRefresh = false,
+  }) async {
+    final icaoUpper = icao.toUpperCase();
+
+    // 1. 检查缓存
+    if (!forceRefresh && _cache.containsKey(icaoUpper)) {
+      final cached = _cache[icaoUpper]!;
+      // 检查是否过期 (默认 30 分钟，或者从设置读取)
+      // 注意：这里的过期逻辑可以在调用方判断，也可以在这里判断
+      // 为了简单起见，这里只负责缓存，调用方负责判断是否需要 forceRefresh
+      return cached;
+    }
+
     try {
-      final response = await http.get(
-        Uri.parse('$_baseUrl${icao.toUpperCase()}.TXT'),
-      );
+      final response = await http.get(Uri.parse('$_baseUrl$icaoUpper.TXT'));
       if (response.statusCode == 200) {
         // NOAA 返回的格式通常包含两行：第一行是时间戳，第二行是原始 METAR
         final lines = response.body.split('\n');
         if (lines.length >= 2) {
           final rawMetar = lines.sublist(1).join(' ').trim();
           if (rawMetar.isNotEmpty) {
-            return MetarData.parse(icao, rawMetar);
+            final data = MetarData.parse(icaoUpper, rawMetar);
+            _cache[icaoUpper] = data;
+            return data;
           }
         }
       }
     } catch (e) {
-      print('Error fetching METAR for $icao: $e');
+      AppLogger.error('Error fetching METAR for $icao: $e');
     }
     return null;
+  }
+
+  /// 清除缓存
+  void clearCache() {
+    _cache.clear();
   }
 }

@@ -1,116 +1,61 @@
+import '../models/airport_detail_data.dart';
+
 /// 机场数据库模型
 class AirportInfo {
   final String icaoCode;
+  final String iataCode;
   final String nameChinese;
   final double latitude;
   final double longitude;
 
   const AirportInfo({
     required this.icaoCode,
+    this.iataCode = '',
     required this.nameChinese,
     required this.latitude,
     required this.longitude,
   });
 
-  /// 完整显示名称 (ICAO + 中文名)
-  String get displayName => '$icaoCode $nameChinese';
+  factory AirportInfo.placeholder(String icaoCode) {
+    return AirportInfo(
+      icaoCode: icaoCode.toUpperCase(),
+      nameChinese: '未知机场 (在线获取)',
+      latitude: 0.0,
+      longitude: 0.0,
+    );
+  }
+
+  factory AirportInfo.fromDetail(AirportDetailData detail) {
+    return AirportInfo(
+      icaoCode: detail.icaoCode,
+      iataCode: detail.iataCode ?? '',
+      nameChinese: detail.name,
+      latitude: detail.latitude,
+      longitude: detail.longitude,
+    );
+  }
+
+  String get displayName {
+    final codes = [icaoCode, if (iataCode.isNotEmpty) iataCode].join('/');
+    return '$codes $nameChinese';
+  }
 }
 
 /// 机场数据库管理器
 class AirportsDatabase {
-  /// 中国及周边主要机场数据库
-  static const List<AirportInfo> _airports = [
-    // 中国北方
-    AirportInfo(
-      icaoCode: 'ZBAA',
-      nameChinese: '北京首都',
-      latitude: 40.072,
-      longitude: 116.597,
-    ),
-    AirportInfo(
-      icaoCode: 'ZBSJ',
-      nameChinese: '石家庄正定',
-      latitude: 38.281,
-      longitude: 114.697,
-    ),
-    AirportInfo(
-      icaoCode: 'ZBTJ',
-      nameChinese: '天津滨海',
-      latitude: 39.124,
-      longitude: 117.346,
-    ),
+  /// 动态机场列表
+  static List<AirportInfo> _airports = [];
 
-    // 中国东部
-    AirportInfo(
-      icaoCode: 'ZSPD',
-      nameChinese: '上海浦东',
-      latitude: 31.144,
-      longitude: 121.805,
-    ),
-    AirportInfo(
-      icaoCode: 'ZSSS',
-      nameChinese: '上海虹桥',
-      latitude: 31.198,
-      longitude: 121.336,
-    ),
-
-    // 中国南方
-    AirportInfo(
-      icaoCode: 'ZGGZ',
-      nameChinese: '广州白云',
-      latitude: 23.392,
-      longitude: 113.299,
-    ),
-    AirportInfo(
-      icaoCode: 'ZGSZ',
-      nameChinese: '深圳宝安',
-      latitude: 22.639,
-      longitude: 113.811,
-    ),
-    AirportInfo(
-      icaoCode: 'VHHH',
-      nameChinese: '香港赤鱲角',
-      latitude: 22.308,
-      longitude: 113.914,
-    ),
-
-    // 中国西部
-    AirportInfo(
-      icaoCode: 'ZUUU',
-      nameChinese: '成都双流',
-      latitude: 30.578,
-      longitude: 103.947,
-    ),
-
-    // 国际机场
-    AirportInfo(
-      icaoCode: 'RKSI',
-      nameChinese: '首尔仁川',
-      latitude: 37.469,
-      longitude: 126.451,
-    ),
-    AirportInfo(
-      icaoCode: 'RJTT',
-      nameChinese: '东京羽田',
-      latitude: 35.549,
-      longitude: 139.779,
-    ),
-    AirportInfo(
-      icaoCode: 'KJFK',
-      nameChinese: '纽约肯尼迪',
-      latitude: 40.641,
-      longitude: -73.778,
-    ),
-    AirportInfo(
-      icaoCode: 'EGLL',
-      nameChinese: '伦敦希思罗',
-      latitude: 51.470,
-      longitude: -0.454,
-    ),
-  ];
+  /// 更新机场列表
+  static void updateAirports(List<AirportInfo> airports) {
+    _airports = airports;
+  }
 
   /// 获取所有机场列表
   static List<AirportInfo> get allAirports => _airports;
+
+  /// 检查数据库是否为空
+  static bool get isEmpty => _airports.isEmpty;
 
   /// 根据ICAO代码查询机场
   static AirportInfo? findByIcao(String icaoCode) {
@@ -156,12 +101,47 @@ class AirportsDatabase {
     return nearestAirport;
   }
 
-  /// 根据名称模糊搜索机场
-  static List<AirportInfo> searchByName(String keyword) {
+  /// 综合搜索机场：名称、ICAO、IATA、经纬度
+  static List<AirportInfo> search(String keyword) {
+    if (keyword.isEmpty) return [];
     final lowerKeyword = keyword.toLowerCase();
+    
+    // 检查是否可能是经纬度搜索 (例如 "31.2, 121.4")
+    final coordParts = lowerKeyword.split(RegExp(r'[,\s]+')).where((p) => p.isNotEmpty).toList();
+    double? searchLat;
+    double? searchLon;
+    if (coordParts.length == 2) {
+      searchLat = double.tryParse(coordParts[0]);
+      searchLon = double.tryParse(coordParts[1]);
+    }
+
     return _airports.where((airport) {
-      return airport.icaoCode.toLowerCase().contains(lowerKeyword) ||
-          airport.nameChinese.contains(keyword);
+      final icao = airport.icaoCode.toLowerCase();
+      final iata = airport.iataCode.toLowerCase();
+      final name = airport.nameChinese.toLowerCase();
+      
+      // 基础文本匹配
+      if (icao.contains(lowerKeyword) || 
+          iata.contains(lowerKeyword) || 
+          name.contains(lowerKeyword)) {
+        return true;
+      }
+
+      // 坐标数值匹配 (模糊匹配距离较近的)
+      if (searchLat != null && searchLon != null) {
+        final dLat = (airport.latitude - searchLat).abs();
+        final dLon = (airport.longitude - searchLon).abs();
+        if (dLat < 0.1 && dLon < 0.1) return true; // 约 11km 范围内
+      }
+      
+      // 坐标字符串匹配 (搜索数字)
+      final latStr = airport.latitude.toString();
+      final lonStr = airport.longitude.toString();
+      if (latStr.contains(lowerKeyword) || lonStr.contains(lowerKeyword)) {
+        return true;
+      }
+
+      return false;
     }).toList();
   }
 }

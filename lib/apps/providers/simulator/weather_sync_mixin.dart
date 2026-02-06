@@ -34,9 +34,8 @@ mixin WeatherSyncMixin on ChangeNotifier {
     final expiryMinutes = prefs.getInt('metar_cache_expiry') ?? 60;
 
     for (final icao in icaoList) {
-      final cached = _metarCache[icao];
-      if (cached == null ||
-          now.difference(cached.timestamp).inMinutes > expiryMinutes) {
+      final cached = _weatherService.getCachedMetar(icao);
+      if (cached == null || cached.isExpired(expiryMinutes)) {
         try {
           final data = await _weatherService.fetchMetar(icao);
           if (data != null) {
@@ -51,6 +50,11 @@ mixin WeatherSyncMixin on ChangeNotifier {
           _metarErrors[icao] = '气象报文获取失败: $e';
           updated = true;
         }
+      } else if (_metarCache[icao] != cached) {
+        // 如果 Service 中有更新的缓存，同步到本地
+        _metarCache[icao] = cached;
+        _metarErrors.remove(icao);
+        updated = true;
       }
     }
 
@@ -95,16 +99,14 @@ mixin WeatherSyncMixin on ChangeNotifier {
 
     if (!needsRefresh) {
       if (nearest != null) {
-        final cached = _metarCache[nearest.icaoCode];
-        if (cached == null ||
-            now.difference(cached.timestamp).inMinutes > _cachedMetarExpiry) {
+        final cached = _weatherService.getCachedMetar(nearest.icaoCode);
+        if (cached == null || cached.isExpired(_cachedMetarExpiry)) {
           needsRefresh = true;
         }
       }
       if (!needsRefresh && destination != null) {
-        final cached = _metarCache[destination.icaoCode];
-        if (cached == null ||
-            now.difference(cached.timestamp).inMinutes > _cachedMetarExpiry) {
+        final cached = _weatherService.getCachedMetar(destination.icaoCode);
+        if (cached == null || cached.isExpired(_cachedMetarExpiry)) {
           needsRefresh = true;
         }
       }

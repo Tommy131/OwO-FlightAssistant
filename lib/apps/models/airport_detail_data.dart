@@ -1,9 +1,9 @@
-/// 数据来源类型
+import '../services/weather_service.dart';
+
 enum AirportDataSourceType {
   aviationApi, // 在线API
   xplaneData, // X-Plane数据
-  msfsData, // MSFS数据
-  mockData, // 模拟数据
+  lnmData, // Little Navmap数据
 }
 
 /// 机场详细信息数据模型
@@ -17,10 +17,12 @@ class AirportDetailData {
   final double longitude;
   final int? elevation; // in feet
   final List<RunwayInfo> runways;
+  final List<NavaidInfo> navaids;
   final AirportFrequencies frequencies;
   final DateTime fetchedAt; // 数据获取时间
   final bool isCached; // 是否来自缓存
   final AirportDataSourceType dataSource; // 数据来源
+  final MetarData? metar; // 气象报文
 
   AirportDetailData({
     required this.icaoCode,
@@ -32,17 +34,55 @@ class AirportDetailData {
     required this.longitude,
     this.elevation,
     required this.runways,
+    this.navaids = const [],
     required this.frequencies,
     required this.fetchedAt,
     this.isCached = false,
     this.dataSource = AirportDataSourceType.aviationApi,
+    this.metar,
   });
 
-  // 检查数据是否过期（超过30天）
-  bool get isExpired {
+  AirportDetailData copyWith({
+    String? icaoCode,
+    String? iataCode,
+    String? name,
+    String? city,
+    String? country,
+    double? latitude,
+    double? longitude,
+    int? elevation,
+    List<RunwayInfo>? runways,
+    List<NavaidInfo>? navaids,
+    AirportFrequencies? frequencies,
+    DateTime? fetchedAt,
+    bool? isCached,
+    AirportDataSourceType? dataSource,
+    MetarData? metar,
+  }) {
+    return AirportDetailData(
+      icaoCode: icaoCode ?? this.icaoCode,
+      iataCode: iataCode ?? this.iataCode,
+      name: name ?? this.name,
+      city: city ?? this.city,
+      country: country ?? this.country,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      elevation: elevation ?? this.elevation,
+      runways: runways ?? this.runways,
+      navaids: navaids ?? this.navaids,
+      frequencies: frequencies ?? this.frequencies,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      isCached: isCached ?? this.isCached,
+      dataSource: dataSource ?? this.dataSource,
+      metar: metar ?? this.metar,
+    );
+  }
+
+  // 检查数据是否过期
+  bool isExpired(int days) {
     final now = DateTime.now();
     final difference = now.difference(fetchedAt);
-    return difference.inDays > 30;
+    return difference.inDays >= days;
   }
 
   // 获取数据年龄描述
@@ -50,14 +90,12 @@ class AirportDetailData {
     final now = DateTime.now();
     final difference = now.difference(fetchedAt);
 
-    if (difference.inDays > 365) {
-      return '${(difference.inDays / 365).floor()} 年前';
-    } else if (difference.inDays > 30) {
-      return '${(difference.inDays / 30).floor()} 个月前';
-    } else if (difference.inDays > 0) {
+    if (difference.inDays > 0) {
       return '${difference.inDays} 天前';
     } else if (difference.inHours > 0) {
-      return '${difference.inHours} 小时前';
+      return '< ${difference.inHours + 1} 小时';
+    } else if (difference.inMinutes > 5) {
+      return '< 1 小时';
     } else {
       return '刚刚';
     }
@@ -70,15 +108,10 @@ class AirportDetailData {
         return '在线API';
       case AirportDataSourceType.xplaneData:
         return 'X-Plane';
-      case AirportDataSourceType.msfsData:
-        return 'MSFS';
-      case AirportDataSourceType.mockData:
-        return '模拟数据';
+      case AirportDataSourceType.lnmData:
+        return 'Little Navmap';
     }
   }
-
-  /// 是否为模拟数据
-  bool get isMockData => dataSource == AirportDataSourceType.mockData;
 
   Map<String, dynamic> toJson() {
     return {
@@ -91,9 +124,11 @@ class AirportDetailData {
       'longitude': longitude,
       'elevation': elevation,
       'runways': runways.map((r) => r.toJson()).toList(),
+      'navaids': navaids.map((n) => n.toJson()).toList(),
       'frequencies': frequencies.toJson(),
       'fetchedAt': fetchedAt.toIso8601String(),
       'dataSource': dataSource.name,
+      'metar': metar?.toJson(),
     };
   }
 
@@ -110,6 +145,11 @@ class AirportDetailData {
       runways: (json['runways'] as List<dynamic>)
           .map((r) => RunwayInfo.fromJson(r as Map<String, dynamic>))
           .toList(),
+      navaids:
+          (json['navaids'] as List<dynamic>?)
+              ?.map((n) => NavaidInfo.fromJson(n as Map<String, dynamic>))
+              .toList() ??
+          [],
       frequencies: AirportFrequencies.fromJson(
         json['frequencies'] as Map<String, dynamic>,
       ),
@@ -119,7 +159,86 @@ class AirportDetailData {
         orElse: () => AirportDataSourceType.aviationApi,
       ),
       isCached: true,
+      metar: json['metar'] != null ? MetarData.fromJson(json['metar']) : null,
     );
+  }
+
+  /// 检查两份数据是否存在显著差异（用于提示用户更新）
+  bool hasSignificantDifference(AirportDetailData other) {
+    if (icaoCode != other.icaoCode) return true;
+
+    // 坐标差异大于 0.01 度 (约 1km)
+    if ((latitude - other.latitude).abs() > 0.01 ||
+        (longitude - other.longitude).abs() > 0.01) {
+      return true;
+    }
+
+    // 跑道数量差异
+    if (runways.length != other.runways.length) return true;
+
+    // 名称差异显著且当前不为空
+    if (name != other.name &&
+        name != 'Unknown Airport' &&
+        !name.contains('未知机场')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// 使用新数据“补充”当前数据（仅更新 null 或 Unknown 字段）
+  AirportDetailData complementWith(AirportDetailData other) {
+    return AirportDetailData(
+      icaoCode: icaoCode,
+      iataCode: (iataCode == null || iataCode!.isEmpty)
+          ? other.iataCode
+          : iataCode,
+      name: (name == 'Unknown Airport' || name.contains('未知机场'))
+          ? other.name
+          : name,
+      city: (city == null || city!.isEmpty) ? other.city : city,
+      country: (country == null || country!.isEmpty) ? other.country : country,
+      latitude: latitude != 0 ? latitude : other.latitude,
+      longitude: longitude != 0 ? longitude : other.longitude,
+      elevation: elevation ?? other.elevation,
+      runways: _mergeRunways(runways, other.runways),
+      navaids: _mergeNavaids(navaids, other.navaids),
+      frequencies: frequencies.complementWith(other.frequencies),
+      fetchedAt: DateTime.now(),
+      dataSource: other.dataSource,
+      isCached: false,
+      metar: other.metar ?? metar,
+    );
+  }
+
+  List<RunwayInfo> _mergeRunways(
+    List<RunwayInfo> current,
+    List<RunwayInfo> incoming,
+  ) {
+    final result = <RunwayInfo>[...current];
+    for (final inc in incoming) {
+      final index = result.indexWhere((r) => r.ident == inc.ident);
+      if (index != -1) {
+        result[index] = result[index].complementWith(inc);
+      } else {
+        result.add(inc);
+      }
+    }
+    return result;
+  }
+
+  List<NavaidInfo> _mergeNavaids(
+    List<NavaidInfo> current,
+    List<NavaidInfo> incoming,
+  ) {
+    // 主要是合并，根据标识符去重
+    final map = {for (var n in current) n.ident: n};
+    for (final inc in incoming) {
+      if (!map.containsKey(inc.ident)) {
+        map[inc.ident] = inc;
+      }
+    }
+    return map.values.toList();
   }
 }
 
@@ -131,8 +250,10 @@ class RunwayInfo {
   final String? surface; // 跑道表面类型
   final bool? lighted; // 是否有灯光
   final bool? closed; // 是否关闭
-  final String? le_ident; // Low end identifier (e.g., "17L")
-  final String? he_ident; // High end identifier (e.g., "35R")
+  final String? leIdent; // Low end identifier (e.g., "17L")
+  final String? heIdent; // High end identifier (e.g., "35R")
+  final IlsInfo? leIls; // Low end ILS information
+  final IlsInfo? heIls; // High end ILS information
 
   RunwayInfo({
     required this.ident,
@@ -141,8 +262,10 @@ class RunwayInfo {
     this.surface,
     this.lighted,
     this.closed,
-    this.le_ident,
-    this.he_ident,
+    this.leIdent,
+    this.heIdent,
+    this.leIls,
+    this.heIls,
   });
 
   String get lengthMeters =>
@@ -179,8 +302,10 @@ class RunwayInfo {
       'surface': surface,
       'lighted': lighted,
       'closed': closed,
-      'le_ident': le_ident,
-      'he_ident': he_ident,
+      'le_ident': leIdent,
+      'he_ident': heIdent,
+      'le_ils': leIls?.toJson(),
+      'he_ils': heIls?.toJson(),
     };
   }
 
@@ -192,8 +317,104 @@ class RunwayInfo {
       surface: json['surface'] as String?,
       lighted: json['lighted'] as bool?,
       closed: json['closed'] as bool?,
-      le_ident: json['le_ident'] as String?,
-      he_ident: json['he_ident'] as String?,
+      leIdent: (json['le_ident'] ?? json['leIdent']) as String?,
+      heIdent: (json['he_ident'] ?? json['heIdent']) as String?,
+      leIls: (json['le_ils'] ?? json['leIls']) != null
+          ? IlsInfo.fromJson(
+              (json['le_ils'] ?? json['leIls']) as Map<String, dynamic>,
+            )
+          : null,
+      heIls: (json['he_ils'] ?? json['heIls']) != null
+          ? IlsInfo.fromJson(
+              (json['he_ils'] ?? json['heIls']) as Map<String, dynamic>,
+            )
+          : null,
+    );
+  }
+
+  /// 补充跑道信息
+  RunwayInfo complementWith(RunwayInfo other) {
+    return RunwayInfo(
+      ident: ident,
+      lengthFt: lengthFt ?? other.lengthFt,
+      widthFt: widthFt ?? other.widthFt,
+      surface: (surface == null || surface == 'Unknown')
+          ? other.surface
+          : surface,
+      lighted: lighted ?? other.lighted,
+      closed: closed ?? other.closed,
+      leIdent: leIdent ?? other.leIdent,
+      heIdent: heIdent ?? other.heIdent,
+      leIls: leIls ?? other.leIls,
+      heIls: heIls ?? other.heIls,
+    );
+  }
+}
+
+/// ILS 信息
+class IlsInfo {
+  final double freq; // 频率 (MHz)
+  final int course; // 航向 (Degrees)
+
+  IlsInfo({required this.freq, required this.course});
+
+  Map<String, dynamic> toJson() {
+    return {'freq': freq, 'course': course};
+  }
+
+  factory IlsInfo.fromJson(Map<String, dynamic> json) {
+    return IlsInfo(
+      freq: (json['freq'] as num).toDouble(),
+      course: (json['course'] as num).toInt(),
+    );
+  }
+}
+
+/// 助航设备 (Navaid) 信息
+class NavaidInfo {
+  final String ident;
+  final String name;
+  final String type; // e.g., "VOR-DME", "NDB"
+  final double frequency; // in kHz or MHz
+  final double latitude;
+  final double longitude;
+  final int? elevation;
+  final String? channel; // for DME
+
+  NavaidInfo({
+    required this.ident,
+    required this.name,
+    required this.type,
+    required this.frequency,
+    required this.latitude,
+    required this.longitude,
+    this.elevation,
+    this.channel,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'ident': ident,
+      'name': name,
+      'type': type,
+      'frequency': frequency,
+      'latitude': latitude,
+      'longitude': longitude,
+      'elevation': elevation,
+      'channel': channel,
+    };
+  }
+
+  factory NavaidInfo.fromJson(Map<String, dynamic> json) {
+    return NavaidInfo(
+      ident: json['ident'] as String,
+      name: json['name'] as String,
+      type: json['type'] as String,
+      frequency: (json['frequency'] as num).toDouble(),
+      latitude: (json['latitude'] as num).toDouble(),
+      longitude: (json['longitude'] as num).toDouble(),
+      elevation: json['elevation'] as int?,
+      channel: json['channel'] as String?,
     );
   }
 }
@@ -229,6 +450,21 @@ class AirportFrequencies {
           .map((f) => FrequencyInfo.fromJson(f as Map<String, dynamic>))
           .toList(),
     );
+  }
+
+  /// 补充频率信息 (按照类型和频率去重合并)
+  AirportFrequencies complementWith(AirportFrequencies other) {
+    final result = <FrequencyInfo>[...all];
+    for (final inc in other.all) {
+      final exists = result.any(
+        (f) =>
+            f.type == inc.type && (f.frequency - inc.frequency).abs() < 0.001,
+      );
+      if (!exists) {
+        result.add(inc);
+      }
+    }
+    return AirportFrequencies(all: result);
   }
 }
 
