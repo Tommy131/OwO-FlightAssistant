@@ -127,11 +127,11 @@ class SystemStatusPanel extends StatelessWidget {
               _buildStatusSection(theme, '起落架', [
                 if (data.gearDown == true)
                   const StatusBadge(label: '起落架', color: gearColor),
-                if (data.noseGearDown == true)
+                if ((data.noseGearDown ?? 0) > 0.05)
                   const StatusBadge(label: '前轮', color: gearColor),
-                if (data.leftGearDown == true)
+                if ((data.leftGearDown ?? 0) > 0.05)
                   const StatusBadge(label: '左主轮', color: gearColor),
-                if (data.rightGearDown == true)
+                if ((data.rightGearDown ?? 0) > 0.05)
                   const StatusBadge(label: '右主轮', color: gearColor),
               ]),
 

@@ -416,13 +416,13 @@ class XPlaneService {
         break;
       // 起落架详细状态
       case XPlaneDataRefKey.noseGearDeploy:
-        _currentData = _currentData.copyWith(noseGearDown: value > 0.5);
+        _currentData = _currentData.copyWith(noseGearDown: value);
         break;
       case XPlaneDataRefKey.leftGearDeploy:
-        _currentData = _currentData.copyWith(leftGearDown: value > 0.5);
+        _currentData = _currentData.copyWith(leftGearDown: value);
         break;
       case XPlaneDataRefKey.rightGearDeploy:
-        _currentData = _currentData.copyWith(rightGearDown: value > 0.5);
+        _currentData = _currentData.copyWith(rightGearDown: value);
         break;
       // 襟翼状态
       case XPlaneDataRefKey.flapsDeployRatio:
@@ -435,9 +435,15 @@ class XPlaneService {
         _currentData = _currentData.copyWith(flapsAngle: value);
         break;
       case XPlaneDataRefKey.flapsLeverZibo:
-        // ZIBO 738 襟翼手柄位置: 0, 1, 2, 3, 4, 5, 6, 7, 8
-        // 对应: UP, 1, 2, 5, 10, 15, 25, 30, 40
-        final leverPos = value.round();
+        // ZIBO 738 襟翼手柄位置可能作为 0.0-1.0 (比例) 或 0-8 (索引) 返回
+        // 对应比例步骤: 0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0 为 9 个位置
+        int leverPos;
+        if (value >= 0 && value <= 1.0) {
+          leverPos = (value * 8).round();
+        } else {
+          leverPos = value.round();
+        }
+
         String? label;
         double? angle;
         const ziboFlaps = [
@@ -459,20 +465,6 @@ class XPlaneService {
             flapsDeployed: leverPos > 0,
             flapsLabel: label,
           );
-        }
-        break;
-      case XPlaneDataRefKey.gearHandle:
-        // Standard Gear Handle: 0=UP, 1=DOWN
-        // Map 0 -> 0 (UP), 1 -> 2 (DN)
-        _currentData = _currentData.copyWith(
-          gearHandlePosition: value > 0.5 ? 2 : 0,
-        );
-        break;
-      case XPlaneDataRefKey.gearHandleZibo:
-        // Zibo Gear Handle: 0=UP, 1=OFF, 2=DN
-        final handlePos = value.round();
-        if (handlePos >= 0 && handlePos <= 2) {
-          _currentData = _currentData.copyWith(gearHandlePosition: handlePos);
         }
         break;
       // 减速板与扰流板

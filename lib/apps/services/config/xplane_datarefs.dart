@@ -50,8 +50,6 @@ enum XPlaneDataRefKey {
   noseGearDeploy,
   leftGearDeploy,
   rightGearDeploy,
-  gearHandle,
-  gearHandleZibo,
   speedBrakeRatio,
   spoilersDeployed,
   flapsDeployRatio,
@@ -416,18 +414,6 @@ class XPlaneDataRefs {
     description: '右主起落架展开比例',
   );
 
-  static const XPlaneDataRef gearHandle = XPlaneDataRef(
-    key: XPlaneDataRefKey.gearHandle,
-    path: 'sim/cockpit/switches/gear_handle_status',
-    description: '起落架手柄 (Standard)',
-  );
-
-  static const XPlaneDataRef gearHandleZibo = XPlaneDataRef(
-    key: XPlaneDataRefKey.gearHandleZibo,
-    path: 'laminar/B738/switches/gear_handle',
-    description: '起落架手柄 (Zibo)',
-  );
-
   // ==================== 减速板与扰流板 ====================
 
   static const XPlaneDataRef speedBrakeRatio = XPlaneDataRef(
@@ -547,7 +533,6 @@ class XPlaneDataRefs {
       noseGearDeploy, leftGearDeploy, rightGearDeploy,
       // 襟翼状态
       flapsDeployRatio, flapsActualDegrees, flapsLeverZibo,
-      gearHandle, gearHandleZibo,
       // 减速板与扰流板
       speedBrakeRatio, spoilersDeployed,
       // 自动刹车
@@ -555,6 +540,7 @@ class XPlaneDataRefs {
       // 警告系统
       masterWarning, masterCaution,
       fireWarningEng1, fireWarningEng2, fireWarningAPU,
+      visibility,
     ];
   }
 }

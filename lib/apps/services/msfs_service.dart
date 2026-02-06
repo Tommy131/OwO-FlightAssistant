@@ -193,14 +193,6 @@ class MSFSService {
       );
     }
 
-    if (data.containsKey('GEAR_HANDLE_POSITION')) {
-      _currentData = _currentData.copyWith(
-        gearDown:
-            data['GEAR_HANDLE_POSITION'] == true ||
-            data['GEAR_HANDLE_POSITION'] == 1,
-      );
-    }
-
     if (data.containsKey('TRAILING_EDGE_FLAPS_LEFT_PERCENT')) {
       final ratio = (data['TRAILING_EDGE_FLAPS_LEFT_PERCENT'] as num?)
           ?.toDouble();
@@ -274,25 +266,19 @@ class MSFSService {
     // 起落架详细状态
     if (data.containsKey('GEAR CENTER POSITION')) {
       _currentData = _currentData.copyWith(
-        noseGearDown:
-            (data['GEAR CENTER POSITION'] as num?) != null &&
-            (data['GEAR CENTER POSITION'] as num) > 0.5,
+        noseGearDown: (data['GEAR CENTER POSITION'] as num?)?.toDouble(),
       );
     }
 
     if (data.containsKey('GEAR LEFT POSITION')) {
       _currentData = _currentData.copyWith(
-        leftGearDown:
-            (data['GEAR LEFT POSITION'] as num?) != null &&
-            (data['GEAR LEFT POSITION'] as num) > 0.5,
+        leftGearDown: (data['GEAR LEFT POSITION'] as num?)?.toDouble(),
       );
     }
 
     if (data.containsKey('GEAR RIGHT POSITION')) {
       _currentData = _currentData.copyWith(
-        rightGearDown:
-            (data['GEAR RIGHT POSITION'] as num?) != null &&
-            (data['GEAR RIGHT POSITION'] as num) > 0.5,
+        rightGearDown: (data['GEAR RIGHT POSITION'] as num?)?.toDouble(),
       );
     }
 
@@ -352,6 +338,39 @@ class MSFSService {
     if (data.containsKey('APU ON FIRE')) {
       _currentData = _currentData.copyWith(
         fireWarningAPU: data['APU ON FIRE'] == true || data['APU ON FIRE'] == 1,
+      );
+    }
+
+    // 环境数据
+    if (data.containsKey('AMBIENT TEMPERATURE')) {
+      _currentData = _currentData.copyWith(
+        outsideAirTemperature: (data['AMBIENT TEMPERATURE'] as num?)
+            ?.toDouble(),
+      );
+    }
+
+    if (data.containsKey('TOTAL AIR TEMPERATURE')) {
+      _currentData = _currentData.copyWith(
+        totalAirTemperature: (data['TOTAL AIR TEMPERATURE'] as num?)
+            ?.toDouble(),
+      );
+    }
+
+    if (data.containsKey('AMBIENT WIND VELOCITY')) {
+      _currentData = _currentData.copyWith(
+        windSpeed: (data['AMBIENT WIND VELOCITY'] as num?)?.toDouble(),
+      );
+    }
+
+    if (data.containsKey('AMBIENT WIND DIRECTION')) {
+      _currentData = _currentData.copyWith(
+        windDirection: (data['AMBIENT WIND DIRECTION'] as num?)?.toDouble(),
+      );
+    }
+
+    if (data.containsKey('AMBIENT VISIBILITY')) {
+      _currentData = _currentData.copyWith(
+        visibility: (data['AMBIENT VISIBILITY'] as num?)?.toDouble(),
       );
     }
 

@@ -48,18 +48,15 @@ class SimulatorData {
   final bool? onGround; // 是否在地面
 
   // 起落架详细状态
-  final bool? noseGearDown; // 前起落架
-  final bool? leftGearDown; // 左主起落架
-  final bool? rightGearDown; // 右主起落架
+  final double? noseGearDown; // 前起落架 (0=UP, 1=DN)
+  final double? leftGearDown; // 左主起落架
+  final double? rightGearDown; // 右主起落架
 
   // 减速与刹车系统
   final bool? speedBrake; // 减速板/速度刹车
   final double? speedBrakePosition; // 减速板位置 (0-1)
   final bool? spoilersDeployed; // 扰流板展开
   final int? autoBrakeLevel; // 自动刹车挡位 (0=OFF, 1-5)
-  // 起落架手柄
-  final int? gearHandlePosition; // 0=UP, 1=OFF, 2=DN (Zibo Custom)
-
   // 警告系统
   final bool? masterWarning; // 主警告
   final bool? masterCaution; // 主告警
@@ -195,15 +192,14 @@ class SimulatorData {
     bool? gearDown,
     bool? onGround,
     // 起落架详细状态
-    bool? noseGearDown,
-    bool? leftGearDown,
-    bool? rightGearDown,
+    double? noseGearDown,
+    double? leftGearDown,
+    double? rightGearDown,
     // 减速与刹车系统
     bool? speedBrake,
     double? speedBrakePosition,
     bool? spoilersDeployed,
     int? autoBrakeLevel,
-    int? gearHandlePosition,
     // 警告系统
     bool? masterWarning,
     bool? masterCaution,

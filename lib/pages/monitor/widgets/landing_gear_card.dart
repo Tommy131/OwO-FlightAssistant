@@ -52,10 +52,7 @@ class LandingGearCard extends StatelessWidget {
                   _buildIndicators(data),
                   const SizedBox(height: 24),
                   // Gear Handle Area
-                  _buildGearHandle(
-                    context,
-                    data.gearHandlePosition ?? 1,
-                  ), // Default to DN
+                  _buildGearHandle(context, data),
                   const SizedBox(height: 16),
                   // Limit Text (Decorative)
                   _buildLimitText(),
@@ -69,39 +66,18 @@ class LandingGearCard extends StatelessWidget {
   }
 
   Widget _buildIndicators(SimulatorData data) {
-    // Status logic: 0=Off/Up, 1=Red/Transit, 2=Green/Down
-
-    // Logic refinement for "High Simulation":
-    // 1. Nose Gear
-    // 2. Left Gear
-    // 3. Right Gear
-    // Each has two lights: Top (Red/Transit) and Bottom (Green/Down).
-
-    final handle = data.gearHandlePosition ?? 1; // Default Off
-    final isHandleDown = handle == 0;
-    final isHandleUp = handle == 2;
+    // Status logic based on raw deployment ratio:
+    // 0: Fully retracted (Off)
+    // 0 < v < 1: Transit (Red + Green)
+    // 1: Fully extended (Green only)
 
     // Helper to determine status
-    // Returns: 0=Off, 1=Red, 2=Green
-    int getStatus(bool? isGearDownBool) {
-      bool gearDown = isGearDownBool ?? false;
-
-      if (isHandleDown) {
-        return gearDown
-            ? 2
-            : 1; // Handle DN: Gear Down -> Green. Not Down -> Red (Transit).
-      } else if (isHandleUp) {
-        return gearDown
-            ? 1
-            : 0; // Handle UP: Gear Down -> Red (Unsafe). Gear Up -> Off.
-      } else {
-        // OFF position (1)
-        // Used for depressurization.
-        // If gear is locked down, it stays Green.
-        // If gear is locked up, it stays Off.
-        // If in transit... usually Red.
-        return gearDown ? 2 : 1;
-      }
+    // Returns: 0=Off, 1=Red+Green (Transit), 2=Green Only (Locked Down)
+    int getStatus(double? ratio) {
+      if (ratio == null) return 0;
+      if (ratio <= 0.02) return 0; // Fully UP
+      if (ratio >= 0.98) return 2; // Fully DOWN
+      return 1; // Transit
     }
 
     return Column(
@@ -123,23 +99,17 @@ class LandingGearCard extends StatelessWidget {
   }
 
   Widget _buildLightBox(String text, int status) {
-    // status: 0=Off, 1=Red (Transit), 2=Green (Down)
+    // status: 0=Off, 1=Transit (Red+Green), 2=Down (Green Only)
+    bool showRed = status == 1;
+    bool showGreen = status == 1 || status == 2;
 
     return Column(
       children: [
         // Red Light Box (Top) - Indicates Transit/Unsafe
-        _buildSingleLight(
-          text,
-          Colors.redAccent,
-          status == 1 ? true : status == 0,
-        ),
+        _buildSingleLight(text, Colors.redAccent, showRed),
         const SizedBox(height: 4),
         // Green Light Box (Bottom) - Indicates Down & Locked
-        _buildSingleLight(
-          text,
-          const Color(0xFF4CAF50),
-          status == 1 ? true : status == 2,
-        ),
+        _buildSingleLight(text, const Color(0xFF4CAF50), showGreen),
       ],
     );
   }
@@ -180,12 +150,19 @@ class LandingGearCard extends StatelessWidget {
     );
   }
 
-  Widget _buildGearHandle(BuildContext context, int position) {
-    // Position: 2=UP, 1=OFF, 0=DN
-    double sliderValue = 0;
-    if (position == 2) sliderValue = -1; // Top
-    if (position == 1) sliderValue = 0; // Middle
-    if (position == 0) sliderValue = 1; // Bottom
+  Widget _buildGearHandle(BuildContext context, SimulatorData data) {
+    // 计算平均展开比例 (0 to 1)
+    final avg =
+        ((data.noseGearDown ?? 0) +
+            (data.leftGearDown ?? 0) +
+            (data.rightGearDown ?? 0)) /
+        3.0;
+
+    // 将 0..1 映射到 sliderValue -1..1
+    // avg = 0.0 -> sliderValue = -1 (UP)
+    // avg = 0.5 -> sliderValue = 0  (OFF)
+    // avg = 1.0 -> sliderValue = 1  (DN)
+    final sliderValue = (avg * 2) - 1;
 
     return SizedBox(
       height: 200,

@@ -100,12 +100,6 @@ class MSFSSimVars {
     description: '襟翼手柄位置',
   );
 
-  static const MSFSSimVar gearHandlePosition = MSFSSimVar(
-    name: 'GEAR_HANDLE_POSITION',
-    unit: 'bool',
-    description: '起落架手柄位置',
-  );
-
   static const MSFSSimVar flapsDeployRatio = MSFSSimVar(
     name: 'TRAILING_EDGE_FLAPS_LEFT_PERCENT',
     unit: 'percent over 100',
@@ -214,6 +208,38 @@ class MSFSSimVars {
     description: '自动刹车激活状态',
   );
 
+  // ==================== 环境数据 ====================
+
+  static const MSFSSimVar outsideAirTemperature = MSFSSimVar(
+    name: 'AMBIENT TEMPERATURE',
+    unit: 'Celsius',
+    description: '外部温度',
+  );
+
+  static const MSFSSimVar totalAirTemperature = MSFSSimVar(
+    name: 'TOTAL AIR TEMPERATURE',
+    unit: 'Celsius',
+    description: '总温',
+  );
+
+  static const MSFSSimVar windSpeed = MSFSSimVar(
+    name: 'AMBIENT WIND VELOCITY',
+    unit: 'knots',
+    description: '风速',
+  );
+
+  static const MSFSSimVar windDirection = MSFSSimVar(
+    name: 'AMBIENT WIND DIRECTION',
+    unit: 'degrees',
+    description: '风向',
+  );
+
+  static const MSFSSimVar visibility = MSFSSimVar(
+    name: 'AMBIENT VISIBILITY',
+    unit: 'meters',
+    description: '能见度',
+  );
+
   // ====================  警告系统 ====================
 
   static const MSFSSimVar masterWarning = MSFSSimVar(
@@ -255,7 +281,7 @@ class MSFSSimVars {
       airspeed, altitude, heading, verticalSpeed, latitude, longitude,
       // 系统状态
       parkingBrake, beaconLight, landingLight, taxiLight, navLight, strobeLight,
-      flapsHandleIndex, flapsDeployRatio, gearHandlePosition,
+      flapsHandleIndex, flapsDeployRatio,
       // 发动机
       apuSwitch, engine1Combustion, engine2Combustion, engine1N1, engine2N1,
       // 自动驾驶
@@ -271,6 +297,9 @@ class MSFSSimVars {
       // 警告系统
       masterWarning, masterCaution,
       engineFire1, engineFire2, apuFire,
+      // 环境数据
+      outsideAirTemperature, totalAirTemperature,
+      windSpeed, windDirection, visibility,
     ];
   }
 
