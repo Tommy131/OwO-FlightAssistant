@@ -285,6 +285,9 @@ class XPlaneService {
           trueAirspeed: DataConverters.mpsToKnots(value),
         );
         break;
+      case XPlaneDataRefKey.machNumber:
+        _currentData = _currentData.copyWith(machNumber: value);
+        break;
       case XPlaneDataRefKey.parkingBrake:
         _currentData = _currentData.copyWith(parkingBrake: value > 0.5);
         break;
@@ -385,7 +388,10 @@ class XPlaneService {
         _currentData = _currentData.copyWith(gForce: value);
         break;
       case XPlaneDataRefKey.baroPressure:
-        _currentData = _currentData.copyWith(baroPressure: value);
+        _currentData = _currentData.copyWith(
+          baroPressure: value,
+          baroPressureUnit: 'inHg',
+        );
         break;
       case XPlaneDataRefKey.isPaused:
         _currentData = _currentData.copyWith(isPaused: value > 0.5);

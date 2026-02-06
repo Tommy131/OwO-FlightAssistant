@@ -7,6 +7,7 @@ environment:
   sdk: ^3.9.2
 
 dependencies:
+  file_picker: ^10.3.10
   fl_chart: ^1.1.1
   flag: ^7.0.2
   flex_color_picker: ^3.7.2

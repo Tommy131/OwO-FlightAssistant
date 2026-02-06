@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../apps/providers/simulator_provider.dart';
+import '../../../apps/providers/simulator/simulator_provider.dart';
 import '../../../core/theme/app_theme_data.dart';
 
 class WelcomeCard extends StatelessWidget {

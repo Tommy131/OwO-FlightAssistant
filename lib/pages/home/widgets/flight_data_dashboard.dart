@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../apps/providers/simulator_provider.dart';
+import '../../../apps/providers/simulator/simulator_provider.dart';
 import '../../../apps/models/simulator_data.dart';
 import '../../../core/theme/app_theme_data.dart';
 import 'flight_data_widgets.dart';
 import 'system_status_panel.dart';
 import '../../../apps/data/airports_database.dart';
+import '../../../apps/services/weather_service.dart';
+import 'metar_display_widget.dart';
 
 class FlightDataDashboard extends StatelessWidget {
   const FlightDataDashboard({super.key});
@@ -50,6 +52,11 @@ class FlightDataDashboard extends StatelessWidget {
 
             // 发动机和燃油
             _buildEngineAndFuelData(theme, data),
+
+            const SizedBox(height: AppThemeData.spacingMedium),
+
+            // 气象报文 (METAR)
+            _buildWeatherSection(theme, simProvider),
 
             const SizedBox(height: AppThemeData.spacingMedium),
 
@@ -117,6 +124,9 @@ class FlightDataDashboard extends StatelessWidget {
               value: data.airspeed != null
                   ? '${data.airspeed!.toStringAsFixed(0)} kt'
                   : 'N/A',
+              subValue: data.machNumber != null && data.machNumber! > 0.1
+                  ? 'M ${data.machNumber!.toStringAsFixed(3)}'
+                  : null,
               color: Colors.blue,
             ),
             DataCard(
@@ -253,7 +263,7 @@ class FlightDataDashboard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              _buildDestinationPicker(context),
+              _buildAirportPickers(context),
             ],
           ),
         ],
@@ -261,37 +271,62 @@ class FlightDataDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildDestinationPicker(BuildContext context) {
+  Widget _buildAirportPickers(BuildContext context) {
     final simProvider = context.watch<SimulatorProvider>();
     final dest = simProvider.destinationAirport;
+    final alt = simProvider.alternateAirport;
 
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildPickerButton(
+          context,
+          label: dest != null ? '目的地: ${dest.icaoCode}' : '设置目的地',
+          icon: dest != null ? Icons.location_on : Icons.add_location,
+          onPressed: () =>
+              _showAirportPickerDialog(context, isAlternate: false),
+        ),
+        const SizedBox(width: 8),
+        _buildPickerButton(
+          context,
+          label: alt != null ? '备降: ${alt.icaoCode}' : '设置备降',
+          icon: alt != null ? Icons.alt_route : Icons.add_road,
+          onPressed: () => _showAirportPickerDialog(context, isAlternate: true),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPickerButton(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
     return TextButton.icon(
-      onPressed: () => _showAirportPickerDialog(context),
-      icon: Icon(
-        dest != null ? Icons.edit_location : Icons.add_location,
-        size: 16,
-      ),
-      label: Text(
-        dest != null ? '目的地: ${dest.icaoCode}' : '设置目的地',
-        style: const TextStyle(fontSize: 12),
-      ),
+      onPressed: onPressed,
+      icon: Icon(icon, size: 14),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
       style: TextButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
         visualDensity: VisualDensity.compact,
       ),
     );
   }
 
-  void _showAirportPickerDialog(BuildContext context) {
+  void _showAirportPickerDialog(
+    BuildContext context, {
+    required bool isAlternate,
+  }) {
     showDialog(
       context: context,
       builder: (context) {
         final airports = AirportsDatabase.allAirports;
         return AlertDialog(
-          title: const Text('选择目的地机场'),
+          title: Text(isAlternate ? '选择备备降机场' : '选择目的地机场'),
           content: SizedBox(
             width: double.maxFinite,
-            height: 300,
+            height: 400,
             child: ListView.builder(
               itemCount: airports.length,
               itemBuilder: (context, index) {
@@ -302,7 +337,12 @@ class FlightDataDashboard extends StatelessWidget {
                     'LAT: ${airport.latitude}, LON: ${airport.longitude}',
                   ),
                   onTap: () {
-                    context.read<SimulatorProvider>().setDestination(airport);
+                    final provider = context.read<SimulatorProvider>();
+                    if (isAlternate) {
+                      provider.setAlternate(airport);
+                    } else {
+                      provider.setDestination(airport);
+                    }
                     Navigator.pop(context);
                   },
                 );
@@ -310,6 +350,18 @@ class FlightDataDashboard extends StatelessWidget {
             ),
           ),
           actions: [
+            TextButton(
+              onPressed: () {
+                final provider = context.read<SimulatorProvider>();
+                if (isAlternate) {
+                  provider.setAlternate(null);
+                } else {
+                  provider.setDestination(null);
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('清除选择'),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('取消'),
@@ -349,37 +401,37 @@ class FlightDataDashboard extends StatelessWidget {
             runSpacing: 12,
             children: [
               InfoChip(
-                label: '外部温度',
+                label: 'OAT (外部)',
                 value: data.outsideAirTemperature != null
-                    ? '${data.outsideAirTemperature!.toStringAsFixed(1)}°C'
+                    ? '${data.outsideAirTemperature!.toStringAsFixed(1)} °C'
                     : 'N/A',
               ),
               InfoChip(
-                label: '总温度',
+                label: 'TAT (总温)',
                 value: data.totalAirTemperature != null
-                    ? '${data.totalAirTemperature!.toStringAsFixed(1)}°C'
+                    ? '${data.totalAirTemperature!.toStringAsFixed(1)} °C'
                     : 'N/A',
               ),
               InfoChip(
-                label: '风速',
-                value: data.windSpeed != null
-                    ? '${data.windSpeed!.toStringAsFixed(0)} kt'
+                label: '风速/风向',
+                value: (data.windSpeed != null && data.windDirection != null)
+                    ? '${data.windDirection!.toStringAsFixed(0)}° / ${data.windSpeed!.toStringAsFixed(0)} kt'
                     : 'N/A',
               ),
               InfoChip(
-                label: '风向',
-                value: data.windDirection != null
-                    ? '${data.windDirection!.toStringAsFixed(0)}°'
+                label: '海压 (QNH)',
+                value: data.baroPressure != null
+                    ? '${data.baroPressure!.toStringAsFixed(2)} ${data.baroPressureUnit ?? "inHg"}'
                     : 'N/A',
               ),
               InfoChip(
                 label: '报告能见度',
                 value: data.visibility != null
                     ? (data.visibility! >= 9999
-                          ? '10km+'
+                          ? '> 10 km'
                           : data.visibility! >= 1000
-                          ? '${(data.visibility! / 1000).toStringAsFixed(1)}km'
-                          : '${data.visibility!.toStringAsFixed(0)}m')
+                          ? '${(data.visibility! / 1000).toStringAsFixed(1)} km'
+                          : '${data.visibility!.toStringAsFixed(0)} m')
                     : 'N/A',
               ),
             ],
@@ -418,13 +470,13 @@ class FlightDataDashboard extends StatelessWidget {
             runSpacing: 12,
             children: [
               InfoChip(
-                label: '燃油总量',
+                label: 'FOB (当前燃油)',
                 value: data.fuelQuantity != null
                     ? '${data.fuelQuantity!.toStringAsFixed(0)} kg'
                     : 'N/A',
               ),
               InfoChip(
-                label: '燃油流量',
+                label: 'FF (燃油流量)',
                 value: data.fuelFlow != null
                     ? '${data.fuelFlow!.toStringAsFixed(1)} kg/h'
                     : 'N/A',
@@ -458,5 +510,45 @@ class FlightDataDashboard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildWeatherSection(ThemeData theme, SimulatorProvider simProvider) {
+    final metars = <String, MetarData>{};
+    final errors = <String, String>{};
+
+    // 当前机场
+    final current = simProvider.nearestAirport;
+    if (current != null) {
+      final icao = current.icaoCode;
+      if (simProvider.metarCache.containsKey(icao)) {
+        metars['当前机场 ($icao)'] = simProvider.metarCache[icao]!;
+      } else if (simProvider.metarErrors.containsKey(icao)) {
+        errors['当前机场 ($icao)'] = simProvider.metarErrors[icao]!;
+      }
+    }
+
+    // 目的地
+    final dest = simProvider.destinationAirport;
+    if (dest != null) {
+      final icao = dest.icaoCode;
+      if (simProvider.metarCache.containsKey(icao)) {
+        metars['目的地 ($icao)'] = simProvider.metarCache[icao]!;
+      } else if (simProvider.metarErrors.containsKey(icao)) {
+        errors['目的地 ($icao)'] = simProvider.metarErrors[icao]!;
+      }
+    }
+
+    // 备降场
+    final alt = simProvider.alternateAirport;
+    if (alt != null) {
+      final icao = alt.icaoCode;
+      if (simProvider.metarCache.containsKey(icao)) {
+        metars['备降场 ($icao)'] = simProvider.metarCache[icao]!;
+      } else if (simProvider.metarErrors.containsKey(icao)) {
+        errors['备降场 ($icao)'] = simProvider.metarErrors[icao]!;
+      }
+    }
+
+    return MetarSectionWidget(metars: metars, errors: errors);
   }
 }

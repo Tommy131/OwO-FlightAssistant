@@ -14,42 +14,37 @@ class ThemeSettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: const Text('个性化'),
+        centerTitle: false,
+        elevation: 0,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        leading: onBack != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: onBack,
+              )
+            : null,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: '重置为默认',
+            onPressed: () {
+              context.read<ThemeProvider>().resetToDefault();
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('已重置为默认主题')));
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(AppThemeData.spacingMedium),
         children: [
-          Flex(
-            direction: Axis.horizontal,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: onBack,
-                  ),
-                  Text('主题设置', style: theme.textTheme.headlineMedium),
-                ],
-              ),
-              Row(
-                children: [
-                  _QuickThemeMenu(),
-                  IconButton(
-                    icon: const Icon(Icons.refresh),
-                    tooltip: '重置为默认',
-                    onPressed: () {
-                      context.read<ThemeProvider>().resetToDefault();
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(const SnackBar(content: Text('已重置为默认主题')));
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: AppThemeData.spacingSmall),
-
           // 当前主题信息
           const _CurrentThemeCard(),
           const SizedBox(height: AppThemeData.spacingLarge),
@@ -60,10 +55,6 @@ class ThemeSettingsPage extends StatelessWidget {
 
           // 自定义主题
           const _CustomThemeSection(),
-          const SizedBox(height: AppThemeData.spacingLarge),
-
-          // 设计常量示例（可选）
-          const _DesignConstantsSection(),
           const SizedBox(height: AppThemeData.spacingLarge),
         ],
       ),
@@ -99,7 +90,7 @@ class _ThemeColorCircle extends StatelessWidget {
             ? [
                 BoxShadow(
                   color: color.withValues(alpha: 0.3),
-                  blurRadius: 8,
+                  blurRadius: 10,
                   spreadRadius: 2,
                 ),
               ]
@@ -107,59 +98,11 @@ class _ThemeColorCircle extends StatelessWidget {
       ),
       child: showCheck
           ? Icon(
-              Icons.check,
+              Icons.check_rounded,
               color: AppThemeData.getContrastColor(color),
               size: size * 0.5,
             )
           : null,
-    );
-  }
-}
-
-/// 快速主题切换菜单
-class _QuickThemeMenu extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final currentTheme = context.watch<ThemeProvider>().currentTheme;
-
-    return PopupMenuButton<AppThemeData>(
-      icon: const Icon(Icons.palette_outlined),
-      tooltip: '快速切换主题',
-      onSelected: (theme) {
-        context.read<ThemeProvider>().setTheme(theme);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('已切换到 ${theme.name}'),
-            duration: const Duration(seconds: 1),
-          ),
-        );
-      },
-      itemBuilder: (context) {
-        return AppThemeData.presetThemes.map((theme) {
-          final isSelected = currentTheme == theme;
-          return PopupMenuItem(
-            value: theme,
-            child: Row(
-              children: [
-                _ThemeColorCircle(
-                  color: theme.primaryColor,
-                  size: 24,
-                  showCheck: isSelected,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  theme.name,
-                  style: TextStyle(
-                    fontWeight: isSelected
-                        ? FontWeight.w600
-                        : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList();
-      },
     );
   }
 }
@@ -175,49 +118,70 @@ class _CurrentThemeCard extends StatelessWidget {
     final provider = context.watch<ThemeProvider>();
     final theme = Theme.of(context);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('当前主题', style: theme.textTheme.headlineMedium),
-            const SizedBox(height: AppThemeData.spacingMedium),
-            Row(
-              children: [
-                _ThemeColorCircle(
-                  color: provider.currentTheme.primaryColor,
-                  size: 56,
-                  showShadow: true,
-                ),
-                const SizedBox(width: AppThemeData.spacingMedium),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        provider.currentTheme.name,
-                        style: theme.textTheme.displaySmall,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        provider.getThemeModeName(provider.themeMode),
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  provider.getThemeModeIcon(provider.themeMode),
-                  size: 32,
-                  color: theme.primaryColor,
-                ),
-              ],
-            ),
-            const SizedBox(height: AppThemeData.spacingMedium),
-            _QuickActionButtons(),
-          ],
+    return Container(
+      padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+        border: Border.all(
+          color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.5),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '当前外观',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: AppThemeData.spacingMedium),
+          Row(
+            children: [
+              _ThemeColorCircle(
+                color: provider.currentTheme.primaryColor,
+                size: 60,
+                showShadow: true,
+              ),
+              const SizedBox(width: AppThemeData.spacingMedium),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      provider.currentTheme.name,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      provider.getThemeModeName(provider.themeMode),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                provider.getThemeModeIcon(provider.themeMode),
+                size: 28,
+                color: theme.colorScheme.primary,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppThemeData.spacingLarge),
+          _QuickActionButtons(),
+        ],
       ),
     );
   }
@@ -229,19 +193,43 @@ class _QuickActionButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<ThemeProvider>();
 
-    return Wrap(
-      spacing: AppThemeData.spacingSmall,
-      runSpacing: AppThemeData.spacingSmall,
+    return Row(
       children: [
-        ElevatedButton.icon(
-          onPressed: () => provider.toggleThemeMode(),
-          icon: Icon(provider.getThemeModeIcon(provider.themeMode)),
-          label: const Text('切换模式'),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () => provider.toggleThemeMode(),
+            icon: Icon(provider.getThemeModeIcon(provider.themeMode), size: 18),
+            label: const Text('循环切换模式'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(
+                  AppThemeData.borderRadiusSmall,
+                ),
+              ),
+            ),
+          ),
         ),
-        OutlinedButton.icon(
-          onPressed: () => provider.toggleDarkMode(),
-          icon: const Icon(Icons.brightness_6),
-          label: Text(provider.isDarkMode ? '切换到浅色' : '切换到深色'),
+        const SizedBox(width: AppThemeData.spacingSmall),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => provider.toggleDarkMode(),
+            icon: Icon(
+              provider.isDarkMode
+                  ? Icons.light_mode_rounded
+                  : Icons.dark_mode_rounded,
+              size: 18,
+            ),
+            label: Text(provider.isDarkMode ? '浅色' : '深色'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(
+                  AppThemeData.borderRadiusSmall,
+                ),
+              ),
+            ),
+          ),
         ),
       ],
     );
@@ -254,19 +242,35 @@ class _PresetThemesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('主题配色', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: AppThemeData.spacingSmall),
-            Text('选择你喜欢的颜色主题', style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: AppThemeData.spacingMedium),
-            _PresetThemeGrid(),
-          ],
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+        border: Border.all(
+          color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.5),
         ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '色彩方案',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '选择预设的主题配色',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+          const SizedBox(height: AppThemeData.spacingMedium),
+          const _PresetThemeGrid(),
+        ],
       ),
     );
   }
@@ -274,6 +278,8 @@ class _PresetThemesSection extends StatelessWidget {
 
 /// 预设主题网格
 class _PresetThemeGrid extends StatelessWidget {
+  const _PresetThemeGrid();
+
   @override
   Widget build(BuildContext context) {
     final currentTheme = context.watch<ThemeProvider>().currentTheme;
@@ -282,10 +288,10 @@ class _PresetThemeGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 6,
+        crossAxisCount: 5,
         crossAxisSpacing: AppThemeData.spacingSmall,
         mainAxisSpacing: AppThemeData.spacingSmall,
-        childAspectRatio: 1.1,
+        childAspectRatio: 0.85,
       ),
       itemCount: AppThemeData.presetThemes.length,
       itemBuilder: (context, index) {
@@ -299,8 +305,9 @@ class _PresetThemeGrid extends StatelessWidget {
             context.read<ThemeProvider>().setTheme(theme);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('已切换到 ${theme.name}'),
+                content: Text('已应用 ${theme.name}'),
                 duration: const Duration(seconds: 1),
+                behavior: SnackBarBehavior.floating,
               ),
             );
           },
@@ -324,42 +331,46 @@ class _ThemeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: isSelected ? 2 : 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
-        side: BorderSide(
-          color: isSelected
-              ? theme.primaryColor
-              : AppThemeData.getBorderColor(Theme.of(context)),
-          width: isSelected ? 2 : 1,
+    final parentTheme = Theme.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+          border: Border.all(
+            color: isSelected
+                ? theme.primaryColor
+                : AppThemeData.getBorderColor(
+                    parentTheme,
+                  ).withValues(alpha: 0.3),
+            width: isSelected ? 2 : 1,
+          ),
+          color: isSelected ? theme.primaryColor.withValues(alpha: 0.05) : null,
         ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _ThemeColorCircle(
               color: theme.primaryColor,
-              size: 48,
+              size: 40,
               showCheck: isSelected,
               showShadow: isSelected,
             ),
-            const SizedBox(height: AppThemeData.spacingSmall),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                theme.name,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            const SizedBox(height: 8),
+            Text(
+              theme.name,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected
+                    ? theme.primaryColor
+                    : parentTheme.colorScheme.onSurface,
               ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -375,62 +386,68 @@ class _CustomThemeSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentTheme = context.watch<ThemeProvider>().currentTheme;
+    final theme = Theme.of(context);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('自定义主题', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: AppThemeData.spacingSmall),
-            Text('创建你的专属配色方案', style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: AppThemeData.spacingMedium),
-            if (currentTheme.isCustom) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-                  child: Row(
-                    children: [
-                      _ThemeColorCircle(
-                        color: currentTheme.primaryColor,
-                        size: 48,
-                        showCheck: true,
+    return Container(
+      padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+        border: Border.all(
+          color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '自定义配色',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(width: AppThemeData.spacingMedium),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              currentTheme.name,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '当前自定义主题',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                          ],
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '创造属于你的独特视野',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              if (currentTheme.isCustom)
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.orange,
+                  size: 20,
+                ),
+            ],
+          ),
+          const SizedBox(height: AppThemeData.spacingMedium),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _showColorPicker(context),
+              icon: const Icon(Icons.colorize_rounded, size: 18),
+              label: const Text('打开取色器'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    AppThemeData.borderRadiusSmall,
                   ),
                 ),
               ),
-              const SizedBox(height: AppThemeData.spacingSmall),
-            ],
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _showColorPicker(context),
-                icon: const Icon(Icons.palette),
-                label: const Text('创建自定义主题'),
-              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -440,12 +457,15 @@ class _CustomThemeSection extends StatelessWidget {
         .read<ThemeProvider>()
         .currentTheme
         .primaryColor;
-    final nameController = TextEditingController(text: '自定义主题');
+    final nameController = TextEditingController(text: '我的主题');
 
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('自定义主题色'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -454,6 +474,7 @@ class _CustomThemeSection extends StatelessWidget {
                 controller: nameController,
                 decoration: InputDecoration(
                   labelText: '主题名称',
+                  hintText: '例如：烈焰红',
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(
                       AppThemeData.borderRadiusSmall,
@@ -470,9 +491,8 @@ class _CustomThemeSection extends StatelessWidget {
                 borderRadius: 20,
                 spacing: 8,
                 runSpacing: 8,
-                wheelDiameter: 200,
-                heading: const Text('选择主题色'),
-                subheading: const Text('选择色调'),
+                heading: const Text('选择基准色'),
+                subheading: const Text('微调色调'),
                 pickersEnabled: const {
                   ColorPickerType.both: false,
                   ColorPickerType.primary: true,
@@ -497,76 +517,9 @@ class _CustomThemeSection extends StatelessWidget {
               Navigator.pop(dialogContext);
               ScaffoldMessenger.of(
                 context,
-              ).showSnackBar(const SnackBar(content: Text('自定义主题已应用')));
+              ).showSnackBar(const SnackBar(content: Text('自定义主题已成功应用')));
             },
             child: const Text('应用'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 设计常量示例区域（可选功能）
-class _DesignConstantsSection extends StatelessWidget {
-  const _DesignConstantsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('设计常量', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: AppThemeData.spacingMedium),
-            const _ConstantItem('间距 - Small', '${AppThemeData.spacingSmall}px'),
-            const _ConstantItem(
-              '间距 - Medium',
-              '${AppThemeData.spacingMedium}px',
-            ),
-            const _ConstantItem('间距 - Large', '${AppThemeData.spacingLarge}px'),
-            const Divider(height: AppThemeData.spacingLarge),
-            const _ConstantItem(
-              '圆角 - Small',
-              '${AppThemeData.borderRadiusSmall}px',
-            ),
-            const _ConstantItem(
-              '圆角 - Medium',
-              '${AppThemeData.borderRadiusMedium}px',
-            ),
-            const _ConstantItem(
-              '圆角 - Large',
-              '${AppThemeData.borderRadiusLarge}px',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ConstantItem extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _ConstantItem(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontFamily: 'monospace',
-            ),
           ),
         ],
       ),

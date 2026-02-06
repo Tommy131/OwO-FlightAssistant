@@ -7,6 +7,7 @@ enum XPlaneDataRefKey {
   longitude,
   groundSpeed,
   trueAirspeed,
+  machNumber,
   parkingBrake,
   beaconLights,
   landingLightsMain,
@@ -135,6 +136,12 @@ class XPlaneDataRefs {
     key: XPlaneDataRefKey.trueAirspeed,
     path: 'sim/flightmodel/position/true_airspeed',
     description: '真空速',
+  );
+
+  static const XPlaneDataRef machNumber = XPlaneDataRef(
+    key: XPlaneDataRefKey.machNumber,
+    path: 'sim/flightmodel/misc/machno',
+    description: '马赫数',
   );
 
   // ==================== 系统状态 ====================
@@ -509,7 +516,7 @@ class XPlaneDataRefs {
       // 飞行数据
       airspeed, altitude, heading, verticalSpeed,
       // 位置和导航
-      latitude, longitude, groundSpeed, trueAirspeed,
+      latitude, longitude, groundSpeed, trueAirspeed, machNumber,
       // 环境数据
       outsideTemp, totalTemp, windSpeed, windDirection,
       // 模拟器状态

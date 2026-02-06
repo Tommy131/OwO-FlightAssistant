@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme_data.dart';
 import '../../models/navigation_item.dart';
 import '../../theme/theme_provider.dart';
-import '../../../apps/providers/simulator_provider.dart';
+import '../../../apps/providers/simulator/simulator_provider.dart';
 import '../../../apps/models/simulator_data.dart';
 
 /// 桌面端侧边栏组件（紧凑型）
@@ -314,14 +314,14 @@ class _DesktopSidebarState extends State<DesktopSidebar>
     String? ete,
   ) {
     final distText = distance != null
-        ? ' | ${distance.toStringAsFixed(0)}nm'
+        ? ' | ${distance.toStringAsFixed(0)} NM'
         : '';
-    final eteText = ete != null ? ' ($ete)' : '';
+    final eteText = ete != null ? ' | ETE $ete' : '';
     final comText = data.com1Frequency != null
         ? '${data.com1Frequency!.toStringAsFixed(3)} MHz'
         : '';
     final visText = data.visibility != null
-        ? ' | Vis: ${(data.visibility! / 1000).toStringAsFixed(1)}km'
+        ? ' | VIS ${(data.visibility! / 1000).toStringAsFixed(1)} KM'
         : '';
 
     final mainText = airportName ?? (data.onGround == true ? '未知机场' : phase);

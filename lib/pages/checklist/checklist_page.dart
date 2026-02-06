@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../apps/models/flight_checklist.dart';
 import '../../apps/providers/checklist_provider.dart';
-import '../../apps/providers/simulator_provider.dart';
+import '../../apps/providers/simulator/simulator_provider.dart';
 import '../../core/theme/app_theme_data.dart';
 import '../../core/widgets/common/data_link_placeholder.dart';
 

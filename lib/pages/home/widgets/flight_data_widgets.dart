@@ -5,6 +5,7 @@ class DataCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final String? subValue;
   final Color color;
 
   const DataCard({
@@ -12,6 +13,7 @@ class DataCard extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
+    this.subValue,
     required this.color,
   });
 
@@ -46,6 +48,17 @@ class DataCard extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
+          if (subValue != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              subValue!,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                fontSize: 10,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ],
       ),
     );

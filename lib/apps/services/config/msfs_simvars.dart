@@ -26,6 +26,12 @@ class MSFSSimVars {
     description: '指示空速',
   );
 
+  static const MSFSSimVar mach = MSFSSimVar(
+    name: 'AIRSPEED_MACH',
+    unit: 'mach',
+    description: '马赫数',
+  );
+
   static const MSFSSimVar altitude = MSFSSimVar(
     name: 'INDICATED_ALTITUDE',
     unit: 'feet',
@@ -284,7 +290,7 @@ class MSFSSimVars {
   static List<MSFSSimVar> getAllSimVars() {
     return [
       // 飞行数据
-      airspeed, altitude, heading, verticalSpeed, latitude, longitude,
+      airspeed, mach, altitude, heading, verticalSpeed, latitude, longitude,
       // 系统状态
       parkingBrake, beaconLight, landingLight, taxiLight, navLight, strobeLight,
       flapsHandleIndex, flapsDeployRatio,

@@ -260,6 +260,13 @@ class MSFSService {
     if (data.containsKey('BAROMETER PRESSURE')) {
       _currentData = _currentData.copyWith(
         baroPressure: (data['BAROMETER PRESSURE'] as num?)?.toDouble(),
+        baroPressureUnit: 'inHg',
+      );
+    }
+
+    if (data.containsKey('AIRSPEED_MACH')) {
+      _currentData = _currentData.copyWith(
+        machNumber: (data['AIRSPEED_MACH'] as num?)?.toDouble(),
       );
     }
 

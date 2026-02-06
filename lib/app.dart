@@ -6,7 +6,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'core/theme/theme_provider.dart';
 import 'apps/providers/checklist_provider.dart';
-import 'apps/providers/simulator_provider.dart';
+import 'apps/providers/simulator/simulator_provider.dart';
 import 'core/constants/app_constants.dart';
 import 'core/layouts/desktop_layout.dart';
 import 'core/layouts/mobile_layout.dart';
@@ -16,8 +16,9 @@ import 'core/widgets/common/dialog.dart';
 import 'core/widgets/desktop/custom_title_bar.dart';
 import 'pages/home/home_page.dart';
 import 'pages/checklist/checklist_page.dart';
-import 'pages/settings/theme_settings_page.dart';
+import 'pages/settings/settings_page.dart';
 import 'pages/monitor/monitor_page.dart';
+import 'pages/airport_info/airport_info_page.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -73,6 +74,13 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       page: MonitorPage(),
     ),
     NavigationItem(
+      id: 'airport',
+      title: '机场信息',
+      icon: Icons.flight_outlined,
+      activeIcon: Icons.flight,
+      page: AirportInfoPage(),
+    ),
+    NavigationItem(
       id: 'checklist',
       title: '飞行检查单',
       icon: Icons.checklist_outlined,
@@ -81,10 +89,10 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
     ),
     NavigationItem(
       id: 'settings',
-      title: '主题设置',
-      icon: Icons.settings_outlined,
+      title: '设置',
+      icon: Icons.settings_rounded,
       activeIcon: Icons.settings,
-      page: ThemeSettingsPage(),
+      page: SettingsPage(),
     ),
   ];
 

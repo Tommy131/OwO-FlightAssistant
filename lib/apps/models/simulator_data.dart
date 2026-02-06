@@ -13,6 +13,8 @@ class SimulatorData {
   final double? verticalSpeed;
   final double? gForce; // 重力加速度
   final double? baroPressure; // 气压 (inHg 或 hPa)
+  final String? baroPressureUnit; // 气压单位 (inHg 或 hPa)
+  final double? machNumber; // 马赫数
 
   // 位置和导航
   final double? latitude;
@@ -151,6 +153,8 @@ class SimulatorData {
     this.com1Frequency,
     this.gForce,
     this.baroPressure,
+    this.baroPressureUnit,
+    this.machNumber,
   });
 
   factory SimulatorData.empty() {
@@ -224,6 +228,8 @@ class SimulatorData {
     double? com1Frequency,
     double? gForce,
     double? baroPressure,
+    String? baroPressureUnit,
+    double? machNumber,
   }) {
     return SimulatorData(
       isConnected: isConnected ?? this.isConnected,
@@ -293,6 +299,8 @@ class SimulatorData {
       com1Frequency: com1Frequency ?? this.com1Frequency,
       gForce: gForce ?? this.gForce,
       baroPressure: baroPressure ?? this.baroPressure,
+      baroPressureUnit: baroPressureUnit ?? this.baroPressureUnit,
+      machNumber: machNumber ?? this.machNumber,
     );
   }
 
@@ -319,7 +327,7 @@ class SimulatorData {
       if (autoBrakeLevel == 1) return 'LO';
       if (autoBrakeLevel == 2) return 'MED';
       if (autoBrakeLevel == 3 || autoBrakeLevel == 4) return 'MAX';
-      return 'L${autoBrakeLevel}';
+      return 'L$autoBrakeLevel';
     }
 
     // 通用回退
