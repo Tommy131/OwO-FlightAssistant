@@ -8,6 +8,7 @@ class MetarDisplayWidget extends StatelessWidget {
   final MetarData metarData;
   final bool showUpdateTime;
   final bool compact;
+  final IconData? icon;
 
   const MetarDisplayWidget({
     super.key,
@@ -15,6 +16,7 @@ class MetarDisplayWidget extends StatelessWidget {
     required this.metarData,
     this.showUpdateTime = true,
     this.compact = false,
+    this.icon,
   });
 
   @override
@@ -29,11 +31,15 @@ class MetarDisplayWidget extends StatelessWidget {
           // Header with airport label and update time
           Row(
             children: [
+              if (icon != null) ...[
+                Icon(icon, color: theme.colorScheme.primary, size: 14),
+                const SizedBox(width: 6),
+              ],
               Text(
                 airportLabel,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.primary,
+                style: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.bold,
+                  fontSize: 11,
                 ),
               ),
               if (showUpdateTime) ...[
@@ -51,24 +57,23 @@ class MetarDisplayWidget extends StatelessWidget {
           const SizedBox(height: 4),
 
           // Raw METAR
-          if (!compact)
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.3,
-                ),
-                borderRadius: BorderRadius.circular(4),
+          Container(
+            padding: EdgeInsets.all(compact ? 4 : 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.3,
               ),
-              child: Text(
-                metarData.raw,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontFamily: 'Monospace',
-                  fontSize: 11,
-                ),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              metarData.raw,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontFamily: 'Monospace',
+                fontSize: compact ? 9 : 11,
               ),
             ),
-          if (!compact) const SizedBox(height: 4),
+          ),
+          const SizedBox(height: 4),
 
           // Parsed data tags
           Wrap(
