@@ -7,9 +7,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme_data.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/data_path_item.dart';
-import 'widgets/airac_info_tag.dart';
 
 import '../../apps/services/airport_detail_service.dart';
+import '../../apps/services/auto_detect/auto_detect_service.dart';
+import '../../core/widgets/common/database_selection_dialog.dart';
 
 /// 数据路径设置页面
 class DataPathSettingsPage extends StatefulWidget {
@@ -107,124 +108,60 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
     });
   }
 
+  final AutoDetectService _autoDetectService = AutoDetectService();
+
   Future<void> _autoDetectPaths() async {
     setState(() => _isDetecting = true);
 
     try {
-      final List<Map<String, String>> detectedDbs = [];
-
-      // 辅助函数：添加数据库到列表并获取 AIRAC 信息
-      Future<void> addDb(String path, AirportDataSource source) async {
-        // 避免重复添加
-        if (detectedDbs.any((db) => db['path'] == path)) return;
-
-        final info = await _airportService.getDatabaseInfo(path, source);
-        detectedDbs.add(info);
-      }
-
-      if (Platform.isWindows) {
-        // 1. Little Navmap 路径检测
-        final appData = Platform.environment['APPDATA'];
-        final localAppData = Platform.environment['LOCALAPPDATA'];
-        final username = Platform.environment['USERNAME'];
-
-        final lnmSearchPaths = [
-          "C:\\Program Files\\Little Navmap\\little_navmap_db",
-          "C:\\Program Files (x86)\\Little Navmap\\little_navmap_db",
-          if (appData != null) "$appData\\ABarthel\\little_navmap_db",
-          if (localAppData != null) "$localAppData\\ABarthel\\little_navmap_db",
-          if (username != null)
-            "C:\\Users\\$username\\AppData\\Roaming\\ABarthel\\little_navmap_db",
-        ];
-
-        for (final dirPath in lnmSearchPaths) {
-          final dir = Directory(dirPath);
-          if (await dir.exists()) {
-            final files = await dir.list().toList();
-            for (final file in files) {
-              if (file is File &&
-                  file.path.toLowerCase().endsWith('.sqlite') &&
-                  (file.path.toLowerCase().contains('navdata') ||
-                      file.path.toLowerCase().contains('navigraph'))) {
-                await addDb(file.path, AirportDataSource.lnmData);
-              }
-            }
-          }
-        }
-
-        // 2. X-Plane 路径检测
-        final drives = ['C:', 'D:', 'E:', 'F:', 'G:', 'H:'];
-        for (final drive in drives) {
-          final possibleDirs = [
-            '$drive\\X-Plane 12',
-            '$drive\\X-Plane 11',
-            '$drive\\SteamLibrary\\steamapps\\common\\X-Plane 12',
-            '$drive\\SteamLibrary\\steamapps\\common\\X-Plane 11',
-            '$drive\\Program Files (x86)\\Steam\\steamapps\\common\\X-Plane 12',
-            '$drive\\Program Files (x86)\\Steam\\steamapps\\common\\X-Plane 11',
-          ];
-
-          for (final dir in possibleDirs) {
-            // 检查 Resources 下的默认数据
-            final defaultFile = File(
-              '$dir\\Resources\\default data\\earth_nav.dat',
-            );
-            if (await defaultFile.exists()) {
-              await addDb(defaultFile.path, AirportDataSource.xplaneData);
-            }
-
-            // 检查 Custom Data 下的自定义数据
-            final customFile = File('$dir\\Custom Data\\earth_nav.dat');
-            if (await customFile.exists()) {
-              await addDb(customFile.path, AirportDataSource.xplaneData);
-            }
-          }
-        }
-      } else if (Platform.isMacOS) {
-        // MacOS 路径检测
-        final home = Platform.environment['HOME'] ?? '';
-        final lnmSearchPaths = [
-          "$home/Library/Application Support/ABarthel/little_navmap_db",
-          "/Applications/Little Navmap/little_navmap_db",
-        ];
-
-        for (final dirPath in lnmSearchPaths) {
-          final dir = Directory(dirPath);
-          if (await dir.exists()) {
-            final files = await dir.list().toList();
-            for (final file in files) {
-              if (file is File &&
-                  file.path.toLowerCase().endsWith('.sqlite') &&
-                  (file.path.toLowerCase().contains('navdata') ||
-                      file.path.toLowerCase().contains('navigraph'))) {
-                await addDb(file.path, AirportDataSource.lnmData);
-              }
-            }
-          }
-        }
-
-        final possibleXPlaneDirs = [
-          '/Applications/X-Plane 12',
-          '/Applications/X-Plane 11',
-          '$home/Library/Application Support/Steam/steamapps/common/X-Plane 12',
-          '$home/Library/Application Support/Steam/steamapps/common/X-Plane 11',
-        ];
-
-        for (final dir in possibleXPlaneDirs) {
-          final defaultFile = File('$dir/Resources/default data/earth_nav.dat');
-          if (await defaultFile.exists()) {
-            await addDb(defaultFile.path, AirportDataSource.xplaneData);
-          }
-          final customFile = File('$dir/Custom Data/earth_nav.dat');
-          if (await customFile.exists()) {
-            await addDb(customFile.path, AirportDataSource.xplaneData);
-          }
-        }
-      }
+      final detectedDbs = await _autoDetectService.detectPaths();
 
       if (detectedDbs.isNotEmpty) {
         if (mounted) {
-          await _showDatabaseSelectionDialog(detectedDbs);
+          await showDialog(
+            context: context,
+            builder: (context) => DatabaseSelectionDialog(
+              detectedDbs: detectedDbs,
+              currentLnmPath: _lnmPath,
+              currentXPlanePath: _xplanePath,
+              onConfirm: (lnmPath, xplanePath) async {
+                final prefs = await SharedPreferences.getInstance();
+                if (lnmPath != null) {
+                  await prefs.setString(_lnmPathKey, lnmPath);
+                  final info = await _airportService.getDatabaseInfo(
+                    lnmPath,
+                    AirportDataSource.lnmData,
+                  );
+                  setState(() {
+                    _lnmPath = lnmPath;
+                    _lnmInfo = info;
+                  });
+                }
+
+                if (xplanePath != null) {
+                  await prefs.setString(_xplanePathKey, xplanePath);
+                  final info = await _airportService.getDatabaseInfo(
+                    xplanePath,
+                    AirportDataSource.xplaneData,
+                  );
+                  setState(() {
+                    _xplanePath = xplanePath;
+                    _xplaneInfo = info;
+                  });
+                }
+
+                if (mounted) {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ 数据库路径已更新'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+            ),
+          );
         }
       } else {
         if (mounted) {
@@ -243,219 +180,10 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
         );
       }
     } finally {
-      setState(() => _isDetecting = false);
+      if (mounted) {
+        setState(() => _isDetecting = false);
+      }
     }
-  }
-
-  Widget _buildDatabaseCard({
-    required ThemeData theme,
-    required Map<String, String> db,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required IconData icon,
-  }) {
-    return Card(
-      elevation: isSelected ? 2 : 0,
-      color: isSelected
-          ? theme.colorScheme.primaryContainer.withAlpha(50)
-          : null,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(
-          color: isSelected ? theme.colorScheme.primary : Colors.transparent,
-          width: 2,
-        ),
-      ),
-      child: ListTile(
-        dense: true,
-        leading: Icon(
-          icon,
-          color: isSelected
-              ? theme.colorScheme.primary
-              : theme.colorScheme.outline,
-        ),
-        title: Row(
-          children: [
-            Text('AIRAC ${db['airac']}'),
-            if (db['expiry'] != null && db['expiry']!.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              AiracInfoTag(
-                airac: db['airac'],
-                expiry: db['expiry'],
-                isExpired: db['is_expired'] == 'true',
-                showAiracLabel: false,
-              ),
-            ],
-          ],
-        ),
-        subtitle: Text(
-          db['path']!,
-          style: const TextStyle(fontSize: 11),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  Future<void> _showDatabaseSelectionDialog(
-    List<Map<String, String>> detectedDbs,
-  ) async {
-    final theme = Theme.of(context);
-
-    // 分类数据库
-    final lnmDbs = detectedDbs
-        .where((db) => db['type']!.contains('Little Navmap'))
-        .toList();
-    final xplaneDbs = detectedDbs
-        .where((db) => db['type']!.contains('X-Plane'))
-        .toList();
-
-    // 临时存储选中的路径
-    String? selectedLnmPath = _lnmPath;
-    String? selectedXPlanePath = _xplanePath;
-
-    // 如果当前没有选中，且检测到了，默认选中第一个
-    if (selectedLnmPath == null && lnmDbs.isNotEmpty) {
-      selectedLnmPath = lnmDbs.first['path'];
-    }
-    if (selectedXPlanePath == null && xplaneDbs.isNotEmpty) {
-      selectedXPlanePath = xplaneDbs.first['path'];
-    }
-
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('选择要使用的数据库'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (lnmDbs.isNotEmpty) ...[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text(
-                            'Little Navmap 数据库',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        ...lnmDbs.map((db) {
-                          return _buildDatabaseCard(
-                            theme: theme,
-                            db: db,
-                            isSelected: selectedLnmPath == db['path'],
-                            icon: Icons.map_outlined,
-                            onTap: () {
-                              setDialogState(() {
-                                selectedLnmPath = db['path'];
-                              });
-                            },
-                          );
-                        }),
-                        const Divider(height: 24),
-                      ],
-                      if (xplaneDbs.isNotEmpty) ...[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text(
-                            'X-Plane 导航数据',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        ...xplaneDbs.map((db) {
-                          return _buildDatabaseCard(
-                            theme: theme,
-                            db: db,
-                            isSelected: selectedXPlanePath == db['path'],
-                            icon: Icons.flight_takeoff,
-                            onTap: () {
-                              setDialogState(() {
-                                selectedXPlanePath = db['path'];
-                              });
-                            },
-                          );
-                        }),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('取消'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: theme.colorScheme.onPrimary,
-                  ),
-                  onPressed: () async {
-                    final prefs = await SharedPreferences.getInstance();
-                    if (selectedLnmPath != null) {
-                      await prefs.setString(_lnmPathKey, selectedLnmPath!);
-                    }
-                    if (selectedXPlanePath != null) {
-                      await prefs.setString(
-                        _xplanePathKey,
-                        selectedXPlanePath!,
-                      );
-                    }
-
-                    // 更新内存中的 info 信息
-                    Map<String, String>? newLnmInfo;
-                    Map<String, String>? newXPlaneInfo;
-                    if (selectedLnmPath != null) {
-                      newLnmInfo = await _airportService.getDatabaseInfo(
-                        selectedLnmPath!,
-                        AirportDataSource.lnmData,
-                      );
-                    }
-                    if (selectedXPlanePath != null) {
-                      newXPlaneInfo = await _airportService.getDatabaseInfo(
-                        selectedXPlanePath!,
-                        AirportDataSource.xplaneData,
-                      );
-                    }
-
-                    setState(() {
-                      _lnmPath = selectedLnmPath;
-                      _xplanePath = selectedXPlanePath;
-                      _lnmInfo = newLnmInfo;
-                      _xplaneInfo = newXPlaneInfo;
-                    });
-
-                    if (context.mounted) {
-                      Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('✅ 数据库路径已更新'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text('保存选择'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   Future<void> _pickXPlanePath() async {

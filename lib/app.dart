@@ -23,6 +23,8 @@ import 'pages/settings/settings_page.dart';
 import 'pages/monitor/monitor_page.dart';
 import 'pages/airport_info/airport_info_page.dart';
 import 'pages/splash/splash_screen.dart';
+import 'pages/setup/setup_guide_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -61,6 +63,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> with WindowListener {
   int _selectedIndex = 0;
   bool _isPreloading = true;
+  bool _needsSetup = false;
 
   // 定义导航项
   final List<NavigationItem> _navigationItems = const [
@@ -129,6 +132,21 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
   Future<void> _preloadAirportData() async {
     // 延迟一小段时间，确保 SplashScreen 能够被用户看见
     await Future.delayed(const Duration(milliseconds: 800));
+
+    // 检查是否已配置 LNM 路径
+    final prefs = await SharedPreferences.getInstance();
+    final lnmPath = prefs.getString('lnm_nav_data_path');
+    if (lnmPath == null || lnmPath.isEmpty || !await File(lnmPath).exists()) {
+      if (mounted) {
+        setState(() {
+          _needsSetup = true;
+          _isPreloading = false;
+        });
+        // 进入配置页面也需要调整窗口大小
+        await _switchToMainWindow();
+      }
+      return;
+    }
 
     // 如果数据库已经有数据，不需要重复加载
     if (!AirportsDatabase.isEmpty) {
@@ -212,6 +230,18 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       final themeProvider = context.watch<ThemeProvider>();
       return SplashScreen(
         theme: themeProvider.currentTheme.generateDarkTheme(),
+      );
+    }
+
+    if (_needsSetup) {
+      return SetupGuidePage(
+        onSetupComplete: () {
+          setState(() {
+            _needsSetup = false;
+            _isPreloading = true; // 重新进入预加载流程
+          });
+          _preloadAirportData();
+        },
       );
     }
 
