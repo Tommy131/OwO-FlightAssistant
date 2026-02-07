@@ -22,6 +22,7 @@ import 'pages/checklist/checklist_page.dart';
 import 'pages/settings/settings_page.dart';
 import 'pages/monitor/monitor_page.dart';
 import 'pages/airport_info/airport_info_page.dart';
+import 'pages/splash/splash_screen.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -59,6 +60,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with WindowListener {
   int _selectedIndex = 0;
+  bool _isPreloading = true;
 
   // 定义导航项
   final List<NavigationItem> _navigationItems = const [
@@ -115,16 +117,25 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
             checklistProvider.selectAircraft(aircraftId);
           }
         });
+
+        // 在这里启动预加载，确保在 UI 渲染出 SplashScreen 后开始
+        _preloadAirportData();
       }
     });
 
     _init();
-    _preloadAirportData();
   }
 
   Future<void> _preloadAirportData() async {
+    // 延迟一小段时间，确保 SplashScreen 能够被用户看见
+    await Future.delayed(const Duration(milliseconds: 800));
+
     // 如果数据库已经有数据，不需要重复加载
-    if (!AirportsDatabase.isEmpty) return;
+    if (!AirportsDatabase.isEmpty) {
+      setState(() => _isPreloading = false);
+      _switchToMainWindow();
+      return;
+    }
 
     try {
       final detailService = AirportDetailService();
@@ -151,11 +162,24 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
         );
         AppLogger.info('App 启动: 成功预加载 ${airports.length} 个机场数据');
       } else {
-        AppLogger.warning('App 启动: 未能预加载机场数据 (数据源: ${currentDataSource.displayName})');
+        AppLogger.warning(
+          'App 启动: 未能预加载机场数据 (数据源: ${currentDataSource.displayName})',
+        );
       }
     } catch (e) {
       AppLogger.error('App 启动: 预加载机场数据失败: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isPreloading = false);
+        _switchToMainWindow();
+      }
     }
+  }
+
+  Future<void> _switchToMainWindow() async {
+    await windowManager.setSize(const Size(1266, 800));
+    await windowManager.setMinimumSize(const Size(816, 600));
+    await windowManager.center();
   }
 
   void _init() async {
@@ -184,6 +208,13 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
 
   @override
   Widget build(BuildContext context) {
+    if (_isPreloading) {
+      final themeProvider = context.watch<ThemeProvider>();
+      return SplashScreen(
+        theme: themeProvider.currentTheme.generateDarkTheme(),
+      );
+    }
+
     bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       children: [
