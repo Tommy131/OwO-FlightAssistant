@@ -1,274 +1,122 @@
-# OwO! FlightAssistant - 飞行检查单软件
+# OwO! FlightAssistant - 你的全能模拟飞行助手
 
-## 📋 项目简介
+![Flutter](https://img.shields.io/badge/Flutter-v3.9+-02569B?logo=flutter)
+![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Mobile-blue)
 
-这是一款专为微软模拟飞行 2020/2024 和 X-Plane 11/12 设计的专业飞行检查单应用。基于真实航空公司的标准操作程序（SOP），为模拟飞行爱好者提供完整的飞行流程检查支持。
-
-## ✈️ 支持机型
-
-### Airbus A320 系列
-- A319
-- A320-200
-- A321
-
-### Boeing 737 系列
-- B737-800
-- B737 MAX
-
-## 🛫 检查阶段
-
-每个机型都包含完整的 9 个飞行阶段检查清单：
-
-1. **冷舱启动 (Cold & Dark)**
-   - 电源系统初始化
-   - ADIRS/IRS 对齐
-   - APU 启动
-   - FMS/FMC 航路输入
-
-2. **推出前检查 (Before Pushback)**
-   - 客舱准备确认
-   - 机门/滑梯状态
-   - 飞行控制检查
-   - 配平设置
-
-3. **滑行前检查 (Before Taxi)**
-   - 发动机启动完成
-   - 地面设备断开
-   - 防冰系统
-   - 刹车测试
-
-4. **起飞前检查 (Before Takeoff)**
-   - 飞行控制全行程检查
-   - 襟翼/缝翼位置
-   - 起飞构型测试
-   - TCAS/应答机设置
-
-5. **巡航检查 (Cruise)**
-   - 自动驾驶/自动油门状态
-   - 燃油平衡
-   - 客舱高度监控
-   - 天气雷达
-
-6. **下降前检查 (Before Descent)**
-   - 进近简令
-   - ATIS 信息获取
-   - 高度表设置
-   - 最低标准调定
-
-7. **进近前检查 (Before Approach)**
-   - 起落架放下
-   - 襟翼着陆位
-   - 着陆灯开启
-   - 自动刹车设置
-
-8. **落地后检查 (After Landing)**
-   - 襟翼收起
-   - 减速板收起
-   - APU 启动
-   - 应答机待机
-
-9. **关车/停机检查 (Parking)**
-   - 停机刹车设置
-   - 发动机关闭
-   - 所有系统关闭
-   - 电池断开
-
-## 🎯 主要特性
-
-### ✅ 专业检查流程
-- 基于空客和波音官方检查单
-- 参考主流航空公司 SOP
-- 完整的飞行阶段覆盖
-- 中英文双语标注
-
-### 🎨 现代化界面
-- 双栏布局设计（阶段导航 + 检查项）
-- 实时进度跟踪
-- 交互式检查体验
-- 深色/浅色主题支持
-
-### 📊 进度管理
-- 每个阶段独立进度显示
-- 环形进度条可视化
-- 支持单阶段重置
-- 支持全部重置
-
-### 🔌 模拟器连接 ✨
-- **MSFS 实时连接**：通过 WebSocket 桥接 SimConnect
-- **X-Plane 实时连接**：通过 UDP 直连 DataRefs
-- **实时数据监控**：空速、高度、航向、系统状态等 20+ 数据点
-- **一键连接/断开**：简单易用的连接管理界面
-- **自动重连机制**：连接断开后自动尝试重连
-- **智能验证接口**：为未来自动检查功能预留接口
-- **多源数据支持**：集成 AirportDB 在线 API，并支持读取 X-Plane 11/12 (`apt.dat`) 和 Little Navmap (`navdata.sqlite`) 本地数据库。
-
-## 🚀 使用方法
-
-### 1. 选择机型
-在首页选择您要飞行的机型（A320 系列或 B737 系列）
-
-### 2. 进入检查单页面
-点击侧边栏的"飞行检查单"图标
-
-### 3. 按阶段执行检查
-- 左侧导航栏选择当前飞行阶段
-- 右侧逐项完成检查
-- 点击检查项标记为完成
-
-### 4. 监控进度
-- 查看每个阶段的完成百分比
-- 首页显示当前阶段进度
-
-### 5. 连接模拟器（可选）
-- 点击检查单页面顶部的连接状态按钮
-- 选择"连接 MSFS"或"连接 X-Plane"
-- 等待连接成功（状态变为绿色）
-- 实时查看飞行数据
-
-## 🎮 模拟器连接设置
-
-### X-Plane 连接（推荐新手）
-1. 启动 X-Plane
-2. 进入 **Settings** → **Data Output**
-3. 启用 **Network via UDP**
-4. 设置输出地址：`127.0.0.1:49001`
-5. 在应用中选择"连接 X-Plane"
-
-**无需额外软件！** X-Plane 原生支持 UDP 数据输出。
-
-### MSFS 连接（需要中间层）
-1. 安装并运行 WebSocket 服务器：
-   ```bash
-   git clone https://github.com/odwdinc/MSFS-WebSocket-Server.git
-   cd MSFS-WebSocket-Server
-   npm install
-   npm start
-   ```
-2. 启动 MSFS 并加载飞机
-3. 在应用中选择"连接 MSFS"
-
-**支持的数据点：**
-- 飞行数据：空速、高度、航向、垂直速度
-- 灯光系统：信标、着陆、滑行、导航、频闪
-- 飞行控制：停机刹车、襟翼、起落架
-- 动力系统：APU、发动机1/2
-- 自动化：自动驾驶、自动油门
-
-## 📖 检查单说明
-
-### A320 系列特点
-- 基于 Airbus FCOM (Flight Crew Operating Manual)
-- ECAM 系统检查
-- 自动驾驶/自动油门 (A/P & A/THR)
-- 飞行引导 (Flight Director)
-
-### B737 系列特点
-- 基于 Boeing FCOM
-- FMC 系统
-- 稳定器配平
-- IRS 惯性参考系统
-
-## 🎓 适用人群
-
-- 模拟飞行初学者：学习标准飞行流程
-- 进阶玩家：确保不遗漏关键步骤
-- VATSIM/IVAO 飞友：专业化操作
-- 航空爱好者：了解真实飞行程序
-
-## 🔧 技术栈
-
-- **框架**: Flutter 3.9+
-- **状态管理**: Provider
-- **平台支持**: Windows, macOS, Linux, Android, iOS
-- **网络通信**:
-  - `web_socket_channel` - MSFS WebSocket 连接
-  - `dart:io` - X-Plane UDP 通信
-- **模拟器集成**:
-  - SimConnect (MSFS) - 通过 WebSocket 桥接
-  - X-Plane DataRefs - 通过 UDP 协议
-
-## 📊 项目统计
-
-- **检查清单**: 177 个专业检查项
-  - A320 系列: 93 项
-  - B737 系列: 84 项
-- **飞行阶段**: 9 个完整阶段
-- **支持机型**: 5 个（A319/A320/A321/B737-800/B737-MAX）
-- **数据监控**: 20+ 实时数据点
-
-## 📝 开发计划
-
-### ✅ 已完成
-- [x] **A320/B737 完整检查单** - 177 个专业检查项
-- [x] **MSFS 实时连接** - WebSocket 桥接 SimConnect
-- [x] **X-Plane 实时连接** - UDP 直连 DataRefs
-- [x] **实时数据监控** - 20+ 飞行数据点
-- [x] **连接管理界面** - 一键连接/断开
-
-### 🚧 进行中
-- [ ] 基于模拟器数据的自动检查验证
-- [ ] 实时数据可视化面板
-
-### 📅 计划中
-- [ ] 添加更多机型（A330, B777, B787）
-- [ ] 自定义检查单编辑器
-- [ ] 检查历史记录
-- [ ] 多语言支持（英语、德语等）
-- [ ] 语音提示功能
-- [ ] 检查单导出/分享
-- [ ] 飞行报告生成
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-如果您是真实飞行员或对某个机型的 SOP 非常熟悉，欢迎帮助完善检查清单。
-
-## 📄 许可证
-
-本项目仅供学习和模拟飞行使用，不得用于真实飞行操作。
-
-## 🔧 故障排除
-
-### X-Plane 连接问题
-**Q: 无法连接到 X-Plane？**
-- ✅ 检查 X-Plane 的 Data Output 设置是否正确
-- ✅ 确认输出地址为 `127.0.0.1:49001`
-- ✅ 检查防火墙是否允许 UDP 端口 49001
-- ✅ 尝试重启 X-Plane
-
-**Q: 连接成功但没有数据？**
-- ✅ 在 Data Output 中启用相应的数据项
-- ✅ 确保 X-Plane 已加载飞机
-- ✅ 尝试断开并重新连接
-
-### MSFS 连接问题
-**Q: 无法连接到 MSFS？**
-- ✅ 确保 WebSocket 服务器正在运行（检查控制台）
-- ✅ 确认 MSFS 已启动并加载飞机
-- ✅ 检查端口 8080 是否被占用
-- ✅ 查看 WebSocket 服务器日志
-
-**Q: WebSocket 服务器启动失败？**
-- ✅ 确保已安装 Node.js
-- ✅ 运行 `npm install` 安装依赖
-- ✅ 检查是否有其他程序占用 8080 端口
-- ✅ 尝试以管理员权限运行
-
-### 应用问题
-**Q: 应用无法启动？**
-- ✅ 运行 `flutter pub get` 安装依赖
-- ✅ 检查 Flutter SDK 版本（需要 3.9+）
-- ✅ 清理项目：`flutter clean`
-
-**Q: 检查单数据丢失？**
-- ✅ 检查单数据存储在本地，切换机型会重置
-- ✅ 使用"重置全部"功能可以清空所有进度
-
-## ⚠️ 免责声明
-
-本软件提供的检查单仅供模拟飞行使用，不能替代真实飞行训练和官方手册。真实飞行必须遵循航空公司的标准操作程序和飞行员操作手册。
+**OwO! FlightAssistant** 是一款专为 **Microsoft Flight Simulator (MSFS) 2020/2024** 和 **X-Plane 11/12** 设计的高级飞行辅助工具。它不仅提供基于真实 SOP 的检查单，还集成了强大的机场数据库查询、实时气象监控和飞行仪表显示功能。
 
 ---
 
-**Happy Flying! 🛫**
+## 📸 功能预览
+
+| 🏠 首页仪表盘 | 🛫 飞行检查单 |
+| :---: | :---: |
+| ![首页](assets/images/home_page-1.png) | ![检查单](assets/images/flight_checklist.png) |
+| *实时监控飞行状态与目的地信息* | *覆盖 9 大阶段的专业 SOP* |
+
+| 🗺️ 机场详情 | 🛠️ 数据源设置 |
+| :---: | :---: |
+| ![机场信息](assets/images/airport_info_page.png) | ![设置](assets/images/data_settings_page-1.png) |
+| *跑道、频率、ILS 与 METAR 综合查询* | *多数据库版本管理与 AIRAC 检测* |
+
+---
+
+## ✨ 核心特性
+
+### 🎨 现代化界面 (UI/UX)
+- **多主题支持**：内置多种预设主题（默认紫、圣诞红、海洋蓝、自然绿等），支持 Material 3 设计规范。
+- **动态深色模式**：自动适配系统主题，支持桌面端与移动端的最佳显示效果。
+- **毛玻璃设计**：基于现代审美风格，提供流畅的交互动画与视觉反馈。
+
+### 📊 实时飞行监控 (Monitor)
+- **多维仪表盘**：集成磁航向罗盘、起落架状态监控及 Master Warning/Caution 智能告警。
+- **趋势分析图表**：实时高度趋势、G-Force 重力曲线及大气压强监测。
+- **状态同步**：自动识别模拟器暂停状态，确保飞行数据实时准确。
+
+### 🌍 全球机场与气象 (Airport Info)
+- **多源数据源**：支持 AirportDB.io 在线 API 及本地 X-Plane (`apt.dat`) / Little Navmap (`navdata.sqlite`) 数据库。
+- **AIRAC 周期管理**：自动检测导航数据版本，提供 AIRAC 过期预警。
+- **实时气象解析**：直连 NOAA 获取最新 METAR 报文，智能解析风向、能见度、温度及修正海压。
+
+### 🔌 模拟器连接 ✨
+- **MSFS (2020/2024)**：通过 WebSocket 桥接 SimConnect，实时同步飞行状态。
+- **X-Plane (11/12)**：通过 UDP 协议直连 DataRef，无需安装额外插件。
+- **完整 SOP 检查单**：覆盖 A320 系列与 B737 系列从冷舱到关车的 9 大飞行阶段。
+
+---
+
+## 🛠️ 技术栈
+
+- **框架**：[Flutter](https://flutter.dev/) (Dart)
+- **状态管理**：[Provider](https://pub.dev/packages/provider)
+- **本地数据库**：[sqlite3](https://pub.dev/packages/sqlite3) (用于解析 LNM/XP 导航数据)
+- **网络通信**：WebSocket (MSFS) / UDP (X-Plane) / HTTP (METAR API)
+- **持久化**：Shared Preferences
+
+## 📦 主要开源库
+
+- `window_manager`：精细的桌面窗口控制。
+- `fl_chart`：飞行参数实时图表显示。
+- `flex_color_picker`：高度自定义的主题色选器。
+- `sqlite3_flutter_libs`：跨平台 SQLite 运行时支持。
+- `url_launcher`：快速访问航图与外部链接。
+
+---
+
+## 🔌 数据与 API 来源
+
+- **导航数据**：支持 Little Navmap (LNM) 导出的 SQLite 数据库及 X-Plane `apt.dat` 格式。
+- **气象 API**：[AviationAPI](https://www.aviationapi.com/) 提供实时 METAR 数据。
+- **机型预设**：内置参考多家主流航空公司 (SOP) 的标准检查单。
+
+---
+
+## 🏗️ 代码架构
+
+项目遵循清晰的分层架构，便于扩展与维护：
+
+```text
+lib/
+├── apps/               # 业务逻辑层
+│   ├── data/           # 数据库操作与持久化
+│   ├── models/         # 数据模型 (Airport, Metar, Checklist)
+│   ├── providers/      # 状态管理 (Simulator, Theme, Checklist)
+│   └── services/       # 外部服务 (WeatherService, AirportDetailService)
+├── core/               # 核心层
+│   ├── theme/          # 主题与配色定义
+│   ├── utils/          # 工具类 (Logger, Validators)
+│   └── widgets/        # 通用 UI 组件
+└── pages/              # UI 页面层
+    ├── home/           # 仪表盘首页
+    ├── airport_info/   # 机场详情与搜索
+    ├── checklist/      # 交互式检查单
+    └── settings/       # 系统与数据路径配置
+```
+
+---
+
+## 📥 快速开始
+
+1. 确保已安装 Flutter 环境。
+2. 克隆项目：`git clone https://github.com/your-repo/owo_flight_assistant.git`
+3. 安装依赖：`flutter pub get`
+4. 运行应用：`flutter run` (建议在 Windows 桌面端运行以获得最佳体验)
+
+---
+
+## 📄 许可证 (License)
+
+本项目采用 **[Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)](LICENSE)** 许可协议。
+
+### 📌 协议要点说明：
+- **署名 (Attribution)**：他人分发或修改代码时，必须标注原作者及源代码来源。
+- **非商业性使用 (Non-Commercial)**：他人**不得**将本项目代码（及其衍生版本）用于任何形式的付费或商业用途。
+- **相同方式共享 (ShareAlike)**：如果他人对代码进行了二次修改，其修改后的代码也**必须**以相同的开源协议（CC BY-NC-SA 4.0）公开，不得闭源。
+- **允许二次开发**：欢迎 Fork 并根据个人需求进行修改和使用。
+
+### ⚠️ 免责声明
+本项目仅供学习和模拟飞行研究使用，严禁用于真实飞行。
+
+---
+
+**OwO! FlightAssistant** - 让每一次起降都充满仪式感。

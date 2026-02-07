@@ -24,7 +24,6 @@ class LNMDatabaseParser {
 
       // 调试：打印所有列名
       final airportColumns = _getTableColumns(db, 'airport');
-      AppLogger.debug('LNM airport columns: ${airportColumns.join(', ')}');
 
       final latCol = airportColumns.contains('latitude')
           ? 'latitude'
@@ -61,7 +60,6 @@ class LNMDatabaseParser {
 
       // 检查跑道表字段
       final runwayColumns = _getTableColumns(db, 'runway');
-      AppLogger.debug('LNM runway columns: ${runwayColumns.join(', ')}');
 
       // 发现：在最新的 LNM 数据库中，runway 表不直接包含 ident，而是通过 primary_end_id 关联到 runway_end 表
       final hasRunwayEndTable = db
@@ -129,7 +127,6 @@ class LNMDatabaseParser {
 
       // 3. 查询频率信息
       final comColumns = _getTableColumns(db, 'com');
-      AppLogger.debug('LNM com columns: ${comColumns.join(', ')}');
 
       final freqCol = comColumns.contains('freq')
           ? 'freq'
@@ -275,10 +272,6 @@ class LNMDatabaseParser {
       }
 
       final airportColumns = _getTableColumns(db, 'airport');
-      AppLogger.debug(
-        'LNM airport table columns: ${airportColumns.join(', ')}',
-      );
-
       if (airportColumns.isEmpty) {
         AppLogger.error('LNM airport table has no columns');
         return [];
@@ -313,10 +306,7 @@ class LNMDatabaseParser {
       final query = hasTypeCol
           ? "SELECT $identCol as ident, name$selectIata, $latCol as lat, $lonCol as lon FROM airport WHERE type != 'H' AND $identCol IS NOT NULL AND $identCol != '' ORDER BY $identCol ASC"
           : "SELECT $identCol as ident, name$selectIata, $latCol as lat, $lonCol as lon FROM airport WHERE $identCol IS NOT NULL AND $identCol != '' ORDER BY $identCol ASC";
-
-      AppLogger.debug('Executing LNM query: $query');
       final results = db.select(query);
-      AppLogger.debug('LNM query returned ${results.length} rows');
 
       return results
           .map(

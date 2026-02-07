@@ -7,8 +7,8 @@ import '../../apps/providers/simulator/simulator_provider.dart';
 import '../../../apps/services/airport_detail_service.dart';
 import '../../../apps/services/weather_service.dart';
 import '../../../core/theme/app_theme_data.dart';
-import '../../core/utils/logger.dart';
 import '../../../core/widgets/common/dialog.dart';
+import '../home/widgets/airport_search_bar.dart';
 import 'widgets/airport_card.dart';
 
 /// 机场信息页面
@@ -52,15 +52,11 @@ class _AirportInfoPageState extends State<AirportInfoPage> {
 
     // 2. 加载机场基础数据库 (从 LNM 或 X-Plane)
     if (AirportsDatabase.isEmpty) {
-      if (mounted) setState(() => _isLoading = true);
+      if (mounted) {
+        setState(() => _isLoading = true);
+        showLoadingDialog(context: context, message: '正在加载机场数据库...');
+      }
       try {
-        final prefs = await SharedPreferences.getInstance();
-        final lnmPath = prefs.getString('lnm_nav_data_path');
-        final xplanePath = prefs.getString('xplane_nav_data_path');
-        AppLogger.debug(
-          'Initialization check - LNM Path: $lnmPath, X-Plane Path: $xplanePath',
-        );
-
         final airports = await _detailService.loadAllAirports(
           source: _currentDataSource,
         );
@@ -88,7 +84,10 @@ class _AirportInfoPageState extends State<AirportInfoPage> {
           _dataSourceSwitchError = '初始化机场数据库失败: $e';
         });
       } finally {
-        if (mounted) setState(() => _isLoading = false);
+        if (mounted) {
+          setState(() => _isLoading = false);
+          hideLoadingDialog(context);
+        }
       }
     }
 
@@ -196,6 +195,8 @@ class _AirportInfoPageState extends State<AirportInfoPage> {
 
   /// Refreshes data for all airports currently in display
   Future<void> _refreshAllData({bool force = false}) async {
+    if (_isLoading && !force) return;
+
     // 刷新可用数据源（检查 token 消耗是否超标）
     await _loadDataSource();
 
@@ -508,258 +509,6 @@ class _AirportInfoPageState extends State<AirportInfoPage> {
     );
   }
 
-  void _showAirportPickerDialog() {
-    final TextEditingController searchController = TextEditingController();
-    String searchQuery = '';
-    AirportInfo? matchedAirport;
-    bool addedByInput = false;
-    List<AirportInfo> filteredAirports = [];
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            void updateMatch(String value) {
-              final query = value.trim();
-              if (query.isEmpty) {
-                matchedAirport = null;
-                addedByInput = false;
-                return;
-              }
-              final byIcao = AirportsDatabase.findByIcao(query);
-
-              // 查找 IATA
-              AirportInfo? byIata;
-              final upperCode = query.toUpperCase();
-              for (final airport in AirportsDatabase.allAirports) {
-                if (airport.iataCode.toUpperCase() == upperCode) {
-                  byIata = airport;
-                  break;
-                }
-              }
-
-              matchedAirport = byIcao ?? byIata;
-
-              // 如果本地数据库没找到，但输入看起来像 ICAO 代码 (4位字母/数字)，允许手动添加
-              if (matchedAirport == null &&
-                  query.length == 4 &&
-                  RegExp(r'^[A-Z0-9]{4}$').hasMatch(query.toUpperCase())) {
-                matchedAirport = AirportInfo.placeholder(query);
-              }
-
-              addedByInput = false;
-              if (matchedAirport != null) {
-                final isSaved = _userSavedAirports.any(
-                  (a) => a.icaoCode == matchedAirport!.icaoCode,
-                );
-                if (!isSaved) {
-                  // 不再自动保存，仅标记已匹配
-                  addedByInput = true;
-                }
-              }
-            }
-
-            return AlertDialog(
-              title: const Text('搜索并添加机场'),
-              content: SizedBox(
-                width: double.maxFinite,
-                height: 500,
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: searchController,
-                      autofocus: true,
-                      decoration: const InputDecoration(
-                        hintText: '输入 ICAO、三字码、名称或经纬度',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                        helperText:
-                            '支持 ICAO/IATA 代码、机场名、经纬度 (如 31.2, 121.4) 搜索',
-                      ),
-                      onChanged: (value) {
-                        setDialogState(() {
-                          searchQuery = value.trim();
-                          filteredAirports = searchQuery.isEmpty
-                              ? []
-                              : AirportsDatabase.search(searchQuery);
-                          updateMatch(value);
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    if (matchedAirport != null)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primaryContainer.withValues(alpha: 0.4),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              matchedAirport!.nameChinese,
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                _buildBadge(
-                                  context,
-                                  'ICAO',
-                                  matchedAirport!.icaoCode,
-                                ),
-                                if (matchedAirport!.iataCode.isNotEmpty) ...[
-                                  const SizedBox(width: 8),
-                                  _buildBadge(
-                                    context,
-                                    'IATA',
-                                    matchedAirport!.iataCode,
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '坐标: ${matchedAirport!.latitude.toStringAsFixed(3)}, '
-                              '${matchedAirport!.longitude.toStringAsFixed(3)}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              addedByInput
-                                  ? '已匹配到机场，可点击下方列表项加入'
-                                  : (_userSavedAirports.any(
-                                          (a) =>
-                                              a.icaoCode ==
-                                              matchedAirport!.icaoCode,
-                                        )
-                                        ? '机场已在列表中'
-                                        : '已匹配到机场，可点击列表项加入'),
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: filteredAirports.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    searchQuery.isEmpty
-                                        ? Icons.search_rounded
-                                        : Icons.info_outline,
-                                    size: 48,
-                                    color: Colors.grey.withValues(alpha: 0.5),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    searchQuery.isEmpty ? '暂无机场数据' : '未找到匹配的机场',
-                                    style: const TextStyle(color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: filteredAirports.length,
-                              itemBuilder: (context, index) {
-                                final airport = filteredAirports[index];
-                                final isSaved = _userSavedAirports.any(
-                                  (a) => a.icaoCode == airport.icaoCode,
-                                );
-
-                                return ListTile(
-                                  isThreeLine: true,
-                                  title: Text(
-                                    airport.nameChinese,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          _buildBadge(
-                                            context,
-                                            'ICAO',
-                                            airport.icaoCode,
-                                          ),
-                                          if (airport.iataCode.isNotEmpty) ...[
-                                            const SizedBox(width: 8),
-                                            _buildBadge(
-                                              context,
-                                              'IATA',
-                                              airport.iataCode,
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '坐标: ${airport.latitude.toStringAsFixed(3)}, ${airport.longitude.toStringAsFixed(3)}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    ],
-                                  ),
-                                  trailing: isSaved
-                                      ? const Icon(
-                                          Icons.check_circle,
-                                          color: Colors.green,
-                                        )
-                                      : const Icon(Icons.add_circle_outline),
-                                  onTap: () {
-                                    if (!isSaved) {
-                                      _saveAirportLocally(airport);
-                                      _refreshAllData();
-                                    } else {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            '机场 ${airport.icaoCode} 已在列表中',
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                    Navigator.pop(context);
-                                  },
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('关闭'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
   Future<void> _saveAirportLocally(AirportInfo airport) async {
     if (!_userSavedAirports.any((a) => a.icaoCode == airport.icaoCode)) {
       setState(() {
@@ -806,35 +555,6 @@ class _AirportInfoPageState extends State<AirportInfoPage> {
       _userSavedAirports.removeWhere((a) => a.icaoCode == airport.icaoCode);
     });
     _saveSavedAirportsToStorage();
-  }
-
-  Widget _buildBadge(BuildContext context, String label, String value) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$label: ',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            value,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onPrimaryContainer,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -966,10 +686,6 @@ class _AirportInfoPageState extends State<AirportInfoPage> {
                             airport,
                             freshDetail,
                           );
-                          await _processAirportDetailUpdate(
-                            airport,
-                            freshDetail,
-                          );
                           if (mounted) {
                             messenger.showSnackBar(
                               const SnackBar(
@@ -1071,35 +787,60 @@ class _AirportInfoPageState extends State<AirportInfoPage> {
   }
 
   Widget _buildHeader(ThemeData theme) {
-    return Row(
-      children: [
-        Text(
-          '机场信息',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
+    return Container(
+      padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '机场信息',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              _buildDataSourcePicker(theme),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => _refreshAllData(force: true),
+                icon: _isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh),
+                tooltip: '刷新数据',
+              ),
+            ],
           ),
-        ),
-        const Spacer(),
-        _buildDataSourcePicker(theme),
-        const SizedBox(width: 8),
-        FilledButton.icon(
-          onPressed: _showAirportPickerDialog,
-          icon: const Icon(Icons.add, size: 18),
-          label: const Text('添加机场'),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          onPressed: _isLoading ? null : () => _refreshAllData(force: true),
-          icon: _isLoading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.refresh),
-          tooltip: '刷新数据',
-        ),
-      ],
+          const SizedBox(height: AppThemeData.spacingMedium),
+          Row(
+            children: [
+              Expanded(
+                child: AirportSearchBar(
+                  hintText: '搜索机场 (ICAO/IATA/名称/经纬度)...',
+                  onSelect: (airport) {
+                    _saveAirportLocally(airport);
+                    _refreshAllData();
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1126,6 +867,7 @@ class _AirportInfoPageState extends State<AirportInfoPage> {
             onChanged: (source) async {
               if (source != null && source != _currentDataSource) {
                 setState(() => _isLoading = true);
+                showLoadingDialog(context: context, message: '正在切换数据源并加载机场...');
                 try {
                   final airports = await _detailService.loadAllAirports(
                     source: source,
@@ -1148,19 +890,17 @@ class _AirportInfoPageState extends State<AirportInfoPage> {
                         )
                         .toList(),
                   );
-
                   setState(() {
                     _currentDataSource = source;
                     _dataSourceSwitchError = null;
                   });
-                  // 切换数据源后，必须强制刷新，以忽略旧数据源的缓存
-                  _refreshAllData(force: true);
                 } catch (e) {
-                  setState(() {
-                    _dataSourceSwitchError = '数据源切换失败: $e';
-                  });
+                  setState(() => _dataSourceSwitchError = '切换失败: $e');
                 } finally {
-                  if (mounted) setState(() => _isLoading = false);
+                  if (mounted) {
+                    setState(() => _isLoading = false);
+                    hideLoadingDialog(context);
+                  }
                 }
               }
             },

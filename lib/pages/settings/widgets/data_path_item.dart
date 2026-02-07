@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme_data.dart';
+import 'airac_info_tag.dart';
 
 class DataPathItem extends StatelessWidget {
   final String label;
   final String? path;
+  final String? airac;
+  final String? expiry;
+  final bool isExpired;
   final VoidCallback onSelect;
 
   const DataPathItem({
     super.key,
     required this.label,
     this.path,
+    this.airac,
+    this.expiry,
+    this.isExpired = false,
     required this.onSelect,
   });
 
@@ -21,11 +28,18 @@ class DataPathItem extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: theme.textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (isSet)
+              AiracInfoTag(airac: airac, expiry: expiry, isExpired: isExpired),
+          ],
         ),
         const SizedBox(height: 8),
         Row(

@@ -37,7 +37,7 @@ flutter:
   uses-material-design: true
 
 # 🖼️ **应用图标配置**：跨平台图标生成，使用flutter_launcher_icons插件。
-flutter_icons:
+flutter_launcher_icons:
   android: true  # 生成Android图标
   ios: true  # 生成iOS图标
   remove_alpha_ios: true

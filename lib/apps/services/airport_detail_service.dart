@@ -568,4 +568,182 @@ class AirportDetailService {
       await prefs.remove(key);
     }
   }
+
+  /// 获取数据库信息（包括 AIRAC 周期和过期信息）
+  Future<Map<String, String>> getDatabaseInfo(
+    String path,
+    AirportDataSource source,
+  ) async {
+    final info = <String, String>{
+      'path': path,
+      'type': source.displayName,
+      'airac': '未知',
+      'expiry': '', // 过期日期
+      'is_expired': 'false',
+    };
+
+    try {
+      final file = File(path);
+      final parentDir = file.parent;
+
+      // 1. 优先尝试从 cycle_info.txt 获取信息 (LNM 和 X-Plane 通用)
+      // LNM 通常在数据库同级目录，X-Plane 可能在同级或父级 (Custom Data)
+      final possibleCycleFiles = [
+        File('${parentDir.path}/cycle_info.txt'),
+        if (source == AirportDataSource.xplaneData)
+          File('${parentDir.parent.path}/cycle_info.txt'),
+      ];
+
+      for (final cycleFile in possibleCycleFiles) {
+        if (await cycleFile.exists()) {
+          final content = await cycleFile.readAsString();
+
+          // 提取 AIRAC Cycle
+          final cycleMatch = RegExp(
+            r'AIRAC cycle\s*:\s*(\d+)',
+            caseSensitive: false,
+          ).firstMatch(content);
+          if (cycleMatch != null) {
+            info['airac'] = cycleMatch.group(1) ?? '未知';
+          }
+
+          // 提取有效期 (支持格式: Valid (from/to): 22/JAN/2026 - 19/FEB/2026)
+          final validityMatch = RegExp(
+            r'Valid\s*\(from/to\):\s*[^-\n]+-\s*(\d{1,2}/[A-Z]{3}/\d{4})',
+            caseSensitive: false,
+          ).firstMatch(content);
+
+          if (validityMatch != null) {
+            final expiryStr = validityMatch.group(1)!;
+            info['expiry'] = expiryStr;
+
+            // 判断是否过期
+            try {
+              final months = {
+                'JAN': 1,
+                'FEB': 2,
+                'MAR': 3,
+                'APR': 4,
+                'MAY': 5,
+                'JUN': 6,
+                'JUL': 7,
+                'AUG': 8,
+                'SEP': 9,
+                'OCT': 10,
+                'NOV': 11,
+                'DEC': 12,
+              };
+              final parts = expiryStr.split('/');
+              if (parts.length == 3) {
+                final day = int.parse(parts[0]);
+                final month = months[parts[1].toUpperCase()] ?? 1;
+                final year = int.parse(parts[2]);
+                final expiryDate = DateTime(year, month, day);
+                if (DateTime.now().isAfter(
+                  expiryDate.add(const Duration(days: 1)),
+                )) {
+                  info['is_expired'] = 'true';
+                }
+              }
+            } catch (_) {}
+          } else {
+            // 兼容旧格式: to 23 MAR 2023
+            final oldExpiryMatch = RegExp(
+              r'to\s+(\d{1,2}\s+[A-Z]{3}\s+\d{4})',
+              caseSensitive: false,
+            ).firstMatch(content);
+            if (oldExpiryMatch != null) {
+              final expiryStr = oldExpiryMatch.group(1)!;
+              info['expiry'] = expiryStr;
+
+              // 补充旧格式解析逻辑
+              try {
+                final months = {
+                  'JAN': 1,
+                  'FEB': 2,
+                  'MAR': 3,
+                  'APR': 4,
+                  'MAY': 5,
+                  'JUN': 6,
+                  'JUL': 7,
+                  'AUG': 8,
+                  'SEP': 9,
+                  'OCT': 10,
+                  'NOV': 11,
+                  'DEC': 12,
+                };
+                final parts = expiryStr.split(RegExp(r'\s+'));
+                if (parts.length == 3) {
+                  final day = int.parse(parts[0]);
+                  final month = months[parts[1].toUpperCase()] ?? 1;
+                  final year = int.parse(parts[2]);
+                  final expiryDate = DateTime(year, month, day);
+                  if (DateTime.now().isAfter(
+                    expiryDate.add(const Duration(days: 1)),
+                  )) {
+                    info['is_expired'] = 'true';
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+
+          if (info['airac'] != '未知') break;
+        }
+      }
+
+      // 2. 如果没找到文件或信息，执行备选方案
+      if (source == AirportDataSource.lnmData && info['airac'] == '未知') {
+        final db = sqlite3.open(path);
+        try {
+          final metadataTables = db.select(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'",
+          );
+          if (metadataTables.isNotEmpty) {
+            final columns = db
+                .select("PRAGMA table_info(metadata)")
+                .map((row) => row['name'].toString().toLowerCase())
+                .toList();
+            final keyCol = columns.contains('key')
+                ? 'key'
+                : (columns.contains('name') ? 'name' : null);
+            final valueCol = columns.contains('value') ? 'value' : null;
+            if (keyCol != null && valueCol != null) {
+              final result = db.select(
+                "SELECT $valueCol FROM metadata WHERE $keyCol = 'NavDataCycle'",
+              );
+              if (result.isNotEmpty) {
+                info['airac'] = result.first[valueCol].toString();
+              }
+            }
+          }
+        } catch (e) {
+          AppLogger.error('Error reading LNM metadata: $e');
+        } finally {
+          db.dispose();
+        }
+      } else if (source == AirportDataSource.xplaneData &&
+          info['airac'] == '未知') {
+        final lines = await file
+            .openRead(0, 2048)
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .take(10)
+            .toList();
+        for (final line in lines) {
+          if (line.contains('Cycle')) {
+            final match = RegExp(r'Cycle\s+(\d+)').firstMatch(line);
+            if (match != null) {
+              info['airac'] = match.group(1)!;
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      AppLogger.error('Error getting database info: $e');
+    }
+
+    return info;
+  }
 }

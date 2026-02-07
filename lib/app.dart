@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'apps/data/airports_database.dart';
+import 'apps/services/airport_detail_service.dart';
 import 'core/theme/theme_provider.dart';
 import 'apps/providers/checklist_provider.dart';
 import 'apps/providers/simulator/simulator_provider.dart';
@@ -12,6 +14,7 @@ import 'core/layouts/desktop_layout.dart';
 import 'core/layouts/mobile_layout.dart';
 import 'core/layouts/responsive.dart';
 import 'core/models/navigation_item.dart';
+import 'core/utils/logger.dart';
 import 'core/widgets/common/dialog.dart';
 import 'core/widgets/desktop/custom_title_bar.dart';
 import 'pages/home/home_page.dart';
@@ -116,6 +119,43 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
     });
 
     _init();
+    _preloadAirportData();
+  }
+
+  Future<void> _preloadAirportData() async {
+    // 如果数据库已经有数据，不需要重复加载
+    if (!AirportsDatabase.isEmpty) return;
+
+    try {
+      final detailService = AirportDetailService();
+      final currentDataSource = await detailService.getDataSource();
+
+      // 异步加载机场列表，不阻塞 UI 线程
+      final airports = await detailService.loadAllAirports(
+        source: currentDataSource,
+      );
+
+      if (airports.isNotEmpty) {
+        AirportsDatabase.updateAirports(
+          airports
+              .map(
+                (a) => AirportInfo(
+                  icaoCode: a['icao'] ?? '',
+                  iataCode: a['iata'] ?? '',
+                  nameChinese: a['name'] ?? '',
+                  latitude: (a['lat'] as num?)?.toDouble() ?? 0.0,
+                  longitude: (a['lon'] as num?)?.toDouble() ?? 0.0,
+                ),
+              )
+              .toList(),
+        );
+        AppLogger.info('App 启动: 成功预加载 ${airports.length} 个机场数据');
+      } else {
+        AppLogger.warning('App 启动: 未能预加载机场数据 (数据源: ${currentDataSource.displayName})');
+      }
+    } catch (e) {
+      AppLogger.error('App 启动: 预加载机场数据失败: $e');
+    }
   }
 
   void _init() async {

@@ -288,7 +288,7 @@ class _PresetThemeGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
+        crossAxisCount: 6,
         crossAxisSpacing: AppThemeData.spacingSmall,
         mainAxisSpacing: AppThemeData.spacingSmall,
         childAspectRatio: 0.85,

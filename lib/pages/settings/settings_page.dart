@@ -112,7 +112,7 @@ class _SettingsPageState extends State<SettingsPage> {
         child: CustomScrollView(
           slivers: [
             SliverAppBar(
-              expandedHeight: 120.0,
+              expandedHeight: 70.0,
               floating: false,
               pinned: true,
               backgroundColor: theme.scaffoldBackgroundColor,
@@ -328,7 +328,7 @@ class _AboutCard extends StatelessWidget {
           const _AboutItem(
             icon: Icons.code_rounded,
             label: '开发者',
-            value: 'OwO Team',
+            value: 'Hanski Jay (OwO Team)',
           ),
         ],
       ),

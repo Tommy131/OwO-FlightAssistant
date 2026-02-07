@@ -8,6 +8,7 @@ import 'system_status_panel.dart';
 import '../../../apps/data/airports_database.dart';
 import '../../../apps/services/weather_service.dart';
 import 'metar_display_widget.dart';
+import 'airport_search_bar.dart';
 
 class FlightDataDashboard extends StatelessWidget {
   const FlightDataDashboard({super.key});
@@ -321,22 +322,17 @@ class FlightDataDashboard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) {
-        final airports = AirportsDatabase.allAirports;
         return AlertDialog(
-          title: Text(isAlternate ? '选择备备降机场' : '选择目的地机场'),
+          title: Text(isAlternate ? '设置备降机场' : '设置目的地机场'),
           content: SizedBox(
-            width: double.maxFinite,
-            height: 400,
-            child: ListView.builder(
-              itemCount: airports.length,
-              itemBuilder: (context, index) {
-                final airport = airports[index];
-                return ListTile(
-                  title: Text(airport.displayName),
-                  subtitle: Text(
-                    'LAT: ${airport.latitude}, LON: ${airport.longitude}',
-                  ),
-                  onTap: () {
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AirportSearchBar(
+                  autofocus: true,
+                  hintText: '输入 ICAO/IATA/名称/经纬度...',
+                  onSelect: (airport) {
                     final provider = context.read<SimulatorProvider>();
                     if (isAlternate) {
                       provider.setAlternate(airport);
@@ -345,8 +341,41 @@ class FlightDataDashboard extends StatelessWidget {
                     }
                     Navigator.pop(context);
                   },
-                );
-              },
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '最近或常用机场',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 250),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: AirportsDatabase.allAirports.length > 5
+                        ? 5
+                        : AirportsDatabase.allAirports.length,
+                    itemBuilder: (context, index) {
+                      final airport = AirportsDatabase.allAirports[index];
+                      return ListTile(
+                        dense: true,
+                        title: Text(airport.displayName),
+                        onTap: () {
+                          final provider = context.read<SimulatorProvider>();
+                          if (isAlternate) {
+                            provider.setAlternate(airport);
+                          } else {
+                            provider.setDestination(airport);
+                          }
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
           actions: [
