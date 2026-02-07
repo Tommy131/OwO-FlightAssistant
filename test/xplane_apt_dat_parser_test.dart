@@ -8,12 +8,11 @@ void main() {
     final aptPath = '${tempDir.path}${Platform.pathSeparator}apt.dat';
     final content = '''
 I
-1100 Version
-1 4 Shanghai Hongqiao International
-1302 code ZSSS
-100 45 2 0 0 0 0 0 0 31.193000 121.322000 31.202000 121.350000 18L 36R
-100 45 2 0 0 0 0 0 0 31.195000 121.330000 31.205000 121.358000 18R 36L
-1300 127.850 ATIS Shanghai ATIS
+1300 Version
+1 123 1 1 0 ZSSS Shanghai Hongqiao International
+100 60.00 1 0 0.25 0 2 1 18L 31.19300000 121.32200000 0.00 0.00 2 0 0 0.00 36R 31.20200000 121.35000000 0.00 0.00 2 0 0 0.00
+105 12785 50 ATIS
+51 12150 Unicom
 99
 ''';
     await File(aptPath).writeAsString(content);
@@ -25,10 +24,15 @@ I
 
     expect(data, isNotNull);
     expect(data!.icaoCode, 'ZSSS');
-    expect(data.name.toLowerCase().contains('hongqiao'), isTrue);
-    expect(data.runways.isNotEmpty, isTrue);
+    expect(data.latitude, closeTo(31.1975, 0.0001));
+    expect(data.longitude, closeTo(121.336, 0.0001));
+    expect(data.runways.any((r) => r.ident == '18L/36R'), isTrue);
     expect(
-      data.frequencies.all.any((f) => f.type.toUpperCase() == 'ATIS'),
+      data.frequencies.all.any((f) => f.type == 'ATIS' && f.frequency == 127.85),
+      isTrue,
+    );
+    expect(
+      data.frequencies.all.any((f) => f.type == 'UNICOM' && f.frequency == 121.50),
       isTrue,
     );
   });

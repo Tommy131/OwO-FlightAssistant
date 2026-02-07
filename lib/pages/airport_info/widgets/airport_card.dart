@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../apps/data/airports_database.dart';
 import '../../../../apps/models/airport_detail_data.dart';
 import '../../../apps/providers/simulator/simulator_provider.dart';
 import '../../../../apps/services/weather_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
-import '../../home/widgets/metar_display_widget.dart';
-import '../../home/widgets/wind_direction_indicator.dart';
+
+import 'airport_detail_view.dart';
 
 class AirportCard extends StatefulWidget {
   final AirportInfo airport;
@@ -21,6 +22,7 @@ class AirportCard extends StatefulWidget {
   final VoidCallback onRemove;
   final VoidCallback onRefreshDetail;
   final VoidCallback onOnlineFetch;
+  final VoidCallback onRefreshMetar; // 新增：手动刷新气象回调
 
   const AirportCard({
     super.key,
@@ -36,6 +38,7 @@ class AirportCard extends StatefulWidget {
     required this.onRemove,
     required this.onRefreshDetail,
     required this.onOnlineFetch,
+    required this.onRefreshMetar,
   });
 
   @override
@@ -74,20 +77,6 @@ class _AirportCardState extends State<AirportCard> {
     // 优先使用当前详情抓取的缓存气象，否则回退到即时刷新气象
     final displayMetar = currentDetail?.metar ?? widget.metar;
 
-    double? windDir;
-    double? windSpeed;
-    if (displayMetar?.wind != null) {
-      try {
-        final windStr = displayMetar!.wind!;
-        if (windStr.length >= 5) {
-          windDir = double.tryParse(windStr.substring(0, 3));
-          windSpeed = double.tryParse(
-            windStr.substring(3).replaceAll(RegExp(r'[^0-9]'), ''),
-          );
-        }
-      } catch (_) {}
-    }
-
     return Container(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge),
       decoration: BoxDecoration(
@@ -118,47 +107,33 @@ class _AirportCardState extends State<AirportCard> {
           Divider(color: AppThemeData.getBorderColor(theme), height: 1),
           const SizedBox(height: AppThemeData.spacingMedium),
 
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 侧边风向标
-              WindDirectionIndicator(
-                windDirection: windDir,
-                windSpeed: windSpeed,
-                size: 140,
-              ),
-              const SizedBox(width: AppThemeData.spacingLarge),
-              // 右侧主要垂直空间：气象 + 跑道
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildCoords(),
-                    const SizedBox(height: 8),
-                    _buildMetarSection(theme, displayMetar),
-                    if (currentDetail != null) ...[
-                      const SizedBox(height: AppThemeData.spacingMedium),
-                      _RunwaysSection(runways: currentDetail.runways),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+          AirportDetailView(
+            airport: widget.airport,
+            metar: displayMetar,
+            metarError: widget.metarError,
+            detail: currentDetail,
+            detailError: widget.detailError,
+            isLoading: widget.isLoading,
+            onRefreshMetar: () async {
+              // 检查设定数据失效范围
+              final prefs = await SharedPreferences.getInstance();
+              final expiry = prefs.getInt('metar_cache_expiry') ?? 60;
+              if (displayMetar == null || displayMetar.isExpired(expiry)) {
+                widget.onRefreshMetar();
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '气象数据尚在 $expiry 分钟有效期内，无需刷新 (剩余约 ${(expiry - DateTime.now().difference(displayMetar.timestamp).inMinutes).clamp(0, expiry)} 分钟)',
+                      ),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              }
+            },
           ),
-
-          if (currentDetail != null) ...[
-            const SizedBox(height: AppThemeData.spacingMedium),
-            Divider(color: AppThemeData.getBorderColor(theme), height: 1),
-            const SizedBox(height: AppThemeData.spacingMedium),
-            _FrequenciesSection(frequencies: currentDetail.frequencies),
-            if (currentDetail.navaids.isNotEmpty) ...[
-              const SizedBox(height: AppThemeData.spacingMedium),
-              _NavaidsSection(navaids: currentDetail.navaids),
-            ],
-          ] else if (widget.detailError != null) ...[
-            const SizedBox(height: AppThemeData.spacingMedium),
-            _buildErrorTip(theme, widget.detailError!),
-          ],
         ],
       ),
     );
@@ -393,121 +368,6 @@ class _AirportCardState extends State<AirportCard> {
       ),
     );
   }
-
-  Widget _buildMetarSection(ThemeData theme, MetarData? displayMetar) {
-    if (widget.metarError != null) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.red.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
-        ),
-        child: Text(
-          '气象获取失败: ${widget.metarError}',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: Colors.red.shade800,
-          ),
-        ),
-      );
-    }
-
-    if (displayMetar != null) {
-      return MetarDisplayWidget(
-        airportLabel: '最新气象快照',
-        metarData: displayMetar,
-        compact: true, // 开启紧凑模式以适应右侧列
-        icon: Icons.wb_sunny_outlined,
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: widget.isLoading && displayMetar == null
-          ? const Row(
-              children: [
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                SizedBox(width: 10),
-                Text('加载气象中...', style: TextStyle(fontSize: 12)),
-              ],
-            )
-          : const Text(
-              '暂无气象报文',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-    );
-  }
-
-  Widget _buildErrorTip(ThemeData theme, String error) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, color: theme.colorScheme.error, size: 14),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              error,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCoords() {
-    // 优先使用详情中的高精度坐标
-    final currentDetail = (_showOnline && widget.onlineDetail != null)
-        ? widget.onlineDetail
-        : widget.detail;
-    final lat = currentDetail?.latitude ?? widget.airport.latitude;
-    final lon = currentDetail?.longitude ?? widget.airport.longitude;
-    final elev = currentDetail?.elevation;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionHeader(icon: Icons.explore_outlined, label: '位置与坐标'),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 12,
-          runSpacing: 4,
-          children: [
-            Text(
-              'LAT: ${lat.toStringAsFixed(6)}°',
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
-            ),
-            Text(
-              'LON: ${lon.toStringAsFixed(6)}°',
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
-            ),
-            if (elev != null)
-              Text(
-                'ELEV: $elev ft',
-                style: const TextStyle(fontSize: 10, color: Colors.grey),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
 }
 
 class _SimBadge extends StatelessWidget {
@@ -531,213 +391,6 @@ class _SimBadge extends StatelessWidget {
           fontWeight: FontWeight.bold,
         ),
       ),
-    );
-  }
-}
-
-class _RunwaysSection extends StatelessWidget {
-  final List<RunwayInfo> runways;
-  const _RunwaysSection({required this.runways});
-
-  @override
-  Widget build(BuildContext context) {
-    if (runways.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionHeader(icon: Icons.flight_land, label: '跑道详情'),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: runways.map((rw) => _RunwayChip(rw: rw)).toList(),
-        ),
-      ],
-    );
-  }
-}
-
-class _RunwayChip extends StatelessWidget {
-  final RunwayInfo rw;
-  const _RunwayChip({required this.rw});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.1),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                rw.ident,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              if (rw.leIls != null || rw.heIls != null) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.settings_input_antenna,
-                  size: 10,
-                  color: theme.colorScheme.primary,
-                ),
-              ],
-            ],
-          ),
-          Text(
-            '${rw.lengthFt ?? "N/A"} ft / ${rw.surfaceDisplay}',
-            style: theme.textTheme.labelSmall?.copyWith(fontSize: 8),
-          ),
-          if (rw.leIls != null)
-            Text(
-              '${rw.leIdent} ILS: ${rw.leIls!.freq}MHz',
-              style: theme.textTheme.labelSmall?.copyWith(
-                fontSize: 8,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          if (rw.heIls != null)
-            Text(
-              '${rw.heIdent} ILS: ${rw.heIls!.freq}MHz',
-              style: theme.textTheme.labelSmall?.copyWith(
-                fontSize: 8,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FrequenciesSection extends StatelessWidget {
-  final AirportFrequencies frequencies;
-  const _FrequenciesSection({required this.frequencies});
-
-  @override
-  Widget build(BuildContext context) {
-    if (frequencies.all.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionHeader(icon: Icons.radio, label: '通信频率'),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: frequencies.all
-              .take(8)
-              .map((f) => _FreqChip(f: f))
-              .toList(),
-        ),
-      ],
-    );
-  }
-}
-
-class _FreqChip extends StatelessWidget {
-  final FrequencyInfo f;
-  const _FreqChip({required this.f});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        '${f.typeDisplay}: ${f.displayFrequency} MHz',
-        style: theme.textTheme.labelSmall?.copyWith(fontSize: 9),
-      ),
-    );
-  }
-}
-
-class _NavaidsSection extends StatelessWidget {
-  final List<NavaidInfo> navaids;
-  const _NavaidsSection({required this.navaids});
-
-  @override
-  Widget build(BuildContext context) {
-    if (navaids.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionHeader(icon: Icons.navigation_rounded, label: '导航台'),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: navaids.take(6).map((n) => _NavaidChip(n: n)).toList(),
-        ),
-      ],
-    );
-  }
-}
-
-class _NavaidChip extends StatelessWidget {
-  final NavaidInfo n;
-  const _NavaidChip({required this.n});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final type = n.type.toUpperCase();
-    final isNdb = type.contains('NDB');
-    final unit = isNdb ? 'kHz' : 'MHz';
-    final freqDisplay = isNdb
-        ? n.frequency.toStringAsFixed(0)
-        : n.frequency.toStringAsFixed(2);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        '${n.ident} ($type): $freqDisplay $unit',
-        style: theme.textTheme.labelSmall?.copyWith(fontSize: 9),
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _SectionHeader({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(icon, color: theme.colorScheme.primary, size: 14),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            fontSize: 11,
-          ),
-        ),
-      ],
     );
   }
 }

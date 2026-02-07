@@ -10,6 +10,9 @@ class MetarDisplayWidget extends StatelessWidget {
   final bool compact;
   final IconData? icon;
 
+  final VoidCallback? onRefresh;
+  final bool? isRefreshing;
+
   const MetarDisplayWidget({
     super.key,
     required this.airportLabel,
@@ -17,6 +20,8 @@ class MetarDisplayWidget extends StatelessWidget {
     this.showUpdateTime = true,
     this.compact = false,
     this.icon,
+    this.onRefresh,
+    this.isRefreshing,
   });
 
   @override
@@ -44,6 +49,25 @@ class MetarDisplayWidget extends StatelessWidget {
               ),
               if (showUpdateTime) ...[
                 const Spacer(),
+                if (onRefresh != null) ...[
+                  if (isRefreshing == true)
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    )
+                  else
+                    InkWell(
+                      onTap: onRefresh,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Icon(
+                        Icons.refresh,
+                        size: 14,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                ],
                 Text(
                   '更新于: ${metarData.timestamp.hour.toString().padLeft(2, "0")}:${metarData.timestamp.minute.toString().padLeft(2, "0")}:${metarData.timestamp.second.toString().padLeft(2, "0")}',
                   style: theme.textTheme.labelSmall?.copyWith(

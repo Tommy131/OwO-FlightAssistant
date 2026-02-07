@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../apps/data/airports_database.dart';
+import '../../apps/models/airport_detail_data.dart';
 import '../../apps/services/airport_detail_service.dart';
+import '../../apps/services/weather_service.dart';
+import 'widgets/airport_detail_view.dart';
 
 class AirportDebugPage extends StatefulWidget {
   final VoidCallback? onBack;
@@ -80,6 +83,19 @@ class _AirportDebugPageState extends State<AirportDebugPage> {
         );
       }
     }
+  }
+
+  Future<void> _showAirportDetail(AirportInfo airport) async {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return _AirportDetailDialog(
+          airport: airport,
+          service: _airportService,
+          source: _currentSource,
+        );
+      },
+    );
   }
 
   @override
@@ -280,6 +296,8 @@ class _AirportDebugPageState extends State<AirportDebugPage> {
                     itemCount: filteredAirports.length,
                     itemBuilder: (context, index) {
                       final airport = filteredAirports[index];
+                      final hasCoords =
+                          airport.latitude != 0.0 || airport.longitude != 0.0;
                       return ListTile(
                         dense: true,
                         leading: CircleAvatar(
@@ -294,20 +312,58 @@ class _AirportDebugPageState extends State<AirportDebugPage> {
                             ),
                           ),
                         ),
-                        title: Text(
-                          airport.icaoCode,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        title: Row(
+                          children: [
+                            Text(
+                              airport.icaoCode,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (airport.iataCode.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                airport.iataCode,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.outline,
+                                  fontWeight: FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         subtitle: Text(
                           airport.nameChinese,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: Text(
-                          '${airport.latitude.toStringAsFixed(2)}, ${airport.longitude.toStringAsFixed(2)}',
                           style: theme.textTheme.bodySmall,
                         ),
-                        onTap: () {
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              hasCoords
+                                  ? '${airport.latitude.toStringAsFixed(4)}°'
+                                  : '数据缺失',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: hasCoords
+                                    ? theme.colorScheme.onSurface
+                                    : theme.colorScheme.error,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                            if (hasCoords)
+                              Text(
+                                '${airport.longitude.toStringAsFixed(4)}°',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                          ],
+                        ),
+                        onTap: () => _showAirportDetail(airport),
+                        onLongPress: () {
                           Clipboard.setData(
                             ClipboardData(text: airport.icaoCode),
                           );
@@ -323,6 +379,165 @@ class _AirportDebugPageState extends State<AirportDebugPage> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AirportDetailDialog extends StatefulWidget {
+  final AirportInfo airport;
+  final AirportDetailService service;
+  final AirportDataSource source;
+
+  const _AirportDetailDialog({
+    required this.airport,
+    required this.service,
+    required this.source,
+  });
+
+  @override
+  State<_AirportDetailDialog> createState() => _AirportDetailDialogState();
+}
+
+class _AirportDetailDialogState extends State<_AirportDetailDialog> {
+  AirportDetailData? _detail;
+  MetarData? _metar;
+  String? _detailError;
+  String? _metarError;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _detailError = null;
+      _metarError = null;
+    });
+
+    try {
+      // 1. 获取机场详细信息
+      final detail = await widget.service.fetchAirportDetail(
+        widget.airport.icaoCode,
+        preferredSource: widget.source,
+      );
+
+      if (mounted) {
+        setState(() {
+          _detail = detail;
+          if (detail == null) {
+            _detailError = '未找到详细数据';
+          }
+        });
+      }
+
+      // 2. 获取实时气象
+      final weatherService = WeatherService();
+      final metar = await weatherService.fetchMetar(widget.airport.icaoCode);
+
+      if (mounted) {
+        setState(() {
+          _metar = metar;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _detailError = '加载失败: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 600,
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 标题栏
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.airport.icaoCode,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          widget.airport.nameChinese,
+                          style: theme.textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+
+            // 内容区
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: AirportDetailView(
+                  airport: widget.airport,
+                  detail: _detail,
+                  metar: _metar,
+                  detailError: _detailError,
+                  metarError: _metarError,
+                  isLoading: _isLoading,
+                  showWindIndicator: false, // 诊断页面不需要风向指示器
+                ),
+              ),
+            ),
+
+            // 底部按钮
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: _isLoading ? null : _loadData,
+                    child: const Text('刷新'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('确定'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

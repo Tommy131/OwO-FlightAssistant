@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme_data.dart';
 import 'theme_settings_page.dart';
 import 'data_path_settings_page.dart';
-import '../debug/airport_debug_page.dart';
+import '../airport_info/airport_debug_page.dart';
 
 /// 设置页面类型枚举
 enum SettingsPageType { main, theme, dataPath, debug }

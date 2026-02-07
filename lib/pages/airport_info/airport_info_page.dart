@@ -991,6 +991,44 @@ class _AirportInfoPageState extends State<AirportInfoPage> {
                         }
                       }
                     },
+                    onRefreshMetar: () async {
+                      showLoadingDialog(
+                        context: context,
+                        message: '正在刷新气象数据...',
+                      );
+                      setState(() => _isLoading = true);
+                      try {
+                        final weatherService = WeatherService();
+                        final metar = await weatherService.fetchMetar(
+                          airport.icaoCode,
+                          forceRefresh: true,
+                        );
+                        if (mounted) {
+                          setState(() {
+                            if (metar != null) {
+                              _airportMetars[airport.icaoCode] = metar;
+                              _metarErrors.remove(airport.icaoCode);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('✅ 气象数据已更新')),
+                              );
+                            } else {
+                              _metarErrors[airport.icaoCode] = '无法获取气象报文';
+                            }
+                          });
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          setState(() {
+                            _metarErrors[airport.icaoCode] = '刷新失败: $e';
+                          });
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isLoading = false);
+                          hideLoadingDialog(context);
+                        }
+                      }
+                    },
                   ),
                 ),
               ),
