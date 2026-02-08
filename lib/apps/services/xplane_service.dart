@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import '../models/simulator_data.dart';
 import '../data/airports_database.dart';
+import '../data/aircraft_catalog.dart';
 import '../utils/aircraft_detector.dart';
 import '../utils/data_converters.dart';
 import '../../core/utils/logger.dart';
@@ -20,6 +21,7 @@ class XPlaneService {
   Timer? _heartbeatTimer;
   Timer? _connectionVerificationTimer;
   DateTime? _lastDataReceived;
+  DateTime? _lastSubscriptionRequest;
 
   // 动态配置
   String _targetIp = '127.0.0.1';
@@ -27,9 +29,10 @@ class XPlaneService {
   int _localPort = 19190;
 
   // 缓存复合状态
-  final List<bool> _landingLightSwitches = List.filled(4, false);
+  final List<bool> _landingLightSwitches = List.filled(16, false);
   bool _mainLandingLightOn = false;
-  final List<bool> _genericLightSwitches = List.filled(6, false);
+  bool _logoLightOn = false;
+  final List<bool> _genericLightSwitches = List.filled(80, false);
   bool _taxiLightOn = false;
 
   // 机型检测器
@@ -171,9 +174,14 @@ class XPlaneService {
       }
 
       if (_lastDataReceived == null) {
-        // 持续发送订阅请求，直到收到数据
-        AppLogger.info('等待数据中，重试订阅...');
-        _subscribeToDataRefs();
+        // 持续发送订阅请求，直到收到数据 (增加频率限制，防止 X-Plane 堆积重复订阅)
+        final now = DateTime.now();
+        if (_lastSubscriptionRequest == null ||
+            now.difference(_lastSubscriptionRequest!) >
+                const Duration(seconds: 5)) {
+          AppLogger.info('等待数据中，重试订阅...');
+          _subscribeToDataRefs();
+        }
         return;
       }
 
@@ -239,10 +247,11 @@ class XPlaneService {
 
   /// 订阅DataRefs
   Future<void> _subscribeToDataRefs() async {
+    _lastSubscriptionRequest = DateTime.now();
     // 批量订阅所有配置的 DataRefs
     final allDataRefs = XPlaneDataRefs.getAllDataRefs();
     for (final dataRef in allDataRefs) {
-      await _subscribeDataRef(dataRef.key, dataRef.path);
+      await _subscribeDataRef(dataRef);
     }
   }
 
@@ -280,12 +289,28 @@ class XPlaneService {
     if (dataCount > 0) {
       for (int i = 5; i < data.length; i += 8) {
         if (i + 8 > data.length) break;
-        final index = _bytesToInt32(data.sublist(i, i + 4));
-        final value = _bytesToFloat32(data.sublist(i + 4, i + 8));
+        final int rawId = _bytesToInt32(data.sublist(i, i + 4));
+        final double value = _bytesToFloat32(data.sublist(i + 4, i + 8));
 
-        // 防止数组越界; 如果在枚举中插入新的数据ref, 需要重启XPlane; 从末尾插入不需要
-        if (index >= 0 && index < XPlaneDataRefKey.values.length) {
-          _updateDataByRefKey(XPlaneDataRefKey.values[index], value);
+        // 核心解码逻辑
+        int keyIndex;
+        int subIndex = 0;
+
+        if (rawId > 0xFFFF) {
+          // 说明是组合编码格式 (keyIndex << 16 | subIndex)
+          keyIndex = rawId >> 16;
+          subIndex = rawId & 0xFFFF;
+        } else {
+          // 普通索引
+          keyIndex = rawId;
+        }
+
+        if (keyIndex >= 0 && keyIndex < XPlaneDataRefKey.values.length) {
+          _updateDataByRefKey(
+            XPlaneDataRefKey.values[keyIndex],
+            value,
+            subIndex: subIndex,
+          );
         }
       }
       if (dataCount > 0) {
@@ -307,10 +332,33 @@ class XPlaneService {
     }
   }
 
-  void _updateDataByRefKey(XPlaneDataRefKey key, double value) {
+  void _updateDataByRefKey(
+    XPlaneDataRefKey key,
+    double value, {
+    int subIndex = 0,
+  }) {
     switch (key) {
-      case XPlaneDataRefKey.visibility:
-        _currentData = _currentData.copyWith(visibility: value);
+      case XPlaneDataRefKey.landingLightArray:
+        _updateArrayStatus(_landingLightSwitches, subIndex, value);
+        break;
+      case XPlaneDataRefKey.genericLightArray:
+        _updateArrayStatus(
+          _genericLightSwitches,
+          subIndex,
+          value,
+          onChanged: (index, newValue) {
+            // 当通用灯光改变时，输出具体哪个索引变了
+            final activeIndices = _genericLightSwitches
+                .asMap()
+                .entries
+                .where((e) => e.value)
+                .map((e) => e.key)
+                .toList();
+            print(
+              'X-Plane 通用灯光更新: 索引 $index -> ${newValue ? "开启" : "关闭"}, 当前激活列表: $activeIndices',
+            );
+          },
+        );
         break;
       case XPlaneDataRefKey.airspeed:
         _currentData = _currentData.copyWith(airspeed: value);
@@ -362,16 +410,18 @@ class XPlaneService {
         _currentData = _currentData.copyWith(beacon: value > 0.5);
         break;
       case XPlaneDataRefKey.landingLightsMain:
-        _mainLandingLightOn = value > 0.5;
-        _updateLightStatus();
+        final newValue = value > 0.5;
+        if (_mainLandingLightOn != newValue) {
+          _mainLandingLightOn = newValue;
+          _updateLightStatus();
+        }
         break;
       case XPlaneDataRefKey.taxiLights:
-        _taxiLightOn = value > 0.01;
-        _updateLightStatus();
-        break;
-      case XPlaneDataRefKey.taxiLightsGeneric:
-        _genericLightSwitches[4] = value > 0.5;
-        _updateLightStatus();
+        final newValue = value > 0.01;
+        if (_taxiLightOn != newValue) {
+          _taxiLightOn = newValue;
+          _updateLightStatus();
+        }
         break;
       case XPlaneDataRefKey.navLights:
         _currentData = _currentData.copyWith(navLights: value > 0.5);
@@ -385,14 +435,6 @@ class XPlaneService {
       case XPlaneDataRefKey.gearDeploy:
         _currentData = _currentData.copyWith(gearDown: value > 0.5);
         break;
-      case XPlaneDataRefKey.logoLights:
-        _genericLightSwitches[1] = value > 0.5;
-        _updateLightStatus();
-        break;
-      case XPlaneDataRefKey.wingLights:
-        _genericLightSwitches[0] = value > 0.5;
-        _updateLightStatus();
-        break;
       case XPlaneDataRefKey.apuRunning:
         _currentData = _currentData.copyWith(apuRunning: value > 0.5);
         break;
@@ -402,20 +444,12 @@ class XPlaneService {
       case XPlaneDataRefKey.engine2Running:
         _currentData = _currentData.copyWith(engine2Running: value > 0.5);
         break;
-      case XPlaneDataRefKey.runwayTurnoffLeft:
-        _genericLightSwitches[2] = value > 0.5;
-        _updateLightStatus();
+      case XPlaneDataRefKey.visibility:
+        _currentData = _currentData.copyWith(visibility: value);
         break;
-      case XPlaneDataRefKey.runwayTurnoffRight:
-        _genericLightSwitches[3] = value > 0.5;
-        _updateLightStatus();
-        break;
+
       case XPlaneDataRefKey.flapsAngle:
         _setFlapsState(deployRatio: value);
-        break;
-      case XPlaneDataRefKey.wheelWellLights:
-        _genericLightSwitches[5] = value > 0.5;
-        _updateLightStatus();
         break;
       case XPlaneDataRefKey.autopilotMode:
         _currentData = _currentData.copyWith(autopilotEngaged: value > 0);
@@ -479,21 +513,13 @@ class XPlaneService {
       case XPlaneDataRefKey.com1Frequency:
         _currentData = _currentData.copyWith(com1Frequency: value / 100);
         break;
-      case XPlaneDataRefKey.landingLight0:
-        _landingLightSwitches[0] = value > 0.5;
-        _updateLightStatus();
-        break;
-      case XPlaneDataRefKey.landingLight1:
-        _landingLightSwitches[1] = value > 0.5;
-        _updateLightStatus();
-        break;
-      case XPlaneDataRefKey.landingLight2:
-        _landingLightSwitches[2] = value > 0.5;
-        _updateLightStatus();
-        break;
-      case XPlaneDataRefKey.landingLight3:
-        _landingLightSwitches[3] = value > 0.5;
-        _updateLightStatus();
+
+      case XPlaneDataRefKey.logoLight:
+        final newValue = value > 0.5;
+        if (_logoLightOn != newValue) {
+          _logoLightOn = newValue;
+          _updateLightStatus();
+        }
         break;
       // 起落架详细状态
       case XPlaneDataRefKey.noseGearDeploy:
@@ -568,10 +594,18 @@ class XPlaneService {
   }
 
   void _updateLightStatus() {
+    final match = AircraftCatalog.match(
+      title: _currentData.aircraftTitle,
+      engineCount: _currentData.numEngines,
+      flapDetents: _currentData.flapDetentsCount,
+      wingArea: _currentData.wingArea,
+    );
+
     final result = _lightResolver.resolve(
-      aircraftTitle: _currentData.aircraftTitle ?? '',
+      identity: match?.identity,
       landingMain: _mainLandingLightOn,
       landingSwitches: _landingLightSwitches,
+      logoStandard: _logoLightOn,
       taxiStandard: _taxiLightOn,
       genericSwitches: _genericLightSwitches,
     );
@@ -604,8 +638,15 @@ class XPlaneService {
       _flapsDetentsCount = detentsCount;
     }
 
+    final match = AircraftCatalog.match(
+      title: _currentData.aircraftTitle,
+      engineCount: _currentData.numEngines,
+      flapDetents: _flapsDetentsCount,
+      wingArea: _currentData.wingArea,
+    );
+
     final result = _flapResolver.resolve(
-      aircraftTitle: _currentData.aircraftTitle ?? '',
+      identity: match?.identity,
       flapDetentsCount: _flapsDetentsCount,
       deployRatio: _flapsDeployRatio,
       actualDegrees: _flapsActualDegrees,
@@ -620,18 +661,18 @@ class XPlaneService {
     );
   }
 
-  Future<void> _subscribeDataRef(XPlaneDataRefKey key, String dref) async {
+  Future<void> _subscribeDataRef(XPlaneDataRef dataRef) async {
     if (_isDisposed) return;
 
-    _subscribedDataRefs[key] = dref;
-    final int index = key.index; // 使用枚举索引作为 UDP 标识
+    _subscribedDataRefs[dataRef.key] = dataRef.path;
+    final int encodedIndex = dataRef.index; // 使用编码后的 ID
     final List<int> data = [
       ...'RREF'.codeUnits,
       0,
       ..._int32ToBytes(5), // 频率 (Hz)
-      ..._int32ToBytes(index),
-      ...dref.codeUnits,
-      ...List.filled(400 - dref.length, 0),
+      ..._int32ToBytes(encodedIndex),
+      ...dataRef.path.codeUnits,
+      ...List.filled(400 - dataRef.path.length, 0),
     ];
     _sendData(data);
   }
@@ -644,10 +685,7 @@ class XPlaneService {
         return;
       }
       if (_isConnected && _socket != null) {
-        _subscribeDataRef(
-          XPlaneDataRefKey.airspeed,
-          'sim/flightmodel/position/indicated_airspeed',
-        );
+        _subscribeDataRef(XPlaneDataRefs.airspeed);
       }
     });
   }
@@ -696,6 +734,23 @@ class XPlaneService {
   List<int> _int32ToBytes(int value) {
     return DataConverters.int32ToBytes(value);
   }
+
+  /// 更新布尔状态数组并触发状态刷新
+  void _updateArrayStatus(
+    List<bool> targetList,
+    int index,
+    double value, {
+    void Function(int index, bool newValue)? onChanged,
+  }) {
+    if (index >= 0 && index < targetList.length) {
+      final newValue = value > 0.5;
+      if (targetList[index] != newValue) {
+        targetList[index] = newValue;
+        _updateLightStatus();
+        onChanged?.call(index, newValue);
+      }
+    }
+  }
 }
 
 class _LightResult {
@@ -716,44 +771,35 @@ class _LightResult {
   });
 }
 
-class _LightProfile {
-  final int? taxiIndex;
-  final int? logoIndex;
-  final int? wingIndex;
-  final int? runwayLeftIndex;
-  final int? runwayRightIndex;
-  final int? wheelWellIndex;
-
-  const _LightProfile({
-    this.taxiIndex,
-    this.logoIndex,
-    this.wingIndex,
-    this.runwayLeftIndex,
-    this.runwayRightIndex,
-    this.wheelWellIndex,
-  });
-}
-
 class _LightResolver {
   _LightResult resolve({
-    required String aircraftTitle,
+    required AircraftIdentity? identity,
     required bool landingMain,
     required List<bool> landingSwitches,
+    required bool logoStandard,
     required bool taxiStandard,
     required List<bool> genericSwitches,
   }) {
-    final title = aircraftTitle.toLowerCase();
-    final profile = _selectProfile(title);
+    final profile = identity?.lightProfile ?? const LightProfile();
 
-    final landingOn = landingMain || landingSwitches.any((isOn) => isOn);
+    final landingOn =
+        (profile.hasMainLandingLightControl && landingMain) ||
+        landingSwitches.any((isOn) => isOn) ||
+        _anySwitchOn(landingSwitches, profile.landingIndices);
     final taxiOn =
-        taxiStandard || _genericOn(genericSwitches, profile.taxiIndex);
-    final logoOn = _genericOn(genericSwitches, profile.logoIndex);
-    final wingOn = _genericOn(genericSwitches, profile.wingIndex);
+        taxiStandard || _switchOn(genericSwitches, profile.taxiIndex);
+    final logoOn =
+        logoStandard ||
+        _anySwitchOn(
+          genericSwitches,
+          profile.logoIndices ??
+              (profile.logoIndex != null ? [profile.logoIndex!] : null),
+        );
+    final wingOn = _switchOn(genericSwitches, profile.wingIndex);
     final runwayOn =
-        _genericOn(genericSwitches, profile.runwayLeftIndex) ||
-        _genericOn(genericSwitches, profile.runwayRightIndex);
-    final wheelOn = _genericOn(genericSwitches, profile.wheelWellIndex);
+        _switchOn(genericSwitches, profile.runwayLeftIndex) ||
+        _switchOn(genericSwitches, profile.runwayRightIndex);
+    final wheelOn = _switchOn(genericSwitches, profile.wheelWellIndex);
 
     return _LightResult(
       landingLights: landingOn,
@@ -765,41 +811,14 @@ class _LightResolver {
     );
   }
 
-  _LightProfile _selectProfile(String title) {
-    if (_isB737(title)) {
-      return const _LightProfile(
-        wingIndex: 0,
-        logoIndex: 1,
-        runwayLeftIndex: 2,
-        runwayRightIndex: 3,
-        taxiIndex: 4,
-        wheelWellIndex: 5,
-      );
-    }
-    if (_isB747(title)) {
-      return const _LightProfile(
-        wingIndex: 2,
-        logoIndex: 3,
-        runwayLeftIndex: 0,
-        runwayRightIndex: 1,
-        taxiIndex: 4,
-        wheelWellIndex: 5,
-      );
-    }
-    return const _LightProfile();
-  }
-
-  bool _genericOn(List<bool> values, int? index) {
+  bool _switchOn(List<bool> values, int? index) {
     if (index == null || index < 0 || index >= values.length) return false;
     return values[index];
   }
 
-  bool _isB737(String title) {
-    return title.contains('737') || title.contains('zibo');
-  }
-
-  bool _isB747(String title) {
-    return title.contains('747');
+  bool _anySwitchOn(List<bool> values, List<int>? indices) {
+    if (indices == null) return false;
+    return indices.any((index) => _switchOn(values, index));
   }
 }
 
@@ -819,29 +838,19 @@ class _FlapResult {
   });
 }
 
-class _FlapProfile {
-  final List<String> labels;
-  final List<double>? angles;
-  final double maxAngle;
-
-  const _FlapProfile({required this.labels, this.angles, this.maxAngle = 40.0});
-}
-
 class _FlapResolver {
   _FlapResult resolve({
-    required String aircraftTitle,
+    required AircraftIdentity? identity,
     required int flapDetentsCount,
     double? deployRatio,
     double? actualDegrees,
     double? ziboLever,
   }) {
-    final title = aircraftTitle.toLowerCase();
-    final ziboActive = _isZiboLeverActive(ziboLever) || title.contains('zibo');
-    final profile = _selectProfile(
-      title: title,
-      flapDetentsCount: flapDetentsCount,
-      zibo: ziboActive,
-    );
+    final ziboActive =
+        _isZiboLeverActive(ziboLever) ||
+        (identity?.keywords.contains('zibo') ?? false);
+
+    final profile = identity?.flapProfile ?? _defaultProfile(flapDetentsCount);
     final detentCount = profile.labels.length;
 
     double? normalizedRatio = deployRatio?.clamp(0.0, 1.0);
@@ -900,45 +909,13 @@ class _FlapResolver {
     );
   }
 
-  _FlapProfile _selectProfile({
-    required String title,
-    required int flapDetentsCount,
-    required bool zibo,
-  }) {
-    if (zibo || _isB737(title, flapDetentsCount)) {
-      const labels = ['UP', '1', '2', '5', '10', '15', '25', '30', '40'];
-      const angles = [0.0, 1.0, 2.0, 5.0, 10.0, 15.0, 25.0, 30.0, 40.0];
-      return const _FlapProfile(labels: labels, angles: angles, maxAngle: 40);
-    }
-    if (_isA320(title, flapDetentsCount)) {
-      const labels = ['UP', '1', '2', '3', 'FULL'];
-      return const _FlapProfile(labels: labels, maxAngle: 40);
-    }
-    if (_isB747(title, flapDetentsCount)) {
-      const labels = ['UP', '1', '5', '10', '20', '25', '30'];
-      const angles = [0.0, 1.0, 5.0, 10.0, 20.0, 25.0, 30.0];
-      return const _FlapProfile(labels: labels, angles: angles, maxAngle: 30);
-    }
+  FlapProfile _defaultProfile(int flapDetentsCount) {
     final count = flapDetentsCount > 0 ? flapDetentsCount + 1 : 2;
     final labels = List.generate(
       count,
       (index) => index == 0 ? 'UP' : '$index',
     );
-    return _FlapProfile(labels: labels, maxAngle: 40);
-  }
-
-  bool _isB737(String title, int flapDetentsCount) {
-    return title.contains('737') || flapDetentsCount >= 8;
-  }
-
-  bool _isB747(String title, int flapDetentsCount) {
-    return title.contains('747') || flapDetentsCount == 6;
-  }
-
-  bool _isA320(String title, int flapDetentsCount) {
-    return title.contains('a320') ||
-        title.contains('airbus') ||
-        flapDetentsCount == 4;
+    return FlapProfile(labels: labels, maxAngle: 40);
   }
 
   int _ziboLeverToIndex(double value, int detentCount) {
@@ -971,7 +948,7 @@ class _FlapResolver {
     return best;
   }
 
-  String _labelFor(_FlapProfile profile, int? detentIndex, double? angle) {
+  String _labelFor(FlapProfile profile, int? detentIndex, double? angle) {
     if (detentIndex != null && detentIndex < profile.labels.length) {
       return profile.labels[detentIndex];
     }

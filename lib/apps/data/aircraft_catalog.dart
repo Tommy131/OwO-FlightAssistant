@@ -1,3 +1,35 @@
+class FlapProfile {
+  final List<String> labels;
+  final List<double>? angles;
+  final double maxAngle;
+
+  const FlapProfile({required this.labels, this.angles, this.maxAngle = 40.0});
+}
+
+class LightProfile {
+  final List<int>? landingIndices;
+  final int? taxiIndex;
+  final int? logoIndex;
+  final List<int>? logoIndices;
+  final int? wingIndex;
+  final int? runwayLeftIndex;
+  final int? runwayRightIndex;
+  final int? wheelWellIndex;
+  final bool hasMainLandingLightControl;
+
+  const LightProfile({
+    this.landingIndices,
+    this.taxiIndex,
+    this.logoIndex,
+    this.logoIndices,
+    this.wingIndex,
+    this.runwayLeftIndex,
+    this.runwayRightIndex,
+    this.wheelWellIndex,
+    this.hasMainLandingLightControl = false,
+  });
+}
+
 class AircraftIdentity {
   final String id;
   final String manufacturer;
@@ -10,6 +42,8 @@ class AircraftIdentity {
   final double? wingAreaMin;
   final double? wingAreaMax;
   final bool generalAviation;
+  final FlapProfile? flapProfile;
+  final LightProfile? lightProfile;
 
   const AircraftIdentity({
     required this.id,
@@ -23,6 +57,8 @@ class AircraftIdentity {
     this.wingAreaMin,
     this.wingAreaMax,
     this.generalAviation = false,
+    this.flapProfile,
+    this.lightProfile,
   });
 
   String get displayName => '$manufacturer $model';
@@ -45,6 +81,10 @@ class AircraftCatalog {
       keywords: ['a319', 'airbus a319'],
       flapDetents: 4,
       engineCount: 2,
+      flapProfile: FlapProfile(
+        labels: ['UP', '1', '2', '3', 'FULL'],
+        maxAngle: 40,
+      ),
     ),
     AircraftIdentity(
       id: 'a320',
@@ -54,6 +94,10 @@ class AircraftCatalog {
       keywords: ['a320', 'airbus a320'],
       flapDetents: 4,
       engineCount: 2,
+      flapProfile: FlapProfile(
+        labels: ['UP', '1', '2', '3', 'FULL'],
+        maxAngle: 40,
+      ),
     ),
     AircraftIdentity(
       id: 'a321',
@@ -63,6 +107,10 @@ class AircraftCatalog {
       keywords: ['a321', 'airbus a321'],
       flapDetents: 4,
       engineCount: 2,
+      flapProfile: FlapProfile(
+        labels: ['UP', '1', '2', '3', 'FULL'],
+        maxAngle: 40,
+      ),
     ),
     AircraftIdentity(
       id: 'b737-800',
@@ -72,6 +120,20 @@ class AircraftCatalog {
       keywords: ['737-800', 'b737-800', 'boeing 737-800', 'zibo'],
       flapDetents: 8,
       engineCount: 2,
+      flapProfile: FlapProfile(
+        labels: ['UP', '1', '2', '5', '10', '15', '25', '30', '40'],
+        angles: [0.0, 1.0, 2.0, 5.0, 10.0, 15.0, 25.0, 30.0, 40.0],
+        maxAngle: 40,
+      ),
+      lightProfile: LightProfile(
+        wingIndex: 0,
+        logoIndex: 1,
+        runwayLeftIndex: 2,
+        runwayRightIndex: 3,
+        taxiIndex: 4,
+        wheelWellIndex: 5,
+        landingIndices: [0, 1],
+      ),
     ),
     AircraftIdentity(
       id: 'b737-max',
@@ -81,6 +143,19 @@ class AircraftCatalog {
       keywords: ['737 max', '737-8', '737-9', 'b737-8', 'b737-9', 'max'],
       flapDetents: 8,
       engineCount: 2,
+      flapProfile: FlapProfile(
+        labels: ['UP', '1', '2', '5', '10', '15', '25', '30', '40'],
+        angles: [0.0, 1.0, 2.0, 5.0, 10.0, 15.0, 25.0, 30.0, 40.0],
+        maxAngle: 40,
+      ),
+      lightProfile: LightProfile(
+        wingIndex: 0,
+        logoIndex: 1,
+        runwayLeftIndex: 2,
+        runwayRightIndex: 3,
+        taxiIndex: 4,
+        wheelWellIndex: 5,
+      ),
     ),
     AircraftIdentity(
       id: 'b747-400',
@@ -90,6 +165,19 @@ class AircraftCatalog {
       keywords: ['747-400', 'b747-400', 'boeing 747-400'],
       engineCount: 4,
       flapDetents: 6,
+      flapProfile: FlapProfile(
+        labels: ['UP', '1', '5', '10', '20', '25', '30'],
+        angles: [0.0, 1.0, 5.0, 10.0, 20.0, 25.0, 30.0],
+        maxAngle: 30,
+      ),
+      lightProfile: LightProfile(
+        runwayLeftIndex: 0,
+        runwayRightIndex: 1,
+        wingIndex: 2,
+        logoIndex: 3,
+        taxiIndex: 4,
+        wheelWellIndex: 5,
+      ),
     ),
     AircraftIdentity(
       id: 'b787-900',
@@ -98,6 +186,20 @@ class AircraftCatalog {
       model: '787-900',
       keywords: ['787-900', 'b787-900', 'boeing 787-9', 'boeing 787'],
       engineCount: 2,
+      flapProfile: FlapProfile(
+        labels: ['UP', '1', '5', '10', '15', '17', '18', '20', '25', '30'],
+        angles: [0.0, 1.0, 5.0, 10.0, 15.0, 17.0, 18.0, 20.0, 25.0, 30.0],
+        maxAngle: 30,
+      ),
+      lightProfile: LightProfile(
+        wingIndex: 0,
+        runwayLeftIndex: 1,
+        runwayRightIndex: 2,
+        logoIndices: [3, 40, 64], // MagKnight 无法获取到Logo Light的映射
+        taxiIndex: 4,
+        wheelWellIndex: 5,
+        landingIndices: [0, 1, 2],
+      ),
     ),
     AircraftIdentity(
       id: 'cessna-172',
@@ -185,9 +287,18 @@ class AircraftCatalog {
       double score = 0;
       if (normalizedTitle.isNotEmpty) {
         for (final keyword in entry.keywords) {
-          if (normalizedTitle.contains(keyword)) {
+          final normalizedKeyword = _normalize(keyword);
+          if (normalizedKeyword.isEmpty) continue;
+          if (normalizedTitle.contains(normalizedKeyword)) {
             score += 3;
           }
+        }
+      }
+      final boeingFamilyHint = _extractBoeingFamilyHint(normalizedTitle);
+      if (boeingFamilyHint != null && _isBoeing(entry)) {
+        final familyDigits = _extractFamilyDigits(entry.family);
+        if (familyDigits != null) {
+          score += boeingFamilyHint == familyDigits ? 2 : -3;
         }
       }
       if (normalizedIcao.isNotEmpty) {
@@ -223,5 +334,32 @@ class AircraftCatalog {
 
   static String _normalize(String value) {
     return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+  }
+
+  static bool _isBoeing(AircraftIdentity entry) {
+    return entry.manufacturer.toLowerCase().contains('boeing');
+  }
+
+  static int? _extractFamilyDigits(String family) {
+    final match = RegExp(r'\d+').firstMatch(family);
+    if (match == null) return null;
+    return int.tryParse(match.group(0)!);
+  }
+
+  static int? _extractBoeingFamilyHint(String normalizedTitle) {
+    if (normalizedTitle.isEmpty) return null;
+    final tokens = normalizedTitle.split(' ');
+    for (final token in tokens) {
+      if (token == '737' || token == '747' || token == '787') {
+        return int.parse(token);
+      }
+      if (token.startsWith('b') && token.length >= 4) {
+        final digits = token.substring(1);
+        if (digits == '737' || digits == '747' || digits == '787') {
+          return int.parse(digits);
+        }
+      }
+    }
+    return null;
   }
 }

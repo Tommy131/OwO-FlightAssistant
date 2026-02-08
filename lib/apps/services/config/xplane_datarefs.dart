@@ -12,18 +12,14 @@ enum XPlaneDataRefKey {
   beaconLights,
   landingLightsMain,
   taxiLights,
-  taxiLightsGeneric,
   navLights,
   strobeLights,
   flapsRequest,
   gearDeploy,
-  logoLights,
-  wingLights,
   apuRunning,
   engine1Running,
   engine2Running,
   flapsAngle,
-  wheelWellLights,
   autopilotMode,
   autothrottle,
   outsideTemp,
@@ -43,12 +39,7 @@ enum XPlaneDataRefKey {
   numEngines,
   flapDetents,
   com1Frequency,
-  landingLight0,
-  landingLight1,
-  landingLight2,
-  landingLight3,
-  runwayTurnoffLeft,
-  runwayTurnoffRight,
+  logoLight,
   noseGearDeploy,
   leftGearDeploy,
   rightGearDeploy,
@@ -66,6 +57,8 @@ enum XPlaneDataRefKey {
   fireWarningAPU,
   visibility,
   wingArea,
+  landingLightArray,
+  genericLightArray,
 }
 
 /// X-Plane DataRef 配置项
@@ -73,15 +66,23 @@ class XPlaneDataRef {
   final XPlaneDataRefKey key;
   final String path;
   final String description;
+  final int subIndex; // 内部索引（针对数组型开关）
 
   const XPlaneDataRef({
     required this.key,
     required this.path,
     required this.description,
+    this.subIndex = 0,
   });
 
-  /// 获取对应的 X-Plane 订阅索引
-  int get index => key.index;
+  /// 获取对应的 X-Plane 订阅索引 (支持 16位编码: keyIndex << 16 | subIndex)
+  int get index {
+    if (key == XPlaneDataRefKey.landingLightArray ||
+        key == XPlaneDataRefKey.genericLightArray) {
+      return (key.index << 16) | (subIndex & 0xFFFF);
+    }
+    return key.index;
+  }
 }
 
 /// X-Plane DataRefs 配置管理
@@ -172,12 +173,6 @@ class XPlaneDataRefs {
     description: '滑行灯',
   );
 
-  static const XPlaneDataRef taxiLightsGeneric = XPlaneDataRef(
-    key: XPlaneDataRefKey.taxiLightsGeneric,
-    path: 'sim/cockpit2/switches/generic_lights_switch[4]',
-    description: '滑行灯(通用灯光开关)',
-  );
-
   static const XPlaneDataRef navLights = XPlaneDataRef(
     key: XPlaneDataRefKey.navLights,
     path: 'sim/cockpit2/switches/navigation_lights_on',
@@ -200,18 +195,6 @@ class XPlaneDataRefs {
     key: XPlaneDataRefKey.gearDeploy,
     path: 'sim/aircraft/parts/acf_gear_deploy',
     description: '起落架放下',
-  );
-
-  static const XPlaneDataRef logoLights = XPlaneDataRef(
-    key: XPlaneDataRefKey.logoLights,
-    path: 'sim/cockpit2/switches/generic_lights_switch[1]',
-    description: 'Logo灯',
-  );
-
-  static const XPlaneDataRef wingLights = XPlaneDataRef(
-    key: XPlaneDataRefKey.wingLights,
-    path: 'sim/cockpit2/switches/generic_lights_switch[0]',
-    description: '机翼灯',
   );
 
   // ==================== 发动机与燃油 ====================
@@ -238,12 +221,6 @@ class XPlaneDataRefs {
     key: XPlaneDataRefKey.flapsAngle,
     path: 'sim/flightmodel2/controls/flap_handle_deploy_ratio',
     description: '襟翼角度',
-  );
-
-  static const XPlaneDataRef wheelWellLights = XPlaneDataRef(
-    key: XPlaneDataRefKey.wheelWellLights,
-    path: 'sim/cockpit2/switches/generic_lights_switch[5]',
-    description: '轮舱灯',
   );
 
   // ==================== 自动驾驶 ====================
@@ -386,41 +363,18 @@ class XPlaneDataRefs {
 
   // ==================== 灯光开关数组 ====================
 
-  static const XPlaneDataRef landingLight0 = XPlaneDataRef(
-    key: XPlaneDataRefKey.landingLight0,
-    path: 'sim/cockpit2/switches/landing_lights_switch[0]',
-    description: '着陆灯开关0',
+  // Landing Lights Array - Generated dynamically
+
+  static const XPlaneDataRef logoLight = XPlaneDataRef(
+    key: XPlaneDataRefKey.logoLight,
+    path: 'sim/cockpit/electrical/logo_lights_on',
+    description: 'Logo灯(通用)',
   );
 
-  static const XPlaneDataRef landingLight1 = XPlaneDataRef(
-    key: XPlaneDataRefKey.landingLight1,
-    path: 'sim/cockpit2/switches/landing_lights_switch[1]',
-    description: '着陆灯开关1',
-  );
+  // ==================== Generic Switches ====================
+  // 许多复杂机型使用通用开关映射不同的灯具
 
-  static const XPlaneDataRef landingLight2 = XPlaneDataRef(
-    key: XPlaneDataRefKey.landingLight2,
-    path: 'sim/cockpit2/switches/landing_lights_switch[2]',
-    description: '着陆灯开关2',
-  );
-
-  static const XPlaneDataRef landingLight3 = XPlaneDataRef(
-    key: XPlaneDataRefKey.landingLight3,
-    path: 'sim/cockpit2/switches/landing_lights_switch[3]',
-    description: '着陆灯开关3',
-  );
-
-  static const XPlaneDataRef runwayTurnoffLeft = XPlaneDataRef(
-    key: XPlaneDataRefKey.runwayTurnoffLeft,
-    path: 'sim/cockpit2/switches/generic_lights_switch[2]',
-    description: '跑道脱离灯左',
-  );
-
-  static const XPlaneDataRef runwayTurnoffRight = XPlaneDataRef(
-    key: XPlaneDataRefKey.runwayTurnoffRight,
-    path: 'sim/cockpit2/switches/generic_lights_switch[3]',
-    description: '跑道脱离灯右',
-  );
+  // Generic Lights Array - Generated dynamically
 
   // ==================== 起落架详细状态 ====================
 
@@ -522,6 +476,26 @@ class XPlaneDataRefs {
     description: 'APU火警',
   );
 
+  static List<XPlaneDataRef> get _landingLights => List.generate(
+    16,
+    (index) => XPlaneDataRef(
+      key: XPlaneDataRefKey.landingLightArray,
+      path: 'sim/cockpit2/switches/landing_lights_switch[$index]',
+      description: '着陆灯开关 $index',
+      subIndex: index,
+    ),
+  );
+
+  static List<XPlaneDataRef> get _genericLights => List.generate(
+    80,
+    (index) => XPlaneDataRef(
+      key: XPlaneDataRefKey.genericLightArray,
+      path: 'sim/cockpit2/switches/generic_lights_switch[$index]',
+      description: '通用灯光 $index',
+      subIndex: index,
+    ),
+  );
+
   // ==================== 获取所有DataRefs ====================
 
   /// 获取所有需要订阅的 DataRef 列表
@@ -539,17 +513,13 @@ class XPlaneDataRefs {
       parkingBrake, beaconLights,
       // 灯光
       landingLightsMain,
-      landingLight0,
-      landingLight1,
-      landingLight2,
-      landingLight3,
+      ..._landingLights,
+      logoLight,
       taxiLights,
-      taxiLightsGeneric,
       navLights,
       strobeLights,
-      logoLights,
-      wingLights,
-      runwayTurnoffLeft, runwayTurnoffRight, wheelWellLights,
+      // Generic Lights
+      ..._genericLights,
       // 襟翼和起落架
       flapsRequest, flapsAngle, gearDeploy,
       // 燃油和发动机
