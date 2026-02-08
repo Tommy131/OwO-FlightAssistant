@@ -11,6 +11,7 @@ class SystemStatusPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final showSecondEngine = (data.numEngines ?? 2) > 1;
 
     // 定义专业的颜色方案
     // 警告系统 - 红色系
@@ -147,9 +148,11 @@ class SystemStatusPanel extends StatelessWidget {
               _buildStatusSection(theme, '动力与自动化', [
                 if (data.apuRunning == true)
                   const StatusBadge(label: 'APU', color: apuColor),
-                if (data.engine1Running == true)
+                if (!showSecondEngine && data.engine1Running == true)
+                  const StatusBadge(label: '发动机', color: engineColor),
+                if (showSecondEngine && data.engine1Running == true)
                   const StatusBadge(label: '左发动机', color: engineColor),
-                if (data.engine2Running == true)
+                if (showSecondEngine && data.engine2Running == true)
                   const StatusBadge(label: '右发动机', color: engineColor),
                 if (data.autopilotEngaged == true)
                   const StatusBadge(label: '自动驾驶', color: autopilotColor),

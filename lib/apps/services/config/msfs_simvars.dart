@@ -62,6 +62,30 @@ class MSFSSimVars {
     description: '经度',
   );
 
+  static const MSFSSimVar aircraftTitle = MSFSSimVar(
+    name: 'TITLE',
+    unit: 'string',
+    description: '机型名称',
+  );
+
+  static const MSFSSimVar atcModel = MSFSSimVar(
+    name: 'ATC MODEL',
+    unit: 'string',
+    description: '机型型号',
+  );
+
+  static const MSFSSimVar atcType = MSFSSimVar(
+    name: 'ATC TYPE',
+    unit: 'string',
+    description: '机型类型',
+  );
+
+  static const MSFSSimVar atcId = MSFSSimVar(
+    name: 'ATC ID',
+    unit: 'string',
+    description: '机身注册号',
+  );
+
   // ==================== 系统状态 ====================
 
   static const MSFSSimVar parkingBrake = MSFSSimVar(
@@ -106,6 +130,12 @@ class MSFSSimVars {
     description: '襟翼手柄位置',
   );
 
+  static const MSFSSimVar flapsHandlePositions = MSFSSimVar(
+    name: 'FLAPS_NUM_HANDLE_POSITIONS',
+    unit: 'number',
+    description: '襟翼档位数量',
+  );
+
   static const MSFSSimVar flapsDeployRatio = MSFSSimVar(
     name: 'TRAILING_EDGE_FLAPS_LEFT_PERCENT',
     unit: 'percent over 100',
@@ -142,6 +172,12 @@ class MSFSSimVars {
     name: 'ENG_N1:2',
     unit: 'percent',
     description: '发动机2 N1',
+  );
+
+  static const MSFSSimVar engineCount = MSFSSimVar(
+    name: 'NUMBER OF ENGINES',
+    unit: 'number',
+    description: '发动机数量',
   );
 
   // ==================== 自动驾驶 ====================
@@ -290,12 +326,34 @@ class MSFSSimVars {
   static List<MSFSSimVar> getAllSimVars() {
     return [
       // 飞行数据
-      airspeed, mach, altitude, heading, verticalSpeed, latitude, longitude,
+      airspeed,
+      mach,
+      altitude,
+      heading,
+      verticalSpeed,
+      latitude,
+      longitude,
+      aircraftTitle,
+      atcModel,
+      atcType,
+      atcId,
       // 系统状态
-      parkingBrake, beaconLight, landingLight, taxiLight, navLight, strobeLight,
-      flapsHandleIndex, flapsDeployRatio,
+      parkingBrake,
+      beaconLight,
+      landingLight,
+      taxiLight,
+      navLight,
+      strobeLight,
+      flapsHandleIndex,
+      flapsHandlePositions,
+      flapsDeployRatio,
       // 发动机
-      apuSwitch, engine1Combustion, engine2Combustion, engine1N1, engine2N1,
+      apuSwitch,
+      engine1Combustion,
+      engine2Combustion,
+      engine1N1,
+      engine2N1,
+      engineCount,
       // 自动驾驶
       autopilotMaster, autopilotThrottle,
       // 监控数据

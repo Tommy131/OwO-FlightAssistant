@@ -12,6 +12,7 @@ enum XPlaneDataRefKey {
   beaconLights,
   landingLightsMain,
   taxiLights,
+  taxiLightsGeneric,
   navLights,
   strobeLights,
   flapsRequest,
@@ -64,6 +65,7 @@ enum XPlaneDataRefKey {
   fireWarningEng2,
   fireWarningAPU,
   visibility,
+  wingArea,
 }
 
 /// X-Plane DataRef 配置项
@@ -166,8 +168,14 @@ class XPlaneDataRefs {
 
   static const XPlaneDataRef taxiLights = XPlaneDataRef(
     key: XPlaneDataRefKey.taxiLights,
-    path: 'sim/cockpit2/switches/generic_lights_switch[4]',
+    path: 'sim/cockpit2/switches/taxi_light_on',
     description: '滑行灯',
+  );
+
+  static const XPlaneDataRef taxiLightsGeneric = XPlaneDataRef(
+    key: XPlaneDataRefKey.taxiLightsGeneric,
+    path: 'sim/cockpit2/switches/generic_lights_switch[4]',
+    description: '滑行灯(通用灯光开关)',
   );
 
   static const XPlaneDataRef navLights = XPlaneDataRef(
@@ -364,6 +372,12 @@ class XPlaneDataRefs {
     description: '襟翼档位数',
   );
 
+  static const XPlaneDataRef wingArea = XPlaneDataRef(
+    key: XPlaneDataRefKey.wingArea,
+    path: 'sim/aircraft/geometry/wing_area',
+    description: '机翼面积',
+  );
+
   static const XPlaneDataRef com1Frequency = XPlaneDataRef(
     key: XPlaneDataRefKey.com1Frequency,
     path: 'sim/cockpit2/radios/actuators/com1_frequency_hz',
@@ -529,7 +543,12 @@ class XPlaneDataRefs {
       landingLight1,
       landingLight2,
       landingLight3,
-      taxiLights, navLights, strobeLights, logoLights, wingLights,
+      taxiLights,
+      taxiLightsGeneric,
+      navLights,
+      strobeLights,
+      logoLights,
+      wingLights,
       runwayTurnoffLeft, runwayTurnoffRight, wheelWellLights,
       // 襟翼和起落架
       flapsRequest, flapsAngle, gearDeploy,
@@ -542,7 +561,7 @@ class XPlaneDataRefs {
       // 监控数据
       gForce, baroPressure,
       // 机型辅助
-      numEngines, flapDetents, com1Frequency,
+      numEngines, flapDetents, wingArea, com1Frequency,
       // 起落架详细状态
       noseGearDeploy, leftGearDeploy, rightGearDeploy,
       // 襟翼状态

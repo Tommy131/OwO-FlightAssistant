@@ -1,3 +1,4 @@
+import '../data/aircraft_catalog.dart';
 import '../models/simulator_data.dart';
 
 /// 机型检测结果
@@ -30,13 +31,22 @@ class AircraftDetector {
     final n1_1 = data.engine1N1 ?? 0;
     final n1_2 = data.engine2N1 ?? 0;
     final flapDetents = data.flapDetentsCount ?? 0;
+    final title = data.aircraftTitle;
 
-    // 如果还没有获取到关键特征数据，继续等待
-    if (flapDetents == 0 && n1_1 < 0.1 && n1_2 < 0.1) {
+    if (flapDetents == 0 && n1_1 < 0.1 && n1_2 < 0.1 && title == null) {
       return null;
     }
 
-    String detectedType = _identifyAircraftType(n1_1, n1_2, flapDetents);
+    final match = AircraftCatalog.match(
+      title: title,
+      engineCount: data.numEngines,
+      flapDetents: flapDetents,
+      wingArea: data.wingArea,
+    );
+
+    final detectedType =
+        match?.identity.displayName ??
+        _identifyAircraftType(n1_1, n1_2, flapDetents, data.numEngines);
     if (detectedType == 'Unknown') {
       return null;
     }
@@ -62,8 +72,17 @@ class AircraftDetector {
   }
 
   /// 识别机型类型
-  String _identifyAircraftType(double n1_1, double n1_2, int flapDetents) {
+  String _identifyAircraftType(
+    double n1_1,
+    double n1_2,
+    int flapDetents,
+    int? engineCount,
+  ) {
     final isJet = n1_1 > 5 || n1_2 > 5 || flapDetents >= 5;
+
+    if (engineCount != null && engineCount >= 4) {
+      return 'Boeing 747';
+    }
 
     if (isJet) {
       if (flapDetents >= 8) {

@@ -4,6 +4,7 @@ import '../../models/simulator_data.dart';
 import '../../services/msfs_service.dart';
 import '../../services/xplane_service.dart';
 import '../../data/airports_database.dart';
+import '../../data/aircraft_catalog.dart';
 import 'dart:math' as math;
 
 import 'chart_history_mixin.dart';
@@ -297,6 +298,8 @@ class SimulatorProvider
       _simulatorData = data;
       bool shouldNotify = false;
 
+      _applyEngineCountFallback();
+
       if (data.isConnected && !verificationCompleter.isCompleted) {
         _status = ConnectionStatus.connected;
         verificationCompleter.complete(true);
@@ -386,6 +389,7 @@ class SimulatorProvider
     _dataSubscription = stream.listen((data) {
       if (!data.isConnected && isConnected) _handleConnectionLoss();
       _simulatorData = data;
+      _applyEngineCountFallback();
       _detectAndSyncAircraft();
       _syncWeatherState();
       updateChartHistory(isConnected, _simulatorData);
@@ -404,15 +408,52 @@ class SimulatorProvider
     }
   }
 
+  void _applyEngineCountFallback() {
+    final title = _simulatorData.aircraftTitle;
+    if (title == null || title.isEmpty) return;
+    final currentCount = _simulatorData.numEngines;
+    final match = AircraftCatalog.match(title: title);
+    final fallbackCount = match?.identity.engineCount;
+    final isSpecificGa = match?.identity.generalAviation == true &&
+        match?.identity.id != 'general-aviation';
+    if (fallbackCount != null &&
+        fallbackCount > 0 &&
+        (currentCount == null ||
+            currentCount <= 0 ||
+            (isSpecificGa && currentCount != fallbackCount))) {
+      _simulatorData = _simulatorData.copyWith(numEngines: fallbackCount);
+    }
+  }
+
   Function(String)? onAircraftDetected;
   void setAircraftDetectionCallback(Function(String) callback) =>
       onAircraftDetected = callback;
 
   void _notifyAircraftDetected(String aircraftTitle) {
     if (onAircraftDetected != null) {
-      String aircraftId = 'a320_series';
-      if (aircraftTitle.contains('737')) aircraftId = 'b737_series';
-      onAircraftDetected!(aircraftId);
+      final title = aircraftTitle.toLowerCase();
+      String? aircraftId;
+      final match = AircraftCatalog.match(title: aircraftTitle);
+      if (match != null) {
+        final manufacturer = match.identity.manufacturer.toLowerCase();
+        final family = match.identity.family.toLowerCase();
+        if (manufacturer.contains('airbus') || family.contains('a320')) {
+          aircraftId = 'a320_series';
+        } else if (manufacturer.contains('boeing') ||
+            family.contains('737') ||
+            family.contains('747') ||
+            family.contains('787')) {
+          aircraftId = 'b737_series';
+        }
+      }
+      aircraftId ??= title.contains('airbus') || title.contains('a320')
+          ? 'a320_series'
+          : title.contains('boeing') || title.contains('737')
+          ? 'b737_series'
+          : null;
+      if (aircraftId != null) {
+        onAircraftDetected!(aircraftId);
+      }
     }
   }
 }

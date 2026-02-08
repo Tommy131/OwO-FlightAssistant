@@ -44,6 +44,8 @@ class SimulatorData {
   final bool? runwayTurnoffLights; // 跑道脱离灯
   final int? flapsPosition;
   final int? flapDetentsCount; // 襟翼挡位数量 (总数)
+  final int? numEngines;
+  final double? wingArea;
   final double? flapsAngle; // 襟翼角度(度)
   final double? flapsDeployRatio; // 襟翼展开比例 (0-1)
   final bool? flapsDeployed; // 襟翼是否展开
@@ -117,6 +119,8 @@ class SimulatorData {
     this.runwayTurnoffLights,
     this.flapsPosition,
     this.flapDetentsCount,
+    this.numEngines,
+    this.wingArea,
     this.flapsAngle,
     this.flapsDeployRatio,
     this.flapsDeployed,
@@ -193,6 +197,8 @@ class SimulatorData {
     bool? runwayTurnoffLights,
     int? flapsPosition,
     int? flapDetentsCount,
+    int? numEngines,
+    double? wingArea,
     double? flapsAngle,
     double? flapsDeployRatio,
     bool? flapsDeployed,
@@ -265,6 +271,8 @@ class SimulatorData {
       runwayTurnoffLights: runwayTurnoffLights ?? this.runwayTurnoffLights,
       flapsPosition: flapsPosition ?? this.flapsPosition,
       flapDetentsCount: flapDetentsCount ?? this.flapDetentsCount,
+      numEngines: numEngines ?? this.numEngines,
+      wingArea: wingArea ?? this.wingArea,
       flapsAngle: flapsAngle ?? this.flapsAngle,
       flapsDeployRatio: flapsDeployRatio ?? this.flapsDeployRatio,
       flapsDeployed: flapsDeployed ?? this.flapsDeployed,

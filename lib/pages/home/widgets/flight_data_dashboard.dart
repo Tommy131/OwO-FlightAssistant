@@ -471,6 +471,7 @@ class FlightDataDashboard extends StatelessWidget {
   }
 
   Widget _buildEngineAndFuelData(ThemeData theme, SimulatorData data) {
+    final showSecondEngine = (data.numEngines ?? 2) > 1;
     return Container(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge),
       decoration: BoxDecoration(
@@ -516,24 +517,26 @@ class FlightDataDashboard extends StatelessWidget {
                     ? '${data.engine1N1!.toStringAsFixed(1)}%'
                     : 'N/A',
               ),
-              InfoChip(
-                label: 'ENG2 N1',
-                value: data.engine2N1 != null
-                    ? '${data.engine2N1!.toStringAsFixed(1)}%'
-                    : 'N/A',
-              ),
+              if (showSecondEngine)
+                InfoChip(
+                  label: 'ENG2 N1',
+                  value: data.engine2N1 != null
+                      ? '${data.engine2N1!.toStringAsFixed(1)}%'
+                      : 'N/A',
+                ),
               InfoChip(
                 label: 'ENG1 EGT',
                 value: data.engine1EGT != null
                     ? '${data.engine1EGT!.toStringAsFixed(0)}°C'
                     : 'N/A',
               ),
-              InfoChip(
-                label: 'ENG2 EGT',
-                value: data.engine2EGT != null
-                    ? '${data.engine2EGT!.toStringAsFixed(0)}°C'
-                    : 'N/A',
-              ),
+              if (showSecondEngine)
+                InfoChip(
+                  label: 'ENG2 EGT',
+                  value: data.engine2EGT != null
+                      ? '${data.engine2EGT!.toStringAsFixed(0)}°C'
+                      : 'N/A',
+                ),
             ],
           ),
         ],

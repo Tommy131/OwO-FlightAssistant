@@ -4,6 +4,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
 
 import '../models/simulator_data.dart';
+import '../utils/aircraft_detector.dart';
 import '../../core/utils/logger.dart';
 import 'config/msfs_simvars.dart';
 import 'config/simulator_config_service.dart';
@@ -20,6 +21,7 @@ class MSFSService {
   Stream<SimulatorData> get dataStream => _dataController.stream;
 
   SimulatorData _currentData = SimulatorData.empty();
+  final AircraftDetector _aircraftDetector = AircraftDetector();
 
   bool get isConnected => _isConnected;
 
@@ -194,6 +196,14 @@ class MSFSService {
       );
     }
 
+    final resolvedTitle = _resolveAircraftTitle(data);
+    if (resolvedTitle != null &&
+        (_currentData.aircraftTitle == null ||
+            _currentData.aircraftTitle!.isEmpty ||
+            _currentData.aircraftTitle == 'Unknown Aircraft')) {
+      _currentData = _currentData.copyWith(aircraftTitle: resolvedTitle);
+    }
+
     if (data.containsKey('BRAKE PARKING INDICATOR')) {
       _currentData = _currentData.copyWith(
         parkingBrake:
@@ -239,6 +249,13 @@ class MSFSService {
       );
     }
 
+    if (data.containsKey('FLAPS_NUM_HANDLE_POSITIONS')) {
+      _currentData = _currentData.copyWith(
+        flapDetentsCount:
+            (data['FLAPS_NUM_HANDLE_POSITIONS'] as num?)?.toInt(),
+      );
+    }
+
     if (data.containsKey('TRAILING_EDGE_FLAPS_LEFT_PERCENT')) {
       final ratio = (data['TRAILING_EDGE_FLAPS_LEFT_PERCENT'] as num?)
           ?.toDouble();
@@ -279,6 +296,12 @@ class MSFSService {
     if (data.containsKey('ENG_N1:2')) {
       _currentData = _currentData.copyWith(
         engine2N1: (data['ENG_N1:2'] as num?)?.toDouble(),
+      );
+    }
+
+    if (data.containsKey('NUMBER OF ENGINES')) {
+      _currentData = _currentData.copyWith(
+        numEngines: (data['NUMBER OF ENGINES'] as num?)?.toInt(),
       );
     }
 
@@ -433,23 +456,30 @@ class MSFSService {
       );
     }
 
-    // MSFS 机型识别辅助 (MSFS 一般会在消息中包含更多信息，或者我们根据经纬度反查)
-    if (_currentData.aircraftTitle == null ||
-        _currentData.aircraftTitle == 'Unknown Aircraft') {
-      _detectAircraftType();
-    }
+    _detectAircraftType();
   }
 
   void _detectAircraftType() {
-    // 简单的逻辑区分
-    final flaps = _currentData.flapsPosition ?? 0;
-    final isJet = (_currentData.engine1N1 ?? 0) > 10;
+    final detection = _aircraftDetector.detectAircraft(_currentData);
+    if (detection == null) return;
+    if (!detection.isStable) return;
+    _currentData = _currentData.copyWith(aircraftTitle: detection.aircraftType);
+  }
 
-    if (isJet) {
-      _currentData = _currentData.copyWith(
-        aircraftTitle: flaps > 5 ? 'Boeing 737' : 'Airbus A320',
-      );
+  String? _resolveAircraftTitle(Map<String, dynamic> data) {
+    final title = data['TITLE'];
+    if (title is String && title.trim().isNotEmpty) {
+      return title.trim();
     }
+    final type = data['ATC TYPE'];
+    final model = data['ATC MODEL'];
+    final id = data['ATC ID'];
+    final parts = <String>[];
+    if (type is String && type.trim().isNotEmpty) parts.add(type.trim());
+    if (model is String && model.trim().isNotEmpty) parts.add(model.trim());
+    if (id is String && id.trim().isNotEmpty) parts.add(id.trim());
+    if (parts.isEmpty) return null;
+    return parts.join(' ');
   }
 
   /// 发送消息到WebSocket服务器
