@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import '../models/airport_detail_data.dart';
 import 'airports_database.dart';
@@ -17,8 +18,8 @@ class XPlaneAptDatParser {
   static const String rowHelipad = '102';
   static const String rowFreqLegacyStart = '50';
   static const String rowFreqLegacyEnd = '56';
-  static const String rowFreqModern = '105';
-  static const String rowFreqExtra = '1300';
+  static const String rowFreqModernStart = '1050';
+  static const String rowFreqModernEnd = '1056';
   static const String rowMetadata = '1302';
   static const String rowEnd = '99';
 
@@ -322,20 +323,12 @@ class XPlaneAptDatParser {
         continue;
       }
 
-      // 处理通信频率 (50-56 或 105)
+      // 处理通信频率 (50-56 或 1050-1056)
       final freqCodeInt = int.tryParse(code);
       if (freqCodeInt != null &&
-          ((freqCodeInt >= 50 && freqCodeInt <= 56) || code == rowFreqModern)) {
+          ((freqCodeInt >= 50 && freqCodeInt <= 56) ||
+              (freqCodeInt >= 1050 && freqCodeInt <= 1056))) {
         final freq = _parseFrequencyRecord(code, parts);
-        if (freq != null) {
-          currentFreqs.add(freq);
-        }
-        continue;
-      }
-
-      // 1300: 额外的频率定义
-      if (code == rowFreqExtra) {
-        final freq = _parseExtraFrequencyRecord(parts);
         if (freq != null) {
           currentFreqs.add(freq);
         }
@@ -424,7 +417,21 @@ class XPlaneAptDatParser {
     final le = parts[8];
     final he = parts.length >= 18 ? parts[17] : null;
     final ident = he != null ? '$le/$he' : le;
-    return RunwayInfo(ident: ident);
+    final widthMeters = double.tryParse(parts[1]);
+    final surfaceCode = parts.length >= 3 ? parts[2] : null;
+    final lighted = parts.length >= 7
+        ? (int.tryParse(parts[6]) ?? 0) > 0
+        : null;
+    final lengthFt = _estimateRunwayLengthFt(parts);
+    return RunwayInfo(
+      ident: ident,
+      lengthFt: lengthFt,
+      widthFt: widthMeters != null ? (widthMeters * 3.28084).round() : null,
+      surface: _mapSurfaceCode(surfaceCode),
+      lighted: lighted,
+      leIdent: le,
+      heIdent: he,
+    );
   }
 
   /// 从 100 跑道记录中计算中点经纬度
@@ -463,78 +470,102 @@ class XPlaneAptDatParser {
     return null;
   }
 
-  /// 解析传统 (50-56) 或现代 (105) 频率记录
+  /// 解析传统 (50-56) 或现代 (1050-1056) 频率记录
   static FrequencyInfo? _parseFrequencyRecord(String code, List<String> parts) {
-    if (parts.length < 3) return null;
+    if (parts.length < 2) return null;
+    final codeInt = int.tryParse(code);
+    if (codeInt == null) return null;
 
-    if (code == rowFreqModern) {
-      final freqVal = double.tryParse(parts[1]);
-      if (freqVal != null) {
-        return FrequencyInfo(
-          type: _mapFreqType(parts[2]),
-          frequency: freqVal / 100.0,
-          description: parts.sublist(3).join(' '),
-        );
-      }
-    } else {
-      final freqVal = double.tryParse(parts[1]);
-      if (freqVal != null) {
-        return FrequencyInfo(
-          type: _mapLegacyFreqType(int.parse(code)),
-          frequency: freqVal / 100.0,
-          description: parts.sublist(2).join(' '),
-        );
-      }
-    }
-    return null;
-  }
+    final freqVal = double.tryParse(parts[1]);
+    if (freqVal == null) return null;
 
-  /// 解析 1300 扩展频率记录
-  static FrequencyInfo? _parseExtraFrequencyRecord(List<String> parts) {
-    if (parts.length < 3) return null;
-    final freq = double.tryParse(parts[1]);
-    if (freq != null) {
+    if (codeInt >= 1050 && codeInt <= 1056) {
       return FrequencyInfo(
-        type: parts[2].toUpperCase(),
-        frequency: freq,
-        description: parts.length > 3 ? parts.sublist(3).join(' ') : null,
+        type: _mapModernFreqType(codeInt),
+        frequency: _normalizeModernFrequency(freqVal),
+        description: parts.length > 2 ? parts.sublist(2).join(' ') : null,
       );
     }
+
+    if (codeInt >= 50 && codeInt <= 56) {
+      return FrequencyInfo(
+        type: _mapLegacyFreqType(codeInt),
+        frequency: _normalizeLegacyFrequency(freqVal),
+        description: parts.length > 2 ? parts.sublist(2).join(' ') : null,
+      );
+    }
+
     return null;
   }
 
-  /// 映射频率类型代码到人类可读标签
-  static String _mapFreqType(String typeCode) {
-    switch (typeCode.toUpperCase()) {
-      case '50':
-      case 'ATIS':
-        return 'ATIS';
-      case '51':
-      case 'UNIC':
-        return 'UNICOM';
-      case '52':
-      case 'CLD':
-        return 'DELIVERY';
-      case '53':
-      case 'GND':
-        return 'GROUND';
-      case '54':
-      case 'TWR':
-        return 'TOWER';
-      case '55':
-      case 'APP':
-        return 'APPROACH';
-      case '56':
-      case 'DEP':
-        return 'DEPARTURE';
-      case 'CTAF':
-        return 'CTAF';
-      case 'FSS':
-        return 'FSS';
+  static int? _estimateRunwayLengthFt(List<String> parts) {
+    if (parts.length < 20) return null;
+    final lat1 = double.tryParse(parts[9]);
+    final lon1 = double.tryParse(parts[10]);
+    final lat2 = double.tryParse(parts[18]);
+    final lon2 = double.tryParse(parts[19]);
+    if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) {
+      return null;
+    }
+    final meters = _haversineMeters(lat1, lon1, lat2, lon2);
+    if (meters == null) return null;
+    return (meters * 3.28084).round();
+  }
+
+  static double? _haversineMeters(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const earthRadius = 6371000.0;
+    final lat1Rad = _degToRad(lat1);
+    final lat2Rad = _degToRad(lat2);
+    final deltaLat = _degToRad(lat2 - lat1);
+    final deltaLon = _degToRad(lon2 - lon1);
+    final a =
+        (sin(deltaLat / 2) * sin(deltaLat / 2)) +
+        (cos(lat1Rad) * cos(lat2Rad) * sin(deltaLon / 2) * sin(deltaLon / 2));
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  static double _degToRad(double deg) => deg * (pi / 180.0);
+
+  static String? _mapSurfaceCode(String? raw) {
+    if (raw == null) return null;
+    final code = int.tryParse(raw);
+    if (code == null) return raw;
+    switch (code) {
+      case 1:
+        return 'ASP';
+      case 2:
+        return 'CON';
+      case 3:
+        return 'GRS';
+      case 4:
+        return 'DIRT';
+      case 5:
+        return 'GRAVEL';
+      case 12:
+        return 'WATER';
+      case 13:
+        return 'SNOW';
+      case 14:
+        return 'ICE';
+      case 15:
+        return 'ASP';
       default:
-        return typeCode.toUpperCase();
+        return raw;
     }
   }
+
+  static double _normalizeLegacyFrequency(double raw) {
+    if (raw >= 100000) return raw / 1000.0;
+    return raw / 100.0;
+  }
+
+  static double _normalizeModernFrequency(double raw) => raw / 1000.0;
 
   /// 映射旧版 (50-56) 频率代码
   static String _mapLegacyFreqType(int freqCode) {
@@ -544,15 +575,36 @@ class XPlaneAptDatParser {
       case 51:
         return 'UNICOM';
       case 52:
-        return 'DELIVERY';
+        return 'DEL';
       case 53:
-        return 'GROUND';
+        return 'GND';
       case 54:
-        return 'TOWER';
+        return 'TWR';
       case 55:
-        return 'APPROACH';
+        return 'APP';
       case 56:
-        return 'DEPARTURE';
+        return 'DEP';
+      default:
+        return 'UNKNOWN';
+    }
+  }
+
+  static String _mapModernFreqType(int freqCode) {
+    switch (freqCode) {
+      case 1050:
+        return 'ATIS';
+      case 1051:
+        return 'UNICOM';
+      case 1052:
+        return 'DEL';
+      case 1053:
+        return 'GND';
+      case 1054:
+        return 'TWR';
+      case 1055:
+        return 'APP';
+      case 1056:
+        return 'DEP';
       default:
         return 'UNKNOWN';
     }
