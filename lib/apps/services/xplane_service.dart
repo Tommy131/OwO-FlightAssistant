@@ -8,11 +8,10 @@ import '../utils/aircraft_detector.dart';
 import '../utils/data_converters.dart';
 import '../../core/utils/logger.dart';
 import 'config/xplane_datarefs.dart';
+import 'config/simulator_config_service.dart';
 
 /// X-Plane 连接服务（通过UDP）
 class XPlaneService {
-  static const int _xplanePort = 49000; // X-Plane 接收端口
-  static const int _localPort = 19190; // 本地监听端口
   static const Duration _connectionTimeout = Duration(seconds: 5);
 
   RawDatagramSocket? _socket;
@@ -22,6 +21,11 @@ class XPlaneService {
   Timer? _connectionVerificationTimer;
   DateTime? _lastDataReceived;
 
+  // 动态配置
+  String _targetIp = '127.0.0.1';
+  int _targetPort = 49000;
+  int _localPort = 19190;
+
   // 缓存复合状态
   final List<bool> _landingLightSwitches = List.filled(4, false);
   bool _mainLandingLightOn = false;
@@ -30,6 +34,12 @@ class XPlaneService {
 
   // 机型检测器
   final AircraftDetector _aircraftDetector = AircraftDetector();
+  bool _isZiboDataActive = false;
+  final _FlapResolver _flapResolver = _FlapResolver();
+  double? _flapsDeployRatio;
+  double? _flapsActualDegrees;
+  double? _flapsLeverZibo;
+  int _flapsDetentsCount = 0;
 
   final StreamController<SimulatorData> _dataController =
       StreamController<SimulatorData>.broadcast();
@@ -49,13 +59,31 @@ class XPlaneService {
       _connectionVerificationTimer != null;
 
   /// 连接到 X-Plane
-  Future<bool> connect() async {
+  Future<bool> connect({String? host, int? targetPort, int? localPort}) async {
     try {
       await disconnect(); // 确保旧的 socket 已关闭
       _isDisposed = false;
       _isConnected = false;
       _lastDataReceived = null;
       _currentData = SimulatorData();
+
+      _currentData = SimulatorData();
+
+      // 加载配置或使用传入参数
+      if (host != null && targetPort != null && localPort != null) {
+        _targetIp = host;
+        _targetPort = targetPort;
+        _localPort = localPort;
+      } else {
+        final config = await SimulatorConfigService().getXPlaneConfig();
+        _targetIp = config['ip'] as String;
+        _targetPort = config['port'] as int;
+        _localPort = config['local_port'] as int;
+      }
+
+      AppLogger.info(
+        'X-Plane 目标地址: $_targetIp:$_targetPort, 本地端口: $_localPort',
+      );
 
       AppLogger.info('正在绑定 UDP 端口 $_localPort...');
 
@@ -90,6 +118,44 @@ class XPlaneService {
     } catch (e) {
       AppLogger.error('连接 X-Plane 失败', e);
       return false;
+    }
+  }
+
+  /// 验证 X-Plane 连接是否可用 (包含握手验证)
+  Future<bool> verifyConnection({
+    String? host,
+    int? targetPort,
+    int? localPort,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    final success = await connect(
+      host: host,
+      targetPort: targetPort,
+      localPort: localPort,
+    );
+    if (!success) return false;
+
+    final Completer<bool> completer = Completer<bool>();
+    late StreamSubscription subscription;
+
+    subscription = dataStream.listen((data) {
+      if (data.isConnected && !completer.isCompleted) {
+        completer.complete(true);
+      }
+    });
+
+    try {
+      final result = await completer.future.timeout(
+        timeout,
+        onTimeout: () => false,
+      );
+      return result;
+    } catch (_) {
+      return false;
+    } finally {
+      await subscription.cancel();
+      // 验证完后断开，避免占用资源
+      await disconnect();
     }
   }
 
@@ -337,10 +403,7 @@ class XPlaneService {
         _updateRunwayTurnoffStatus();
         break;
       case XPlaneDataRefKey.flapsAngle:
-        // 襟翼角度,0-1的比例转换为实际角度(假设最大40度)
-        _currentData = _currentData.copyWith(
-          flapsAngle: DataConverters.flapRatioToDegrees(value),
-        );
+        _setFlapsState(deployRatio: value);
         break;
       case XPlaneDataRefKey.wheelWellLights:
         _currentData = _currentData.copyWith(wheelWellLights: value > 0.5);
@@ -400,8 +463,8 @@ class XPlaneService {
         _currentData = _currentData.copyWith(onGround: value > 0.5);
         break;
       case XPlaneDataRefKey.flapDetents:
-        _currentData = _currentData.copyWith(flapsPosition: value.toInt());
-        // 收到襟翼档位数据，这是区分机型的关键特征
+        _currentData = _currentData.copyWith(flapDetentsCount: value.toInt());
+        _setFlapsState(detentsCount: value.toInt());
         _detectAircraftType();
         break;
       case XPlaneDataRefKey.com1Frequency:
@@ -435,46 +498,13 @@ class XPlaneService {
         break;
       // 襟翼状态
       case XPlaneDataRefKey.flapsDeployRatio:
-        _currentData = _currentData.copyWith(
-          flapsDeployRatio: value,
-          flapsDeployed: value > 0.05, // 展开比例 > 5% 认为已展开
-        );
+        _setFlapsState(deployRatio: value);
         break;
       case XPlaneDataRefKey.flapsActualDegrees:
-        _currentData = _currentData.copyWith(flapsAngle: value);
+        _setFlapsState(actualDegrees: value);
         break;
       case XPlaneDataRefKey.flapsLeverZibo:
-        // ZIBO 738 襟翼手柄位置可能作为 0.0-1.0 (比例) 或 0-8 (索引) 返回
-        // 对应比例步骤: 0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0 为 9 个位置
-        int leverPos;
-        if (value >= 0 && value <= 1.0) {
-          leverPos = (value * 8).round();
-        } else {
-          leverPos = value.round();
-        }
-
-        String? label;
-        double? angle;
-        const ziboFlaps = [
-          0.0, // 0 = UP
-          1.0, // 1 = 1°
-          2.0, // 2 = 2°
-          5.0, // 3 = 5°
-          10.0, // 4 = 10°
-          15.0, // 5 = 15°
-          25.0, // 6 = 25°
-          30.0, // 7 = 30°
-          40.0, // 8 = 40°
-        ];
-        if (leverPos >= 0 && leverPos < ziboFlaps.length) {
-          angle = ziboFlaps[leverPos];
-          label = leverPos == 0 ? 'UP' : angle.toInt().toString();
-          _currentData = _currentData.copyWith(
-            flapsAngle: angle,
-            flapsDeployed: leverPos > 0,
-            flapsLabel: label,
-          );
-        }
+        _setFlapsState(ziboLever: value);
         break;
       // 减速板与扰流板
       case XPlaneDataRefKey.speedBrakeRatio:
@@ -491,15 +521,21 @@ class XPlaneService {
       // 自动刹车
       case XPlaneDataRefKey.autoBrake:
         // 注意：-1 表示不支持或未设置，0 表示 OFF
-        final level = value.toInt();
-        _currentData = _currentData.copyWith(
-          autoBrakeLevel: (level >= 1 && level <= 5) ? level : null,
-        );
+        final level = value.round();
+        final mappedLevel = (level >= 0 && level <= 5) ? level - 1 : null;
+        _currentData = _currentData.copyWith(autoBrakeLevel: mappedLevel);
         break;
       case XPlaneDataRefKey.autoBrakeZibo:
         // ZIBO 738 自动刹车原始值：0, 1, 2, 3, 4, 5
         // 对应：0=RTO, 1=OFF, 2=1, 3=2, 4=3, 5=MAX(4)
-        _currentData = _currentData.copyWith(autoBrakeLevel: value.round() - 1);
+        if (value >= 2) {
+          _isZiboDataActive = true;
+        }
+        if (_isZiboDataActive) {
+          _currentData = _currentData.copyWith(
+            autoBrakeLevel: value.round() - 1,
+          );
+        }
         break;
       // 警告系统
       case XPlaneDataRefKey.masterWarning:
@@ -537,6 +573,42 @@ class XPlaneService {
     );
   }
 
+  void _setFlapsState({
+    double? deployRatio,
+    double? actualDegrees,
+    double? ziboLever,
+    int? detentsCount,
+  }) {
+    if (deployRatio != null) {
+      _flapsDeployRatio = deployRatio.clamp(0.0, 1.0);
+    }
+    if (actualDegrees != null) {
+      _flapsActualDegrees = actualDegrees;
+    }
+    if (ziboLever != null) {
+      _flapsLeverZibo = ziboLever;
+    }
+    if (detentsCount != null) {
+      _flapsDetentsCount = detentsCount;
+    }
+
+    final result = _flapResolver.resolve(
+      aircraftTitle: _currentData.aircraftTitle ?? '',
+      flapDetentsCount: _flapsDetentsCount,
+      deployRatio: _flapsDeployRatio,
+      actualDegrees: _flapsActualDegrees,
+      ziboLever: _flapsLeverZibo,
+    );
+
+    _isZiboDataActive = result.isZiboActive;
+    _currentData = _currentData.copyWith(
+      flapsDeployRatio: result.deployRatio,
+      flapsAngle: result.angle,
+      flapsDeployed: result.deployed,
+      flapsLabel: result.label,
+    );
+  }
+
   Future<void> _subscribeDataRef(XPlaneDataRefKey key, String dref) async {
     if (_isDisposed) return;
 
@@ -571,7 +643,11 @@ class XPlaneService {
 
   void _sendData(List<int> data) {
     if (_socket != null && !_isDisposed) {
-      _socket!.send(data, InternetAddress('127.0.0.1'), _xplanePort);
+      try {
+        _socket!.send(data, InternetAddress(_targetIp), _targetPort);
+      } catch (e) {
+        // AppLogger.error('发送数据失败: $e');
+      }
     }
   }
 
@@ -608,5 +684,175 @@ class XPlaneService {
 
   List<int> _int32ToBytes(int value) {
     return DataConverters.int32ToBytes(value);
+  }
+}
+
+class _FlapResult {
+  final double? deployRatio;
+  final double? angle;
+  final bool deployed;
+  final String label;
+  final bool isZiboActive;
+
+  const _FlapResult({
+    required this.deployRatio,
+    required this.angle,
+    required this.deployed,
+    required this.label,
+    required this.isZiboActive,
+  });
+}
+
+class _FlapProfile {
+  final List<String> labels;
+  final List<double>? angles;
+  final double maxAngle;
+
+  const _FlapProfile({required this.labels, this.angles, this.maxAngle = 40.0});
+}
+
+class _FlapResolver {
+  _FlapResult resolve({
+    required String aircraftTitle,
+    required int flapDetentsCount,
+    double? deployRatio,
+    double? actualDegrees,
+    double? ziboLever,
+  }) {
+    final title = aircraftTitle.toLowerCase();
+    final ziboActive = _isZiboLeverActive(ziboLever) || title.contains('zibo');
+    final profile = _selectProfile(
+      title: title,
+      flapDetentsCount: flapDetentsCount,
+      zibo: ziboActive,
+    );
+    final detentCount = profile.labels.length;
+
+    double? normalizedRatio = deployRatio?.clamp(0.0, 1.0);
+    int? detentIndex;
+
+    if (ziboActive && ziboLever != null) {
+      detentIndex = _ziboLeverToIndex(ziboLever, detentCount);
+      if (detentCount > 1) {
+        normalizedRatio = detentIndex / (detentCount - 1);
+      } else {
+        normalizedRatio = 0;
+      }
+    }
+
+    if (detentIndex == null && normalizedRatio != null && detentCount > 1) {
+      detentIndex = (normalizedRatio * (detentCount - 1)).round();
+    }
+
+    if (detentIndex == null &&
+        actualDegrees != null &&
+        profile.angles != null) {
+      detentIndex = _nearestAngleIndex(actualDegrees, profile.angles!);
+    }
+
+    if (detentIndex == null &&
+        actualDegrees != null &&
+        profile.maxAngle > 0 &&
+        detentCount > 1) {
+      normalizedRatio = (actualDegrees / profile.maxAngle).clamp(0.0, 1.0);
+      detentIndex = (normalizedRatio * (detentCount - 1)).round();
+    }
+
+    double? angle;
+    if (detentIndex != null && profile.angles != null) {
+      angle = profile.angles![detentIndex];
+    } else if (actualDegrees != null) {
+      angle = actualDegrees;
+    } else if (normalizedRatio != null) {
+      angle = DataConverters.flapRatioToDegrees(
+        normalizedRatio,
+        maxDegrees: profile.maxAngle,
+      );
+    }
+
+    final label = _labelFor(profile, detentIndex, angle);
+    final deployed = angle != null
+        ? angle > 0.5
+        : (normalizedRatio != null ? normalizedRatio > 0.01 : false);
+
+    return _FlapResult(
+      deployRatio: normalizedRatio,
+      angle: angle,
+      deployed: deployed,
+      label: label,
+      isZiboActive: ziboActive,
+    );
+  }
+
+  _FlapProfile _selectProfile({
+    required String title,
+    required int flapDetentsCount,
+    required bool zibo,
+  }) {
+    if (zibo || _isB737(title, flapDetentsCount)) {
+      const labels = ['UP', '1', '2', '5', '10', '15', '25', '30', '40'];
+      const angles = [0.0, 1.0, 2.0, 5.0, 10.0, 15.0, 25.0, 30.0, 40.0];
+      return const _FlapProfile(labels: labels, angles: angles, maxAngle: 40);
+    }
+    if (_isA320(title, flapDetentsCount)) {
+      const labels = ['UP', '1', '2', '3', 'FULL'];
+      return const _FlapProfile(labels: labels, maxAngle: 40);
+    }
+    final count = flapDetentsCount > 0 ? flapDetentsCount + 1 : 2;
+    final labels = List.generate(
+      count,
+      (index) => index == 0 ? 'UP' : '$index',
+    );
+    return _FlapProfile(labels: labels, maxAngle: 40);
+  }
+
+  bool _isB737(String title, int flapDetentsCount) {
+    return title.contains('737') ||
+        title.contains('boeing') ||
+        flapDetentsCount >= 8;
+  }
+
+  bool _isA320(String title, int flapDetentsCount) {
+    return title.contains('a320') ||
+        title.contains('airbus') ||
+        flapDetentsCount == 4;
+  }
+
+  int _ziboLeverToIndex(double value, int detentCount) {
+    int index;
+    if (value >= 0 && value <= 1.0) {
+      index = (value * (detentCount - 1)).round();
+    } else {
+      index = value.round();
+    }
+    if (index < 0) return 0;
+    if (index >= detentCount) return detentCount - 1;
+    return index;
+  }
+
+  bool _isZiboLeverActive(double? value) {
+    if (value == null) return false;
+    return value > 0.01 || value >= 1;
+  }
+
+  int _nearestAngleIndex(double angle, List<double> angles) {
+    double bestDiff = double.infinity;
+    int best = 0;
+    for (var i = 0; i < angles.length; i++) {
+      final diff = (angle - angles[i]).abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  String _labelFor(_FlapProfile profile, int? detentIndex, double? angle) {
+    if (detentIndex != null && detentIndex < profile.labels.length) {
+      return profile.labels[detentIndex];
+    }
+    if (angle == null || angle < 0.5) return 'UP';
+    return angle.round().toString();
   }
 }

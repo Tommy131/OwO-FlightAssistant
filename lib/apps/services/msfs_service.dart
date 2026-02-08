@@ -6,11 +6,10 @@ import 'package:web_socket_channel/status.dart' as status;
 import '../models/simulator_data.dart';
 import '../../core/utils/logger.dart';
 import 'config/msfs_simvars.dart';
+import 'config/simulator_config_service.dart';
 
 /// MSFS 连接服务（通过WebSocket中间层）
 class MSFSService {
-  static const String _defaultWsUrl = 'ws://localhost:8080';
-
   WebSocketChannel? _channel;
   bool _isConnected = false;
   bool _isDisposed = false;
@@ -31,7 +30,21 @@ class MSFSService {
   Future<bool> connect({String? wsUrl}) async {
     try {
       _isDisposed = false;
-      final url = wsUrl ?? _defaultWsUrl;
+
+      String url;
+      if (wsUrl != null) {
+        url = wsUrl;
+      } else {
+        // 从配置加载
+        final config = await SimulatorConfigService().getMSFSConfig();
+        final ip = config['ip'] as String;
+        final port = config['port'] as int;
+        // 如果是 localhost，不需要加 ws://，直接 ws://localhost:port
+        // 但如果用户输入了 192.168.1.x，我们需要加上 ws://
+        // 简单处理：假设用户只输入 IP/域名，不含协议头
+        url = 'ws://$ip:$port';
+      }
+
       AppLogger.info('正在尝试连接 MSFS WebSocket 服务器: $url');
 
       // 关闭旧连接
@@ -76,6 +89,39 @@ class MSFSService {
       AppLogger.error('连接 MSFS 过程出现异常', e);
       _handleDisconnect();
       return false;
+    }
+  }
+
+  /// 验证 MSFS 连接是否可用
+  Future<bool> verifyConnection({
+    String? wsUrl,
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    final success = await connect(wsUrl: wsUrl);
+    if (!success) return false;
+
+    // 对于 MSFS，connect 成功基本就代表握手完成了，
+    // 但为了确保万一，我们可以等一包数据
+    final Completer<bool> completer = Completer<bool>();
+    StreamSubscription? subscription;
+
+    subscription = dataStream.listen((data) {
+      if (data.isConnected && !completer.isCompleted) {
+        completer.complete(true);
+      }
+    });
+
+    try {
+      final result = await completer.future.timeout(
+        timeout,
+        onTimeout: () => false,
+      );
+      return result;
+    } catch (_) {
+      return false;
+    } finally {
+      await subscription.cancel();
+      await disconnect();
     }
   }
 

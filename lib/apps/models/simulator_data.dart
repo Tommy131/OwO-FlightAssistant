@@ -43,6 +43,7 @@ class SimulatorData {
   final bool? wheelWellLights; // 轮舱灯
   final bool? runwayTurnoffLights; // 跑道脱离灯
   final int? flapsPosition;
+  final int? flapDetentsCount; // 襟翼挡位数量 (总数)
   final double? flapsAngle; // 襟翼角度(度)
   final double? flapsDeployRatio; // 襟翼展开比例 (0-1)
   final bool? flapsDeployed; // 襟翼是否展开
@@ -115,6 +116,7 @@ class SimulatorData {
     this.wheelWellLights, // 轮舱灯
     this.runwayTurnoffLights,
     this.flapsPosition,
+    this.flapDetentsCount,
     this.flapsAngle,
     this.flapsDeployRatio,
     this.flapsDeployed,
@@ -190,6 +192,7 @@ class SimulatorData {
     bool? wheelWellLights,
     bool? runwayTurnoffLights,
     int? flapsPosition,
+    int? flapDetentsCount,
     double? flapsAngle,
     double? flapsDeployRatio,
     bool? flapsDeployed,
@@ -261,6 +264,7 @@ class SimulatorData {
       wheelWellLights: wheelWellLights ?? this.wheelWellLights,
       runwayTurnoffLights: runwayTurnoffLights ?? this.runwayTurnoffLights,
       flapsPosition: flapsPosition ?? this.flapsPosition,
+      flapDetentsCount: flapDetentsCount ?? this.flapDetentsCount,
       flapsAngle: flapsAngle ?? this.flapsAngle,
       flapsDeployRatio: flapsDeployRatio ?? this.flapsDeployRatio,
       flapsDeployed: flapsDeployed ?? this.flapsDeployed,

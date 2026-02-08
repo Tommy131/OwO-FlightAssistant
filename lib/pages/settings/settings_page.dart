@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme_data.dart';
 import 'theme_settings_page.dart';
 import 'data_path_settings_page.dart';
+import 'connection_settings_page.dart';
 import '../airport_info/airport_debug_page.dart';
 
 /// 设置页面类型枚举
-enum SettingsPageType { main, theme, dataPath, debug }
+enum SettingsPageType { main, theme, dataPath, connection, debug }
 
 /// 设置页面配置类
 class SettingsPageConfig {
@@ -50,6 +51,13 @@ class _SettingsPageState extends State<SettingsPage> {
       subtitle: '配置本地模拟器数据路径与 API 令牌',
       icon: Icons.storage_rounded,
       builder: (onBack) => DataPathSettingsPage(onBack: onBack),
+    ),
+    SettingsPageConfig(
+      type: SettingsPageType.connection,
+      title: '模拟器连接',
+      subtitle: '配置 X-Plane 和 MSFS 的连接地址',
+      icon: Icons.settings_ethernet_rounded,
+      builder: (onBack) => ConnectionSettingsPage(onBack: onBack),
     ),
     SettingsPageConfig(
       type: SettingsPageType.debug,

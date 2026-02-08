@@ -23,6 +23,9 @@ class SimulatorProvider
   SimulatorData _simulatorData = SimulatorData.empty();
   String? _errorMessage;
   AirportInfo? _destinationAirport;
+
+  XPlaneService get xplaneService => _xplaneService;
+  MSFSService get msfsService => _msfsService;
   AirportInfo? _alternateAirport;
   StreamSubscription<SimulatorData>? _dataSubscription;
   Timer? _weatherTimer;

@@ -29,7 +29,7 @@ class AircraftDetector {
   AircraftDetectionResult? detectAircraft(SimulatorData data) {
     final n1_1 = data.engine1N1 ?? 0;
     final n1_2 = data.engine2N1 ?? 0;
-    final flapDetents = data.flapsPosition ?? 0;
+    final flapDetents = data.flapDetentsCount ?? 0;
 
     // 如果还没有获取到关键特征数据，继续等待
     if (flapDetents == 0 && n1_1 < 0.1 && n1_2 < 0.1) {
