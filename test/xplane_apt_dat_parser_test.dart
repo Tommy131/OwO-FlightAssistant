@@ -28,11 +28,15 @@ I
     expect(data.longitude, closeTo(121.336, 0.0001));
     expect(data.runways.any((r) => r.ident == '18L/36R'), isTrue);
     expect(
-      data.frequencies.all.any((f) => f.type == 'ATIS' && f.frequency == 127.85),
+      data.frequencies.all.any(
+        (f) => f.type == 'ATIS' && f.frequency == 127.85,
+      ),
       isTrue,
     );
     expect(
-      data.frequencies.all.any((f) => f.type == 'UNICOM' && f.frequency == 121.50),
+      data.frequencies.all.any(
+        (f) => f.type == 'UNICOM' && f.frequency == 121.50,
+      ),
       isTrue,
     );
   });

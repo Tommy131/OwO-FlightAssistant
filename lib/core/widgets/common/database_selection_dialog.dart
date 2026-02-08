@@ -16,7 +16,8 @@ class DatabaseSelectionDialog extends StatefulWidget {
   });
 
   @override
-  State<DatabaseSelectionDialog> createState() => _DatabaseSelectionDialogState();
+  State<DatabaseSelectionDialog> createState() =>
+      _DatabaseSelectionDialogState();
 }
 
 class _DatabaseSelectionDialogState extends State<DatabaseSelectionDialog> {
@@ -29,8 +30,12 @@ class _DatabaseSelectionDialogState extends State<DatabaseSelectionDialog> {
     _selectedLnmPath = widget.currentLnmPath;
     _selectedXPlanePath = widget.currentXPlanePath;
 
-    final lnmDbs = widget.detectedDbs.where((db) => db['type']!.contains('Little Navmap')).toList();
-    final xplaneDbs = widget.detectedDbs.where((db) => db['type']!.contains('X-Plane')).toList();
+    final lnmDbs = widget.detectedDbs
+        .where((db) => db['type']!.contains('Little Navmap'))
+        .toList();
+    final xplaneDbs = widget.detectedDbs
+        .where((db) => db['type']!.contains('X-Plane'))
+        .toList();
 
     if (_selectedLnmPath == null && lnmDbs.isNotEmpty) {
       _selectedLnmPath = lnmDbs.first['path'];
@@ -49,7 +54,9 @@ class _DatabaseSelectionDialogState extends State<DatabaseSelectionDialog> {
   }) {
     return Card(
       elevation: isSelected ? 2 : 0,
-      color: isSelected ? theme.colorScheme.primaryContainer.withAlpha(50) : null,
+      color: isSelected
+          ? theme.colorScheme.primaryContainer.withAlpha(50)
+          : null,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
@@ -61,7 +68,9 @@ class _DatabaseSelectionDialogState extends State<DatabaseSelectionDialog> {
         dense: true,
         leading: Icon(
           icon,
-          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outline,
+          color: isSelected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.outline,
         ),
         title: Row(
           children: [
@@ -91,8 +100,12 @@ class _DatabaseSelectionDialogState extends State<DatabaseSelectionDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final lnmDbs = widget.detectedDbs.where((db) => db['type']!.contains('Little Navmap')).toList();
-    final xplaneDbs = widget.detectedDbs.where((db) => db['type']!.contains('X-Plane')).toList();
+    final lnmDbs = widget.detectedDbs
+        .where((db) => db['type']!.contains('Little Navmap'))
+        .toList();
+    final xplaneDbs = widget.detectedDbs
+        .where((db) => db['type']!.contains('X-Plane'))
+        .toList();
 
     return AlertDialog(
       title: const Text('选择要使用的数据库'),
@@ -114,13 +127,15 @@ class _DatabaseSelectionDialogState extends State<DatabaseSelectionDialog> {
                     ),
                   ),
                 ),
-                ...lnmDbs.map((db) => _buildDatabaseCard(
-                      theme: theme,
-                      db: db,
-                      isSelected: _selectedLnmPath == db['path'],
-                      icon: Icons.map_outlined,
-                      onTap: () => setState(() => _selectedLnmPath = db['path']),
-                    )),
+                ...lnmDbs.map(
+                  (db) => _buildDatabaseCard(
+                    theme: theme,
+                    db: db,
+                    isSelected: _selectedLnmPath == db['path'],
+                    icon: Icons.map_outlined,
+                    onTap: () => setState(() => _selectedLnmPath = db['path']),
+                  ),
+                ),
                 const Divider(height: 24),
               ],
               if (xplaneDbs.isNotEmpty) ...[
@@ -134,13 +149,16 @@ class _DatabaseSelectionDialogState extends State<DatabaseSelectionDialog> {
                     ),
                   ),
                 ),
-                ...xplaneDbs.map((db) => _buildDatabaseCard(
-                      theme: theme,
-                      db: db,
-                      isSelected: _selectedXPlanePath == db['path'],
-                      icon: Icons.flight_takeoff,
-                      onTap: () => setState(() => _selectedXPlanePath = db['path']),
-                    )),
+                ...xplaneDbs.map(
+                  (db) => _buildDatabaseCard(
+                    theme: theme,
+                    db: db,
+                    isSelected: _selectedXPlanePath == db['path'],
+                    icon: Icons.flight_takeoff,
+                    onTap: () =>
+                        setState(() => _selectedXPlanePath = db['path']),
+                  ),
+                ),
               ],
             ],
           ),
@@ -156,7 +174,8 @@ class _DatabaseSelectionDialogState extends State<DatabaseSelectionDialog> {
             backgroundColor: theme.colorScheme.primary,
             foregroundColor: theme.colorScheme.onPrimary,
           ),
-          onPressed: () => widget.onConfirm(_selectedLnmPath, _selectedXPlanePath),
+          onPressed: () =>
+              widget.onConfirm(_selectedLnmPath, _selectedXPlanePath),
           child: const Text('确定'),
         ),
       ],

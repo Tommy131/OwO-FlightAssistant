@@ -4,27 +4,25 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
-import 'apps/data/airports_database.dart';
-import 'apps/services/airport_detail_service.dart';
-import 'core/theme/theme_provider.dart';
 import 'apps/providers/checklist_provider.dart';
 import 'apps/providers/simulator/simulator_provider.dart';
+import 'pages/airport_info/providers/airport_info_provider.dart';
 import 'core/constants/app_constants.dart';
 import 'core/layouts/desktop_layout.dart';
 import 'core/layouts/mobile_layout.dart';
 import 'core/layouts/responsive.dart';
 import 'core/models/navigation_item.dart';
-import 'core/utils/logger.dart';
+import 'apps/services/app_initializer.dart';
+import 'core/theme/theme_provider.dart';
 import 'core/widgets/common/dialog.dart';
 import 'core/widgets/desktop/custom_title_bar.dart';
-import 'pages/home/home_page.dart';
-import 'pages/checklist/checklist_page.dart';
-import 'pages/settings/settings_page.dart';
-import 'pages/monitor/monitor_page.dart';
 import 'pages/airport_info/airport_info_page.dart';
-import 'pages/splash/splash_screen.dart';
+import 'pages/checklist/checklist_page.dart';
+import 'pages/home/home_page.dart';
+import 'pages/monitor/monitor_page.dart';
+import 'pages/settings/settings_page.dart';
 import 'pages/setup/setup_guide_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'pages/splash/splash_screen.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -36,6 +34,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => ChecklistProvider()),
         ChangeNotifierProvider(create: (_) => SimulatorProvider()),
+        ChangeNotifierProvider(create: (_) => AirportInfoProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
@@ -122,82 +121,33 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
         });
 
         // 在这里启动预加载，确保在 UI 渲染出 SplashScreen 后开始
-        _preloadAirportData();
+        _initializeApp();
       }
     });
 
     _init();
   }
 
-  Future<void> _preloadAirportData() async {
-    // 延迟一小段时间，确保 SplashScreen 能够被用户看见
-    await Future.delayed(const Duration(milliseconds: 800));
+  Future<void> _initializeApp() async {
+    final needsSetup = await AppInitializer.checkSetupNeeded();
 
-    // 检查是否已配置 LNM 路径
-    final prefs = await SharedPreferences.getInstance();
-    final lnmPath = prefs.getString('lnm_nav_data_path');
-    if (lnmPath == null || lnmPath.isEmpty || !await File(lnmPath).exists()) {
+    if (needsSetup) {
       if (mounted) {
         setState(() {
           _needsSetup = true;
           _isPreloading = false;
         });
-        // 进入配置页面也需要调整窗口大小
-        await _switchToMainWindow();
+        await AppInitializer.setupWindow();
       }
       return;
     }
 
-    // 如果数据库已经有数据，不需要重复加载
-    if (!AirportsDatabase.isEmpty) {
+    await AppInitializer.preloadAirportData();
+
+    if (mounted) {
       setState(() => _isPreloading = false);
-      _switchToMainWindow();
-      return;
+      await AppInitializer.setupWindow();
     }
-
-    try {
-      final detailService = AirportDetailService();
-      final currentDataSource = await detailService.getDataSource();
-
-      // 异步加载机场列表，不阻塞 UI 线程
-      final airports = await detailService.loadAllAirports(
-        source: currentDataSource,
-      );
-
-      if (airports.isNotEmpty) {
-        AirportsDatabase.updateAirports(
-          airports
-              .map(
-                (a) => AirportInfo(
-                  icaoCode: a['icao'] ?? '',
-                  iataCode: a['iata'] ?? '',
-                  nameChinese: a['name'] ?? '',
-                  latitude: (a['lat'] as num?)?.toDouble() ?? 0.0,
-                  longitude: (a['lon'] as num?)?.toDouble() ?? 0.0,
-                ),
-              )
-              .toList(),
-        );
-        AppLogger.info('App 启动: 成功预加载 ${airports.length} 个机场数据');
-      } else {
-        AppLogger.warning(
-          'App 启动: 未能预加载机场数据 (数据源: ${currentDataSource.displayName})',
-        );
-      }
-    } catch (e) {
-      AppLogger.error('App 启动: 预加载机场数据失败: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isPreloading = false);
-        _switchToMainWindow();
-      }
-    }
-  }
-
-  Future<void> _switchToMainWindow() async {
-    await windowManager.setSize(const Size(1266, 800));
-    await windowManager.setMinimumSize(const Size(816, 600));
-    await windowManager.center();
   }
 
   void _init() async {
@@ -240,7 +190,7 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
             _needsSetup = false;
             _isPreloading = true; // 重新进入预加载流程
           });
-          _preloadAirportData();
+          _initializeApp();
         },
       );
     }

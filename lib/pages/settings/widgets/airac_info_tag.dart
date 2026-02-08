@@ -24,7 +24,9 @@ class AiracInfoTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: isExpired ? colorScheme.errorContainer : colorScheme.primaryContainer,
+        color: isExpired
+            ? colorScheme.errorContainer
+            : colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
@@ -33,19 +35,25 @@ class AiracInfoTag extends StatelessWidget {
           Text(
             showAiracLabel ? 'AIRAC $airac' : airac!,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: isExpired ? colorScheme.onErrorContainer : colorScheme.onPrimaryContainer,
+              color: isExpired
+                  ? colorScheme.onErrorContainer
+                  : colorScheme.onPrimaryContainer,
               fontWeight: FontWeight.bold,
             ),
           ),
           if (expiry != null && expiry!.isNotEmpty) ...[
             const SizedBox(width: 4),
             Text(
-              isExpired ? '(已过期: $expiry)' : (showAiracLabel ? '(有效期至: $expiry)' : expiry!),
+              isExpired
+                  ? '(已过期: $expiry)'
+                  : (showAiracLabel ? '(有效期至: $expiry)' : expiry!),
               style: theme.textTheme.labelSmall?.copyWith(
                 fontSize: showAiracLabel ? 9 : 10,
                 color: isExpired
                     ? colorScheme.onErrorContainer
-                    : colorScheme.onPrimaryContainer.withAlpha(showAiracLabel ? 180 : 255),
+                    : colorScheme.onPrimaryContainer.withAlpha(
+                        showAiracLabel ? 180 : 255,
+                      ),
               ),
             ),
           ],

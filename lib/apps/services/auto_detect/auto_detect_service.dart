@@ -60,7 +60,9 @@ class AutoDetectService {
         ];
 
         for (final dir in possibleDirs) {
-          final defaultFile = File('$dir\\Resources\\default data\\earth_nav.dat');
+          final defaultFile = File(
+            '$dir\\Resources\\default data\\earth_nav.dat',
+          );
           if (await defaultFile.exists()) {
             await addDb(defaultFile.path, AirportDataSource.xplaneData);
           }

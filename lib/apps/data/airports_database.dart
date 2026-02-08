@@ -1,45 +1,5 @@
-import '../models/airport_detail_data.dart';
-
-/// 机场数据库模型
-class AirportInfo {
-  final String icaoCode;
-  final String iataCode;
-  final String nameChinese;
-  final double latitude;
-  final double longitude;
-
-  const AirportInfo({
-    required this.icaoCode,
-    this.iataCode = '',
-    required this.nameChinese,
-    required this.latitude,
-    required this.longitude,
-  });
-
-  factory AirportInfo.placeholder(String icaoCode) {
-    return AirportInfo(
-      icaoCode: icaoCode.toUpperCase(),
-      nameChinese: '未知机场 (在线获取)',
-      latitude: 0.0,
-      longitude: 0.0,
-    );
-  }
-
-  factory AirportInfo.fromDetail(AirportDetailData detail) {
-    return AirportInfo(
-      icaoCode: detail.icaoCode,
-      iataCode: detail.iataCode ?? '',
-      nameChinese: detail.name,
-      latitude: detail.latitude,
-      longitude: detail.longitude,
-    );
-  }
-
-  String get displayName {
-    final codes = [icaoCode, if (iataCode.isNotEmpty) iataCode].join('/');
-    return '$codes $nameChinese';
-  }
-}
+import '../models/airport_info.dart';
+export '../models/airport_info.dart';
 
 /// 机场数据库管理器
 class AirportsDatabase {
@@ -105,9 +65,12 @@ class AirportsDatabase {
   static List<AirportInfo> search(String keyword) {
     if (keyword.isEmpty) return [];
     final lowerKeyword = keyword.toLowerCase();
-    
+
     // 检查是否可能是经纬度搜索 (例如 "31.2, 121.4")
-    final coordParts = lowerKeyword.split(RegExp(r'[,\s]+')).where((p) => p.isNotEmpty).toList();
+    final coordParts = lowerKeyword
+        .split(RegExp(r'[,\s]+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     double? searchLat;
     double? searchLon;
     if (coordParts.length == 2) {
@@ -119,10 +82,10 @@ class AirportsDatabase {
       final icao = airport.icaoCode.toLowerCase();
       final iata = airport.iataCode.toLowerCase();
       final name = airport.nameChinese.toLowerCase();
-      
+
       // 基础文本匹配
-      if (icao.contains(lowerKeyword) || 
-          iata.contains(lowerKeyword) || 
+      if (icao.contains(lowerKeyword) ||
+          iata.contains(lowerKeyword) ||
           name.contains(lowerKeyword)) {
         return true;
       }
@@ -133,7 +96,7 @@ class AirportsDatabase {
         final dLon = (airport.longitude - searchLon).abs();
         if (dLat < 0.1 && dLon < 0.1) return true; // 约 11km 范围内
       }
-      
+
       // 坐标字符串匹配 (搜索数字)
       final latStr = airport.latitude.toString();
       final lonStr = airport.longitude.toString();

@@ -9,7 +9,7 @@ import 'widgets/settings_widgets.dart';
 import 'widgets/data_path_item.dart';
 
 import '../../apps/services/airport_detail_service.dart';
-import '../../apps/services/auto_detect/auto_detect_service.dart';
+import '../../apps/services/database_path_service.dart';
 import '../../core/widgets/common/database_selection_dialog.dart';
 
 /// 数据路径设置页面
@@ -45,9 +45,8 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
 
   final TextEditingController _tokenController = TextEditingController();
   final AirportDetailService _airportService = AirportDetailService();
+  final DatabasePathService _databasePathService = DatabasePathService();
 
-  static const String _xplanePathKey = 'xplane_nav_data_path';
-  static const String _lnmPathKey = 'lnm_nav_data_path';
   static const String _airportDbTokenKey = 'airportdb_token';
   static const String _metarExpiryKey = 'metar_cache_expiry';
   static const String _airportExpiryKey = 'airport_data_expiry';
@@ -72,8 +71,8 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     final appSupportDir = await getApplicationSupportDirectory();
 
-    final xplanePath = prefs.getString(_xplanePathKey);
-    final lnmPath = prefs.getString(_lnmPathKey);
+    final xplanePath = prefs.getString(DatabasePathService.xplanePathKey);
+    final lnmPath = prefs.getString(DatabasePathService.lnmPathKey);
 
     Map<String, String>? xplaneInfo;
     Map<String, String>? lnmInfo;
@@ -108,13 +107,11 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
     });
   }
 
-  final AutoDetectService _autoDetectService = AutoDetectService();
-
   Future<void> _autoDetectPaths() async {
     setState(() => _isDetecting = true);
 
     try {
-      final detectedDbs = await _autoDetectService.detectPaths();
+      final detectedDbs = await _databasePathService.detectDatabases();
 
       if (detectedDbs.isNotEmpty) {
         if (mounted) {
@@ -125,30 +122,20 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
               currentLnmPath: _lnmPath,
               currentXPlanePath: _xplanePath,
               onConfirm: (lnmPath, xplanePath) async {
-                final prefs = await SharedPreferences.getInstance();
-                if (lnmPath != null) {
-                  await prefs.setString(_lnmPathKey, lnmPath);
-                  final info = await _airportService.getDatabaseInfo(
-                    lnmPath,
-                    AirportDataSource.lnmData,
-                  );
-                  setState(() {
-                    _lnmPath = lnmPath;
-                    _lnmInfo = info;
-                  });
-                }
-
-                if (xplanePath != null) {
-                  await prefs.setString(_xplanePathKey, xplanePath);
-                  final info = await _airportService.getDatabaseInfo(
-                    xplanePath,
-                    AirportDataSource.xplaneData,
-                  );
-                  setState(() {
-                    _xplanePath = xplanePath;
-                    _xplaneInfo = info;
-                  });
-                }
+                final result = await _databasePathService.saveSelectedPaths(
+                  lnmPath: lnmPath,
+                  xplanePath: xplanePath,
+                );
+                setState(() {
+                  if (result.lnmPath != null) {
+                    _lnmPath = result.lnmPath;
+                    _lnmInfo = result.lnmInfo;
+                  }
+                  if (result.xplanePath != null) {
+                    _xplanePath = result.xplanePath;
+                    _xplaneInfo = result.xplaneInfo;
+                  }
+                });
 
                 if (mounted) {
                   Navigator.of(context).pop();
@@ -197,18 +184,11 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
       final path = result.files.single.path!;
 
       setState(() => _isValidating = true);
-      final isValid = await _airportService.validateXPlaneData(path);
+      final info = await _databasePathService.saveXPlanePath(path);
       setState(() => _isValidating = false);
 
       if (mounted) {
-        if (isValid) {
-          final prefs = await SharedPreferences.getInstance();
-          if (!mounted) return;
-          await prefs.setString(_xplanePathKey, path);
-          final info = await _airportService.getDatabaseInfo(
-            path,
-            AirportDataSource.xplaneData,
-          );
+        if (info != null) {
           setState(() {
             _xplanePath = path;
             _xplaneInfo = info;
@@ -241,18 +221,11 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
       final path = result.files.single.path!;
 
       setState(() => _isValidating = true);
-      final isValid = await _airportService.validateLnmDatabase(path);
+      final info = await _databasePathService.saveLnmPath(path);
       setState(() => _isValidating = false);
 
       if (mounted) {
-        if (isValid) {
-          final prefs = await SharedPreferences.getInstance();
-          if (!mounted) return;
-          await prefs.setString(_lnmPathKey, path);
-          final info = await _airportService.getDatabaseInfo(
-            path,
-            AirportDataSource.lnmData,
-          );
+        if (info != null) {
           setState(() {
             _lnmPath = path;
             _lnmInfo = info;

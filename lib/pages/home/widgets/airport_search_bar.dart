@@ -65,15 +65,16 @@ class _AirportSearchBarState extends State<AirportSearchBar> {
                       child: Text(
                         '未找到相关机场',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
                       ),
                     )
                   : ListView.separated(
                       padding: EdgeInsets.zero,
                       shrinkWrap: true,
                       itemCount: _results.length,
-                      separatorBuilder: (context, index) => const Divider(height: 1),
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1),
                       itemBuilder: (context, index) {
                         final airport = _results[index];
                         return ListTile(
@@ -89,7 +90,8 @@ class _AirportSearchBarState extends State<AirportSearchBar> {
                           ),
                           trailing: Text(
                             '${airport.latitude.toStringAsFixed(2)}, ${airport.longitude.toStringAsFixed(2)}',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
                                   color: Theme.of(context).colorScheme.outline,
                                 ),
                           ),
@@ -164,11 +166,15 @@ class _AirportSearchBarState extends State<AirportSearchBar> {
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: theme.colorScheme.outline.withAlpha(50)),
+            borderSide: BorderSide(
+              color: theme.colorScheme.outline.withAlpha(50),
+            ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: theme.colorScheme.outline.withAlpha(50)),
+            borderSide: BorderSide(
+              color: theme.colorScheme.outline.withAlpha(50),
+            ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
