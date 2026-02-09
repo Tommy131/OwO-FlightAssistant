@@ -87,6 +87,7 @@ class _MapPageState extends State<MapPage> {
                   (simProvider.remainingDistance ?? 100) < 25);
           final onGround = data.onGround ?? true;
           final zoom = _isMapReady ? _mapController.camera.zoom : 15.0;
+          final tileSubdomains = const ['a', 'b', 'c', 'd'];
 
           return Scaffold(
             body: Stack(
@@ -125,9 +126,29 @@ class _MapPageState extends State<MapPage> {
                   children: [
                     TileLayer(
                       urlTemplate: getTileUrl(_layerType),
-                      subdomains: const ['a', 'b', 'c', 'd'],
+                      subdomains: tileSubdomains,
                       userAgentPackageName: 'com.owo.flight_assistant',
+                      tileDisplay: const TileDisplay.fadeIn(),
                     ),
+                    if (_layerType == MapLayerType.aviation ||
+                        _layerType == MapLayerType.aviationDark)
+                      Opacity(
+                        opacity: _layerType == MapLayerType.aviation ? 0.35 : 0.25,
+                        child: TileLayer(
+                          urlTemplate: getAviationOverlayUrl(_layerType)!,
+                          subdomains: const ['a', 'b', 'c'],
+                          userAgentPackageName:
+                              'com.owo.flight_assistant/1.0 (Aviation Overlay)',
+                          maxNativeZoom: 19,
+                          minZoom: 3,
+                          tileDisplay: const TileDisplay.fadeIn(
+                            duration: Duration(milliseconds: 300),
+                          ),
+                          errorTileCallback: (tile, error, stackTrace) {
+                            // 静默处理 404 错误，避免影响用户体验
+                          },
+                        ),
+                      ),
 
                     if (mapProvider.showWeatherRadar &&
                         mapProvider.weatherRadarTimestamp != null)
@@ -210,9 +231,7 @@ class _MapPageState extends State<MapPage> {
                         // Target (Searched) Airport Center
                         if (mapProvider.targetAirport != null)
                           Marker(
-                            point: getAirportCenter(
-                              mapProvider.targetAirport!,
-                            ),
+                            point: getAirportCenter(mapProvider.targetAirport!),
                             width: 80,
                             height: 80,
                             child: AirportPin(

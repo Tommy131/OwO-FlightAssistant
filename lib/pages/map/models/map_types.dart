@@ -2,4 +2,4 @@
 enum MapOrientationMode { northUp, trackUp }
 
 /// 地图底图类型
-enum MapLayerType { dark, satellite, street, terrain }
+enum MapLayerType { dark, satellite, street, terrain, aviation, aviationDark }

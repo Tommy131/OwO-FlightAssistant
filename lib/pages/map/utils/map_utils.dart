@@ -14,19 +14,38 @@ String getTileUrl(MapLayerType type) {
       return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
     case MapLayerType.dark:
       return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    case MapLayerType.aviation:
+      return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png';
+    case MapLayerType.aviationDark:
+      return 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}{r}.png';
+  }
+}
+
+String? getAviationOverlayUrl(MapLayerType type) {
+  switch (type) {
+    case MapLayerType.aviation:
+      // 使用标准 OSM 瓦片作为基础，它对中文等非拉丁字符有更好的支持
+      return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    case MapLayerType.aviationDark:
+      // 航空深色模式下，我们依然使用标准 OSM，但会在 map_page 中通过 Opacity 和背景色进行处理
+      return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    default:
+      return null;
   }
 }
 
 /// 计算航线总航程（海里）
 int calculateTotalDistance(MapProvider provider) {
-  if (provider.departureAirport == null || provider.destinationAirport == null) {
+  if (provider.departureAirport == null ||
+      provider.destinationAirport == null) {
     return 0;
   }
 
   final Distance distance = const Distance();
   double totalMeters = 0;
 
-  if (provider.alternateAirport != null && provider.alternateAirport!.latitude != 0) {
+  if (provider.alternateAirport != null &&
+      provider.alternateAirport!.latitude != 0) {
     totalMeters += distance(
       LatLng(
         provider.departureAirport!.latitude,
@@ -108,8 +127,5 @@ LatLng getAirportCenter(AirportDetailData airport) {
     return LatLng(airport.latitude, airport.longitude);
   }
 
-  return LatLng(
-    (minLat! + maxLat!) / 2.0,
-    (minLon! + maxLon!) / 2.0,
-  );
+  return LatLng((minLat! + maxLat!) / 2.0, (minLon! + maxLon!) / 2.0);
 }
