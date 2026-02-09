@@ -392,10 +392,22 @@ class FlightLogService {
     );
     final file = File(filePath);
 
+    // 如果文件不存在（可能尚未保存），先保存
+    if (!await file.exists()) {
+      await saveLog(log);
+    }
+
     if (await file.exists()) {
       await Share.shareXFiles([
         XFile(filePath),
       ], subject: '飞行日志: ${log.aircraftTitle} 从 ${log.departureAirport}');
+    }
+  }
+
+  /// 导出当前正在记录或最近一次记录的日志
+  Future<void> exportCurrentLog() async {
+    if (_currentLog != null) {
+      await exportLog(_currentLog!);
     }
   }
 
