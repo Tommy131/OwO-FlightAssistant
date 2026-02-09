@@ -66,6 +66,8 @@ class SimulatorData {
   final double? speedBrakePosition; // 减速板位置 (0-1)
   final bool? spoilersDeployed; // 扰流板展开
   final int? autoBrakeLevel; // 自动刹车挡位 (0=OFF, 1-5)
+  final int? transponderState;
+  final String? transponderCode;
   // 警告系统
   final bool? masterWarning; // 主警告
   final bool? masterCaution; // 主告警
@@ -140,6 +142,8 @@ class SimulatorData {
     this.speedBrakePosition,
     this.spoilersDeployed,
     this.autoBrakeLevel,
+    this.transponderState,
+    this.transponderCode,
     // 警告系统
     this.masterWarning,
     this.masterCaution,
@@ -219,6 +223,8 @@ class SimulatorData {
     double? speedBrakePosition,
     bool? spoilersDeployed,
     int? autoBrakeLevel,
+    int? transponderState,
+    String? transponderCode,
     // 警告系统
     bool? masterWarning,
     bool? masterCaution,
@@ -294,6 +300,8 @@ class SimulatorData {
       speedBrakePosition: speedBrakePosition ?? this.speedBrakePosition,
       spoilersDeployed: spoilersDeployed ?? this.spoilersDeployed,
       autoBrakeLevel: autoBrakeLevel ?? this.autoBrakeLevel,
+      transponderState: transponderState ?? this.transponderState,
+      transponderCode: transponderCode ?? this.transponderCode,
       // 警告系统
       masterWarning: masterWarning ?? this.masterWarning,
       masterCaution: masterCaution ?? this.masterCaution,

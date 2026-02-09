@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../apps/providers/simulator/simulator_provider.dart';
 import '../../../core/theme/app_theme_data.dart';
+import '../../../core/widgets/common/data_link_placeholder.dart';
 
 class WelcomeCard extends StatelessWidget {
   const WelcomeCard({super.key});
@@ -15,6 +16,14 @@ class WelcomeCard extends StatelessWidget {
         final isConnected = simProvider.isConnected;
         final aircraftTitle = simProvider.simulatorData.aircraftTitle;
         final isPaused = simProvider.simulatorData.isPaused ?? false;
+        final transponderState = simProvider.simulatorData.transponderState;
+        final transponderCode = simProvider.simulatorData.transponderCode;
+        final showTransponder =
+            isConnected &&
+            (transponderState != null || transponderCode != null);
+        final transponderColor = TransponderStatusText.specialColor(
+          transponderCode,
+        );
 
         String title;
         String subtitle;
@@ -92,6 +101,32 @@ class WelcomeCard extends StatelessWidget {
                     ),
                   ),
                   if (statusIndicator != null) statusIndicator,
+                  if (showTransponder && statusIndicator != null)
+                    const SizedBox(width: 8),
+                  if (showTransponder)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (transponderColor ?? Colors.blueAccent)
+                            .withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: TransponderStatusText(
+                        state: transponderState,
+                        code: transponderCode,
+                        prefix: 'XPDR',
+                        emptyLabel: 'XPDR',
+                        includeMeaning: true,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: AppThemeData.spacingSmall),

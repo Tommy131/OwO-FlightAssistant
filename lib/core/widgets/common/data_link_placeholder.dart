@@ -202,3 +202,143 @@ class DataLinkPlaceholder extends StatelessWidget {
     );
   }
 }
+
+class TransponderStatusText extends StatelessWidget {
+  final int? state;
+  final String? code;
+  final TextStyle? style;
+  final String? prefix;
+  final String? emptyLabel;
+  final bool includeState;
+  final bool includeMeaning;
+  final String? meaningSeparator;
+
+  const TransponderStatusText({
+    super.key,
+    this.state,
+    this.code,
+    this.style,
+    this.prefix,
+    this.emptyLabel,
+    this.includeState = true,
+    this.includeMeaning = false,
+    this.meaningSeparator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      format(
+        state: state,
+        code: code,
+        prefix: prefix,
+        emptyLabel: emptyLabel,
+        includeState: includeState,
+        includeMeaning: includeMeaning,
+        meaningSeparator: meaningSeparator,
+      ),
+      style: style,
+    );
+  }
+
+  static String format({
+    int? state,
+    String? code,
+    String? prefix,
+    String? emptyLabel,
+    bool includeState = true,
+    bool includeMeaning = false,
+    String? meaningSeparator,
+  }) {
+    final normalizedCode = _normalizeCode(code);
+    final stateLabel = includeState ? _stateLabel(state) : '';
+    final hasState = stateLabel.isNotEmpty;
+    final hasCode = normalizedCode.isNotEmpty;
+    final base = prefix != null && prefix.isNotEmpty
+        ? (hasState ? '$prefix $stateLabel' : prefix)
+        : stateLabel;
+    if (!hasState && !hasCode) {
+      return emptyLabel ?? '';
+    }
+    if (!hasCode) {
+      return base;
+    }
+    final content = base.isEmpty ? normalizedCode : '$base $normalizedCode';
+    if (!includeMeaning) {
+      return content;
+    }
+    final meaning = _specialMeaning(normalizedCode);
+    if (meaning == null || meaning.isEmpty) {
+      return content;
+    }
+    return '$content${meaningSeparator ?? ' '}$meaning';
+  }
+
+  static String? specialMeaning(String? code) {
+    final normalized = _normalizeCode(code);
+    return _specialMeaning(normalized);
+  }
+
+  static bool isSpecial(String? code) {
+    return specialMeaning(code) != null;
+  }
+
+  static Color? specialColor(String? code) {
+    final normalized = _normalizeCode(code);
+    switch (normalized) {
+      case '7500':
+        return Colors.redAccent;
+      case '7600':
+        return Colors.orangeAccent;
+      case '7700':
+        return Colors.redAccent;
+      default:
+        return null;
+    }
+  }
+
+  static String _stateLabel(int? state) {
+    switch (state) {
+      case 0:
+        return 'OFF';
+      case 1:
+        return 'STBY';
+      case 2:
+        return 'ON';
+      case 3:
+        return 'ALT';
+      case 4:
+        return 'TEST';
+      case 5:
+        return 'GND';
+      case 6:
+        return 'TA';
+      case 7:
+        return 'TA/RA';
+      default:
+        return '';
+    }
+  }
+
+  static String? _specialMeaning(String code) {
+    switch (code) {
+      case '7500':
+        return '劫机';
+      case '7600':
+        return '通讯失效';
+      case '7700':
+        return '紧急情况';
+      default:
+        return null;
+    }
+  }
+
+  static String _normalizeCode(String? code) {
+    final raw = code?.trim() ?? '';
+    if (raw.isEmpty) return '';
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return raw;
+    if (digits.length <= 4) return digits.padLeft(4, '0');
+    return digits.substring(digits.length - 4);
+  }
+}

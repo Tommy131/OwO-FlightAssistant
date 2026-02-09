@@ -541,6 +541,14 @@ class XPlaneService {
       case XPlaneDataRefKey.com1Frequency:
         _currentData = _currentData.copyWith(com1Frequency: value / 100);
         break;
+      case XPlaneDataRefKey.transponderMode:
+        _currentData = _currentData.copyWith(transponderState: value.toInt());
+        break;
+      case XPlaneDataRefKey.transponderCode:
+        _currentData = _currentData.copyWith(
+          transponderCode: _formatTransponderCode(value),
+        );
+        break;
 
       case XPlaneDataRefKey.logoLight:
         final newValue = value > 0.5;
@@ -768,6 +776,28 @@ class XPlaneService {
 
   List<int> _int32ToBytes(int value) {
     return DataConverters.int32ToBytes(value);
+  }
+
+  String? _formatTransponderCode(double value) {
+    final raw = value.round();
+    if (raw < 0) return null;
+    final rawDigits = raw.toString();
+    if (raw <= 7777 && RegExp(r'^[0-7]{1,4}$').hasMatch(rawDigits)) {
+      return rawDigits.padLeft(4, '0');
+    }
+    if (raw <= 0xFFFF) {
+      final d1 = (raw >> 12) & 0xF;
+      final d2 = (raw >> 8) & 0xF;
+      final d3 = (raw >> 4) & 0xF;
+      final d4 = raw & 0xF;
+      final digits = [d1, d2, d3, d4];
+      final isBcd = digits.every((d) => d >= 0 && d <= 7);
+      if (isBcd) {
+        return digits.join();
+      }
+    }
+    if (rawDigits.length <= 4) return rawDigits.padLeft(4, '0');
+    return rawDigits.substring(rawDigits.length - 4);
   }
 
   /// 更新布尔状态数组并触发状态刷新

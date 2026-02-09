@@ -251,8 +251,7 @@ class MSFSService {
 
     if (data.containsKey('FLAPS_NUM_HANDLE_POSITIONS')) {
       _currentData = _currentData.copyWith(
-        flapDetentsCount:
-            (data['FLAPS_NUM_HANDLE_POSITIONS'] as num?)?.toInt(),
+        flapDetentsCount: (data['FLAPS_NUM_HANDLE_POSITIONS'] as num?)?.toInt(),
       );
     }
 
@@ -380,6 +379,17 @@ class MSFSService {
       _currentData = _currentData.copyWith(
         autoBrakeLevel: level != null && level > 0 ? level : null,
       );
+    }
+
+    if (data.containsKey('TRANSPONDER STATE:1')) {
+      _currentData = _currentData.copyWith(
+        transponderState: (data['TRANSPONDER STATE:1'] as num?)?.toInt(),
+      );
+    }
+
+    if (data.containsKey('TRANSPONDER CODE:1')) {
+      final code = _decodeTransponderCode(data['TRANSPONDER CODE:1']);
+      _currentData = _currentData.copyWith(transponderCode: code);
     }
 
     // 警告系统
@@ -517,6 +527,37 @@ class MSFSService {
         connect();
       }
     });
+  }
+
+  String? _decodeTransponderCode(dynamic value) {
+    if (value == null) return null;
+    if (value is String) {
+      final raw = value.trim();
+      if (raw.isEmpty) return null;
+      final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.isEmpty) return raw;
+      if (digits.length <= 4) return digits.padLeft(4, '0');
+      return digits.substring(digits.length - 4);
+    }
+    if (value is num) {
+      final raw = value.toInt();
+      if (raw < 0) return null;
+      if (raw <= 0xFFFF) {
+        final d1 = (raw >> 12) & 0xF;
+        final d2 = (raw >> 8) & 0xF;
+        final d3 = (raw >> 4) & 0xF;
+        final d4 = raw & 0xF;
+        final digits = [d1, d2, d3, d4];
+        final isBcd = digits.every((d) => d >= 0 && d <= 7);
+        if (isBcd) {
+          return digits.join();
+        }
+      }
+      final rawDigits = raw.toString();
+      if (rawDigits.length <= 4) return rawDigits.padLeft(4, '0');
+      return rawDigits.substring(rawDigits.length - 4);
+    }
+    return null;
   }
 
   /// 断开连接

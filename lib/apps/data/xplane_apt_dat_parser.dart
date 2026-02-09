@@ -21,6 +21,10 @@ class XPlaneAptDatParser {
   static const String rowFreqModernStart = '1050';
   static const String rowFreqModernEnd = '1056';
   static const String rowMetadata = '1302';
+  static const String rowTaxiwayPavement = '110';
+  static const String rowTaxiwayPavementNode = '111';
+  static const String rowTaxiwayPavementNodeCurve = '112';
+  static const String rowRampStart = '1300';
   static const String rowEnd = '99';
 
   /// 根据 ICAO 代码加载机场详细数据
@@ -248,7 +252,10 @@ class XPlaneAptDatParser {
     double? currentLon;
     final currentRunways = <RunwayInfo>[];
     final currentFreqs = <FrequencyInfo>[];
+    final currentTaxiways = <TaxiwayInfo>[];
+    final currentParkings = <ParkingInfo>[];
     bool matchTarget = false;
+    TaxiwayInfo? activeTaxiway;
 
     // 使用系统编码（对于 apt.dat 通常是 UTF-8 或 MacRoman，后者在旧版中常见）
     final stream = aptFile
@@ -277,6 +284,8 @@ class XPlaneAptDatParser {
             currentLon,
             currentRunways,
             currentFreqs,
+            currentTaxiways,
+            currentParkings,
           );
         }
 
@@ -288,6 +297,9 @@ class XPlaneAptDatParser {
         currentLon = null;
         currentRunways.clear();
         currentFreqs.clear();
+        currentTaxiways.clear();
+        currentParkings.clear();
+        activeTaxiway = null;
         continue;
       }
 
@@ -308,6 +320,50 @@ class XPlaneAptDatParser {
             }
           }
         }
+        activeTaxiway = null;
+        continue;
+      }
+
+      // 110: 滑行道铺装开始
+      if (code == rowTaxiwayPavement) {
+        final name = parts.length > 3 ? parts.sublist(3).join(' ') : null;
+        activeTaxiway = TaxiwayInfo(name: name, points: []);
+        currentTaxiways.add(activeTaxiway);
+        continue;
+      }
+
+      // 111/112: 滑行道节点
+      if (code == rowTaxiwayPavementNode ||
+          code == rowTaxiwayPavementNodeCurve) {
+        if (activeTaxiway != null && parts.length >= 3) {
+          final lat = double.tryParse(parts[1]);
+          final lon = double.tryParse(parts[2]);
+          if (lat != null && lon != null) {
+            activeTaxiway.points.add(Coord(lat, lon));
+          }
+        }
+        continue;
+      }
+
+      // 1300: 停机位 (Ramp Start)
+      if (code == rowRampStart) {
+        if (parts.length >= 5) {
+          final lat = double.tryParse(parts[1]);
+          final lon = double.tryParse(parts[2]);
+          final heading = double.tryParse(parts[3]);
+          final name = parts.sublist(4).join(' ');
+          if (lat != null && lon != null) {
+            currentParkings.add(
+              ParkingInfo(
+                name: name,
+                latitude: lat,
+                longitude: lon,
+                heading: heading ?? 0.0,
+              ),
+            );
+          }
+        }
+        activeTaxiway = null;
         continue;
       }
 
@@ -354,6 +410,8 @@ class XPlaneAptDatParser {
             currentLon,
             currentRunways,
             currentFreqs,
+            currentTaxiways,
+            currentParkings,
           );
         }
         break;
@@ -393,6 +451,8 @@ class XPlaneAptDatParser {
     double? lon,
     List<RunwayInfo> runways,
     List<FrequencyInfo> freqs,
+    List<TaxiwayInfo> taxiways,
+    List<ParkingInfo> parkings,
   ) {
     final fallback = AirportsDatabase.findByIcao(icao);
     return AirportDetailData(
@@ -406,6 +466,8 @@ class XPlaneAptDatParser {
       elevation: null,
       runways: List.of(runways),
       frequencies: AirportFrequencies(all: List.of(freqs)),
+      taxiways: List.of(taxiways),
+      parkings: List.of(parkings),
       fetchedAt: DateTime.now(),
       dataSource: AirportDataSourceType.xplaneData,
     );
@@ -423,6 +485,17 @@ class XPlaneAptDatParser {
         ? (int.tryParse(parts[6]) ?? 0) > 0
         : null;
     final lengthFt = _estimateRunwayLengthFt(parts);
+
+    double? leLat, leLon, heLat, heLon;
+    if (parts.length >= 11) {
+      leLat = double.tryParse(parts[9]);
+      leLon = double.tryParse(parts[10]);
+    }
+    if (parts.length >= 20) {
+      heLat = double.tryParse(parts[18]);
+      heLon = double.tryParse(parts[19]);
+    }
+
     return RunwayInfo(
       ident: ident,
       lengthFt: lengthFt,
@@ -431,6 +504,10 @@ class XPlaneAptDatParser {
       lighted: lighted,
       leIdent: le,
       heIdent: he,
+      leLat: leLat,
+      leLon: leLon,
+      heLat: heLat,
+      heLon: heLon,
     );
   }
 

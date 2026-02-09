@@ -39,6 +39,8 @@ enum XPlaneDataRefKey {
   numEngines,
   flapDetents,
   com1Frequency,
+  transponderMode,
+  transponderCode,
   logoLight,
   noseGearDeploy,
   leftGearDeploy,
@@ -362,6 +364,18 @@ class XPlaneDataRefs {
     description: 'COM1频率',
   );
 
+  static const XPlaneDataRef transponderMode = XPlaneDataRef(
+    key: XPlaneDataRefKey.transponderMode,
+    path: 'sim/cockpit2/radios/actuators/transponder_mode',
+    description: '应答机模式',
+  );
+
+  static const XPlaneDataRef transponderCode = XPlaneDataRef(
+    key: XPlaneDataRefKey.transponderCode,
+    path: 'sim/cockpit2/radios/actuators/transponder_code',
+    description: '应答机编码',
+  );
+
   // ==================== 灯光开关数组 ====================
 
   // Landing Lights Array - Generated dynamically
@@ -532,7 +546,12 @@ class XPlaneDataRefs {
       // 监控数据
       gForce, baroPressure,
       // 机型辅助
-      numEngines, flapDetents, wingArea, com1Frequency,
+      numEngines,
+      flapDetents,
+      wingArea,
+      com1Frequency,
+      transponderMode,
+      transponderCode,
       // 起落架详细状态
       noseGearDeploy, leftGearDeploy, rightGearDeploy,
       // 襟翼状态

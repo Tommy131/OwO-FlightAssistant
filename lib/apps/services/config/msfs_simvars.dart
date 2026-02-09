@@ -250,6 +250,18 @@ class MSFSSimVars {
     description: '自动刹车激活状态',
   );
 
+  static const MSFSSimVar transponderState = MSFSSimVar(
+    name: 'TRANSPONDER STATE:1',
+    unit: 'Number',
+    description: '应答机状态',
+  );
+
+  static const MSFSSimVar transponderCode = MSFSSimVar(
+    name: 'TRANSPONDER CODE:1',
+    unit: 'BCO16',
+    description: '应答机编码',
+  );
+
   // ==================== 环境数据 ====================
 
   static const MSFSSimVar outsideAirTemperature = MSFSSimVar(
@@ -364,6 +376,8 @@ class MSFSSimVars {
       speedBrakePosition, spoilersDeployed,
       // 自动刹车
       autoBrakeSwitch,
+      transponderState,
+      transponderCode,
       // 警告系统
       masterWarning, masterCaution,
       engineFire1, engineFire2, apuFire,

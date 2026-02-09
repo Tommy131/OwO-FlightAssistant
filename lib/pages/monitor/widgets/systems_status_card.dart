@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../apps/models/simulator_data.dart';
 import '../../../core/theme/app_theme_data.dart';
+import '../../../core/widgets/common/data_link_placeholder.dart';
 
 class SystemsStatusCard extends StatelessWidget {
   final SimulatorData data;
@@ -37,11 +38,20 @@ class SystemsStatusCard extends StatelessWidget {
           const Divider(height: 20),
           _buildStatusRow(
             context,
-            '自动刹车 (Auto Brake)',
-            data.autoBrakeLabel,
+            '应答机 (Transponder)',
+            TransponderStatusText.format(
+              state: data.transponderState,
+              code: data.transponderCode,
+              emptyLabel: 'N/A',
+              includeState: false,
+              includeMeaning: true,
+            ),
             isHighlight:
-                data.autoBrakeLevel != null && data.autoBrakeLevel != 0,
-            highlightColor: Colors.blueAccent,
+                TransponderStatusText.isSpecial(data.transponderCode) ||
+                (data.transponderState != null && data.transponderState != 0),
+            highlightColor:
+                TransponderStatusText.specialColor(data.transponderCode) ??
+                Colors.blueAccent,
           ),
           const Divider(height: 20),
           _buildStatusRow(
