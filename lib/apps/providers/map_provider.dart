@@ -210,6 +210,7 @@ class MapProvider with ChangeNotifier {
       _lastAltIcao = null;
       _currentRunway = null;
       _currentRunwayAirportIcao = null;
+      _lastAutoRefresh = null; // 重连后允许立即触发一次自动刷新
       notifyListeners();
       return;
     }
