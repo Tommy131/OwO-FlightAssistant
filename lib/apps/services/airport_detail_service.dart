@@ -164,6 +164,10 @@ class AirportDetailService {
         }
       }
 
+      if (data != null) {
+        data = await _fillMissingGeometry(icaoCode, data, source);
+      }
+
       // 3. 同时获取气象报文，封装成完整机场数据
       if (data != null) {
         final weatherService = WeatherService();
@@ -179,6 +183,44 @@ class AirportDetailService {
       final source = preferredSource ?? await getDataSource();
       return await _getCachedData(icaoCode, source.dataSourceType);
     }
+  }
+
+  Future<AirportDetailData> _fillMissingGeometry(
+    String icaoCode,
+    AirportDetailData data,
+    AirportDataSource source,
+  ) async {
+    var result = data;
+    if (result.taxiways.isNotEmpty && result.parkings.isNotEmpty) {
+      return result;
+    }
+
+    final fallbackSources = <AirportDataSource>[
+      AirportDataSource.lnmData,
+      AirportDataSource.xplaneData,
+    ];
+
+    for (final candidate in fallbackSources) {
+      if (candidate == source) continue;
+      final available = await isDataSourceAvailable(candidate);
+      if (!available) continue;
+
+      final other = await _fetchFromSource(icaoCode, candidate);
+      if (other == null) continue;
+
+      result = result.copyWith(
+        taxiways:
+            result.taxiways.isNotEmpty ? result.taxiways : other.taxiways,
+        parkings:
+            result.parkings.isNotEmpty ? result.parkings : other.parkings,
+      );
+
+      if (result.taxiways.isNotEmpty && result.parkings.isNotEmpty) {
+        break;
+      }
+    }
+
+    return result;
   }
 
   /// 从指定数据源获取机场详细信息

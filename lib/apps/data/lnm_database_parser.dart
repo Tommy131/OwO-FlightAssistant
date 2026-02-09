@@ -294,21 +294,334 @@ class LNMDatabaseParser {
         AppLogger.error('Error parsing parkings from LNM: $e');
       }
 
-      // 6. 查询滑行道信息 (Taxiway) - LNM 通常不直接存储复杂的滑行道形状，但部分库有
+      // 6. 查询滑行道信息 (Taxiway)
       final taxiways = <TaxiwayInfo>[];
       try {
         final taxiColumns = _getTableColumns(db, 'taxiway');
-        if (taxiColumns.isNotEmpty) {
-          // 如果 LNM 中有滑行道表，通常只有名称和大致位置
-          final taxiResults = db.select(
-            'SELECT name FROM taxiway WHERE airport_id = ?',
-            [airportId],
-          );
-          for (final row in taxiResults) {
-            taxiways.add(TaxiwayInfo(name: row['name'] as String?, points: []));
+        final hasTaxiwayTable = taxiColumns.isNotEmpty;
+        final hasTaxiwayPointTable = db
+            .select(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='taxiway_point'",
+            )
+            .isNotEmpty;
+        final hasTaxiwayNodeTable = db
+            .select(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='taxiway_node'",
+            )
+            .isNotEmpty;
+        final hasTaxiwayPathTable = db
+            .select(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='taxiway_path'",
+            )
+            .isNotEmpty;
+        final hasTaxiwayPathPointTable = db
+            .select(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='taxiway_path_point'",
+            )
+            .isNotEmpty;
+
+        bool parsed = false;
+        if (hasTaxiwayTable) {
+          final taxiIdCol = taxiColumns.contains('taxiway_id')
+              ? 'taxiway_id'
+              : (taxiColumns.contains('id') ? 'id' : null);
+          final taxiNameCol = taxiColumns.contains('name')
+              ? 'name'
+              : (taxiColumns.contains('ident') ? 'ident' : null);
+          final taxiAirportIdCol = taxiColumns.contains('airport_id')
+              ? 'airport_id'
+              : (taxiColumns.contains('ap_id') ? 'ap_id' : null);
+
+          final pointTable = hasTaxiwayPointTable
+              ? 'taxiway_point'
+              : 'taxiway_node';
+          if ((hasTaxiwayPointTable || hasTaxiwayNodeTable) &&
+              taxiIdCol != null &&
+              taxiAirportIdCol != null) {
+            final pointColumns = _getTableColumns(db, pointTable);
+            final pLatCol = pointColumns.contains('latitude')
+                ? 'latitude'
+                : (pointColumns.contains('lat')
+                      ? 'lat'
+                      : (pointColumns.contains('laty') ? 'laty' : null));
+            final pLonCol = pointColumns.contains('longitude')
+                ? 'longitude'
+                : (pointColumns.contains('lon')
+                      ? 'lon'
+                      : (pointColumns.contains('lonx') ? 'lonx' : null));
+            final pOrderCol = pointColumns.contains('sequence')
+                ? 'sequence'
+                : (pointColumns.contains('seq')
+                      ? 'seq'
+                      : (pointColumns.contains('idx')
+                            ? 'idx'
+                            : (pointColumns.contains('position')
+                                  ? 'position'
+                                  : null)));
+            final pTaxiIdCol = pointColumns.contains('taxiway_id')
+                ? 'taxiway_id'
+                : (pointColumns.contains('taxiway')
+                      ? 'taxiway'
+                      : (pointColumns.contains('taxiway_fk')
+                            ? 'taxiway_fk'
+                            : null));
+
+            if (pLatCol != null && pLonCol != null && pTaxiIdCol != null) {
+              final selectName = taxiNameCol != null
+                  ? ', t.$taxiNameCol as name'
+                  : '';
+              final selectOrder = pOrderCol != null
+                  ? ', p.$pOrderCol as ord'
+                  : '';
+              final orderBy = pOrderCol != null
+                  ? 'ORDER BY t.$taxiIdCol, p.$pOrderCol'
+                  : 'ORDER BY t.$taxiIdCol';
+              final sql =
+                  'SELECT t.$taxiIdCol as taxi_id$selectName, p.$pLatCol as lat, p.$pLonCol as lon$selectOrder '
+                  'FROM taxiway t JOIN $pointTable p ON t.$taxiIdCol = p.$pTaxiIdCol '
+                  'WHERE t.$taxiAirportIdCol = ? $orderBy';
+
+              final rows = db.select(sql, [airportId]);
+              final map = <int, List<Coord>>{};
+              final names = <int, String?>{};
+              for (final row in rows) {
+                final id = row['taxi_id'] as int;
+                final lat = (row['lat'] as num).toDouble();
+                final lon = (row['lon'] as num).toDouble();
+
+                final points = map.putIfAbsent(id, () => []);
+
+                // 修复：如果新点与上一个点距离过远（超过500米），则认为是一个新的段，避免连成“乱麻”
+                if (points.isNotEmpty) {
+                  final last = points.last;
+                  // 简单的经纬度距离估算 (1度约111km)
+                  final distSq =
+                      (last.latitude - lat) * (last.latitude - lat) +
+                      (last.longitude - lon) * (last.longitude - lon);
+                  if (distSq > 0.00002) {
+                    // 约 500m
+                    // 如果太远，我们把之前的存入结果，并开启新的段
+                    if (points.length > 1) {
+                      taxiways.add(
+                        TaxiwayInfo(name: names[id], points: List.from(points)),
+                      );
+                    }
+                    points.clear();
+                  }
+                }
+
+                points.add(Coord(lat, lon));
+                if (taxiNameCol != null && !names.containsKey(id)) {
+                  names[id] = row['name'] as String?;
+                }
+              }
+
+              for (final entry in map.entries) {
+                if (entry.value.length > 1) {
+                  taxiways.add(
+                    TaxiwayInfo(name: names[entry.key], points: entry.value),
+                  );
+                }
+              }
+              parsed = taxiways.isNotEmpty;
+            }
           }
         }
-      } catch (_) {}
+
+        if (!parsed && hasTaxiwayPathTable && hasTaxiwayPathPointTable) {
+          final pathColumns = _getTableColumns(db, 'taxiway_path');
+          final pathIdCol = pathColumns.contains('taxiway_path_id')
+              ? 'taxiway_path_id'
+              : (pathColumns.contains('path_id') ? 'path_id' : null);
+          final pathAirportIdCol = pathColumns.contains('airport_id')
+              ? 'airport_id'
+              : (pathColumns.contains('ap_id') ? 'ap_id' : null);
+          final pathNameCol = pathColumns.contains('name')
+              ? 'name'
+              : (pathColumns.contains('ident') ? 'ident' : null);
+
+          if (pathIdCol != null && pathAirportIdCol != null) {
+            final pathPointColumns = _getTableColumns(db, 'taxiway_path_point');
+            final pLatCol = pathPointColumns.contains('latitude')
+                ? 'latitude'
+                : (pathPointColumns.contains('lat')
+                      ? 'lat'
+                      : (pathPointColumns.contains('laty') ? 'laty' : null));
+            final pLonCol = pathPointColumns.contains('longitude')
+                ? 'longitude'
+                : (pathPointColumns.contains('lon')
+                      ? 'lon'
+                      : (pathPointColumns.contains('lonx') ? 'lonx' : null));
+            final pOrderCol = pathPointColumns.contains('sequence')
+                ? 'sequence'
+                : (pathPointColumns.contains('seq')
+                      ? 'seq'
+                      : (pathPointColumns.contains('idx')
+                            ? 'idx'
+                            : (pathPointColumns.contains('position')
+                                  ? 'position'
+                                  : null)));
+            final pPathIdCol = pathPointColumns.contains('taxiway_path_id')
+                ? 'taxiway_path_id'
+                : (pathPointColumns.contains('path_id')
+                      ? 'path_id'
+                      : (pathPointColumns.contains('taxiway_path')
+                            ? 'taxiway_path'
+                            : null));
+
+            if (pLatCol != null && pLonCol != null && pPathIdCol != null) {
+              final selectName = pathNameCol != null
+                  ? ', t.$pathNameCol as name'
+                  : '';
+              final selectOrder = pOrderCol != null
+                  ? ', p.$pOrderCol as ord'
+                  : '';
+              final orderBy = pOrderCol != null
+                  ? 'ORDER BY t.$pathIdCol, p.$pOrderCol'
+                  : 'ORDER BY t.$pathIdCol';
+              final sql =
+                  'SELECT t.$pathIdCol as path_id$selectName, p.$pLatCol as lat, p.$pLonCol as lon$selectOrder '
+                  'FROM taxiway_path t JOIN taxiway_path_point p ON t.$pathIdCol = p.$pPathIdCol '
+                  'WHERE t.$pathAirportIdCol = ? $orderBy';
+
+              final rows = db.select(sql, [airportId]);
+              final map = <int, List<Coord>>{};
+              final names = <int, String?>{};
+              for (final row in rows) {
+                final id = row['path_id'] as int;
+                final lat = (row['lat'] as num).toDouble();
+                final lon = (row['lon'] as num).toDouble();
+
+                final points = map.putIfAbsent(id, () => []);
+
+                // 修复：如果新点与上一个点距离过远（超过500米），则认为是一个新的段，避免连成“乱麻”
+                if (points.isNotEmpty) {
+                  final last = points.last;
+                  final distSq =
+                      (last.latitude - lat) * (last.latitude - lat) +
+                      (last.longitude - lon) * (last.longitude - lon);
+                  if (distSq > 0.00002) {
+                    if (points.length > 1) {
+                      taxiways.add(
+                        TaxiwayInfo(name: names[id], points: List.from(points)),
+                      );
+                    }
+                    points.clear();
+                  }
+                }
+
+                points.add(Coord(lat, lon));
+                if (pathNameCol != null && !names.containsKey(id)) {
+                  names[id] = row['name'] as String?;
+                }
+              }
+
+              for (final entry in map.entries) {
+                if (entry.value.length > 1) {
+                  taxiways.add(
+                    TaxiwayInfo(name: names[entry.key], points: entry.value),
+                  );
+                }
+              }
+              parsed = taxiways.isNotEmpty;
+            }
+          }
+        }
+
+        if (!parsed) {
+          final hasTaxiPathTable = db
+              .select(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='taxi_path'",
+              )
+              .isNotEmpty;
+          if (hasTaxiPathTable) {
+            final pathColumns = _getTableColumns(db, 'taxi_path');
+            final pAirportIdCol = pathColumns.contains('airport_id')
+                ? 'airport_id'
+                : (pathColumns.contains('ap_id') ? 'ap_id' : null);
+            final pNameCol = pathColumns.contains('name')
+                ? 'name'
+                : (pathColumns.contains('ident') ? 'ident' : null);
+            final startLatCol = pathColumns.contains('start_laty')
+                ? 'start_laty'
+                : (pathColumns.contains('start_lat')
+                      ? 'start_lat'
+                      : (pathColumns.contains('start_latitude')
+                            ? 'start_latitude'
+                            : null));
+            final startLonCol = pathColumns.contains('start_lonx')
+                ? 'start_lonx'
+                : (pathColumns.contains('start_lon')
+                      ? 'start_lon'
+                      : (pathColumns.contains('start_longitude')
+                            ? 'start_longitude'
+                            : null));
+            final endLatCol = pathColumns.contains('end_laty')
+                ? 'end_laty'
+                : (pathColumns.contains('end_lat')
+                      ? 'end_lat'
+                      : (pathColumns.contains('end_latitude')
+                            ? 'end_latitude'
+                            : null));
+            final endLonCol = pathColumns.contains('end_lonx')
+                ? 'end_lonx'
+                : (pathColumns.contains('end_lon')
+                      ? 'end_lon'
+                      : (pathColumns.contains('end_longitude')
+                            ? 'end_longitude'
+                            : null));
+
+            if (pAirportIdCol != null &&
+                startLatCol != null &&
+                startLonCol != null &&
+                endLatCol != null &&
+                endLonCol != null) {
+              final selectName = pNameCol != null ? ', $pNameCol as name' : '';
+              final sql =
+                  'SELECT $startLatCol as slat, $startLonCol as slon, $endLatCol as elat, $endLonCol as elon$selectName '
+                  'FROM taxi_path WHERE $pAirportIdCol = ?';
+              final rows = db.select(sql, [airportId]);
+              for (final row in rows) {
+                final slat = (row['slat'] as num?)?.toDouble();
+                final slon = (row['slon'] as num?)?.toDouble();
+                final elat = (row['elat'] as num?)?.toDouble();
+                final elon = (row['elon'] as num?)?.toDouble();
+                if (slat != null &&
+                    slon != null &&
+                    elat != null &&
+                    elon != null) {
+                  taxiways.add(
+                    TaxiwayInfo(
+                      name: pNameCol != null ? row['name'] as String? : null,
+                      points: [Coord(slat, slon), Coord(elat, elon)],
+                    ),
+                  );
+                }
+              }
+              parsed = taxiways.isNotEmpty;
+            }
+          }
+        }
+
+        if (!parsed && hasTaxiwayTable) {
+          final taxiNameCol = taxiColumns.contains('name')
+              ? 'name'
+              : (taxiColumns.contains('ident') ? 'ident' : null);
+          if (taxiNameCol != null) {
+            final taxiResults = db.select(
+              'SELECT $taxiNameCol as name FROM taxiway WHERE airport_id = ?',
+              [airportId],
+            );
+            for (final row in taxiResults) {
+              taxiways.add(
+                TaxiwayInfo(name: row['name'] as String?, points: []),
+              );
+            }
+          }
+        }
+      } catch (e) {
+        AppLogger.error('Error parsing taxiways from LNM: $e');
+      }
 
       return AirportDetailData(
         icaoCode: icao,
