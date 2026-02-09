@@ -229,6 +229,8 @@ class AirportDetailData {
       dataSource: other.dataSource,
       isCached: false,
       metar: other.metar ?? metar,
+      taxiways: taxiways.isNotEmpty ? taxiways : other.taxiways,
+      parkings: parkings.isNotEmpty ? parkings : other.parkings,
     );
   }
 

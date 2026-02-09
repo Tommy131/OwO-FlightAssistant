@@ -34,6 +34,7 @@ class MapProvider with ChangeNotifier {
   String? _lastAltIcao;
   String? _currentRunway;
   String? _currentRunwayAirportIcao;
+  DateTime? _lastAutoRefresh;
 
   StreamSubscription<TakeoffData>? _takeoffSubscription;
   StreamSubscription<LandingData>? _landingSubscription;
@@ -239,6 +240,23 @@ class MapProvider with ChangeNotifier {
       // Map-Matching for active runway
       _updateCurrentRunway(data.latitude!, data.longitude!);
 
+      // 自动检测机场数据完整性并按需刷新（仅在连接时且位于地面/低空时触发）
+      if (_simulatorProvider.isConnected &&
+          nearest != null &&
+          _lastIcao == nearest.icaoCode) {
+        final onGround =
+            data.onGround ?? (data.altitude != null && data.altitude! < 50);
+        if (onGround && _isAirportIncomplete(_currentAirport)) {
+          final now = DateTime.now();
+          if (_lastAutoRefresh == null ||
+              now.difference(_lastAutoRefresh!).inMinutes >= 5) {
+            _lastAutoRefresh = now;
+            AppLogger.info('自动刷新机场数据: ${nearest.icaoCode} (原因: 数据不完整)');
+            refreshAirport();
+          }
+        }
+      }
+
       // Auto-detect departure airport (Lock the first airport found when on ground)
       if (_departureAirport == null &&
           data.onGround == true &&
@@ -276,6 +294,22 @@ class MapProvider with ChangeNotifier {
       _currentRunwayAirportIcao = foundAirportIcao;
       notifyListeners();
     }
+  }
+
+  /// 检查机场数据是否不完整（缺少跑道坐标、滑行道或停机位）
+  bool _isAirportIncomplete(AirportDetailData? data) {
+    if (data == null) return true;
+
+    // 检查是否有跑道具备端点坐标（用于匹配）
+    final hasRunwayGeometry = data.runways.any(
+      (r) => r.leLat != null && r.heLat != null,
+    );
+
+    // 检查滑行道和停机位（用户要求显示的详细信息）
+    final hasTaxiways = data.taxiways.isNotEmpty;
+    final hasParkings = data.parkings.isNotEmpty;
+
+    return !hasRunwayGeometry || !hasTaxiways || !hasParkings;
   }
 
   Future<void> _loadSpecificAirport(

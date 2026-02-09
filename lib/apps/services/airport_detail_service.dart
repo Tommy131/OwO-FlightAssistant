@@ -191,7 +191,15 @@ class AirportDetailService {
     AirportDataSource source,
   ) async {
     var result = data;
-    if (result.taxiways.isNotEmpty && result.parkings.isNotEmpty) {
+
+    // 检查是否具备跑道几何数据 (用于识别飞机是否在跑道上)
+    bool hasRunwayGeometry = result.runways.any(
+      (r) => r.leLat != null && r.heLat != null,
+    );
+
+    if (result.taxiways.isNotEmpty &&
+        result.parkings.isNotEmpty &&
+        hasRunwayGeometry) {
       return result;
     }
 
@@ -208,14 +216,17 @@ class AirportDetailService {
       final other = await _fetchFromSource(icaoCode, candidate);
       if (other == null) continue;
 
-      result = result.copyWith(
-        taxiways:
-            result.taxiways.isNotEmpty ? result.taxiways : other.taxiways,
-        parkings:
-            result.parkings.isNotEmpty ? result.parkings : other.parkings,
+      // 使用 complementWith 合并数据，它会自动处理跑道、频率等的补充
+      result = result.complementWith(other);
+
+      // 更新几何状态检查
+      hasRunwayGeometry = result.runways.any(
+        (r) => r.leLat != null && r.heLat != null,
       );
 
-      if (result.taxiways.isNotEmpty && result.parkings.isNotEmpty) {
+      if (result.taxiways.isNotEmpty &&
+          result.parkings.isNotEmpty &&
+          hasRunwayGeometry) {
         break;
       }
     }
