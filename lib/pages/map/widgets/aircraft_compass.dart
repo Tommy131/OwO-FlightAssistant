@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 class AircraftCompass extends StatelessWidget {
   final double heading;
   final double scale;
+  final double mapRotation;
 
   const AircraftCompass({
     super.key,
     required this.heading,
     this.scale = 1.0,
+    this.mapRotation = 0.0,
   });
 
   @override
@@ -16,7 +18,11 @@ class AircraftCompass extends StatelessWidget {
     return IgnorePointer(
       child: CustomPaint(
         size: Size(200 * scale, 200 * scale),
-        painter: _CompassPainter(heading: heading, scale: scale),
+        painter: _CompassPainter(
+          heading: heading,
+          scale: scale,
+          mapRotation: mapRotation,
+        ),
       ),
     );
   }
@@ -25,13 +31,22 @@ class AircraftCompass extends StatelessWidget {
 class _CompassPainter extends CustomPainter {
   final double heading;
   final double scale;
+  final double mapRotation;
 
-  _CompassPainter({required this.heading, required this.scale});
+  _CompassPainter({
+    required this.heading,
+    required this.scale,
+    required this.mapRotation,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
+
+    // 考虑地图旋转，将画布先旋转以抵消地图旋转对罗盘刻度的影响（刻度始终指向地理北）
+    // 或者直接在计算刻度位置时加入 mapRotation
+    final rotationRad = mapRotation * math.pi / 180;
 
     final paint = Paint()
       ..color = Colors.blueAccent.withValues(alpha: 0.3)
@@ -47,7 +62,7 @@ class _CompassPainter extends CustomPainter {
     );
 
     for (int i = 0; i < 360; i += 10) {
-      final angle = (i - 90) * math.pi / 180;
+      final angle = (i - 90 + mapRotation) * math.pi / 180;
       final isMajor = i % 30 == 0;
       final tickLength = isMajor ? 10.0 * scale : 5.0 * scale;
 
@@ -89,7 +104,7 @@ class _CompassPainter extends CustomPainter {
     }
 
     // Draw heading line with a gradient or glow
-    final headingAngle = (heading - 90) * math.pi / 180;
+    final headingAngle = (heading - 90 + mapRotation) * math.pi / 180;
     final headingEnd = Offset(
       center.dx + radius * math.cos(headingAngle),
       center.dy + radius * math.sin(headingAngle),
@@ -125,6 +140,8 @@ class _CompassPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CompassPainter oldDelegate) {
-    return oldDelegate.heading != heading || oldDelegate.scale != scale;
+    return oldDelegate.heading != heading || 
+           oldDelegate.scale != scale || 
+           oldDelegate.mapRotation != mapRotation;
   }
 }

@@ -301,6 +301,9 @@ class _MapPageState extends State<MapPage> {
                           child: AircraftCompass(
                             heading: heading,
                             scale: _scale,
+                            mapRotation: _isMapReady
+                                ? _mapController.camera.rotation
+                                : 0,
                           ),
                         ),
                       // Aircraft
@@ -309,7 +312,12 @@ class _MapPageState extends State<MapPage> {
                         width: 80,
                         height: 80,
                         child: Transform.rotate(
-                          angle: (heading) * (math.pi / 180),
+                          angle:
+                              (heading +
+                                  (_isMapReady
+                                      ? _mapController.camera.rotation
+                                      : 0)) *
+                              (math.pi / 180),
                           child: const Icon(
                             Icons.flight,
                             color: Colors.orangeAccent,
@@ -332,6 +340,20 @@ class _MapPageState extends State<MapPage> {
                             icon: Icons.flight_land,
                             color: Colors.purpleAccent,
                             label: 'DEST',
+                          ),
+                        ),
+                      // Departure Airport (Star Icon)
+                      if (mapProvider.departureAirport != null)
+                        Marker(
+                          point: getAirportCenter(
+                            mapProvider.departureAirport!,
+                          ),
+                          width: 60,
+                          height: 60,
+                          child: AirportPin(
+                            icon: Icons.star,
+                            color: Colors.amber,
+                            label: 'DEP',
                           ),
                         ),
                       // Alternate Airport

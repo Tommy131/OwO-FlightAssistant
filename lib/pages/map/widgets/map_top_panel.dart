@@ -56,210 +56,236 @@ class MapTopPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = sim.simulatorData;
 
-    return Positioned(
-      top: 20 * scale,
-      left: 20 * scale,
-      right: 20 * scale,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return StreamBuilder<int>(
+      stream: Stream.periodic(const Duration(seconds: 1), (i) => i),
+      builder: (context, snapshot) {
+        return Positioned(
+          top: 20 * scale,
+          left: 20 * scale,
+          right: 20 * scale,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: AirportSearchBar(
-                  onSelect: (airport) {
-                    mapProvider.selectTargetAirport(airport.icaoCode);
-                    mapController.move(
-                      LatLng(airport.latitude, airport.longitude),
-                      15,
-                    );
-                    if (followAircraft) {
-                      onFollowAircraftChanged(false);
-                    }
-                  },
-                  hintText: '搜索并定位机场...',
-                ),
-              ),
-              if (mapProvider.targetAirport != null) ...[
-                SizedBox(width: 8 * scale),
-                MapButton(
-                  icon: Icons.close,
-                  onPressed: () => mapProvider.clearTargetAirport(),
-                  tooltip: '清除搜索记录',
-                  mini: true,
-                  scale: scale,
-                ),
-              ],
-            ],
-          ),
-          if (sim.isConnected) ...[
-            SizedBox(height: 12 * scale),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16 * scale),
-              child: BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 20 * scale,
-                    vertical: 12 * scale,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    border: Border.all(color: Colors.white12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildValue(
-                        'GS',
-                        '${(data.groundSpeed ?? 0).round()}',
-                        'kt',
-                      ),
-                      _buildValue(
-                        'ALT',
-                        '${(data.altitude ?? 0).round()}',
-                        'ft',
-                      ),
-                      _buildValue('HDG', '${(data.heading ?? 0).round()}°', ''),
-                      _buildValue(
-                        'VS',
-                        '${(data.verticalSpeed ?? 0).round()}',
-                        'fpm',
-                        color: _getVSColor(data.verticalSpeed ?? 0),
-                        icon: _getVSIcon(data.verticalSpeed ?? 0),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-          if (sim.isConnected &&
-              (data.baroPressure != null || data.windSpeed != null)) ...[
-            SizedBox(height: 8 * scale),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+              Row(
                 children: [
-                  MapInfoChip(
-                    icon: Icons.air,
-                    label:
-                        '${(data.windSpeed ?? 0).round()} kt / ${(data.windDirection ?? 0).round()}°',
-                    scale: scale,
+                  Expanded(
+                    child: AirportSearchBar(
+                      onSelect: (airport) {
+                        mapProvider.selectTargetAirport(airport.icaoCode);
+                        mapController.move(
+                          LatLng(airport.latitude, airport.longitude),
+                          15,
+                        );
+                        if (followAircraft) {
+                          onFollowAircraftChanged(false);
+                        }
+                      },
+                      hintText: '搜索并定位机场...',
+                    ),
                   ),
-                  SizedBox(width: 8 * scale),
-                  MapInfoChip(
-                    icon: Icons.cloud_outlined,
-                    label:
-                        '${data.baroPressure?.toStringAsFixed(2)} ${data.baroPressureUnit}',
-                    scale: scale,
-                  ),
-                  if (data.outsideAirTemperature != null) ...[
+                  if (mapProvider.targetAirport != null) ...[
                     SizedBox(width: 8 * scale),
-                    MapInfoChip(
-                      icon: Icons.thermostat,
-                      label:
-                          '${data.outsideAirTemperature?.toStringAsFixed(1)}°C',
+                    MapButton(
+                      icon: Icons.close,
+                      onPressed: () => mapProvider.clearTargetAirport(),
+                      tooltip: '清除搜索记录',
+                      mini: true,
                       scale: scale,
                     ),
                   ],
                 ],
               ),
-            ),
-          ],
-          SizedBox(height: 8 * scale),
-          Row(
-            children: [
-              // 展开/收起按钮
-              GestureDetector(
-                onTap: () => onFilterExpandedChanged(!isFilterExpanded),
-                child: Container(
-                  padding: EdgeInsets.all(4 * scale),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(8 * scale),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Icon(
-                    isFilterExpanded
-                        ? Icons.chevron_left_rounded
-                        : Icons.chevron_right_rounded,
-                    color: Colors.white,
-                    size: 16 * scale,
-                  ),
-                ),
-              ),
-              if (isFilterExpanded) ...[
-                SizedBox(width: 8 * scale),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildFilterToggle(
-                          '跑道',
-                          showRunways,
-                          onShowRunwaysChanged,
-                        ),
-                        SizedBox(width: 8 * scale),
-                        if (sim.simulatorData.onGround ?? true) ...[
-                          _buildFilterToggle(
-                            '滑行道',
-                            showTaxiways,
-                            onShowTaxiwaysChanged,
+              if (sim.isConnected) ...[
+                SizedBox(height: 12 * scale),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16 * scale),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 20 * scale,
+                        vertical: 12 * scale,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildValue(
+                            'GS',
+                            '${(data.groundSpeed ?? 0).round()}',
+                            'kt',
                           ),
-                          SizedBox(width: 8 * scale),
-                          _buildFilterToggle(
-                            '停机位',
-                            showParkings,
-                            onShowParkingsChanged,
+                          _buildValue(
+                            'ALT',
+                            '${(data.altitude ?? 0).round()}',
+                            'ft',
                           ),
-                          SizedBox(width: 8 * scale),
-                        ],
-                        _buildFilterToggle(
-                          '罗盘',
-                          showAircraftCompass,
-                          onShowAircraftCompassChanged,
-                          activeColor: Colors.blueAccent,
-                        ),
-                        if (sim.isConnected) ...[
-                          SizedBox(width: 8 * scale),
-                          _buildFilterToggle(
-                            '气象雷达',
-                            mapProvider.showWeatherRadar,
-                            (val) => mapProvider.toggleWeatherRadar(),
+                          _buildValue(
+                            'HDG',
+                            '${(data.heading ?? 0).round()}°',
+                            '',
+                          ),
+                          _buildValue(
+                            'TIME',
+                            _formatDuration(sim.currentFlightLog?.startTime),
+                            '',
+                            color: Colors.cyanAccent,
+                          ),
+                          _buildValue(
+                            'VS',
+                            '${(data.verticalSpeed ?? 0).round()}',
+                            'fpm',
+                            color: _getVSColor(data.verticalSpeed ?? 0),
+                            icon: _getVSIcon(data.verticalSpeed ?? 0),
                           ),
                         ],
-                        if (mapProvider.departureAirport != null &&
-                            mapProvider.destinationAirport != null) ...[
-                          SizedBox(width: 8 * scale),
-                          _buildFilterToggle(
-                            '航程: ${calculateTotalDistance(mapProvider)}NM',
-                            showRouteDistance,
-                            onShowRouteDistanceChanged,
-                            activeColor: Colors.purpleAccent,
-                          ),
-                        ],
-                        if (mapProvider.path.isNotEmpty) ...[
-                          SizedBox(width: 8 * scale),
-                          _buildFilterToggle(
-                            '清除轨迹',
-                            false,
-                            (val) => _showClearConfirmation(context),
-                            activeColor: Colors.redAccent,
-                            inactiveColor: Colors.redAccent.withOpacity(0.6),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ],
+              if (sim.isConnected &&
+                  (data.baroPressure != null || data.windSpeed != null)) ...[
+                SizedBox(height: 8 * scale),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      MapInfoChip(
+                        icon: Icons.air,
+                        label:
+                            '${(data.windSpeed ?? 0).round()} kt / ${(data.windDirection ?? 0).round()}°',
+                        scale: scale,
+                      ),
+                      SizedBox(width: 8 * scale),
+                      MapInfoChip(
+                        icon: Icons.cloud_outlined,
+                        label:
+                            '${data.baroPressure?.toStringAsFixed(2)} ${data.baroPressureUnit}',
+                        scale: scale,
+                      ),
+                      if (data.outsideAirTemperature != null) ...[
+                        SizedBox(width: 8 * scale),
+                        MapInfoChip(
+                          icon: Icons.thermostat,
+                          label:
+                              '${data.outsideAirTemperature?.toStringAsFixed(1)}°C',
+                          scale: scale,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+              SizedBox(height: 8 * scale),
+              Row(
+                children: [
+                  // 展开/收起按钮
+                  GestureDetector(
+                    onTap: () => onFilterExpandedChanged(!isFilterExpanded),
+                    child: Container(
+                      padding: EdgeInsets.all(4 * scale),
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(8 * scale),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: Icon(
+                        isFilterExpanded
+                            ? Icons.chevron_left_rounded
+                            : Icons.chevron_right_rounded,
+                        color: Colors.white,
+                        size: 16 * scale,
+                      ),
+                    ),
+                  ),
+                  if (isFilterExpanded) ...[
+                    SizedBox(width: 8 * scale),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildFilterToggle(
+                              '跑道',
+                              showRunways,
+                              onShowRunwaysChanged,
+                            ),
+                            SizedBox(width: 8 * scale),
+                            if (sim.simulatorData.onGround ?? true) ...[
+                              _buildFilterToggle(
+                                '滑行道',
+                                showTaxiways,
+                                onShowTaxiwaysChanged,
+                              ),
+                              SizedBox(width: 8 * scale),
+                              _buildFilterToggle(
+                                '停机位',
+                                showParkings,
+                                onShowParkingsChanged,
+                              ),
+                              SizedBox(width: 8 * scale),
+                            ],
+                            _buildFilterToggle(
+                              '罗盘',
+                              showAircraftCompass,
+                              onShowAircraftCompassChanged,
+                              activeColor: Colors.blueAccent,
+                            ),
+                            if (sim.isConnected) ...[
+                              SizedBox(width: 8 * scale),
+                              _buildFilterToggle(
+                                '气象雷达',
+                                mapProvider.showWeatherRadar,
+                                (val) => mapProvider.toggleWeatherRadar(),
+                              ),
+                            ],
+                            if (mapProvider.departureAirport != null &&
+                                mapProvider.destinationAirport != null) ...[
+                              SizedBox(width: 8 * scale),
+                              _buildFilterToggle(
+                                '航程: ${calculateTotalDistance(mapProvider)}NM',
+                                showRouteDistance,
+                                onShowRouteDistanceChanged,
+                                activeColor: Colors.purpleAccent,
+                              ),
+                            ],
+                            if (mapProvider.path.isNotEmpty) ...[
+                              SizedBox(width: 8 * scale),
+                              _buildFilterToggle(
+                                '清除轨迹',
+                                false,
+                                (val) => _showClearConfirmation(context),
+                                activeColor: Colors.redAccent,
+                                inactiveColor: Colors.redAccent.withOpacity(
+                                  0.6,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
+  }
+
+  String _formatDuration(DateTime? startTime) {
+    if (startTime == null) return '00:00:00';
+    final duration = DateTime.now().difference(startTime);
+    final hours = duration.inHours.toString().padLeft(2, '0');
+    final minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$hours:$minutes:$seconds';
   }
 
   void _showClearConfirmation(BuildContext context) {

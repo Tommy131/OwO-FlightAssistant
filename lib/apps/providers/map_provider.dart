@@ -222,7 +222,6 @@ class MapProvider with ChangeNotifier {
       // Update path
       if (_path.isEmpty || _path.last != pos) {
         _path.add(pos);
-        if (_path.length > 5000) _path.removeAt(0);
         notifyListeners();
       }
 
