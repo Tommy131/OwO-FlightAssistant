@@ -22,6 +22,8 @@ class MapTopPanel extends StatelessWidget {
   final bool showParkings;
   final bool showRouteDistance;
   final bool showAircraftCompass;
+  final bool isFilterExpanded;
+  final ValueChanged<bool> onFilterExpandedChanged;
   final ValueChanged<bool> onShowRunwaysChanged;
   final ValueChanged<bool> onShowTaxiwaysChanged;
   final ValueChanged<bool> onShowParkingsChanged;
@@ -41,6 +43,8 @@ class MapTopPanel extends StatelessWidget {
     required this.showParkings,
     required this.showRouteDistance,
     required this.showAircraftCompass,
+    required this.isFilterExpanded,
+    required this.onFilterExpandedChanged,
     required this.onShowRunwaysChanged,
     required this.onShowTaxiwaysChanged,
     required this.onShowParkingsChanged,
@@ -164,52 +168,94 @@ class MapTopPanel extends StatelessWidget {
             ),
           ],
           SizedBox(height: 8 * scale),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildFilterToggle('跑道', showRunways, onShowRunwaysChanged),
-                SizedBox(width: 8 * scale),
-                _buildFilterToggle('滑行道', showTaxiways, onShowTaxiwaysChanged),
-                SizedBox(width: 8 * scale),
-                _buildFilterToggle('停机位', showParkings, onShowParkingsChanged),
-                SizedBox(width: 8 * scale),
-                _buildFilterToggle(
-                  '罗盘',
-                  showAircraftCompass,
-                  onShowAircraftCompassChanged,
-                  activeColor: Colors.blueAccent,
+          Row(
+            children: [
+              // 展开/收起按钮
+              GestureDetector(
+                onTap: () => onFilterExpandedChanged(!isFilterExpanded),
+                child: Container(
+                  padding: EdgeInsets.all(4 * scale),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(8 * scale),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Icon(
+                    isFilterExpanded
+                        ? Icons.chevron_left_rounded
+                        : Icons.chevron_right_rounded,
+                    color: Colors.white,
+                    size: 16 * scale,
+                  ),
                 ),
-                if (sim.isConnected) ...[
-                  SizedBox(width: 8 * scale),
-                  _buildFilterToggle(
-                    '气象雷达',
-                    mapProvider.showWeatherRadar,
-                    (val) => mapProvider.toggleWeatherRadar(),
+              ),
+              if (isFilterExpanded) ...[
+                SizedBox(width: 8 * scale),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildFilterToggle(
+                          '跑道',
+                          showRunways,
+                          onShowRunwaysChanged,
+                        ),
+                        SizedBox(width: 8 * scale),
+                        if (sim.simulatorData.onGround ?? true) ...[
+                          _buildFilterToggle(
+                            '滑行道',
+                            showTaxiways,
+                            onShowTaxiwaysChanged,
+                          ),
+                          SizedBox(width: 8 * scale),
+                          _buildFilterToggle(
+                            '停机位',
+                            showParkings,
+                            onShowParkingsChanged,
+                          ),
+                          SizedBox(width: 8 * scale),
+                        ],
+                        _buildFilterToggle(
+                          '罗盘',
+                          showAircraftCompass,
+                          onShowAircraftCompassChanged,
+                          activeColor: Colors.blueAccent,
+                        ),
+                        if (sim.isConnected) ...[
+                          SizedBox(width: 8 * scale),
+                          _buildFilterToggle(
+                            '气象雷达',
+                            mapProvider.showWeatherRadar,
+                            (val) => mapProvider.toggleWeatherRadar(),
+                          ),
+                        ],
+                        if (mapProvider.departureAirport != null &&
+                            mapProvider.destinationAirport != null) ...[
+                          SizedBox(width: 8 * scale),
+                          _buildFilterToggle(
+                            '航程: ${calculateTotalDistance(mapProvider)}NM',
+                            showRouteDistance,
+                            onShowRouteDistanceChanged,
+                            activeColor: Colors.purpleAccent,
+                          ),
+                        ],
+                        if (mapProvider.path.isNotEmpty) ...[
+                          SizedBox(width: 8 * scale),
+                          _buildFilterToggle(
+                            '清除轨迹',
+                            false,
+                            (val) => _showClearConfirmation(context),
+                            activeColor: Colors.redAccent,
+                            inactiveColor: Colors.redAccent.withOpacity(0.6),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                ],
-                if (mapProvider.departureAirport != null &&
-                    mapProvider.destinationAirport != null) ...[
-                  SizedBox(width: 8 * scale),
-                  _buildFilterToggle(
-                    '航程: ${calculateTotalDistance(mapProvider)}NM',
-                    showRouteDistance,
-                    onShowRouteDistanceChanged,
-                    activeColor: Colors.purpleAccent,
-                  ),
-                ],
-                if (mapProvider.path.isNotEmpty) ...[
-                  SizedBox(width: 8 * scale),
-                  _buildFilterToggle(
-                    '清除轨迹',
-                    false,
-                    (val) => _showClearConfirmation(context),
-                    activeColor: Colors.redAccent,
-                    inactiveColor: Colors.redAccent.withOpacity(0.6),
-                  ),
-                ],
+                ),
               ],
-            ),
+            ],
           ),
         ],
       ),
@@ -217,6 +263,15 @@ class MapTopPanel extends StatelessWidget {
   }
 
   void _showClearConfirmation(BuildContext context) {
+    // 只有在地图 Tab 且路径不为空时才显示确认弹窗。
+    // 这里不再由 MapTopPanel 决定是否显示，而是增加一个逻辑判断。
+    if (!context.mounted || mapProvider.path.isEmpty) return;
+
+    // 获取当前路由名称或通过上下文判断是否在地图页面
+    // 这里的优化是针对“切换 tab 页面时提示频繁”的问题。
+    // 原逻辑是在 build 中渲染“清除轨迹”按钮，点击触发此方法。
+    // 如果用户只是切换 Tab，不应该触发此方法。
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

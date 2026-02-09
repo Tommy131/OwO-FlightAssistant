@@ -39,6 +39,7 @@ class _MapPageState extends State<MapPage> {
   bool _showRunways = true;
   bool _showRouteDistance = false;
   bool _showAircraftCompass = true;
+  bool _isFilterExpanded = true;
   double _scale = 1.0;
   DateTime? _lastMoveUpdate;
   final _weatherRadarTransformer = TileUpdateTransformers.throttle(
@@ -49,6 +50,7 @@ class _MapPageState extends State<MapPage> {
   // 新飞行检测标记
   bool _hasPromptedNewFlight = false;
   String? _lastPromptedAircraft;
+  String? _lastFlightPhase;
 
   @override
   void initState() {
@@ -70,7 +72,34 @@ class _MapPageState extends State<MapPage> {
     super.dispose();
   }
 
-  // 底图地址逻辑见 utils/getTileUrl
+  void _updateAutoFilterLogic(SimulatorProvider sim, MapProvider map) {
+    final phase = sim.flightPhase;
+    if (phase == _lastFlightPhase) return;
+    _lastFlightPhase = phase;
+
+    final isFlying = phase != '地面停留' && phase != '起飞中';
+    final onGround = phase == '地面停留' || phase == '起飞中';
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        if (isFlying) {
+          // 飞行状态：隐藏滑行道、停机位，收起区域
+          _showTaxiways = false;
+          _showParkings = false;
+          _isFilterExpanded = false;
+          // 自动勾选气象雷达
+          if (!map.showWeatherRadar) {
+            map.toggleWeatherRadar();
+          }
+        } else if (onGround) {
+          // 地面状态：自动勾选滑行道、停机位
+          _showTaxiways = true;
+          _showParkings = true;
+        }
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +111,11 @@ class _MapPageState extends State<MapPage> {
         final data = simProvider.simulatorData;
         final aircraftPos = LatLng(data.latitude ?? 0, data.longitude ?? 0);
         final heading = data.heading ?? 0.0;
+
+        // 自动过滤逻辑
+        if (simProvider.isConnected) {
+          _updateAutoFilterLogic(simProvider, mapProvider);
+        }
 
         // 新飞行提示检测逻辑
         if (simProvider.isConnected && mapProvider.path.isNotEmpty) {
@@ -425,6 +459,9 @@ class _MapPageState extends State<MapPage> {
                     setState(() => _showRouteDistance = v),
                 onShowAircraftCompassChanged: (v) =>
                     setState(() => _showAircraftCompass = v),
+                isFilterExpanded: _isFilterExpanded,
+                onFilterExpandedChanged: (v) =>
+                    setState(() => _isFilterExpanded = v),
               ),
               MapRightControls(
                 scale: _scale,
