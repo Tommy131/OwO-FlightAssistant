@@ -22,6 +22,7 @@ dependencies:
   path_provider: ^2.1.5
   provider: ^6.1.5+1
   shared_preferences: ^2.5.3
+  share_plus: ^10.1.4
   sqlite3: ^2.9.4
   sqlite3_flutter_libs: ^0.5.41
   timezone: ^0.10.1

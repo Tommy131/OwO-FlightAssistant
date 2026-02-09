@@ -50,6 +50,18 @@ class MSFSSimVars {
     description: '垂直速度',
   );
 
+  static const MSFSSimVar pitch = MSFSSimVar(
+    name: 'PLANE PITCH DEGREES',
+    unit: 'degrees',
+    description: '俯仰角',
+  );
+
+  static const MSFSSimVar roll = MSFSSimVar(
+    name: 'PLANE BANK DEGREES',
+    unit: 'degrees',
+    description: '横滚角',
+  );
+
   static const MSFSSimVar latitude = MSFSSimVar(
     name: 'PLANE_LATITUDE',
     unit: 'degrees',
@@ -343,6 +355,8 @@ class MSFSSimVars {
       altitude,
       heading,
       verticalSpeed,
+      pitch,
+      roll,
       latitude,
       longitude,
       aircraftTitle,

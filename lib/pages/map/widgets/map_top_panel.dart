@@ -21,10 +21,12 @@ class MapTopPanel extends StatelessWidget {
   final bool showTaxiways;
   final bool showParkings;
   final bool showRouteDistance;
+  final bool showAircraftCompass;
   final ValueChanged<bool> onShowRunwaysChanged;
   final ValueChanged<bool> onShowTaxiwaysChanged;
   final ValueChanged<bool> onShowParkingsChanged;
   final ValueChanged<bool> onShowRouteDistanceChanged;
+  final ValueChanged<bool> onShowAircraftCompassChanged;
 
   const MapTopPanel({
     super.key,
@@ -38,10 +40,12 @@ class MapTopPanel extends StatelessWidget {
     required this.showTaxiways,
     required this.showParkings,
     required this.showRouteDistance,
+    required this.showAircraftCompass,
     required this.onShowRunwaysChanged,
     required this.onShowTaxiwaysChanged,
     required this.onShowParkingsChanged,
     required this.onShowRouteDistanceChanged,
+    required this.onShowAircraftCompassChanged,
   });
 
   @override
@@ -117,9 +121,8 @@ class MapTopPanel extends StatelessWidget {
                         'VS',
                         '${(data.verticalSpeed ?? 0).round()}',
                         'fpm',
-                        color: (data.verticalSpeed ?? 0).abs() > 800
-                            ? Colors.redAccent
-                            : Colors.tealAccent,
+                        color: _getVSColor(data.verticalSpeed ?? 0),
+                        icon: _getVSIcon(data.verticalSpeed ?? 0),
                       ),
                     ],
                   ),
@@ -168,6 +171,13 @@ class MapTopPanel extends StatelessWidget {
               _buildFilterToggle('滑行道', showTaxiways, onShowTaxiwaysChanged),
               SizedBox(width: 8 * scale),
               _buildFilterToggle('停机位', showParkings, onShowParkingsChanged),
+              SizedBox(width: 8 * scale),
+              _buildFilterToggle(
+                '罗盘',
+                showAircraftCompass,
+                onShowAircraftCompassChanged,
+                activeColor: Colors.blueAccent,
+              ),
               if (sim.isConnected) ...[
                 SizedBox(width: 8 * scale),
                 _buildFilterToggle(
@@ -233,7 +243,26 @@ class MapTopPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildValue(String label, String val, String unit, {Color? color}) {
+  Color _getVSColor(double vs) {
+    if (vs.abs() > 2000) return Colors.redAccent;
+    if (vs.abs() > 1000) return Colors.orangeAccent;
+    if (vs.abs() > 100) return Colors.tealAccent;
+    return Colors.white70;
+  }
+
+  IconData? _getVSIcon(double vs) {
+    if (vs > 100) return Icons.arrow_upward;
+    if (vs < -100) return Icons.arrow_downward;
+    return null;
+  }
+
+  Widget _buildValue(
+    String label,
+    String value,
+    String unit, {
+    Color? color,
+    IconData? icon,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -250,8 +279,12 @@ class MapTopPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
+            if (icon != null) ...[
+              Icon(icon, color: color ?? Colors.white, size: 14 * scale),
+              SizedBox(width: 2 * scale),
+            ],
             Text(
-              val,
+              value,
               style: TextStyle(
                 color: color ?? Colors.white,
                 fontSize: 20 * scale,
@@ -259,11 +292,13 @@ class MapTopPanel extends StatelessWidget {
                 fontFamily: 'monospace',
               ),
             ),
-            SizedBox(width: 2 * scale),
-            Text(
-              unit,
-              style: TextStyle(color: Colors.white38, fontSize: 9 * scale),
-            ),
+            if (unit.isNotEmpty) ...[
+              SizedBox(width: 2 * scale),
+              Text(
+                unit,
+                style: TextStyle(color: Colors.white38, fontSize: 9 * scale),
+              ),
+            ],
           ],
         ),
       ],

@@ -7,6 +7,7 @@ import 'package:window_manager/window_manager.dart';
 import 'apps/providers/checklist_provider.dart';
 import 'apps/providers/simulator/simulator_provider.dart';
 import 'apps/providers/briefing_provider.dart';
+import 'apps/providers/map_provider.dart';
 import 'pages/airport_info/providers/airport_info_provider.dart';
 import 'core/constants/app_constants.dart';
 import 'core/layouts/desktop_layout.dart';
@@ -39,6 +40,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SimulatorProvider()),
         ChangeNotifierProvider(create: (_) => AirportInfoProvider()),
         ChangeNotifierProvider(create: (_) => BriefingProvider()),
+        ChangeNotifierProvider(
+          create: (context) => MapProvider(context.read<SimulatorProvider>()),
+        ),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {

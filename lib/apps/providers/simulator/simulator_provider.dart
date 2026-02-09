@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../models/flight_log/flight_log.dart';
 import '../../models/simulator_data.dart';
 import '../../services/msfs_service.dart';
 import '../../services/xplane_service.dart';
+import '../../services/flight_log_service.dart';
 import '../../data/airports_database.dart';
 import '../../data/aircraft_catalog.dart';
 import 'dart:math' as math;
@@ -18,6 +20,7 @@ class SimulatorProvider
     with ChangeNotifier, WeatherSyncMixin, ChartHistoryMixin {
   final MSFSService _msfsService = MSFSService();
   final XPlaneService _xplaneService = XPlaneService();
+  final FlightLogService _flightLogService = FlightLogService();
 
   SimulatorType _currentSimulator = SimulatorType.none;
   ConnectionStatus _status = ConnectionStatus.disconnected;
@@ -52,6 +55,79 @@ class SimulatorProvider
   String? get errorMessage => _errorMessage;
   AirportInfo? get destinationAirport => _destinationAirport;
   AirportInfo? get alternateAirport => _alternateAirport;
+
+  bool get isRecording => _flightLogService.isRecording;
+  FlightLog? get currentFlightLog => _flightLogService.currentLog;
+
+  /// 检查当前飞行日志是否满足导出条件（完整性校验）
+  bool get canExportCurrentLog {
+    final log = currentFlightLog;
+    if (log == null) return false;
+
+    // 必须从地面开始，且在地面结束（或当前就在地面）
+    final startedOnGround = log.wasOnGroundAtStart;
+    final currentlyOnGround = _simulatorData.onGround ?? true;
+
+    // 如果已经停止记录，则检查结束时是否在地面
+    final endedOnGround = log.endTime != null
+        ? log.wasOnGroundAtEnd
+        : currentlyOnGround;
+
+    // 轨迹点必须足够多（至少10个点）
+    final hasEnoughPoints = log.points.length >= 10;
+
+    return startedOnGround && endedOnGround && hasEnoughPoints;
+  }
+
+  /// 获取无法导出的原因提示
+  String? get exportValidationMessage {
+    final log = currentFlightLog;
+    if (log == null) return '当前没有正在记录或已加载的飞行轨迹';
+
+    if (!log.wasOnGroundAtStart) return '飞行轨迹不完整：记录未从地面开始';
+
+    final currentlyOnGround = _simulatorData.onGround ?? true;
+    final endedOnGround = log.endTime != null
+        ? log.wasOnGroundAtEnd
+        : currentlyOnGround;
+    if (!endedOnGround) return '飞行轨迹不完整：飞机当前不在地面或降落未记录';
+
+    if (log.points.length < 10) return '飞行轨迹太短，无法导出';
+
+    return null;
+  }
+
+  void toggleRecording() {
+    if (isRecording) {
+      _flightLogService.stopRecording(
+        arrivalAirport: nearestAirport?.displayName,
+      );
+    } else {
+      if (isConnected) {
+        _flightLogService.startRecording(_simulatorData);
+      }
+    }
+    notifyListeners();
+  }
+
+  void _onDataReceived(SimulatorData data) {
+    _simulatorData = data;
+
+    // 自动记录逻辑
+    if (isConnected) {
+      // 如果正在记录，则记录当前点
+      if (_flightLogService.isRecording) {
+        _flightLogService.recordPoint(data);
+      } else {
+        // 自动开始记录逻辑：如果高度增加或空速超过30且在移动
+        final alt = data.altitude ?? 0;
+        final spd = data.airspeed ?? 0;
+        if (spd > 30 || alt > 50) {
+          // _flightLogService.startRecording(data); // 暂时不自动开始，由用户手动控制或以后优化
+        }
+      }
+    }
+  }
 
   /// 获取当前位置最近的机场
   AirportInfo? get nearestAirport {
@@ -295,7 +371,7 @@ class SimulatorProvider
     final Completer<bool> verificationCompleter = Completer<bool>();
     _dataSubscription?.cancel();
     _dataSubscription = _xplaneService.dataStream.listen((data) {
-      _simulatorData = data;
+      _onDataReceived(data);
       bool shouldNotify = false;
 
       _applyEngineCountFallback();
@@ -388,7 +464,7 @@ class SimulatorProvider
     _dataSubscription?.cancel();
     _dataSubscription = stream.listen((data) {
       if (!data.isConnected && isConnected) _handleConnectionLoss();
-      _simulatorData = data;
+      _onDataReceived(data);
       _applyEngineCountFallback();
       _detectAndSyncAircraft();
       _syncWeatherState();
@@ -414,7 +490,8 @@ class SimulatorProvider
     final currentCount = _simulatorData.numEngines;
     final match = AircraftCatalog.match(title: title);
     final fallbackCount = match?.identity.engineCount;
-    final isSpecificGa = match?.identity.generalAviation == true &&
+    final isSpecificGa =
+        match?.identity.generalAviation == true &&
         match?.identity.id != 'general-aviation';
     if (fallbackCount != null &&
         fallbackCount > 0 &&

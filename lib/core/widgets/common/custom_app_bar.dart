@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../apps/providers/simulator/simulator_provider.dart';
+import '../../../../apps/services/flight_log_service.dart';
 
 import '../../models/navigation_item.dart';
 import '../../theme/app_theme_data.dart';
@@ -29,6 +31,39 @@ class CustomAppBar {
       ),
       // 右侧操作按钮
       actions: [
+        // 飞行日志导入/导出
+        IconButton(
+          icon: const Icon(Icons.file_download_outlined),
+          tooltip: '导入飞行轨迹',
+          onPressed: () async {
+            final success = await FlightLogService().importLog();
+            if (success && context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('飞行轨迹导入成功')));
+            }
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.file_upload_outlined),
+          tooltip: '导出当前飞行轨迹',
+          onPressed: () async {
+            final sim = context.read<SimulatorProvider>();
+            if (sim.canExportCurrentLog) {
+              await FlightLogService().exportLog(sim.currentFlightLog!);
+            } else {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(sim.exportValidationMessage ?? '当前状态无法导出数据'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            }
+          },
+        ),
+        const SizedBox(width: AppThemeData.spacingSmall),
         // 主题选择器
         Consumer<ThemeProvider>(
           builder: (context, themeProvider, child) {

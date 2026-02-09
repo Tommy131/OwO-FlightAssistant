@@ -404,6 +404,12 @@ class XPlaneService {
           verticalSpeed: DataConverters.mpsToFpm(value),
         );
         break;
+      case XPlaneDataRefKey.pitch:
+        _currentData = _currentData.copyWith(pitch: value);
+        break;
+      case XPlaneDataRefKey.roll:
+        _currentData = _currentData.copyWith(roll: value);
+        break;
       case XPlaneDataRefKey.latitude:
         _currentData = _currentData.copyWith(latitude: value);
         _detectAirportByCoords(

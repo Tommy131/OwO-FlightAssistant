@@ -14,6 +14,8 @@ class SimulatorData {
   final double? altitude;
   final double? heading;
   final double? verticalSpeed;
+  final double? pitch; // 俯仰角 (度)
+  final double? roll; // 横滚角 (度)
   final double? gForce; // 重力加速度
   final double? baroPressure; // 气压 (inHg 或 hPa)
   final String? baroPressureUnit; // 气压单位 (inHg 或 hPa)
@@ -109,6 +111,8 @@ class SimulatorData {
     this.altitude,
     this.heading,
     this.verticalSpeed,
+    this.pitch,
+    this.roll,
     this.latitude,
     this.longitude,
     this.groundSpeed,
@@ -194,6 +198,8 @@ class SimulatorData {
     double? altitude,
     double? heading,
     double? verticalSpeed,
+    double? pitch,
+    double? roll,
     double? latitude,
     double? longitude,
     double? groundSpeed,
@@ -274,6 +280,8 @@ class SimulatorData {
       altitude: altitude ?? this.altitude,
       heading: heading ?? this.heading,
       verticalSpeed: verticalSpeed ?? this.verticalSpeed,
+      pitch: pitch ?? this.pitch,
+      roll: roll ?? this.roll,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       groundSpeed: groundSpeed ?? this.groundSpeed,

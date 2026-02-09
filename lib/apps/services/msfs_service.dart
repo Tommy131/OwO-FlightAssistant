@@ -184,6 +184,18 @@ class MSFSService {
       );
     }
 
+    if (data.containsKey('PLANE PITCH DEGREES')) {
+      _currentData = _currentData.copyWith(
+        pitch: (data['PLANE PITCH DEGREES'] as num?)?.toDouble(),
+      );
+    }
+
+    if (data.containsKey('PLANE BANK DEGREES')) {
+      _currentData = _currentData.copyWith(
+        roll: (data['PLANE BANK DEGREES'] as num?)?.toDouble(),
+      );
+    }
+
     if (data.containsKey('PLANE_LATITUDE')) {
       _currentData = _currentData.copyWith(
         latitude: (data['PLANE_LATITUDE'] as num?)?.toDouble(),

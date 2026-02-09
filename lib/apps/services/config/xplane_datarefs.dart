@@ -3,6 +3,8 @@ enum XPlaneDataRefKey {
   altitude,
   heading,
   verticalSpeed,
+  pitch,
+  roll,
   latitude,
   longitude,
   groundSpeed,
@@ -119,6 +121,18 @@ class XPlaneDataRefs {
     key: XPlaneDataRefKey.verticalSpeed,
     path: 'sim/flightmodel/position/vh_ind',
     description: '垂直速度',
+  );
+
+  static const XPlaneDataRef pitch = XPlaneDataRef(
+    key: XPlaneDataRefKey.pitch,
+    path: 'sim/flightmodel/position/theta',
+    description: '俯仰角',
+  );
+
+  static const XPlaneDataRef roll = XPlaneDataRef(
+    key: XPlaneDataRefKey.roll,
+    path: 'sim/flightmodel/position/phi',
+    description: '横滚角',
   );
 
   // ==================== 位置和导航 ====================
@@ -541,7 +555,7 @@ class XPlaneDataRefs {
   static List<XPlaneDataRef> getAllDataRefs() {
     return [
       // 飞行数据
-      airspeed, altitude, heading, verticalSpeed,
+      airspeed, altitude, heading, verticalSpeed, pitch, roll,
       // 位置和导航
       latitude, longitude, groundSpeed, trueAirspeed, machNumber,
       // 环境数据
