@@ -20,6 +20,7 @@ import 'pages/airport_info/airport_info_page.dart';
 import 'pages/checklist/checklist_page.dart';
 import 'pages/home/home_page.dart';
 import 'pages/monitor/monitor_page.dart';
+import 'pages/map/map_page.dart';
 import 'pages/settings/settings_page.dart';
 import 'pages/setup/setup_guide_page.dart';
 import 'pages/splash/splash_screen.dart';
@@ -86,6 +87,13 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       icon: Icons.speed_outlined,
       activeIcon: Icons.speed,
       page: MonitorPage(),
+    ),
+    NavigationItem(
+      id: 'map',
+      title: '地图与进近',
+      icon: Icons.map_outlined,
+      activeIcon: Icons.map,
+      page: MapPage(),
     ),
     NavigationItem(
       id: 'checklist',

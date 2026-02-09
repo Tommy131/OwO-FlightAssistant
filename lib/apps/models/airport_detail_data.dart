@@ -23,6 +23,8 @@ class AirportDetailData {
   final bool isCached; // 是否来自缓存
   final AirportDataSourceType dataSource; // 数据来源
   final MetarData? metar; // 气象报文
+  final List<TaxiwayInfo> taxiways; // 滑行道几何数据
+  final List<ParkingInfo> parkings; // 停机位数据
 
   AirportDetailData({
     required this.icaoCode,
@@ -40,6 +42,8 @@ class AirportDetailData {
     this.isCached = false,
     this.dataSource = AirportDataSourceType.aviationApi,
     this.metar,
+    this.taxiways = const [],
+    this.parkings = const [],
   });
 
   AirportDetailData copyWith({
@@ -58,6 +62,8 @@ class AirportDetailData {
     bool? isCached,
     AirportDataSourceType? dataSource,
     MetarData? metar,
+    List<TaxiwayInfo>? taxiways,
+    List<ParkingInfo>? parkings,
   }) {
     return AirportDetailData(
       icaoCode: icaoCode ?? this.icaoCode,
@@ -75,6 +81,8 @@ class AirportDetailData {
       isCached: isCached ?? this.isCached,
       dataSource: dataSource ?? this.dataSource,
       metar: metar ?? this.metar,
+      taxiways: taxiways ?? this.taxiways,
+      parkings: parkings ?? this.parkings,
     );
   }
 
@@ -129,6 +137,8 @@ class AirportDetailData {
       'fetchedAt': fetchedAt.toIso8601String(),
       'dataSource': dataSource.name,
       'metar': metar?.toJson(),
+      'taxiways': taxiways.map((t) => t.toJson()).toList(),
+      'parkings': parkings.map((p) => p.toJson()).toList(),
     };
   }
 
@@ -160,6 +170,16 @@ class AirportDetailData {
       ),
       isCached: true,
       metar: json['metar'] != null ? MetarData.fromJson(json['metar']) : null,
+      taxiways:
+          (json['taxiways'] as List<dynamic>?)
+              ?.map((t) => TaxiwayInfo.fromJson(t as Map<String, dynamic>))
+              .toList() ??
+          [],
+      parkings:
+          (json['parkings'] as List<dynamic>?)
+              ?.map((p) => ParkingInfo.fromJson(p as Map<String, dynamic>))
+              .toList() ??
+          [],
     );
   }
 
@@ -254,6 +274,10 @@ class RunwayInfo {
   final String? heIdent; // High end identifier (e.g., "35R")
   final IlsInfo? leIls; // Low end ILS information
   final IlsInfo? heIls; // High end ILS information
+  final double? leLat; // 低端纬度
+  final double? leLon; // 低端经度
+  final double? heLat; // 高端纬度
+  final double? heLon; // 高端经度
 
   RunwayInfo({
     required this.ident,
@@ -266,6 +290,10 @@ class RunwayInfo {
     this.heIdent,
     this.leIls,
     this.heIls,
+    this.leLat,
+    this.leLon,
+    this.heLat,
+    this.heLon,
   });
 
   String get lengthMeters =>
@@ -347,6 +375,10 @@ class RunwayInfo {
       heIdent: heIdent ?? other.heIdent,
       leIls: leIls ?? other.leIls,
       heIls: heIls ?? other.heIls,
+      leLat: leLat ?? other.leLat,
+      leLon: leLon ?? other.leLon,
+      heLat: heLat ?? other.heLat,
+      heLon: heLon ?? other.heLon,
     );
   }
 }
@@ -514,4 +546,66 @@ class FrequencyInfo {
       description: json['description'] as String?,
     );
   }
+}
+
+/// 滑行道几何信息
+class TaxiwayInfo {
+  final String? name;
+  final List<Coord> points;
+
+  TaxiwayInfo({this.name, required this.points});
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'points': points.map((p) => p.toJson()).toList(),
+  };
+
+  factory TaxiwayInfo.fromJson(Map<String, dynamic> json) => TaxiwayInfo(
+    name: json['name'] as String?,
+    points: (json['points'] as List<dynamic>)
+        .map((p) => Coord.fromJson(p as Map<String, dynamic>))
+        .toList(),
+  );
+}
+
+/// 停机位信息
+class ParkingInfo {
+  final String name;
+  final double latitude;
+  final double longitude;
+  final double heading; // 停机位朝向
+
+  ParkingInfo({
+    required this.name,
+    required this.latitude,
+    required this.longitude,
+    required this.heading,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'latitude': latitude,
+    'longitude': longitude,
+    'heading': heading,
+  };
+
+  factory ParkingInfo.fromJson(Map<String, dynamic> json) => ParkingInfo(
+    name: json['name'] as String,
+    latitude: (json['latitude'] as num).toDouble(),
+    longitude: (json['longitude'] as num).toDouble(),
+    heading: (json['heading'] as num).toDouble(),
+  );
+}
+
+/// 通用坐标
+class Coord {
+  final double latitude;
+  final double longitude;
+
+  Coord(this.latitude, this.longitude);
+
+  Map<String, dynamic> toJson() => {'lat': latitude, 'lon': longitude};
+
+  factory Coord.fromJson(Map<String, dynamic> json) =>
+      Coord((json['lat'] as num).toDouble(), (json['lon'] as num).toDouble());
 }
