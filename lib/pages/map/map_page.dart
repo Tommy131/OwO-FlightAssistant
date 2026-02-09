@@ -16,6 +16,8 @@ import 'widgets/airport_geometry_layers.dart';
 import 'widgets/route_layers.dart';
 import 'widgets/danger_overlay.dart';
 import 'widgets/aircraft_compass.dart';
+import 'widgets/landing_report_dialog.dart';
+import '../../apps/services/flight_log_service.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -40,6 +42,27 @@ class _MapPageState extends State<MapPage> {
   final _weatherRadarTransformer = TileUpdateTransformers.throttle(
     const Duration(milliseconds: 100),
   );
+  StreamSubscription? _landingSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _landingSubscription = FlightLogService().landingStream.listen((data) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => LandingReportDialog(data: data),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _landingSubscription?.cancel();
+    super.dispose();
+  }
 
   // 底图地址逻辑见 utils/getTileUrl
 

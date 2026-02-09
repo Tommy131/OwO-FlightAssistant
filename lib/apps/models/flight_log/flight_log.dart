@@ -70,6 +70,7 @@ class FlightLog {
   double maxAirspeed;
   bool wasOnGroundAtStart;
   bool wasOnGroundAtEnd;
+  LandingData? landingData;
 
   FlightLog({
     required this.id,
@@ -85,6 +86,7 @@ class FlightLog {
     this.maxAirspeed = 0.0,
     this.wasOnGroundAtStart = false,
     this.wasOnGroundAtEnd = false,
+    this.landingData,
   });
 
   Map<String, dynamic> toJson() => {
@@ -99,8 +101,9 @@ class FlightLog {
     'minG': minG,
     'maxAlt': maxAltitude,
     'maxSpd': maxAirspeed,
-    'onGroundStart': wasOnGroundAtStart,
-    'onGroundEnd': wasOnGroundAtEnd,
+    'groundStart': wasOnGroundAtStart,
+    'groundEnd': wasOnGroundAtEnd,
+    'landing': landingData?.toJson(),
   };
 
   factory FlightLog.fromJson(Map<String, dynamic> json) => FlightLog(
@@ -111,13 +114,89 @@ class FlightLog {
     startTime: DateTime.parse(json['start'] as String),
     endTime: json['end'] != null ? DateTime.parse(json['end'] as String) : null,
     points: (json['points'] as List)
-        .map((p) => FlightPoint.fromJson(p))
+        .map((p) => FlightPoint.fromJson(p as Map<String, dynamic>))
         .toList(),
     maxG: (json['maxG'] as num).toDouble(),
     minG: (json['minG'] as num).toDouble(),
     maxAltitude: (json['maxAlt'] as num).toDouble(),
     maxAirspeed: (json['maxSpd'] as num).toDouble(),
-    wasOnGroundAtStart: json['onGroundStart'] as bool? ?? false,
-    wasOnGroundAtEnd: json['onGroundEnd'] as bool? ?? false,
+    wasOnGroundAtStart: json['groundStart'] as bool? ?? false,
+    wasOnGroundAtEnd: json['groundEnd'] as bool? ?? false,
+    landingData: json['landing'] != null
+        ? LandingData.fromJson(json['landing'] as Map<String, dynamic>)
+        : null,
+  );
+}
+
+/// 着陆等级
+enum LandingRating {
+  perfect('完美着陆', '666，你是王牌飞行员！', 0.9, 1.15),
+  soft('软着陆', '落地丝滑，机长辛苦了！', 0.8, 1.3),
+  acceptable('可接受着陆', '安全落地，下次加油。', 0.6, 1.6),
+  hard('硬着陆', '屁股有点痛，建议去检查起落架。', 0.4, 2.1),
+  fired('你被开除了', '乘客正在排队退票，你已被解雇。', 0.2, 3.5),
+  rip('R.I.P.', '愿天堂没有重力...', 0.0, 99.0);
+
+  final String label;
+  final String description;
+  final double minScore; // 综合评分阈值
+  final double maxG; // G值阈值
+
+  const LandingRating(this.label, this.description, this.minScore, this.maxG);
+
+  static LandingRating fromData(double gForce, double verticalSpeed) {
+    // 简单评估逻辑：G值是主要参考，垂直速度辅助
+    // 垂直速度通常为负值 (fpm)
+    final absVs = verticalSpeed.abs();
+
+    if (gForce > 3.5 || absVs > 1200) return LandingRating.rip;
+    if (gForce > 2.1 || absVs > 800) return LandingRating.fired;
+    if (gForce > 1.6 || absVs > 500) return LandingRating.hard;
+    if (gForce > 1.3 || absVs > 300) return LandingRating.acceptable;
+    if (gForce > 1.15 || absVs > 150) return LandingRating.soft;
+    return LandingRating.perfect;
+  }
+}
+
+/// 着陆详细数据
+class LandingData {
+  final double gForce;
+  final double verticalSpeed;
+  final double airspeed;
+  final double pitch;
+  final double roll;
+  final LandingRating rating;
+  final List<FlightPoint> touchdownSequence; // 落地前后一段时间的数据点
+
+  LandingData({
+    required this.gForce,
+    required this.verticalSpeed,
+    required this.airspeed,
+    required this.pitch,
+    required this.roll,
+    required this.rating,
+    required this.touchdownSequence,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'g': gForce,
+    'vs': verticalSpeed,
+    'spd': airspeed,
+    'pit': pitch,
+    'rol': roll,
+    'rating': rating.name,
+    'seq': touchdownSequence.map((p) => p.toJson()).toList(),
+  };
+
+  factory LandingData.fromJson(Map<String, dynamic> json) => LandingData(
+    gForce: (json['g'] as num).toDouble(),
+    verticalSpeed: (json['vs'] as num).toDouble(),
+    airspeed: (json['spd'] as num).toDouble(),
+    pitch: (json['pit'] as num).toDouble(),
+    roll: (json['rol'] as num).toDouble(),
+    rating: LandingRating.values.byName(json['rating'] as String),
+    touchdownSequence: (json['seq'] as List)
+        .map((p) => FlightPoint.fromJson(p as Map<String, dynamic>))
+        .toList(),
   );
 }

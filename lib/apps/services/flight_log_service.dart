@@ -19,6 +19,14 @@ class FlightLogService {
   bool _isRecording = false;
   DateTime? _lastPointTime;
 
+  // 着陆检测相关
+  bool _wasInAir = false;
+  final List<FlightPoint> _recentPoints = []; // 循环队列，存储最近30秒的数据点
+  static const int _maxRecentPoints = 30; // 约1分钟的数据（假设2秒一个点）
+
+  final _landingController = StreamController<LandingData>.broadcast();
+  Stream<LandingData> get landingStream => _landingController.stream;
+
   // 记录配置
   static const int _minIntervalMs = 2000; // 最小记录间隔 2秒
   static const double _minDistanceMove = 0.0001; // 约10米，最小移动距离
@@ -66,7 +74,8 @@ class FlightLogService {
     // 如果有上一个点，检查移动距离
     if (_currentLog!.points.isNotEmpty) {
       final last = _currentLog!.points.last;
-      final distSq = (last.latitude - lat) * (last.latitude - lat) +
+      final distSq =
+          (last.latitude - lat) * (last.latitude - lat) +
           (last.longitude - lon) * (last.longitude - lon);
       if (distSq < _minDistanceMove * _minDistanceMove &&
           (now.difference(_lastPointTime!).inSeconds < 10)) {
@@ -92,6 +101,20 @@ class FlightLogService {
     _currentLog!.points.add(point);
     _lastPointTime = now;
 
+    // 维护最近点序列
+    _recentPoints.add(point);
+    if (_recentPoints.length > _maxRecentPoints) {
+      _recentPoints.removeAt(0);
+    }
+
+    // 着陆检测逻辑
+    final onGround = data.onGround ?? false;
+    if (_wasInAir && onGround) {
+      // 触发着陆
+      _handleLanding(point);
+    }
+    _wasInAir = !onGround;
+
     // 更新统计数据
     if (point.gForce > _currentLog!.maxG) _currentLog!.maxG = point.gForce;
     if (point.gForce < _currentLog!.minG) _currentLog!.minG = point.gForce;
@@ -101,13 +124,43 @@ class FlightLogService {
     if (point.airspeed > _currentLog!.maxAirspeed) {
       _currentLog!.maxAirspeed = point.airspeed;
     }
-    
+
     // 持续更新是否在地面
     _currentLog!.wasOnGroundAtEnd = data.onGround ?? false;
   }
 
+  void _handleLanding(FlightPoint touchdownPoint) {
+    if (_currentLog == null) return;
+
+    // 获取着陆前后的序列（最近的序列包含着陆瞬间）
+    final sequence = List<FlightPoint>.from(_recentPoints);
+
+    final landingData = LandingData(
+      gForce: touchdownPoint.gForce,
+      verticalSpeed: touchdownPoint.verticalSpeed,
+      airspeed: touchdownPoint.airspeed,
+      pitch: touchdownPoint.pitch,
+      roll: touchdownPoint.roll,
+      rating: LandingRating.fromData(
+        touchdownPoint.gForce,
+        touchdownPoint.verticalSpeed,
+      ),
+      touchdownSequence: sequence,
+    );
+
+    _currentLog!.landingData = landingData;
+    _landingController.add(landingData);
+
+    AppLogger.info(
+      '检测到着陆: ${landingData.rating.label}, G: ${landingData.gForce}',
+    );
+  }
+
   /// 停止记录并保存
-  Future<String?> stopRecording({String? arrivalAirport, bool? onGround}) async {
+  Future<String?> stopRecording({
+    String? arrivalAirport,
+    bool? onGround,
+  }) async {
     if (!_isRecording || _currentLog == null) return null;
 
     _isRecording = false;
@@ -115,7 +168,7 @@ class FlightLogService {
     if (onGround != null) {
       _currentLog!.wasOnGroundAtEnd = onGround;
     }
-    
+
     _currentLog = FlightLog(
       id: _currentLog!.id,
       aircraftTitle: _currentLog!.aircraftTitle,
