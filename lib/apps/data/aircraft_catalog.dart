@@ -6,6 +6,47 @@ class FlapProfile {
   const FlapProfile({required this.labels, this.angles, this.maxAngle = 40.0});
 }
 
+class AutoBrakeProfile {
+  final Map<int, String> labels;
+  final String offLabel;
+  final String rtoLabel;
+  final String? prefix;
+
+  const AutoBrakeProfile({
+    this.labels = const {},
+    this.offLabel = 'OFF',
+    this.rtoLabel = 'RTO',
+    this.prefix,
+  });
+
+  String format(int? level) {
+    if (level == null || level == 0) return offLabel;
+    if (level == -1) return rtoLabel;
+    if (labels.containsKey(level)) return labels[level]!;
+    if (prefix != null) return '$prefix$level';
+    return level.toString();
+  }
+}
+
+class SpeedBrakeProfile {
+  final String retractedLabel;
+  final String armedLabel;
+  final String deployedLabel;
+
+  const SpeedBrakeProfile({
+    this.retractedLabel = 'RETRACTED',
+    this.armedLabel = 'ARMED',
+    this.deployedLabel = 'DEPLOYED',
+  });
+
+  String format(bool? active, double? position) {
+    if (active != true) return retractedLabel;
+    final pos = (position ?? 0) * 100;
+    if (pos <= 0.01) return armedLabel;
+    return '$deployedLabel (${pos.toStringAsFixed(0)}%)';
+  }
+}
+
 class LightProfile {
   final List<int>? landingIndices;
   final int? taxiIndex;
@@ -15,7 +56,7 @@ class LightProfile {
   final int? runwayLeftIndex;
   final int? runwayRightIndex;
   final int? wheelWellIndex;
-  final bool hasMainLandingLightControl;
+  // final bool hasMainLandingLightControl; // (no more needed)
 
   const LightProfile({
     this.landingIndices,
@@ -26,7 +67,7 @@ class LightProfile {
     this.runwayLeftIndex,
     this.runwayRightIndex,
     this.wheelWellIndex,
-    this.hasMainLandingLightControl = false,
+    // this.hasMainLandingLightControl = false, // (no more needed)
   });
 }
 
@@ -44,6 +85,8 @@ class AircraftIdentity {
   final bool generalAviation;
   final FlapProfile? flapProfile;
   final LightProfile? lightProfile;
+  final AutoBrakeProfile? autoBrakeProfile;
+  final SpeedBrakeProfile? speedBrakeProfile;
 
   const AircraftIdentity({
     required this.id,
@@ -59,9 +102,22 @@ class AircraftIdentity {
     this.generalAviation = false,
     this.flapProfile,
     this.lightProfile,
+    this.autoBrakeProfile,
+    this.speedBrakeProfile,
   });
 
   String get displayName => '$manufacturer $model';
+
+  String formatAutoBrake(int? level) {
+    return (autoBrakeProfile ?? const AutoBrakeProfile()).format(level);
+  }
+
+  String formatSpeedBrake(bool? active, double? position) {
+    return (speedBrakeProfile ?? const SpeedBrakeProfile()).format(
+      active,
+      position,
+    );
+  }
 }
 
 class AircraftMatch {
@@ -85,6 +141,10 @@ class AircraftCatalog {
         labels: ['UP', '1', '2', '3', 'FULL'],
         maxAngle: 40,
       ),
+      autoBrakeProfile: AutoBrakeProfile(
+        prefix: 'L',
+        labels: {1: 'LO', 2: 'MED', 3: 'MAX', 4: 'MAX'},
+      ),
     ),
     AircraftIdentity(
       id: 'a320',
@@ -97,6 +157,10 @@ class AircraftCatalog {
       flapProfile: FlapProfile(
         labels: ['UP', '1', '2', '3', 'FULL'],
         maxAngle: 40,
+      ),
+      autoBrakeProfile: AutoBrakeProfile(
+        prefix: 'L',
+        labels: {1: 'LO', 2: 'MED', 3: 'MAX', 4: 'MAX'},
       ),
     ),
     AircraftIdentity(
@@ -111,13 +175,17 @@ class AircraftCatalog {
         labels: ['UP', '1', '2', '3', 'FULL'],
         maxAngle: 40,
       ),
+      autoBrakeProfile: AutoBrakeProfile(
+        prefix: 'L',
+        labels: {1: 'LO', 2: 'MED', 3: 'MAX', 4: 'MAX'},
+      ),
     ),
     AircraftIdentity(
       id: 'b737-800',
       manufacturer: 'Boeing',
       family: '737',
       model: '737-800',
-      keywords: ['737-800', 'b737-800', 'boeing 737-800', 'zibo'],
+      keywords: ['737-800', 'b737-800', 'boeing 737-800'],
       flapDetents: 8,
       engineCount: 2,
       flapProfile: FlapProfile(
@@ -132,7 +200,36 @@ class AircraftCatalog {
         runwayRightIndex: 3,
         taxiIndex: 4,
         wheelWellIndex: 5,
-        landingIndices: [0, 1],
+        landingIndices: [0, 1, 2, 3],
+      ),
+      autoBrakeProfile: AutoBrakeProfile(
+        labels: {1: '1', 2: '2', 3: '3', 4: 'MAX'},
+      ),
+    ),
+    AircraftIdentity(
+      id: 'zibo-738',
+      manufacturer: 'Boeing',
+      family: '737',
+      model: '737-800 (Zibo)',
+      keywords: ['zibo', '800x', '738x', 'boeing 737-800x', '737-800x'],
+      flapDetents: 8,
+      engineCount: 2,
+      flapProfile: FlapProfile(
+        labels: ['UP', '1', '2', '5', '10', '15', '25', '30', '40'],
+        angles: [0.0, 1.0, 2.0, 5.0, 10.0, 15.0, 25.0, 30.0, 40.0],
+        maxAngle: 40,
+      ),
+      lightProfile: LightProfile(
+        wingIndex: 0,
+        logoIndex: 1,
+        runwayLeftIndex: 2,
+        runwayRightIndex: 3,
+        taxiIndex: 4,
+        wheelWellIndex: 5,
+        landingIndices: [0, 1, 2, 3],
+      ),
+      autoBrakeProfile: AutoBrakeProfile(
+        labels: {1: '1', 2: '2', 3: '3', 4: 'MAX'},
       ),
     ),
     AircraftIdentity(
@@ -155,6 +252,10 @@ class AircraftCatalog {
         runwayRightIndex: 3,
         taxiIndex: 4,
         wheelWellIndex: 5,
+        landingIndices: [0, 1, 2, 3],
+      ),
+      autoBrakeProfile: AutoBrakeProfile(
+        labels: {1: '1', 2: '2', 3: '3', 4: 'MAX'},
       ),
     ),
     AircraftIdentity(
@@ -171,12 +272,42 @@ class AircraftCatalog {
         maxAngle: 30,
       ),
       lightProfile: LightProfile(
+        landingIndices: [0, 1, 2, 3],
         runwayLeftIndex: 0,
         runwayRightIndex: 1,
         wingIndex: 2,
         logoIndex: 3,
         taxiIndex: 4,
         wheelWellIndex: 5,
+      ),
+      autoBrakeProfile: AutoBrakeProfile(
+        labels: {1: '1', 2: '2', 3: '3', 4: '4', 5: 'MAX'},
+      ),
+    ),
+    AircraftIdentity(
+      id: 'b747-8',
+      manufacturer: 'Boeing',
+      family: '747',
+      model: '747-8',
+      keywords: ['747-8', 'b747-8', 'boeing 747-8', '748', '7478'],
+      engineCount: 4,
+      flapDetents: 6,
+      flapProfile: FlapProfile(
+        labels: ['UP', '1', '5', '10', '20', '25', '30'],
+        angles: [0.0, 1.0, 5.0, 10.0, 20.0, 25.0, 30.0],
+        maxAngle: 30,
+      ),
+      lightProfile: LightProfile(
+        landingIndices: [0, 1, 2, 3],
+        runwayLeftIndex: 0,
+        runwayRightIndex: 1,
+        wingIndex: 2,
+        logoIndex: 3,
+        taxiIndex: 4,
+        wheelWellIndex: 5,
+      ),
+      autoBrakeProfile: AutoBrakeProfile(
+        labels: {1: 'DISARM', 2: '1', 3: '2', 4: '3', 5: '4', 6: 'MAX AUTO'},
       ),
     ),
     AircraftIdentity(
@@ -199,6 +330,9 @@ class AircraftCatalog {
         taxiIndex: 4,
         wheelWellIndex: 5,
         landingIndices: [0, 1, 2],
+      ),
+      autoBrakeProfile: AutoBrakeProfile(
+        labels: {1: '1', 2: '2', 3: '3', 4: 'MAX'},
       ),
     ),
     AircraftIdentity(
@@ -330,6 +464,44 @@ class AircraftCatalog {
     }
 
     return best;
+  }
+
+  /// 结构化匹配兜底
+  /// 根据物理特征（发动机数、襟翼数等）尝试识别一个最接近的通用机型
+  static AircraftIdentity? matchByStructural({
+    int? engineCount,
+    int? flapDetents,
+    double? n1_1,
+    double? n1_2,
+  }) {
+    final eCount = engineCount ?? 0;
+    final fDetents = flapDetents ?? 0;
+    final n1Left = n1_1 ?? 0;
+    final n1Right = n1_2 ?? 0;
+
+    // 简单判断是否为喷气机
+    final isJet = n1Left > 5 || n1Right > 5 || fDetents >= 5;
+
+    // 4发动机通常是747
+    if (eCount >= 4) {
+      return entries.where((e) => e.id == 'b747-400').firstOrNull;
+    }
+
+    if (isJet) {
+      // 8档位通常是737 (默认机型或Zibo)
+      if (fDetents >= 8) {
+        return entries.where((e) => e.id == 'b737-800').firstOrNull;
+      }
+      // 其他有档位的喷气机暂定为A320系
+      if (fDetents > 0) {
+        return entries.where((e) => e.id == 'a320').firstOrNull;
+      }
+    } else if (fDetents > 0 || eCount > 0) {
+      // 非喷气机且有动力/襟翼，归类为通用航空
+      return entries.where((e) => e.id == 'general-aviation').firstOrNull;
+    }
+
+    return null;
   }
 
   static String _normalize(String value) {

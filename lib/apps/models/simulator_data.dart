@@ -1,7 +1,10 @@
+import '../data/aircraft_catalog.dart';
+
 class SimulatorData {
   final bool isConnected;
   final String? aircraftTitle;
   final String? aircraftType;
+  final AircraftIdentity? identity;
 
   // 模拟器状态
   final bool? isPaused; // 模拟器是否暂停
@@ -93,6 +96,7 @@ class SimulatorData {
     this.isConnected = false,
     this.aircraftTitle,
     this.aircraftType,
+    this.identity,
     this.isPaused,
     this.airspeed,
     this.altitude,
@@ -171,6 +175,7 @@ class SimulatorData {
     bool? isConnected,
     String? aircraftTitle,
     String? aircraftType,
+    AircraftIdentity? identity,
     bool? isPaused,
     double? airspeed,
     double? altitude,
@@ -244,6 +249,7 @@ class SimulatorData {
       isConnected: isConnected ?? this.isConnected,
       aircraftTitle: aircraftTitle ?? this.aircraftTitle,
       aircraftType: aircraftType ?? this.aircraftType,
+      identity: identity ?? this.identity,
       isPaused: isPaused ?? this.isPaused,
       airspeed: airspeed ?? this.airspeed,
       altitude: altitude ?? this.altitude,
@@ -317,32 +323,13 @@ class SimulatorData {
   }
 
   /// 获取自动刹车挡位文本 (支持机型自动识别)
+  /// 获取自动刹车挡位文本
   String get autoBrakeLabel {
+    if (identity != null) {
+      return identity!.formatAutoBrake(autoBrakeLevel);
+    }
+    // 回退到通用逻辑
     if (autoBrakeLevel == null || autoBrakeLevel == 0) return 'OFF';
-
-    final title = aircraftTitle?.toLowerCase() ?? '';
-
-    // Boeing 737 系列
-    if (title.contains('737') ||
-        title.contains('738') ||
-        title.contains('boeing')) {
-      if (autoBrakeLevel == -1) return 'RTO';
-      if (autoBrakeLevel == 4) return 'MAX';
-      return autoBrakeLevel.toString();
-    }
-
-    // Airbus A320 系列
-    if (title.contains('a320') ||
-        title.contains('airbus') ||
-        title.contains('a319') ||
-        title.contains('a321')) {
-      if (autoBrakeLevel == 1) return 'LO';
-      if (autoBrakeLevel == 2) return 'MED';
-      if (autoBrakeLevel == 3 || autoBrakeLevel == 4) return 'MAX';
-      return 'L$autoBrakeLevel';
-    }
-
-    // 通用回退
     if (autoBrakeLevel == -1) return 'RTO';
     if (autoBrakeLevel == 4) return 'MAX';
     return autoBrakeLevel.toString();
@@ -350,6 +337,10 @@ class SimulatorData {
 
   /// 获取减速板展开文本
   String get speedBrakeLabel {
+    if (identity != null) {
+      return identity!.formatSpeedBrake(speedBrake, speedBrakePosition);
+    }
+    // 回退到通用逻辑
     if (speedBrake != true) return 'RETRACTED';
     final pos = (speedBrakePosition ?? 0) * 100;
     if (pos <= 0.01) return 'ARMED';

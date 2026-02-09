@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import '../models/simulator_data.dart';
 import '../data/airports_database.dart';
@@ -30,10 +31,10 @@ class XPlaneService {
 
   // 缓存复合状态
   final List<bool> _landingLightSwitches = List.filled(16, false);
-  bool _mainLandingLightOn = false;
+  // bool _mainLandingLightOn = false; // (no more needed)
   bool _logoLightOn = false;
   final List<bool> _genericLightSwitches = List.filled(80, false);
-  bool _taxiLightOn = false;
+  // bool _taxiLightOn = false; // (no more needed)
 
   // 机型检测器
   final AircraftDetector _aircraftDetector = AircraftDetector();
@@ -216,11 +217,22 @@ class XPlaneService {
     }
 
     // 只有当机型真正改变时才通知
-    if (_currentData.aircraftTitle != result.aircraftType) {
+    if (_currentData.aircraftTitle != result.aircraftType ||
+        _currentData.identity != result.identity) {
       _currentData = _currentData.copyWith(
         aircraftTitle: result.aircraftType,
+        identity: result.identity,
         isConnected: true,
       );
+
+      // 如果识别到了 identity，且 numEngines 位空/0，则同步 catalog 中的引擎数
+      if ((_currentData.numEngines == null || _currentData.numEngines == 0) &&
+          result.identity?.engineCount != null) {
+        _currentData = _currentData.copyWith(
+          numEngines: result.identity!.engineCount,
+        );
+      }
+
       _updateLightStatus();
       _notifyData(_currentData);
       AppLogger.info(
@@ -337,27 +349,42 @@ class XPlaneService {
     double value, {
     int subIndex = 0,
   }) {
+    void onChanged(
+      String lightType,
+      List<bool> array,
+      int index,
+      bool newValue,
+    ) {
+      final activeIndices = array
+          .asMap()
+          .entries
+          .where((e) => e.value)
+          .map((e) => e.key)
+          .toList();
+      if (kDebugMode) {
+        print(
+          'X-Plane $lightType 灯光更新: 索引 $index -> ${newValue ? "开启" : "关闭"}, 当前激活列表: $activeIndices',
+        );
+      }
+    }
+
     switch (key) {
       case XPlaneDataRefKey.landingLightArray:
-        _updateArrayStatus(_landingLightSwitches, subIndex, value);
+        _updateArrayStatus(
+          _landingLightSwitches,
+          subIndex,
+          value,
+          onChanged: (index, newValue) =>
+              onChanged('起落灯', _landingLightSwitches, index, newValue),
+        );
         break;
       case XPlaneDataRefKey.genericLightArray:
         _updateArrayStatus(
           _genericLightSwitches,
           subIndex,
           value,
-          onChanged: (index, newValue) {
-            // 当通用灯光改变时，输出具体哪个索引变了
-            final activeIndices = _genericLightSwitches
-                .asMap()
-                .entries
-                .where((e) => e.value)
-                .map((e) => e.key)
-                .toList();
-            print(
-              'X-Plane 通用灯光更新: 索引 $index -> ${newValue ? "开启" : "关闭"}, 当前激活列表: $activeIndices',
-            );
-          },
+          onChanged: (index, newValue) =>
+              onChanged('泛用灯', _genericLightSwitches, index, newValue),
         );
         break;
       case XPlaneDataRefKey.airspeed:
@@ -409,7 +436,8 @@ class XPlaneService {
       case XPlaneDataRefKey.beaconLights:
         _currentData = _currentData.copyWith(beacon: value > 0.5);
         break;
-      case XPlaneDataRefKey.landingLightsMain:
+      // // (No more needed)
+      /* case XPlaneDataRefKey.landingLightsMain:
         final newValue = value > 0.5;
         if (_mainLandingLightOn != newValue) {
           _mainLandingLightOn = newValue;
@@ -422,7 +450,7 @@ class XPlaneService {
           _taxiLightOn = newValue;
           _updateLightStatus();
         }
-        break;
+        break; */
       case XPlaneDataRefKey.navLights:
         _currentData = _currentData.copyWith(navLights: value > 0.5);
         break;
@@ -555,16 +583,23 @@ class XPlaneService {
         break;
       // 自动刹车
       case XPlaneDataRefKey.autoBrake:
-        // 注意：-1 表示不支持或未设置，0 表示 OFF
+        // X-Plane 11/12 默认机型自动刹车挡位：
+        // B747: 0=RTO, 1=OFF, 2=DISARM (747-8), 3=1, 4=2, 5=3, 6=4, 7=MAX (或 MAX AUTO)
+        // B737: 0=RTO, 1=OFF, 2=1, 3=2, 4=3, 5=MAX
+        // 映射为：1->0(OFF), 0->-1(RTO), 2->1(DISARM), 3->2(1) ...
         final level = value.round();
-        final mappedLevel = (level >= 0 && level <= 5) ? level - 1 : null;
+        final mappedLevel = (level >= 0 && level <= 7) ? level - 1 : null;
         _currentData = _currentData.copyWith(autoBrakeLevel: mappedLevel);
         break;
       case XPlaneDataRefKey.autoBrakeZibo:
         // ZIBO 738 自动刹车原始值：0, 1, 2, 3, 4, 5
         // 对应：0=RTO, 1=OFF, 2=1, 3=2, 4=3, 5=MAX(4)
-
-        _currentData = _currentData.copyWith(autoBrakeLevel: value.round() - 1);
+        // 只有识别为 Zibo 时才接受此专有数据反馈，避免干扰默认机型
+        if (_currentData.identity?.id == 'zibo-738') {
+          _currentData = _currentData.copyWith(
+            autoBrakeLevel: value.round() - 1,
+          );
+        }
         break;
       // 警告系统
       case XPlaneDataRefKey.masterWarning:
@@ -603,10 +638,10 @@ class XPlaneService {
 
     final result = _lightResolver.resolve(
       identity: match?.identity,
-      landingMain: _mainLandingLightOn,
+      // landingMain: _mainLandingLightOn, // (no more needed)
       landingSwitches: _landingLightSwitches,
       logoStandard: _logoLightOn,
-      taxiStandard: _taxiLightOn,
+      // taxiStandard: _taxiLightOn, // (no more needed)
       genericSwitches: _genericLightSwitches,
     );
     _currentData = _currentData.copyWith(
@@ -774,20 +809,24 @@ class _LightResult {
 class _LightResolver {
   _LightResult resolve({
     required AircraftIdentity? identity,
-    required bool landingMain,
+    // required bool landingMain, // (no more needed)
     required List<bool> landingSwitches,
     required bool logoStandard,
-    required bool taxiStandard,
+    // required bool taxiStandard, // (no more needed)
     required List<bool> genericSwitches,
   }) {
     final profile = identity?.lightProfile ?? const LightProfile();
 
-    final landingOn =
-        (profile.hasMainLandingLightControl && landingMain) ||
-        landingSwitches.any((isOn) => isOn) ||
-        _anySwitchOn(landingSwitches, profile.landingIndices);
-    final taxiOn =
-        taxiStandard || _switchOn(genericSwitches, profile.taxiIndex);
+    // 起落灯
+    final landingOn = _anySwitchOn(landingSwitches, profile.landingIndices);
+    // (profile.hasMainLandingLightControl && landingMain) || // (no more needed)
+    // landingSwitches.any((isOn) => isOn) || // (no more needed)
+
+    // 滑行灯
+    final taxiOn = _switchOn(genericSwitches, profile.taxiIndex);
+    // taxiStandard || _switchOn(genericSwitches, profile.taxiIndex); // (no more needed)
+
+    // 标志灯
     final logoOn =
         logoStandard ||
         _anySwitchOn(
@@ -795,10 +834,16 @@ class _LightResolver {
           profile.logoIndices ??
               (profile.logoIndex != null ? [profile.logoIndex!] : null),
         );
+
+    // 翼灯
     final wingOn = _switchOn(genericSwitches, profile.wingIndex);
+
+    // 跑道灯
     final runwayOn =
         _switchOn(genericSwitches, profile.runwayLeftIndex) ||
         _switchOn(genericSwitches, profile.runwayRightIndex);
+
+    // 轮舱灯
     final wheelOn = _switchOn(genericSwitches, profile.wheelWellIndex);
 
     return _LightResult(
@@ -847,8 +892,7 @@ class _FlapResolver {
     double? ziboLever,
   }) {
     final ziboActive =
-        _isZiboLeverActive(ziboLever) ||
-        (identity?.keywords.contains('zibo') ?? false);
+        _isZiboLeverActive(ziboLever) || (identity?.id == 'zibo-738');
 
     final profile = identity?.flapProfile ?? _defaultProfile(flapDetentsCount);
     final detentCount = profile.labels.length;

@@ -6,11 +6,13 @@ class AircraftDetectionResult {
   final String aircraftType;
   final int detectionCount;
   final bool isStable;
+  final AircraftIdentity? identity;
 
   const AircraftDetectionResult({
     required this.aircraftType,
     required this.detectionCount,
     required this.isStable,
+    this.identity,
   });
 }
 
@@ -37,6 +39,7 @@ class AircraftDetector {
       return null;
     }
 
+    // 1. 尝试精确匹配 (关键字/ICAO等)
     final match = AircraftCatalog.match(
       title: title,
       engineCount: data.numEngines,
@@ -44,14 +47,21 @@ class AircraftDetector {
       wingArea: data.wingArea,
     );
 
-    final detectedType =
-        match?.identity.displayName ??
-        _identifyAircraftType(n1_1, n1_2, flapDetents, data.numEngines);
-    if (detectedType == 'Unknown') {
-      return null;
-    }
+    // 2. 如果没匹配到，尝试结构化匹配兜底
+    final identity =
+        match?.identity ??
+        AircraftCatalog.matchByStructural(
+          engineCount: data.numEngines,
+          flapDetents: flapDetents,
+          n1_1: n1_1,
+          n1_2: n1_2,
+        );
 
-    // 防抖逻辑：必须连续多帧识别到同一机型
+    if (identity == null) return null;
+
+    final detectedType = identity.displayName;
+
+    // 防抖逻辑：必须连续多帧识别到同一机型 (以 displayName 为准)
     if (detectedType == _lastPendingAircraft) {
       _detectionCount++;
     } else {
@@ -61,6 +71,7 @@ class AircraftDetector {
         aircraftType: detectedType,
         detectionCount: _detectionCount,
         isStable: false,
+        identity: identity,
       );
     }
 
@@ -68,36 +79,8 @@ class AircraftDetector {
       aircraftType: detectedType,
       detectionCount: _detectionCount,
       isStable: _detectionCount >= _requiredDetectionFrames,
+      identity: identity,
     );
-  }
-
-  /// 识别机型类型
-  String _identifyAircraftType(
-    double n1_1,
-    double n1_2,
-    int flapDetents,
-    int? engineCount,
-  ) {
-    final isJet = n1_1 > 5 || n1_2 > 5 || flapDetents >= 5;
-
-    if (engineCount != null && engineCount >= 4) {
-      return 'Boeing 747';
-    }
-
-    if (isJet) {
-      if (flapDetents >= 8) {
-        return 'Boeing 737';
-      } else if (flapDetents > 0) {
-        return 'Airbus A320';
-      } else {
-        // 如果是喷气机但还没收到襟翼档位数据，先不急着下结论
-        return 'Unknown';
-      }
-    } else if (flapDetents > 0) {
-      return 'General Aviation Aircraft';
-    } else {
-      return 'Unknown';
-    }
   }
 
   /// 重置检测器状态

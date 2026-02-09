@@ -10,8 +10,8 @@ enum XPlaneDataRefKey {
   machNumber,
   parkingBrake,
   beaconLights,
-  landingLightsMain,
-  taxiLights,
+  // landingLightsMain, // (no more needed)
+  // taxiLights, // (no more needed)
   navLights,
   strobeLights,
   flapsRequest,
@@ -161,7 +161,8 @@ class XPlaneDataRefs {
     description: '信标灯',
   );
 
-  static const XPlaneDataRef landingLightsMain = XPlaneDataRef(
+  // No more needed
+  /* static const XPlaneDataRef landingLightsMain = XPlaneDataRef(
     key: XPlaneDataRefKey.landingLightsMain,
     path: 'sim/cockpit2/switches/landing_lights_on',
     description: '着陆灯主开关',
@@ -171,7 +172,7 @@ class XPlaneDataRefs {
     key: XPlaneDataRefKey.taxiLights,
     path: 'sim/cockpit2/switches/taxi_light_on',
     description: '滑行灯',
-  );
+  ); */
 
   static const XPlaneDataRef navLights = XPlaneDataRef(
     key: XPlaneDataRefKey.navLights,
@@ -512,10 +513,10 @@ class XPlaneDataRefs {
       // 系统状态
       parkingBrake, beaconLights,
       // 灯光
-      landingLightsMain,
+      // landingLightsMain, no more needed
       ..._landingLights,
       logoLight,
-      taxiLights,
+      // taxiLights, no more needed
       navLights,
       strobeLights,
       // Generic Lights
