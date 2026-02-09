@@ -477,6 +477,17 @@ class XPlaneService {
         _currentData = _currentData.copyWith(visibility: value);
         break;
 
+      // 重量数据
+      case XPlaneDataRefKey.totalWeight:
+        _currentData = _currentData.copyWith(totalWeight: value);
+        break;
+      case XPlaneDataRefKey.emptyWeight:
+        _currentData = _currentData.copyWith(emptyWeight: value);
+        break;
+      case XPlaneDataRefKey.payloadWeight:
+        _currentData = _currentData.copyWith(payloadWeight: value);
+        break;
+
       case XPlaneDataRefKey.flapsAngle:
         _setFlapsState(deployRatio: value);
         break;

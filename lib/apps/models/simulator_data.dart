@@ -86,6 +86,11 @@ class SimulatorData {
   final double? engine1EGT;
   final double? engine2EGT;
 
+  // 重量数据 (单位: kg)
+  final double? totalWeight; // 总重量
+  final double? emptyWeight; // 空机重量
+  final double? payloadWeight; // 载荷重量
+
   // 自动驾驶状态
   final bool? autopilotEngaged;
   final bool? autothrottleEngaged;
@@ -159,6 +164,10 @@ class SimulatorData {
     this.engine2N1,
     this.engine1EGT,
     this.engine2EGT,
+    // 重量数据
+    this.totalWeight,
+    this.emptyWeight,
+    this.payloadWeight,
     this.departureAirport,
     this.arrivalAirport,
     this.autopilotEngaged,
@@ -240,6 +249,10 @@ class SimulatorData {
     double? engine2N1,
     double? engine1EGT,
     double? engine2EGT,
+    // 重量数据
+    double? totalWeight,
+    double? emptyWeight,
+    double? payloadWeight,
     String? departureAirport,
     String? arrivalAirport,
     bool? autopilotEngaged,
@@ -317,6 +330,10 @@ class SimulatorData {
       engine2N1: engine2N1 ?? this.engine2N1,
       engine1EGT: engine1EGT ?? this.engine1EGT,
       engine2EGT: engine2EGT ?? this.engine2EGT,
+      // 重量数据
+      totalWeight: totalWeight ?? this.totalWeight,
+      emptyWeight: emptyWeight ?? this.emptyWeight,
+      payloadWeight: payloadWeight ?? this.payloadWeight,
       departureAirport: departureAirport ?? this.departureAirport,
       arrivalAirport: arrivalAirport ?? this.arrivalAirport,
       autopilotEngaged: autopilotEngaged ?? this.autopilotEngaged,

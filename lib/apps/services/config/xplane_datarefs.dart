@@ -61,6 +61,10 @@ enum XPlaneDataRefKey {
   wingArea,
   landingLightArray,
   genericLightArray,
+  // 重量数据
+  totalWeight,
+  emptyWeight,
+  payloadWeight,
 }
 
 /// X-Plane DataRef 配置项
@@ -491,6 +495,26 @@ class XPlaneDataRefs {
     description: 'APU火警',
   );
 
+  // ==================== 重量数据 ====================
+
+  static const XPlaneDataRef totalWeight = XPlaneDataRef(
+    key: XPlaneDataRefKey.totalWeight,
+    path: 'sim/flightmodel/weight/m_total',
+    description: '总重量(kg)',
+  );
+
+  static const XPlaneDataRef emptyWeight = XPlaneDataRef(
+    key: XPlaneDataRefKey.emptyWeight,
+    path: 'sim/aircraft/weight/acf_m_empty',
+    description: '空机重量(kg)',
+  );
+
+  static const XPlaneDataRef payloadWeight = XPlaneDataRef(
+    key: XPlaneDataRefKey.payloadWeight,
+    path: 'sim/flightmodel/weight/m_fixed',
+    description: '载荷重量(kg)',
+  );
+
   static List<XPlaneDataRef> get _landingLights => List.generate(
     16,
     (index) => XPlaneDataRef(
@@ -564,6 +588,8 @@ class XPlaneDataRefs {
       masterWarning, masterCaution,
       fireWarningEng1, fireWarningEng2, fireWarningAPU,
       visibility,
+      // 重量数据
+      totalWeight, emptyWeight, payloadWeight,
     ];
   }
 }

@@ -6,6 +6,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'apps/providers/checklist_provider.dart';
 import 'apps/providers/simulator/simulator_provider.dart';
+import 'apps/providers/briefing_provider.dart';
 import 'pages/airport_info/providers/airport_info_provider.dart';
 import 'core/constants/app_constants.dart';
 import 'core/layouts/desktop_layout.dart';
@@ -21,6 +22,7 @@ import 'pages/checklist/checklist_page.dart';
 import 'pages/home/home_page.dart';
 import 'pages/monitor/monitor_page.dart';
 import 'pages/map/map_page.dart';
+import 'pages/briefing/briefing_page.dart';
 import 'pages/settings/settings_page.dart';
 import 'pages/setup/setup_guide_page.dart';
 import 'pages/splash/splash_screen.dart';
@@ -36,6 +38,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ChecklistProvider()),
         ChangeNotifierProvider(create: (_) => SimulatorProvider()),
         ChangeNotifierProvider(create: (_) => AirportInfoProvider()),
+        ChangeNotifierProvider(create: (_) => BriefingProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
@@ -82,6 +85,13 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       page: AirportInfoPage(),
     ),
     NavigationItem(
+      id: 'briefing',
+      title: '飞行简报',
+      icon: Icons.description_outlined,
+      activeIcon: Icons.description,
+      page: BriefingPage(),
+    ),
+    NavigationItem(
       id: 'monitor',
       title: '飞行仪表盘',
       icon: Icons.speed_outlined,
@@ -121,12 +131,16 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       if (mounted) {
         final simProvider = context.read<SimulatorProvider>();
         final checklistProvider = context.read<ChecklistProvider>();
+        final briefingProvider = context.read<BriefingProvider>();
 
         simProvider.setAircraftDetectionCallback((aircraftId) {
           if (mounted) {
             checklistProvider.selectAircraft(aircraftId);
           }
         });
+
+        // 初始化简报提供者，加载历史记录
+        briefingProvider.initialize();
 
         // 在这里启动预加载，确保在 UI 渲染出 SplashScreen 后开始
         _initializeApp();
