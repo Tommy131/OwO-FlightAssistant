@@ -18,6 +18,7 @@ import 'widgets/route_layers.dart';
 import 'widgets/danger_overlay.dart';
 import 'widgets/aircraft_compass.dart';
 import 'widgets/landing_report_dialog.dart';
+import 'widgets/new_flight_prompt_dialog.dart';
 import '../../apps/services/flight_log_service.dart';
 
 class MapPage extends StatefulWidget {
@@ -44,6 +45,10 @@ class _MapPageState extends State<MapPage> {
     const Duration(milliseconds: 100),
   );
   StreamSubscription? _landingSubscription;
+
+  // 新飞行检测标记
+  bool _hasPromptedNewFlight = false;
+  String? _lastPromptedAircraft;
 
   @override
   void initState() {
@@ -77,6 +82,27 @@ class _MapPageState extends State<MapPage> {
         final data = simProvider.simulatorData;
         final aircraftPos = LatLng(data.latitude ?? 0, data.longitude ?? 0);
         final heading = data.heading ?? 0.0;
+
+        // 新飞行提示检测逻辑
+        if (simProvider.isConnected && mapProvider.path.isNotEmpty) {
+          final currentAircraft = data.aircraftTitle;
+          // 如果尚未提示，或者更换了机型，则弹出提示
+          if (!_hasPromptedNewFlight ||
+              (currentAircraft != null &&
+                  currentAircraft != 'Unknown Aircraft' &&
+                  currentAircraft != _lastPromptedAircraft)) {
+            _hasPromptedNewFlight = true;
+            _lastPromptedAircraft = currentAircraft;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                NewFlightPromptDialog.show(context, mapProvider);
+              }
+            });
+          }
+        } else if (!simProvider.isConnected) {
+          // 断开连接后重置标记，以便下次连接时再次检测
+          _hasPromptedNewFlight = false;
+        }
 
         // Determine which airport to show info for
         // 逻辑修改：如果有搜索的TargetAirport，则专注于TargetAirport，不自动切换到Center/Current
