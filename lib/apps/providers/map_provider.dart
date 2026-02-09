@@ -199,6 +199,21 @@ class MapProvider with ChangeNotifier {
   bool get isLoadingAirport => _isLoadingAirport;
 
   void _onSimulatorUpdate() {
+    if (!_simulatorProvider.isConnected) {
+      // 断开连接时，清除所有与当前位置相关的机场信息，但保留搜索结果
+      _currentAirport = null;
+      _destinationAirport = null;
+      _alternateAirport = null;
+      _centerAirport = null;
+      _lastIcao = null;
+      _lastDestIcao = null;
+      _lastAltIcao = null;
+      _currentRunway = null;
+      _currentRunwayAirportIcao = null;
+      notifyListeners();
+      return;
+    }
+
     final data = _simulatorProvider.simulatorData;
     if (data.latitude != null && data.longitude != null) {
       final pos = LatLng(data.latitude!, data.longitude!);

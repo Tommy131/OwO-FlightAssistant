@@ -118,7 +118,7 @@ class _MapPageState extends State<MapPage> {
         }
 
         // 新飞行提示检测逻辑
-        if (simProvider.isConnected && mapProvider.path.isNotEmpty) {
+        if (simProvider.isConnected && mapProvider.path.length > 10) {
           final currentAircraft = data.aircraftTitle;
           // 如果尚未提示，或者更换了机型，则弹出提示
           if (!_hasPromptedNewFlight ||
