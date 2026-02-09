@@ -31,14 +31,45 @@ List<Widget> buildAirportGeometryLayers({
                     .map((p) => LatLng(p.latitude, p.longitude))
                     .toList(),
                 color: layerType == MapLayerType.satellite
-                    ? Colors.yellowAccent.withValues(alpha: 0.5)
-                    : Colors.blueGrey.withValues(alpha: 0.3),
-                strokeWidth: 3,
+                    ? Colors.yellowAccent.withValues(alpha: 0.55)
+                    : (layerType == MapLayerType.aviation ||
+                          layerType == MapLayerType.aviationDark)
+                    ? Colors.orangeAccent.withValues(alpha: 0.65)
+                    : Colors.blueGrey.withValues(alpha: 0.45),
+                strokeWidth: 4.2,
+                strokeCap: StrokeCap.round,
+                strokeJoin: StrokeJoin.round,
               ),
             )
             .toList(),
       ),
     );
+    if (zoom > 13.5) {
+      layers.add(
+        MarkerLayer(
+          rotate: true,
+          markers: airports
+              .expand((ap) => ap.taxiways)
+              .where((t) => t.name != null && t.points.isNotEmpty)
+              .map((t) {
+                final mid = t.points[t.points.length ~/ 2];
+                return Marker(
+                  point: LatLng(mid.latitude, mid.longitude),
+                  width: 80,
+                  height: 40,
+                  alignment: Alignment.center,
+                  child: MapLabel(
+                    text: t.name!,
+                    textColor: Colors.orangeAccent,
+                    bgColor: Colors.black.withValues(alpha: 0.8),
+                    fontSize: 10 * scale,
+                  ),
+                );
+              })
+              .toList(),
+        ),
+      );
+    }
   }
 
   if (showRunways) {
@@ -53,8 +84,18 @@ List<Widget> buildAirportGeometryLayers({
                   LatLng(r.leLat!, r.leLon!),
                   LatLng(r.heLat!, r.heLon!),
                 ],
-                color: Colors.white.withValues(alpha: 0.7),
-                strokeWidth: 10,
+                color:
+                    (layerType == MapLayerType.satellite ||
+                        layerType == MapLayerType.dark ||
+                        layerType == MapLayerType.aviationDark)
+                    ? Colors.white.withValues(alpha: 0.8)
+                    : Colors.black.withValues(alpha: 0.6),
+                strokeWidth:
+                    (layerType == MapLayerType.aviation ||
+                        layerType == MapLayerType.street ||
+                        layerType == MapLayerType.terrain)
+                    ? 11
+                    : 10,
               ),
             )
             .toList(),
@@ -64,6 +105,7 @@ List<Widget> buildAirportGeometryLayers({
     if (zoom > 13) {
       layers.add(
         MarkerLayer(
+          rotate: true,
           markers: airports.expand((ap) => ap.runways).expand((r) {
             final markers = <Marker>[];
             if (r.leLat != null && r.leLon != null && r.leIdent != null) {
@@ -104,6 +146,7 @@ List<Widget> buildAirportGeometryLayers({
   if (showParkings && zoom > 14.5) {
     layers.add(
       MarkerLayer(
+        rotate: true,
         markers: airports
             .expand((ap) => ap.parkings)
             .map(
@@ -111,8 +154,10 @@ List<Widget> buildAirportGeometryLayers({
                 point: LatLng(p.latitude, p.longitude),
                 width: 80,
                 height: 80,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                alignment: Alignment.center,
+                child: Stack(
+                  alignment: Alignment.center,
+                  clipBehavior: Clip.none,
                   children: [
                     Stack(
                       alignment: Alignment.center,
@@ -141,12 +186,14 @@ List<Widget> buildAirportGeometryLayers({
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    MapLabel(
-                      text: p.displayName,
-                      textColor: Colors.orangeAccent,
-                      bgColor: Colors.black.withValues(alpha: 0.8),
-                      fontSize: 9 * scale,
+                    Positioned(
+                      bottom: 14 * scale,
+                      child: MapLabel(
+                        text: p.displayName,
+                        textColor: Colors.orangeAccent,
+                        bgColor: Colors.black.withValues(alpha: 0.8),
+                        fontSize: 9 * scale,
+                      ),
                     ),
                   ],
                 ),
