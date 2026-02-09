@@ -351,11 +351,21 @@ class XPlaneAptDatParser {
           final lat = double.tryParse(parts[1]);
           final lon = double.tryParse(parts[2]);
           final heading = double.tryParse(parts[3]);
-          final name = parts.sublist(4).join(' ');
+
+          // X-Plane 1300 格式: 1300 <lat> <lon> <hdg> <type> <plane_types> <name>
+          // 通常名称从 index 6 开始，如果有更多零件的话
+          String name = '';
+          if (parts.length >= 7) {
+            name = parts.sublist(6).join(' ');
+          } else if (parts.length >= 5) {
+            // 如果零件不足，至少取最后一个作为名称
+            name = parts.last;
+          }
+
           if (lat != null && lon != null) {
             currentParkings.add(
               ParkingInfo(
-                name: name,
+                name: name.trim(),
                 latitude: lat,
                 longitude: lon,
                 heading: heading ?? 0.0,

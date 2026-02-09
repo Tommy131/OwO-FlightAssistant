@@ -93,9 +93,40 @@ class AirportInfoHeader extends StatelessWidget {
             underline: const SizedBox(),
             isDense: true,
             style: theme.textTheme.bodySmall,
-            onChanged: (source) {
+            onChanged: (source) async {
               if (source != null && source != provider.currentDataSource) {
-                provider.switchDataSource(source);
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('正在切换数据源...'),
+                            SizedBox(height: 8),
+                            Text(
+                              '可能需要几秒钟，请勿关闭应用',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+                try {
+                  await provider.switchDataSource(source);
+                } finally {
+                  if (context.mounted) Navigator.pop(context);
+                }
               }
             },
             items: AirportDataSource.values

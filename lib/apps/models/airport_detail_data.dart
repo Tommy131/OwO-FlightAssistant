@@ -1,3 +1,4 @@
+import 'dart:math';
 import '../services/weather_service.dart';
 
 enum AirportDataSourceType {
@@ -381,6 +382,52 @@ class RunwayInfo {
       heLon: heLon ?? other.heLon,
     );
   }
+
+  /// 检查点是否在跑道范围内 (Map-Matching)
+  /// [lat], [lon] 待检查点的经纬度
+  /// [fallbackWidth] 如果数据库没有宽度数据，默认使用的宽度（米）
+  bool isPointOnRunway(double lat, double lon, {double fallbackWidth = 45.0}) {
+    if (leLat == null || leLon == null || heLat == null || heLon == null) {
+      return false;
+    }
+
+    // 将经纬度转换为近似的平面坐标 (在极小范围内适用)
+    // 1度纬度约等于 111111 米
+    final y1 = leLat! * 111111.0;
+    final x1 = leLon! * 111111.0 * cos(leLat! * pi / 180.0);
+    final y2 = heLat! * 111111.0;
+    final x2 = heLon! * 111111.0 * cos(leLat! * pi / 180.0);
+    final yp = lat * 111111.0;
+    final xp = lon * 111111.0 * cos(lat * pi / 180.0);
+
+    // 向量 AB (跑道) 和 AP (点到跑道起点)
+    final abX = x2 - x1;
+    final abY = y2 - y1;
+    final apX = xp - x1;
+    final apY = yp - y1;
+
+    // 跑道长度平方
+    final abLensq = abX * abX + abY * abY;
+    if (abLensq == 0) return false;
+
+    // 计算投影比例 t
+    final t = (apX * abX + apY * abY) / abLensq;
+
+    // 检查投影是否在跑道长度范围内 (允许超出 2% 冗余)
+    if (t < -0.02 || t > 1.02) return false;
+
+    // 计算点到直线的垂直距离 (Cross-track distance)
+    final closestX = x1 + t * abX;
+    final closestY = y1 + t * abY;
+    final distsq =
+        (xp - closestX) * (xp - closestX) + (yp - closestY) * (yp - closestY);
+
+    // 允许的宽度阈值 (实际宽度的一半 + 额外偏差冗余)
+    final width = (widthFt != null ? widthFt! * 0.3048 : fallbackWidth);
+    final threshold = (width / 2.0) + 15.0; // 额外增加 15 米容错
+
+    return distsq < (threshold * threshold);
+  }
 }
 
 /// ILS 信息
@@ -581,6 +628,32 @@ class ParkingInfo {
     required this.longitude,
     required this.heading,
   });
+
+  /// 获取更简洁的显示名称，去除 X-Plane 常见的 gate/ramp/jets 等前缀
+  String get displayName {
+    if (name.isEmpty) return 'N/A';
+    // 移除常见的 X-Plane 记录前缀和机型前缀
+    String clean = name.replaceAll(
+      RegExp(
+        r'^(gate|ramp|tie_down|hangar|misc|jets|heavyjets|turboprops|props|helis)\s+',
+        caseSensitive: false,
+      ),
+      '',
+    );
+    // 再次尝试处理可能存在的组合前缀，如 "gate heavyjets"
+    clean = clean.replaceAll(
+      RegExp(
+        r'^(gate|ramp|tie_down|hangar|misc|jets|heavyjets|turboprops|props|helis)\s+',
+        caseSensitive: false,
+      ),
+      '',
+    );
+    // 处理管道符
+    clean = clean.replaceAll('|', ' ');
+    // 如果剥离后为空（比如原名就叫 "gate"），则返回原名
+    final result = clean.trim();
+    return result.isEmpty ? name : result;
+  }
 
   Map<String, dynamic> toJson() => {
     'name': name,

@@ -82,13 +82,40 @@ class LNMDatabaseParser {
       // 2. 查询跑道信息
       final List<Map<String, dynamic>> runwayRows;
       if (hasRunwayEndTable) {
-        // 如果有 runway_end 表，通过关联查询获取跑道标识 (如 18/36)
+        final reColumns = _getTableColumns(db, 'runway_end');
+        final reLatCol = reColumns.contains('latitude')
+            ? 'latitude'
+            : (reColumns.contains('lat')
+                  ? 'lat'
+                  : (reColumns.contains('laty')
+                        ? 'laty'
+                        : (reColumns.contains('pos_lat') ? 'pos_lat' : null)));
+        final reLonCol = reColumns.contains('longitude')
+            ? 'longitude'
+            : (reColumns.contains('lon')
+                  ? 'lon'
+                  : (reColumns.contains('lonx')
+                        ? 'lonx'
+                        : (reColumns.contains('pos_lon') ? 'pos_lon' : null)));
+
+        if (reLatCol == null || reLonCol == null) {
+          AppLogger.error(
+            'Could not find lat/lon in runway_end. Available: ${reColumns.join(', ')}',
+          );
+        }
+
+        // 如果有 runway_end 表，获取两端的详细坐标
         final sql =
             '''
           SELECT
             re1.name || '/' || re2.name as runway_ident,
-            r.length, r.width, r.surface
-            ${(rLatCol != null && rLonCol != null) ? ', r.$rLatCol, r.$rLonCol' : ''}
+            r.length, r.width, r.surface,
+            re1.name as le_ident,
+            ${reLatCol != null ? "re1.$reLatCol" : "NULL"} as le_lat,
+            ${reLonCol != null ? "re1.$reLonCol" : "NULL"} as le_lon,
+            re2.name as he_ident,
+            ${reLatCol != null ? "re2.$reLatCol" : "NULL"} as he_lat,
+            ${reLonCol != null ? "re2.$reLonCol" : "NULL"} as he_lon
           FROM runway r
           JOIN runway_end re1 ON r.primary_end_id = re1.runway_end_id
           JOIN runway_end re2 ON r.secondary_end_id = re2.runway_end_id
@@ -109,7 +136,9 @@ class LNMDatabaseParser {
         }
 
         final sql =
-            'SELECT $rIdentCol as runway_ident, length, width, surface ${(rLatCol != null && rLonCol != null) ? ", $rLatCol, $rLonCol" : ""} FROM runway WHERE airport_id = ?';
+            'SELECT $rIdentCol as runway_ident, length, width, surface, '
+            '${rLatCol ?? "NULL"} as le_lat, ${rLonCol ?? "NULL"} as le_lon '
+            'FROM runway WHERE airport_id = ?';
         runwayRows = db.select(sql, [airportId]).map((row) => row).toList();
       }
 
@@ -121,6 +150,12 @@ class LNMDatabaseParser {
             lengthFt: (row['length'] as num?)?.toInt(),
             widthFt: (row['width'] as num?)?.toInt(),
             surface: row['surface'] as String?,
+            leIdent: row['le_ident'] as String?,
+            leLat: (row['le_lat'] as num?)?.toDouble(),
+            leLon: (row['le_lon'] as num?)?.toDouble(),
+            heIdent: row['he_ident'] as String?,
+            heLat: (row['he_lat'] as num?)?.toDouble(),
+            heLon: (row['he_lon'] as num?)?.toDouble(),
           ),
         );
       }

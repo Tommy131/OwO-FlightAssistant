@@ -730,4 +730,24 @@ class AirportDetailService {
 
     return info;
   }
+
+  /// 获取气象雷达的时间戳 (RainViewer)
+  Future<int?> fetchWeatherRadarTimestamp() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.rainviewer.com/public/weather-maps.json'),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List<dynamic> past = data['radar']['past'];
+        if (past.isNotEmpty) {
+          // 获取最新的时间戳
+          return past.last['time'] as int;
+        }
+      }
+    } catch (e) {
+      AppLogger.error('Error fetching weather radar timestamp: $e');
+    }
+    return null;
+  }
 }

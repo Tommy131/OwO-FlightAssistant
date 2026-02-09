@@ -1,16 +1,19 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../apps/providers/simulator/simulator_provider.dart';
-import '../../apps/models/airport_detail_data.dart';
 import '../../apps/providers/map_provider.dart';
-
-enum MapOrientationMode { northUp, trackUp }
-
-enum MapLayerType { dark, satellite, street, terrain }
+import 'models/map_types.dart';
+import 'utils/map_utils.dart';
+import 'widgets/airport_bottom_console.dart';
+import 'widgets/map_labels.dart';
+import 'widgets/map_layer_picker.dart';
+import 'widgets/map_right_controls.dart';
+import 'widgets/map_top_panel.dart';
+import 'widgets/airport_geometry_layers.dart';
+import 'widgets/route_layers.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -26,24 +29,16 @@ class _MapPageState extends State<MapPage> {
   MapOrientationMode _orientationMode = MapOrientationMode.northUp;
   MapLayerType _layerType = MapLayerType.dark;
   bool _showParkings = true;
+  bool _showTaxiways = true;
+  bool _showRunways = true;
+  bool _showRouteDistance = false;
   double _scale = 1.0;
+  DateTime? _lastMoveUpdate;
+  final _weatherRadarTransformer = TileUpdateTransformers.throttle(
+    const Duration(milliseconds: 100),
+  );
 
-  String _getTileUrl(MapLayerType type) {
-    switch (type) {
-      case MapLayerType.satellite:
-        // Esri World Imagery - Reliable Satellite Source
-        return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-      case MapLayerType.street:
-        // MapTiler / Stadia / Carto Voyager are better than raw OSM for usage policies,
-        // using Carto Voyager here as it's more permissive for light app usage
-        return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-      case MapLayerType.terrain:
-        // Esri World Topo Map - Good for terrain
-        return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
-      case MapLayerType.dark:
-        return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    }
-  }
+  // 底图地址逻辑见 utils/getTileUrl
 
   @override
   Widget build(BuildContext context) {
@@ -55,9 +50,21 @@ class _MapPageState extends State<MapPage> {
           _scale = (size.width / 1280).clamp(0.8, 1.4);
 
           final data = simProvider.simulatorData;
-          final airport = mapProvider.currentAirport;
           final aircraftPos = LatLng(data.latitude ?? 0, data.longitude ?? 0);
           final heading = data.heading ?? 0.0;
+
+          // Determine which airport to show info for
+          // 逻辑修改：如果有搜索的TargetAirport，则专注于TargetAirport，不自动切换到Center/Current
+          final airport =
+              mapProvider.targetAirport ??
+              mapProvider.centerAirport ??
+              mapProvider.currentAirport;
+
+          // 仅当没有搜索目标时，才展示当前飞行相关的辅助信息（跑道/滑行道）
+          // 如果正在查看搜索的机场，只显示搜索机场的地图细节
+          final airportForMapDetails = mapProvider.targetAirport != null
+              ? ([mapProvider.targetAirport!])
+              : mapProvider.allDetailedAirports;
 
           // Handle Map Update safely
           if (_isMapReady && data.latitude != null) {
@@ -95,164 +102,67 @@ class _MapPageState extends State<MapPage> {
                     onMapReady: () => setState(() => _isMapReady = true),
                     onPositionChanged: (pos, hasGesture) {
                       if (hasGesture) {
-                        if (_followAircraft)
+                        if (_followAircraft) {
                           setState(() => _followAircraft = false);
-                        setState(() {});
+                        }
+
+                        // 节流处理，避免缩放动效中触发过多的重绘和数据库查询
+                        final now = DateTime.now();
+                        if (_lastMoveUpdate == null ||
+                            now.difference(_lastMoveUpdate!).inMilliseconds >
+                                100) {
+                          _lastMoveUpdate = now;
+                          mapProvider.updateCenterAirport(
+                            pos.center.latitude,
+                            pos.center.longitude,
+                            zoom: pos.zoom,
+                          );
+                          setState(() {});
+                        }
                       }
                     },
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: _getTileUrl(_layerType),
+                      urlTemplate: getTileUrl(_layerType),
                       subdomains: const ['a', 'b', 'c', 'd'],
                       userAgentPackageName: 'com.owo.flight_assistant',
                     ),
 
-                    if (airport != null) ...[
-                      // Taxiways
-                      PolylineLayer(
-                        polylines: airport.taxiways
-                            .where((t) => t.points.isNotEmpty)
-                            .map(
-                              (t) => Polyline(
-                                points: t.points
-                                    .map((p) => LatLng(p.latitude, p.longitude))
-                                    .toList(),
-                                color: _layerType == MapLayerType.satellite
-                                    ? Colors.yellowAccent.withValues(alpha: 0.5)
-                                    : Colors.blueGrey.withValues(alpha: 0.3),
-                                strokeWidth: 3,
-                              ),
-                            )
-                            .toList(),
-                      ),
-                      // Runways
-                      PolylineLayer(
-                        polylines: airport.runways
-                            .where((r) => r.leLat != null && r.leLon != null)
-                            .map(
-                              (r) => Polyline(
-                                points: [
-                                  LatLng(r.leLat!, r.leLon!),
-                                  LatLng(r.heLat!, r.heLon!),
-                                ],
-                                color: Colors.white.withValues(alpha: 0.7),
-                                strokeWidth: 10,
-                              ),
-                            )
-                            .toList(),
-                      ),
-
-                      // Runway Threshold Identifiers
-                      if (zoom > 13)
-                        MarkerLayer(
-                          markers: airport.runways.expand((r) {
-                            final markers = <Marker>[];
-                            if (r.leLat != null &&
-                                r.leLon != null &&
-                                r.leIdent != null) {
-                              markers.add(
-                                Marker(
-                                  point: LatLng(r.leLat!, r.leLon!),
-                                  width: 50,
-                                  height: 50,
-                                  child: _buildMapLabel(
-                                    r.leIdent!,
-                                    Colors.white,
-                                    Colors.black87,
-                                  ),
-                                ),
-                              );
-                            }
-                            if (r.heLat != null &&
-                                r.heLon != null &&
-                                r.heIdent != null) {
-                              markers.add(
-                                Marker(
-                                  point: LatLng(r.heLat!, r.heLon!),
-                                  width: 50,
-                                  height: 50,
-                                  child: _buildMapLabel(
-                                    r.heIdent!,
-                                    Colors.white,
-                                    Colors.black87,
-                                  ),
-                                ),
-                              );
-                            }
-                            return markers;
-                          }).toList(),
+                    if (mapProvider.showWeatherRadar &&
+                        mapProvider.weatherRadarTimestamp != null)
+                      Opacity(
+                        opacity: 0.6,
+                        child: TileLayer(
+                          urlTemplate:
+                              'https://tilecache.rainviewer.com/v2/radar/${mapProvider.weatherRadarTimestamp}/256/{z}/{x}/{y}/4/1_1.png',
+                          userAgentPackageName:
+                              'com.owo.flight_assistant/1.0 (Radar Layer)',
+                          tileUpdateTransformer: _weatherRadarTransformer,
+                          maxNativeZoom: 7, // RainViewer 免费版最高支持到 Zoom 7
+                          minZoom: 3,
                         ),
-
-                      // Parking Spots / Apron Numbers
-                      if (zoom > 14.5 && _showParkings)
-                        MarkerLayer(
-                          markers: airport.parkings
-                              .map(
-                                (p) => Marker(
-                                  point: LatLng(p.latitude, p.longitude),
-                                  width: 80,
-                                  height: 80,
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Stack(
-                                        alignment: Alignment.center,
-                                        children: [
-                                          // Highlight glow
-                                          Container(
-                                            width: 12,
-                                            height: 12,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              color: Colors.orangeAccent
-                                                  .withValues(alpha: 0.3),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.orangeAccent
-                                                      .withValues(alpha: 0.4),
-                                                  blurRadius: 8,
-                                                  spreadRadius: 2,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Icon(
-                                            Icons.circle,
-                                            size: 6,
-                                            color: Colors.orangeAccent
-                                                .withValues(alpha: 0.9),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      _buildMapLabel(
-                                        p.name,
-                                        Colors.orangeAccent,
-                                        Colors.black.withValues(alpha: 0.8),
-                                        fontSize: 9 * _scale,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                    ],
-
-                    if (mapProvider.path.isNotEmpty)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: mapProvider.path,
-                            color: Colors.orangeAccent.withValues(alpha: 0.7),
-                            strokeWidth: 2,
-                          ),
-                        ],
                       ),
+
+                    if (airport != null && zoom > 10.5)
+                      ...buildAirportGeometryLayers(
+                        airports: airportForMapDetails,
+                        zoom: zoom,
+                        showTaxiways: _showTaxiways,
+                        showRunways: _showRunways,
+                        showParkings: _showParkings,
+                        layerType: _layerType,
+                        scale: _scale,
+                      ),
+
+                    ...buildRouteLayers(
+                      provider: mapProvider,
+                      showRouteDistance: _showRouteDistance,
+                    ),
 
                     MarkerLayer(
                       markers: [
+                        // Aircraft
                         Marker(
                           point: aircraftPos,
                           width: 80,
@@ -269,18 +179,98 @@ class _MapPageState extends State<MapPage> {
                             ),
                           ),
                         ),
+                        // Destination Airport
+                        if (mapProvider.destinationAirport != null)
+                          Marker(
+                            point: getAirportCenter(
+                              mapProvider.destinationAirport!,
+                            ),
+                            width: 60,
+                            height: 60,
+                            child: AirportPin(
+                              icon: Icons.flight_land,
+                              color: Colors.purpleAccent,
+                              label: 'DEST',
+                            ),
+                          ),
+                        // Alternate Airport
+                        if (mapProvider.alternateAirport != null)
+                          Marker(
+                            point: getAirportCenter(
+                              mapProvider.alternateAirport!,
+                            ),
+                            width: 60,
+                            height: 60,
+                            child: AirportPin(
+                              icon: Icons.directions_outlined,
+                              color: Colors.cyanAccent,
+                              label: 'ALTN',
+                            ),
+                          ),
+                        // Target (Searched) Airport Center
+                        if (mapProvider.targetAirport != null)
+                          Marker(
+                            point: getAirportCenter(
+                              mapProvider.targetAirport!,
+                            ),
+                            width: 80,
+                            height: 80,
+                            child: AirportPin(
+                              icon: Icons.location_on,
+                              color: Colors.redAccent,
+                              label: mapProvider.targetAirport!.icaoCode,
+                              isBig: true,
+                            ),
+                          ),
                       ],
                     ),
                   ],
                 ),
 
                 // 2. HUD Panels
-                _buildTopPanel(simProvider, airport),
-                _buildRightControls(),
-                if (isApproach || onGround)
-                  _buildBottomConsole(simProvider, airport, onGround)
-                else
-                  _buildShortBottom(simProvider, airport),
+                MapTopPanel(
+                  scale: _scale,
+                  mapController: _mapController,
+                  sim: simProvider,
+                  mapProvider: mapProvider,
+                  followAircraft: _followAircraft,
+                  onFollowAircraftChanged: (v) =>
+                      setState(() => _followAircraft = v),
+                  showRunways: _showRunways,
+                  showTaxiways: _showTaxiways,
+                  showParkings: _showParkings,
+                  showRouteDistance: _showRouteDistance,
+                  onShowRunwaysChanged: (v) => setState(() => _showRunways = v),
+                  onShowTaxiwaysChanged: (v) =>
+                      setState(() => _showTaxiways = v),
+                  onShowParkingsChanged: (v) =>
+                      setState(() => _showParkings = v),
+                  onShowRouteDistanceChanged: (v) =>
+                      setState(() => _showRouteDistance = v),
+                ),
+                MapRightControls(
+                  scale: _scale,
+                  mapController: _mapController,
+                  followAircraft: _followAircraft,
+                  onFollowAircraftChanged: (v) =>
+                      setState(() => _followAircraft = v),
+                  orientationMode: _orientationMode,
+                  onOrientationChanged: (m) =>
+                      setState(() => _orientationMode = m),
+                  onShowLayerPicker: () => MapLayerPicker.show(
+                    context,
+                    current: _layerType,
+                    onSelected: (t) => setState(() => _layerType = t),
+                  ),
+                  isMapReady: _isMapReady,
+                  isConnected: simProvider.isConnected,
+                ),
+                AirportBottomConsole(
+                  scale: _scale,
+                  airport: airport,
+                  onGround: onGround,
+                  compact: !(isApproach || onGround),
+                ),
               ],
             ),
           );
@@ -288,652 +278,4 @@ class _MapPageState extends State<MapPage> {
       ),
     );
   }
-
-  Widget _buildMapLabel(
-    String text,
-    Color textColor,
-    Color bgColor, {
-    double fontSize = 10,
-  }) {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: textColor.withValues(alpha: 0.4), width: 1),
-          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4)],
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: textColor,
-            fontSize: fontSize,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.5,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopPanel(SimulatorProvider sim, AirportDetailData? airport) {
-    final data = sim.simulatorData;
-    return Positioned(
-      top: 20 * _scale,
-      left: 20 * _scale,
-      right: 20 * _scale,
-      child: Column(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16 * _scale),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 20 * _scale,
-                  vertical: 12 * _scale,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildValue(
-                      'GS',
-                      '${(data.groundSpeed ?? 0).round()}',
-                      'kt',
-                    ),
-                    _buildValue('ALT', '${(data.altitude ?? 0).round()}', 'ft'),
-                    _buildValue('HDG', '${(data.heading ?? 0).round()}°', ''),
-                    _buildValue(
-                      'VS',
-                      '${(data.verticalSpeed ?? 0).round()}',
-                      'fpm',
-                      color: (data.verticalSpeed ?? 0).abs() > 800
-                          ? Colors.redAccent
-                          : Colors.tealAccent,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          SizedBox(height: 8 * _scale),
-          if (data.baroPressure != null || data.windSpeed != null)
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildChip(
-                    Icons.air,
-                    '${(data.windSpeed ?? 0).round()} kt / ${(data.windDirection ?? 0).round()}°',
-                  ),
-                  SizedBox(width: 8 * _scale),
-                  _buildChip(
-                    Icons.cloud_outlined,
-                    '${data.baroPressure?.toStringAsFixed(2)} ${data.baroPressureUnit}',
-                  ),
-                  if (data.outsideAirTemperature != null) ...[
-                    SizedBox(width: 8 * _scale),
-                    _buildChip(
-                      Icons.thermostat,
-                      '${data.outsideAirTemperature?.toStringAsFixed(1)}°C',
-                    ),
-                  ],
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChip(IconData icon, String label) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: 10 * _scale,
-        vertical: 4 * _scale,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(8 * _scale),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white54, size: 12 * _scale),
-          SizedBox(width: 4 * _scale),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 11 * _scale,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildValue(String label, String val, String unit, {Color? color}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white54,
-            fontSize: 10 * _scale,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              val,
-              style: TextStyle(
-                color: color ?? Colors.white,
-                fontSize: 20 * _scale,
-                fontWeight: FontWeight.w900,
-                fontFamily: 'monospace',
-              ),
-            ),
-            SizedBox(width: 2 * _scale),
-            Text(
-              unit,
-              style: TextStyle(color: Colors.white38, fontSize: 9 * _scale),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRightControls() {
-    return Positioned(
-      right: 20,
-      bottom: 250,
-      child: Column(
-        children: [
-          _buildMapBtn(
-            icon: Icons.layers_outlined,
-            onPressed: _showLayerPicker,
-            tooltip: '地图图层',
-          ),
-          const SizedBox(height: 12),
-          Consumer<MapProvider>(
-            builder: (context, provider, _) => _buildMapBtn(
-              icon: provider.isLoadingAirport ? Icons.sync : Icons.refresh,
-              onPressed: () => provider.refreshAirport(),
-              highlight: provider.isLoadingAirport,
-              tooltip: '刷新机场数据',
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildMapBtn(
-            icon: _showParkings
-                ? Icons.local_parking
-                : Icons.local_parking_outlined,
-            onPressed: () => setState(() => _showParkings = !_showParkings),
-            highlight: _showParkings,
-            tooltip: '显示停机位',
-          ),
-          const SizedBox(height: 12),
-          _buildMapBtn(
-            icon: _followAircraft ? Icons.gps_fixed : Icons.gps_not_fixed,
-            onPressed: () => setState(() => _followAircraft = !_followAircraft),
-            highlight: _followAircraft,
-            tooltip: '追随飞机',
-          ),
-          const SizedBox(height: 12),
-          _buildMapBtn(
-            icon: _orientationMode == MapOrientationMode.northUp
-                ? Icons.explore_outlined
-                : Icons.navigation_outlined,
-            onPressed: () {
-              setState(() {
-                if (_orientationMode == MapOrientationMode.northUp) {
-                  _orientationMode = MapOrientationMode.trackUp;
-                } else {
-                  _orientationMode = MapOrientationMode.northUp;
-                  _mapController.rotate(0);
-                }
-              });
-            },
-            highlight: _orientationMode == MapOrientationMode.trackUp,
-            tooltip: _orientationMode == MapOrientationMode.northUp
-                ? '北向上'
-                : '航向向上',
-          ),
-          const SizedBox(height: 12),
-          _buildMapBtn(
-            icon: Icons.add,
-            onPressed: () => _mapController.move(
-              _mapController.camera.center,
-              _mapController.camera.zoom + 1,
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildMapBtn(
-            icon: Icons.remove,
-            onPressed: () => _mapController.move(
-              _mapController.camera.center,
-              _mapController.camera.zoom - 1,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (_isMapReady)
-            GestureDetector(
-              onTap: () {
-                _mapController.rotate(0);
-                setState(() => _orientationMode = MapOrientationMode.northUp);
-              },
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white24),
-                ),
-                child: Center(
-                  child: Transform.rotate(
-                    angle: _mapController.camera.rotation * (math.pi / 180),
-                    child: const Icon(
-                      Icons.north,
-                      color: Colors.orangeAccent,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _showLayerPicker() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.95),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '选择地图图层',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 24),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildLayerOption(MapLayerType.dark, '暗色', Icons.dark_mode),
-                  const SizedBox(width: 16),
-                  _buildLayerOption(
-                    MapLayerType.satellite,
-                    '卫星',
-                    Icons.satellite_alt,
-                  ),
-                  const SizedBox(width: 16),
-                  _buildLayerOption(MapLayerType.street, '街道', Icons.map),
-                  const SizedBox(width: 16),
-                  _buildLayerOption(
-                    MapLayerType.terrain,
-                    '地形',
-                    Icons.landscape,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLayerOption(MapLayerType type, String label, IconData icon) {
-    final isSelected = _layerType == type;
-    return GestureDetector(
-      onTap: () {
-        setState(() => _layerType = type);
-        Navigator.pop(context);
-      },
-      child: Column(
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Colors.orangeAccent
-                  : Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isSelected ? Colors.white : Colors.white12,
-                width: 2,
-              ),
-            ),
-            child: Icon(
-              icon,
-              color: isSelected ? Colors.black : Colors.white,
-              size: 28,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.orangeAccent : Colors.white70,
-              fontSize: 13,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMapBtn({
-    required IconData icon,
-    required VoidCallback onPressed,
-    bool highlight = false,
-    String? tooltip,
-  }) {
-    final btnSize = 48.0 * _scale;
-    return Container(
-      width: btnSize,
-      height: btnSize,
-      decoration: BoxDecoration(
-        color: highlight
-            ? Colors.orangeAccent
-            : Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12 * _scale),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: IconButton(
-        icon: Icon(
-          icon,
-          color: highlight ? Colors.black : Colors.white,
-          size: 20 * _scale,
-        ),
-        onPressed: onPressed,
-        tooltip: tooltip,
-      ),
-    );
-  }
-
-  Widget _buildBottomConsole(
-    SimulatorProvider sim,
-    AirportDetailData? airport,
-    bool onGround,
-  ) {
-    final rwy = airport?.runways.isNotEmpty == true
-        ? airport!.runways.first
-        : null;
-
-    return Positioned(
-      bottom: 24 * _scale,
-      left: 24 * _scale,
-      right: 24 * _scale,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24 * _scale),
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            padding: EdgeInsets.all(20 * _scale),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.8),
-              border: Border.all(
-                color: Colors.orangeAccent.withValues(alpha: 0.2),
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            airport?.icaoCode ?? 'TRANSIT',
-                            style: const TextStyle(
-                              color: Colors.orangeAccent,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                          Text(
-                            airport?.name ?? 'Flying in Open Air',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (rwy != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          'RWY ${rwy.ident}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                if (!onGround) ...[
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 80,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: _buildApproachChart(sim),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        _buildGlideSlopeIndicator(sim),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildShortBottom(SimulatorProvider sim, AirportDetailData? airport) {
-    return Positioned(
-      bottom: 24,
-      left: 24,
-      right: 24,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white10),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              airport?.icaoCode ?? 'ENROUTE',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
-            ),
-            Text(
-              '${sim.remainingDistance?.toStringAsFixed(1) ?? '--'} NM TO DEST',
-              style: const TextStyle(color: Colors.white54, fontSize: 11),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildApproachChart(SimulatorProvider sim) {
-    return CustomPaint(
-      painter: ApproachProfilePainter(
-        altitude: sim.simulatorData.altitude ?? 0,
-        distToRwy: (sim.remainingDistance ?? 0) * 1.852, // km
-      ),
-    );
-  }
-
-  Widget _buildGlideSlopeIndicator(SimulatorProvider sim) {
-    final distM = (sim.remainingDistance ?? 0) * 1852;
-    final targetAlt = distM * math.tan(3 * math.pi / 180);
-    final diff = (sim.simulatorData.altitude ?? 0) - targetAlt;
-    final dev = (diff / 200).clamp(-1.0, 1.0);
-
-    return Column(
-      children: [
-        const Text(
-          'G/S',
-          style: TextStyle(
-            color: Colors.white38,
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Expanded(
-          child: Container(
-            width: 24,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                for (int i = -2; i <= 2; i++)
-                  if (i != 0)
-                    Positioned(
-                      top: 40 + (i * 15.0) - 1,
-                      child: Container(
-                        width: 4,
-                        height: 1,
-                        color: Colors.white24,
-                      ),
-                    ),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.white38, width: 1),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                Positioned(
-                  bottom: 40 - (dev * 30) - 5,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      color: Colors.pinkAccent,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class ApproachProfilePainter extends CustomPainter {
-  final double altitude;
-  final double distToRwy;
-
-  ApproachProfilePainter({required this.altitude, required this.distToRwy});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.12)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    final gsPath = ui.Path();
-    gsPath.moveTo(size.width, size.height - 10);
-    gsPath.lineTo(0, size.height - 10 - (size.width * 0.3));
-    canvas.drawPath(gsPath, paint);
-
-    final aircraftX = (distToRwy / 20 * size.width).clamp(0.0, size.width);
-    final aircraftY = (size.height - 10 - (altitude / 5000 * size.height))
-        .clamp(0.0, size.height);
-
-    final planePaint = Paint()..color = Colors.orangeAccent;
-    canvas.drawCircle(Offset(aircraftX, aircraftY), 3.5, planePaint);
-
-    final groundPaint = Paint()..color = Colors.white.withValues(alpha: 0.24);
-    canvas.drawLine(
-      Offset(0, size.height - 5),
-      Offset(size.width, size.height - 5),
-      groundPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
