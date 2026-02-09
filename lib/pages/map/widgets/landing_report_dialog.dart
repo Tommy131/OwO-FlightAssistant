@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../apps/models/flight_log/flight_log.dart';
-import '../../../core/theme/app_theme.dart';
 
 class LandingReportDialog extends StatelessWidget {
   final LandingData data;
@@ -34,7 +33,7 @@ class LandingReportDialog extends StatelessWidget {
           children: [
             // 顶部横幅
             _buildHeader(theme),
-            
+
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -44,20 +43,26 @@ class LandingReportDialog extends StatelessWidget {
                     // 评分与主要数据
                     _buildMainStats(theme),
                     const SizedBox(height: 32),
-                    
+
                     // G值与垂直速度图表
                     const Text(
                       '着陆序列图表 (G值 & 垂直速度)',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     _buildChart(theme, isDark),
                     const SizedBox(height: 32),
-                    
+
                     // 详细原始数据
                     const Text(
                       '着陆原始数据',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     _buildRawDataGrid(theme),
@@ -65,7 +70,7 @@ class LandingReportDialog extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             // 底部按钮
             Padding(
               padding: const EdgeInsets.all(24),
@@ -75,7 +80,11 @@ class LandingReportDialog extends StatelessWidget {
                   onPressed: () => Navigator.of(context).pop(),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectanglePlatform.isDesktop ? null : RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectanglePlatform.isDesktop
+                        ? null
+                        : RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                   ),
                   child: const Text('了解'),
                 ),
@@ -90,7 +99,7 @@ class LandingReportDialog extends StatelessWidget {
   Widget _buildHeader(ThemeData theme) {
     Color headerColor;
     IconData icon;
-    
+
     switch (data.rating) {
       case LandingRating.perfect:
         headerColor = Colors.blue;
@@ -142,10 +151,7 @@ class LandingReportDialog extends StatelessWidget {
                 ),
                 Text(
                   data.rating.description,
-                  style: const TextStyle(
-                    color: Colors.whitee70,
-                    fontSize: 16,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 16),
                 ),
               ],
             ),
@@ -160,8 +166,16 @@ class LandingReportDialog extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         _buildStatItem('落地G值', '${data.gForce.toStringAsFixed(2)}G', theme),
-        _buildStatItem('垂直速度', '${data.verticalSpeed.toStringAsFixed(0)} fpm', theme),
-        _buildStatItem('触地速度', '${data.airspeed.toStringAsFixed(1)} kts', theme),
+        _buildStatItem(
+          '垂直速度',
+          '${data.verticalSpeed.toStringAsFixed(0)} fpm',
+          theme,
+        ),
+        _buildStatItem(
+          '触地速度',
+          '${data.airspeed.toStringAsFixed(1)} kts',
+          theme,
+        ),
       ],
     );
   }
@@ -169,10 +183,7 @@ class LandingReportDialog extends StatelessWidget {
   Widget _buildStatItem(String label, String value, ThemeData theme) {
     return Column(
       children: [
-        Text(
-          label,
-          style: TextStyle(color: theme.hintColor, fontSize: 14),
-        ),
+        Text(label, style: TextStyle(color: theme.hintColor, fontSize: 14)),
         const SizedBox(height: 4),
         Text(
           value,
@@ -189,11 +200,11 @@ class LandingReportDialog extends StatelessWidget {
       return FlSpot(e.key.toDouble(), e.value.gForce);
     }).toList();
 
-    final vsPoints = data.touchdownSequence.asMap().entries.map((e) {
+    /* final vsPoints = data.touchdownSequence.asMap().entries.map((e) {
       // 垂直速度通常是负值且范围较大，归一化处理或分轴显示
       // 这里简化处理，仅展示G值变化
       return FlSpot(e.key.toDouble(), e.value.gForce);
-    }).toList();
+    }).toList(); */
 
     return Container(
       height: 200,
@@ -202,7 +213,9 @@ class LandingReportDialog extends StatelessWidget {
         LineChartData(
           gridData: const FlGridData(show: false),
           titlesData: const FlTitlesData(
-            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(showTitles: true, reservedSize: 40),
+            ),
             bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
             topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -216,7 +229,7 @@ class LandingReportDialog extends StatelessWidget {
               barWidth: 4,
               isStrokeCapRound: true,
               dotData: const FlDotData(show: false),
-              belowAdsArea: BarAreaData(
+              belowBarData: BarAreaData(
                 show: true,
                 color: theme.primaryColor.withValues(alpha: 0.1),
               ),
@@ -237,13 +250,25 @@ class LandingReportDialog extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _buildDataRow('俯仰角 (Pitch)', '${data.pitch.toStringAsFixed(1)}°', theme),
+          _buildDataRow(
+            '俯仰角 (Pitch)',
+            '${data.pitch.toStringAsFixed(1)}°',
+            theme,
+          ),
           const Divider(),
           _buildDataRow('坡度 (Roll)', '${data.roll.toStringAsFixed(1)}°', theme),
           const Divider(),
-          _buildDataRow('空速 (IAS)', '${data.airspeed.toStringAsFixed(1)} kts', theme),
+          _buildDataRow(
+            '空速 (IAS)',
+            '${data.airspeed.toStringAsFixed(1)} kts',
+            theme,
+          ),
           const Divider(),
-          _buildDataRow('采样时间', data.touchdownSequence.last.timestamp.toString().split('.').first, theme),
+          _buildDataRow(
+            '采样时间',
+            data.touchdownSequence.last.timestamp.toString().split('.').first,
+            theme,
+          ),
         ],
       ),
     );

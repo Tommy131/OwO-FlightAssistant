@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/airport_detail_data.dart';
+import '../models/flight_log/flight_log.dart';
 import '../services/airport_detail_service.dart';
+import '../services/flight_log_service.dart';
 import '../data/airports_database.dart';
 import '../../core/utils/logger.dart';
 import 'simulator/simulator_provider.dart';
@@ -10,6 +12,7 @@ import 'simulator/simulator_provider.dart';
 class MapProvider with ChangeNotifier {
   final SimulatorProvider _simulatorProvider;
   final AirportDetailService _airportService = AirportDetailService();
+  final FlightLogService _flightLogService = FlightLogService();
 
   AirportDetailData? _currentAirport;
   AirportDetailData? _destinationAirport;
@@ -20,6 +23,9 @@ class MapProvider with ChangeNotifier {
 
   final Map<String, AirportDetailData> _airportDetails = {};
   final List<LatLng> _path = [];
+  LatLng? _takeoffPoint;
+  LatLng? _landingPoint;
+
   bool _isLoadingAirport = false;
   bool _showWeatherRadar = false;
   int? _weatherRadarTimestamp;
@@ -29,9 +35,27 @@ class MapProvider with ChangeNotifier {
   String? _currentRunway;
   String? _currentRunwayAirportIcao;
 
+  StreamSubscription<TakeoffData>? _takeoffSubscription;
+  StreamSubscription<LandingData>? _landingSubscription;
+
   MapProvider(this._simulatorProvider) {
     _simulatorProvider.addListener(_onSimulatorUpdate);
     _updateWeatherRadarTimestamp();
+    _initFlightLogSubscriptions();
+  }
+
+  void _initFlightLogSubscriptions() {
+    _takeoffSubscription = _flightLogService.takeoffStream.listen((data) {
+      _takeoffPoint = LatLng(data.latitude, data.longitude);
+      notifyListeners();
+    });
+    _landingSubscription = _flightLogService.landingStream.listen((data) {
+      _landingPoint = LatLng(
+        data.touchdownSequence.last.latitude,
+        data.touchdownSequence.last.longitude,
+      );
+      notifyListeners();
+    });
   }
 
   bool get showWeatherRadar => _showWeatherRadar;
@@ -87,6 +111,8 @@ class MapProvider with ChangeNotifier {
   AirportDetailData? get targetAirport => _targetAirport;
   AirportDetailData? get centerAirport => _centerAirport;
   AirportDetailData? get departureAirport => _departureAirport;
+  LatLng? get takeoffPoint => _takeoffPoint;
+  LatLng? get landingPoint => _landingPoint;
   String? get currentRunway => _currentRunway;
   String? get currentRunwayAirportIcao => _currentRunwayAirportIcao;
 
@@ -170,7 +196,7 @@ class MapProvider with ChangeNotifier {
       // Update path
       if (_path.isEmpty || _path.last != pos) {
         _path.add(pos);
-        if (_path.length > 1000) _path.removeAt(0);
+        if (_path.length > 5000) _path.removeAt(0);
         notifyListeners();
       }
 
@@ -248,7 +274,11 @@ class MapProvider with ChangeNotifier {
     Function(AirportDetailData?) setter,
   ) async {
     if (_airportDetails.containsKey(icao)) {
-      setter(_airportDetails[icao]);
+      final detail = _airportDetails[icao];
+      setter(detail);
+      if (setter == (data) => _currentAirport = data) {
+        _flightLogService.setCurrentAirportDetail(detail);
+      }
       notifyListeners();
       return;
     }
@@ -258,6 +288,9 @@ class MapProvider with ChangeNotifier {
       if (detail != null) {
         _airportDetails[icao] = detail;
         setter(detail);
+        if (setter == (data) => _currentAirport = data) {
+          _flightLogService.setCurrentAirportDetail(detail);
+        }
         notifyListeners();
       }
     } catch (e) {
@@ -300,6 +333,7 @@ class MapProvider with ChangeNotifier {
         forceRefresh: force,
       );
       _currentAirport = detail;
+      _flightLogService.setCurrentAirportDetail(detail);
     } catch (e) {
       _currentAirport = null;
     } finally {
@@ -318,6 +352,9 @@ class MapProvider with ChangeNotifier {
   @override
   void dispose() {
     _simulatorProvider.removeListener(_onSimulatorUpdate);
+    _takeoffSubscription?.cancel();
+    _landingSubscription?.cancel();
+    _radarRefreshTimer?.cancel();
     super.dispose();
   }
 }

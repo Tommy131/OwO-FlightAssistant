@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:latlong2/latlong.dart';
 import '../models/flight_log/flight_log.dart';
 import '../models/simulator_data.dart';
+import '../models/airport_detail_data.dart';
 import '../../core/utils/logger.dart';
 
 /// 飞行日志记录服务
@@ -26,6 +29,11 @@ class FlightLogService {
 
   final _landingController = StreamController<LandingData>.broadcast();
   Stream<LandingData> get landingStream => _landingController.stream;
+
+  final _takeoffController = StreamController<TakeoffData>.broadcast();
+  Stream<TakeoffData> get takeoffStream => _takeoffController.stream;
+
+  AirportDetailData? _currentAirportDetail;
 
   // 记录配置
   static const int _minIntervalMs = 2000; // 最小记录间隔 2秒
@@ -127,10 +135,129 @@ class FlightLogService {
 
     // 持续更新是否在地面
     _currentLog!.wasOnGroundAtEnd = data.onGround ?? false;
+
+    // 起飞检测逻辑
+    if (!_wasInAir && !onGround) {
+      _handleTakeoff(point);
+    }
+
+    // 着陆检测逻辑
+    if (_wasInAir && onGround) {
+      // 触发着陆
+      _handleLanding(point);
+    }
+    _wasInAir = !onGround;
   }
 
-  void _handleLanding(FlightPoint touchdownPoint) {
+  void _handleTakeoff(FlightPoint takeoffPoint) async {
     if (_currentLog == null) return;
+
+    // 获取当前最近的机场跑道信息，用于计算剩余跑道长度
+    double? remainingRunwayFt;
+    try {
+      // 优先使用当前已加载的机场详情
+      final airport = _currentAirportDetail;
+      if (airport != null) {
+        for (final r in airport.runways) {
+          if (r.isPointOnRunway(
+            takeoffPoint.latitude,
+            takeoffPoint.longitude,
+          )) {
+            // 简单计算到跑道末端的距离（高端或低端，取决于起飞方向）
+            // 这里使用简化的逻辑：计算到 le 和 he 的距离，取较大的那个作为剩余（因为起飞是向前的）
+            // 实际起飞时，飞机通常是从一端滑跑，所以剩余长度应该是 跑道全长 - 已滑跑长度
+            // 我们通过计算点到 he (High End) 和 le (Low End) 的距离来估算
+            if (r.leLat != null && r.heLat != null) {
+              final distToLe = _calculateDistance(
+                takeoffPoint.latitude,
+                takeoffPoint.longitude,
+                r.leLat!,
+                r.leLon!,
+              );
+              final distToHe = _calculateDistance(
+                takeoffPoint.latitude,
+                takeoffPoint.longitude,
+                r.heLat!,
+                r.heLon!,
+              );
+              // 剩余长度通常是较长的那个方向（假设飞行员不会往短的那头飞）
+              remainingRunwayFt =
+                  (distToLe > distToHe ? distToLe : distToHe) / 0.3048;
+
+              // 修正：如果计算出的剩余长度大于跑道总长，则取跑道总长
+              if (r.lengthFt != null && remainingRunwayFt > r.lengthFt!) {
+                remainingRunwayFt = r.lengthFt!.toDouble();
+              }
+            }
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      AppLogger.error('计算起飞剩余跑道长度失败', e);
+    }
+
+    final takeoffData = TakeoffData(
+      latitude: takeoffPoint.latitude,
+      longitude: takeoffPoint.longitude,
+      airspeed: takeoffPoint.airspeed,
+      verticalSpeed: takeoffPoint.verticalSpeed,
+      pitch: takeoffPoint.pitch,
+      heading: takeoffPoint.heading,
+      timestamp: takeoffPoint.timestamp,
+      remainingRunwayFt: remainingRunwayFt,
+    );
+
+    _currentLog!.takeoffData = takeoffData;
+    _takeoffController.add(takeoffData);
+
+    AppLogger.info(
+      '检测到起飞: Spd: ${takeoffData.airspeed.toStringAsFixed(1)}, RemRwy: ${remainingRunwayFt?.toStringAsFixed(0)}ft',
+    );
+  }
+
+  void _handleLanding(FlightPoint touchdownPoint) async {
+    if (_currentLog == null) return;
+
+    // 获取当前最近的机场跑道信息，用于计算剩余跑道长度
+    double? remainingRunwayFt;
+    try {
+      final airport = _currentAirportDetail;
+      if (airport != null) {
+        for (final r in airport.runways) {
+          if (r.isPointOnRunway(
+            touchdownPoint.latitude,
+            touchdownPoint.longitude,
+          )) {
+            if (r.leLat != null && r.heLat != null) {
+              final distToLe = _calculateDistance(
+                touchdownPoint.latitude,
+                touchdownPoint.longitude,
+                r.leLat!,
+                r.leLon!,
+              );
+              final distToHe = _calculateDistance(
+                touchdownPoint.latitude,
+                touchdownPoint.longitude,
+                r.heLat!,
+                r.heLon!,
+              );
+              // 落地后剩余长度是较短的那个方向（假设飞机是朝跑道另一头落地的）
+              // 或者更准确：计算投影点到两端的距离
+              remainingRunwayFt =
+                  (distToLe < distToHe ? distToLe : distToHe) / 0.3048;
+
+              if (r.lengthFt != null && remainingRunwayFt > r.lengthFt!) {
+                remainingRunwayFt = r.lengthFt!.toDouble();
+              }
+            }
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      AppLogger.error('计算降落剩余跑道长度失败', e);
+    }
 
     // 获取着陆前后的序列（最近的序列包含着陆瞬间）
     final sequence = List<FlightPoint>.from(_recentPoints);
@@ -146,14 +273,40 @@ class FlightLogService {
         touchdownPoint.verticalSpeed,
       ),
       touchdownSequence: sequence,
+      remainingRunwayFt: remainingRunwayFt,
     );
 
     _currentLog!.landingData = landingData;
     _landingController.add(landingData);
 
     AppLogger.info(
-      '检测到着陆: ${landingData.rating.label}, G: ${landingData.gForce}',
+      '检测到着陆: ${landingData.rating.label}, G: ${landingData.gForce}, RemRwy: ${remainingRunwayFt?.toStringAsFixed(0)}ft',
     );
+  }
+
+  /// 计算两点间距离（米）
+  double _calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const double r = 6371000; // 地球半径
+    final double dLat = (lat2 - lat1) * pi / 180;
+    final double dLon = (lon2 - lon1) * pi / 180;
+    final double a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1 * pi / 180) *
+            cos(lat2 * pi / 180) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
+    final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return r * c;
+  }
+
+  /// 设置当前机场详情（由 MapProvider 同步）
+  void setCurrentAirportDetail(AirportDetailData? data) {
+    _currentAirportDetail = data;
   }
 
   /// 停止记录并保存

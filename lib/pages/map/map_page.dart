@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -298,6 +299,78 @@ class _MapPageState extends State<MapPage> {
                             color: Colors.redAccent,
                             label: mapProvider.targetAirport!.icaoCode,
                             isBig: true,
+                          ),
+                        ),
+
+                      // Takeoff Point
+                      if (mapProvider.takeoffPoint != null)
+                        Marker(
+                          point: mapProvider.takeoffPoint!,
+                          width: 80,
+                          height: 80,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blueAccent.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'TAKEOFF',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.flight_takeoff,
+                                color: Colors.blueAccent,
+                                size: 36,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      // Landing Point
+                      if (mapProvider.landingPoint != null)
+                        Marker(
+                          point: mapProvider.landingPoint!,
+                          width: 80,
+                          height: 80,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.greenAccent.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'LANDING',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.flight_land,
+                                color: Colors.greenAccent,
+                                size: 36,
+                              ),
+                            ],
                           ),
                         ),
                     ],

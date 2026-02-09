@@ -70,6 +70,7 @@ class FlightLog {
   double maxAirspeed;
   bool wasOnGroundAtStart;
   bool wasOnGroundAtEnd;
+  TakeoffData? takeoffData;
   LandingData? landingData;
 
   FlightLog({
@@ -86,6 +87,7 @@ class FlightLog {
     this.maxAirspeed = 0.0,
     this.wasOnGroundAtStart = false,
     this.wasOnGroundAtEnd = false,
+    this.takeoffData,
     this.landingData,
   });
 
@@ -103,6 +105,7 @@ class FlightLog {
     'maxSpd': maxAirspeed,
     'groundStart': wasOnGroundAtStart,
     'groundEnd': wasOnGroundAtEnd,
+    'takeoff': takeoffData?.toJson(),
     'landing': landingData?.toJson(),
   };
 
@@ -122,6 +125,9 @@ class FlightLog {
     maxAirspeed: (json['maxSpd'] as num).toDouble(),
     wasOnGroundAtStart: json['groundStart'] as bool? ?? false,
     wasOnGroundAtEnd: json['groundEnd'] as bool? ?? false,
+    takeoffData: json['takeoff'] != null
+        ? TakeoffData.fromJson(json['takeoff'] as Map<String, dynamic>)
+        : null,
     landingData: json['landing'] != null
         ? LandingData.fromJson(json['landing'] as Map<String, dynamic>)
         : null,
@@ -167,6 +173,7 @@ class LandingData {
   final double roll;
   final LandingRating rating;
   final List<FlightPoint> touchdownSequence; // 落地前后一段时间的数据点
+  final double? remainingRunwayFt; // 剩余跑道长度 (英尺)
 
   LandingData({
     required this.gForce,
@@ -176,6 +183,7 @@ class LandingData {
     required this.roll,
     required this.rating,
     required this.touchdownSequence,
+    this.remainingRunwayFt,
   });
 
   Map<String, dynamic> toJson() => {
@@ -186,6 +194,7 @@ class LandingData {
     'rol': roll,
     'rating': rating.name,
     'seq': touchdownSequence.map((p) => p.toJson()).toList(),
+    'rem_rwy': remainingRunwayFt,
   };
 
   factory LandingData.fromJson(Map<String, dynamic> json) => LandingData(
@@ -198,5 +207,51 @@ class LandingData {
     touchdownSequence: (json['seq'] as List)
         .map((p) => FlightPoint.fromJson(p as Map<String, dynamic>))
         .toList(),
+    remainingRunwayFt: json['rem_rwy'] as double?,
+  );
+}
+
+/// 起飞详细数据
+class TakeoffData {
+  final double latitude;
+  final double longitude;
+  final double airspeed;
+  final double verticalSpeed;
+  final double pitch;
+  final double heading;
+  final DateTime timestamp;
+  final double? remainingRunwayFt; // 剩余跑道长度 (英尺)
+
+  TakeoffData({
+    required this.latitude,
+    required this.longitude,
+    required this.airspeed,
+    required this.verticalSpeed,
+    required this.pitch,
+    required this.heading,
+    required this.timestamp,
+    this.remainingRunwayFt,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'lat': latitude,
+    'lon': longitude,
+    'spd': airspeed,
+    'vs': verticalSpeed,
+    'pit': pitch,
+    'hdg': heading,
+    'ts': timestamp.toIso8601String(),
+    'rem_rwy': remainingRunwayFt,
+  };
+
+  factory TakeoffData.fromJson(Map<String, dynamic> json) => TakeoffData(
+    latitude: (json['lat'] as num).toDouble(),
+    longitude: (json['lon'] as num).toDouble(),
+    airspeed: (json['spd'] as num).toDouble(),
+    verticalSpeed: (json['vs'] as num).toDouble(),
+    pitch: (json['pit'] as num).toDouble(),
+    heading: (json['hdg'] as num).toDouble(),
+    timestamp: DateTime.parse(json['ts'] as String),
+    remainingRunwayFt: json['rem_rwy'] as double?,
   );
 }
