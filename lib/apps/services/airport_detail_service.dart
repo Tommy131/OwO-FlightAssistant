@@ -168,23 +168,7 @@ class AirportDetailService {
       if (data != null) {
         final weatherService = WeatherService();
         final metar = await weatherService.fetchMetar(icaoCode);
-        data = AirportDetailData(
-          icaoCode: data.icaoCode,
-          iataCode: data.iataCode,
-          name: data.name,
-          city: data.city,
-          country: data.country,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          elevation: data.elevation,
-          runways: data.runways,
-          navaids: data.navaids,
-          frequencies: data.frequencies,
-          fetchedAt: data.fetchedAt,
-          isCached: false,
-          dataSource: data.dataSource,
-          metar: metar,
-        );
+        data = data.copyWith(metar: metar, isCached: false);
         // 4. 保存到各自的缓存空间
         await _cacheData(icaoCode, data);
       }

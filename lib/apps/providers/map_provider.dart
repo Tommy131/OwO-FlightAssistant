@@ -43,15 +43,14 @@ class MapProvider with ChangeNotifier {
     }
   }
 
-  Future<void> _loadAirportDetail(String icao) async {
+  Future<void> _loadAirportDetail(String icao, {bool force = false}) async {
     _isLoadingAirport = true;
     notifyListeners();
 
     try {
-      // Try local/X-Plane data first as it has better geometry
       final detail = await _airportService.fetchAirportDetail(
         icao,
-        preferredSource: AirportDataSource.xplaneData,
+        forceRefresh: force,
       );
       _currentAirport = detail;
     } catch (e) {
@@ -59,6 +58,13 @@ class MapProvider with ChangeNotifier {
     } finally {
       _isLoadingAirport = false;
       notifyListeners();
+    }
+  }
+
+  /// 强制重新加载当前机场数据
+  Future<void> refreshAirport() async {
+    if (_lastIcao != null) {
+      await _loadAirportDetail(_lastIcao!, force: true);
     }
   }
 

@@ -227,6 +227,54 @@ class LNMDatabaseParser {
         AppLogger.error('Error parsing navaids from LNM: $e');
       }
 
+      // 5. 查询停机位信息 (Parking)
+      final parkings = <ParkingInfo>[];
+      try {
+        final parkingColumns = _getTableColumns(db, 'parking');
+        if (parkingColumns.isNotEmpty) {
+          final pLatCol = parkingColumns.contains('latitude')
+              ? 'latitude'
+              : (parkingColumns.contains('lat') ? 'lat' : 'laty');
+          final pLonCol = parkingColumns.contains('longitude')
+              ? 'longitude'
+              : (parkingColumns.contains('lon') ? 'lon' : 'lonx');
+
+          final parkingResults = db.select(
+            'SELECT name, $pLatCol, $pLonCol, heading FROM parking WHERE airport_id = ?',
+            [airportId],
+          );
+
+          for (final row in parkingResults) {
+            parkings.add(
+              ParkingInfo(
+                name: row['name'] as String? ?? 'N/A',
+                latitude: (row[pLatCol] as num).toDouble(),
+                longitude: (row[pLonCol] as num).toDouble(),
+                heading: (row['heading'] as num?)?.toDouble() ?? 0.0,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        AppLogger.error('Error parsing parkings from LNM: $e');
+      }
+
+      // 6. 查询滑行道信息 (Taxiway) - LNM 通常不直接存储复杂的滑行道形状，但部分库有
+      final taxiways = <TaxiwayInfo>[];
+      try {
+        final taxiColumns = _getTableColumns(db, 'taxiway');
+        if (taxiColumns.isNotEmpty) {
+          // 如果 LNM 中有滑行道表，通常只有名称和大致位置
+          final taxiResults = db.select(
+            'SELECT name FROM taxiway WHERE airport_id = ?',
+            [airportId],
+          );
+          for (final row in taxiResults) {
+            taxiways.add(TaxiwayInfo(name: row['name'] as String?, points: []));
+          }
+        }
+      } catch (_) {}
+
       return AirportDetailData(
         icaoCode: icao,
         name: airportRow['name'] as String? ?? 'Unknown',
@@ -238,6 +286,8 @@ class LNMDatabaseParser {
         runways: runways,
         navaids: navaids,
         frequencies: AirportFrequencies(all: frequencies),
+        parkings: parkings,
+        taxiways: taxiways,
         fetchedAt: DateTime.now(),
         dataSource: AirportDataSourceType.lnmData,
       );

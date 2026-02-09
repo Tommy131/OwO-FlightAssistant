@@ -26,6 +26,7 @@ class _MapPageState extends State<MapPage> {
   MapOrientationMode _orientationMode = MapOrientationMode.northUp;
   MapLayerType _layerType = MapLayerType.dark;
   bool _showParkings = true;
+  double _scale = 1.0;
 
   String _getTileUrl(MapLayerType type) {
     switch (type) {
@@ -50,6 +51,9 @@ class _MapPageState extends State<MapPage> {
       create: (context) => MapProvider(context.read<SimulatorProvider>()),
       child: Consumer2<SimulatorProvider, MapProvider>(
         builder: (context, simProvider, mapProvider, child) {
+          final size = MediaQuery.sizeOf(context);
+          _scale = (size.width / 1280).clamp(0.8, 1.4);
+
           final data = simProvider.simulatorData;
           final airport = mapProvider.currentAirport;
           final aircraftPos = LatLng(data.latitude ?? 0, data.longitude ?? 0);
@@ -226,7 +230,7 @@ class _MapPageState extends State<MapPage> {
                                         p.name,
                                         Colors.orangeAccent,
                                         Colors.black.withValues(alpha: 0.8),
-                                        fontSize: 9,
+                                        fontSize: 9 * _scale,
                                       ),
                                     ],
                                   ),
@@ -317,19 +321,19 @@ class _MapPageState extends State<MapPage> {
   Widget _buildTopPanel(SimulatorProvider sim, AirportDetailData? airport) {
     final data = sim.simulatorData;
     return Positioned(
-      top: 20,
-      left: 20,
-      right: 20,
+      top: 20 * _scale,
+      left: 20 * _scale,
+      right: 20 * _scale,
       child: Column(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16 * _scale),
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 20 * _scale,
+                  vertical: 12 * _scale,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.5),
@@ -358,27 +362,30 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8 * _scale),
           if (data.baroPressure != null || data.windSpeed != null)
-            Row(
-              children: [
-                _buildChip(
-                  Icons.air,
-                  '${(data.windSpeed ?? 0).round()} kt / ${(data.windDirection ?? 0).round()}°',
-                ),
-                const SizedBox(width: 8),
-                _buildChip(
-                  Icons.cloud_outlined,
-                  '${data.baroPressure?.toStringAsFixed(2)} ${data.baroPressureUnit}',
-                ),
-                if (data.outsideAirTemperature != null) ...[
-                  const SizedBox(width: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
                   _buildChip(
-                    Icons.thermostat,
-                    '${data.outsideAirTemperature?.toStringAsFixed(1)}°C',
+                    Icons.air,
+                    '${(data.windSpeed ?? 0).round()} kt / ${(data.windDirection ?? 0).round()}°',
                   ),
+                  SizedBox(width: 8 * _scale),
+                  _buildChip(
+                    Icons.cloud_outlined,
+                    '${data.baroPressure?.toStringAsFixed(2)} ${data.baroPressureUnit}',
+                  ),
+                  if (data.outsideAirTemperature != null) ...[
+                    SizedBox(width: 8 * _scale),
+                    _buildChip(
+                      Icons.thermostat,
+                      '${data.outsideAirTemperature?.toStringAsFixed(1)}°C',
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
         ],
       ),
@@ -387,22 +394,25 @@ class _MapPageState extends State<MapPage> {
 
   Widget _buildChip(IconData icon, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: 10 * _scale,
+        vertical: 4 * _scale,
+      ),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(8 * _scale),
         border: Border.all(color: Colors.white12),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white54, size: 12),
-          const SizedBox(width: 4),
+          Icon(icon, color: Colors.white54, size: 12 * _scale),
+          SizedBox(width: 4 * _scale),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
-              fontSize: 11,
+              fontSize: 11 * _scale,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -418,9 +428,9 @@ class _MapPageState extends State<MapPage> {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             color: Colors.white54,
-            fontSize: 10,
+            fontSize: 10 * _scale,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -432,15 +442,15 @@ class _MapPageState extends State<MapPage> {
               val,
               style: TextStyle(
                 color: color ?? Colors.white,
-                fontSize: 20,
+                fontSize: 20 * _scale,
                 fontWeight: FontWeight.w900,
                 fontFamily: 'monospace',
               ),
             ),
-            const SizedBox(width: 2),
+            SizedBox(width: 2 * _scale),
             Text(
               unit,
-              style: const TextStyle(color: Colors.white38, fontSize: 9),
+              style: TextStyle(color: Colors.white38, fontSize: 9 * _scale),
             ),
           ],
         ),
@@ -458,6 +468,15 @@ class _MapPageState extends State<MapPage> {
             icon: Icons.layers_outlined,
             onPressed: _showLayerPicker,
             tooltip: '地图图层',
+          ),
+          const SizedBox(height: 12),
+          Consumer<MapProvider>(
+            builder: (context, provider, _) => _buildMapBtn(
+              icon: provider.isLoadingAirport ? Icons.sync : Icons.refresh,
+              onPressed: () => provider.refreshAirport(),
+              highlight: provider.isLoadingAirport,
+              tooltip: '刷新机场数据',
+            ),
           ),
           const SizedBox(height: 12),
           _buildMapBtn(
@@ -644,21 +663,22 @@ class _MapPageState extends State<MapPage> {
     bool highlight = false,
     String? tooltip,
   }) {
+    final btnSize = 48.0 * _scale;
     return Container(
-      width: 48,
-      height: 48,
+      width: btnSize,
+      height: btnSize,
       decoration: BoxDecoration(
         color: highlight
             ? Colors.orangeAccent
             : Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(12 * _scale),
         border: Border.all(color: Colors.white10),
       ),
       child: IconButton(
         icon: Icon(
           icon,
           color: highlight ? Colors.black : Colors.white,
-          size: 20,
+          size: 20 * _scale,
         ),
         onPressed: onPressed,
         tooltip: tooltip,
@@ -676,15 +696,15 @@ class _MapPageState extends State<MapPage> {
         : null;
 
     return Positioned(
-      bottom: 24,
-      left: 24,
-      right: 24,
+      bottom: 24 * _scale,
+      left: 24 * _scale,
+      right: 24 * _scale,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(24 * _scale),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(20 * _scale),
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.8),
               border: Border.all(
