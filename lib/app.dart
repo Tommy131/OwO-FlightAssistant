@@ -25,6 +25,7 @@ import 'pages/monitor/monitor_page.dart';
 import 'pages/map/map_page.dart';
 import 'pages/briefing/briefing_page.dart';
 import 'pages/settings/settings_page.dart';
+import 'pages/toolbox/toolbox_page.dart';
 import 'pages/setup/setup_guide_page.dart';
 import 'pages/splash/splash_screen.dart';
 
@@ -115,6 +116,13 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       icon: Icons.checklist_outlined,
       activeIcon: Icons.checklist,
       page: ChecklistPage(),
+    ),
+    NavigationItem(
+      id: 'toolbox',
+      title: '工具箱',
+      icon: Icons.construction_outlined,
+      activeIcon: Icons.construction,
+      page: ToolboxPage(),
     ),
     NavigationItem(
       id: 'settings',
