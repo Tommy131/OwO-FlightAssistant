@@ -164,39 +164,76 @@ class MapTopPanel extends StatelessWidget {
             ),
           ],
           SizedBox(height: 8 * scale),
-          Row(
-            children: [
-              _buildFilterToggle('跑道', showRunways, onShowRunwaysChanged),
-              SizedBox(width: 8 * scale),
-              _buildFilterToggle('滑行道', showTaxiways, onShowTaxiwaysChanged),
-              SizedBox(width: 8 * scale),
-              _buildFilterToggle('停机位', showParkings, onShowParkingsChanged),
-              SizedBox(width: 8 * scale),
-              _buildFilterToggle(
-                '罗盘',
-                showAircraftCompass,
-                onShowAircraftCompassChanged,
-                activeColor: Colors.blueAccent,
-              ),
-              if (sim.isConnected) ...[
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildFilterToggle('跑道', showRunways, onShowRunwaysChanged),
+                SizedBox(width: 8 * scale),
+                _buildFilterToggle('滑行道', showTaxiways, onShowTaxiwaysChanged),
+                SizedBox(width: 8 * scale),
+                _buildFilterToggle('停机位', showParkings, onShowParkingsChanged),
                 SizedBox(width: 8 * scale),
                 _buildFilterToggle(
-                  '气象雷达',
-                  mapProvider.showWeatherRadar,
-                  (val) => mapProvider.toggleWeatherRadar(),
+                  '罗盘',
+                  showAircraftCompass,
+                  onShowAircraftCompassChanged,
+                  activeColor: Colors.blueAccent,
                 ),
+                if (sim.isConnected) ...[
+                  SizedBox(width: 8 * scale),
+                  _buildFilterToggle(
+                    '气象雷达',
+                    mapProvider.showWeatherRadar,
+                    (val) => mapProvider.toggleWeatherRadar(),
+                  ),
+                ],
+                if (mapProvider.departureAirport != null &&
+                    mapProvider.destinationAirport != null) ...[
+                  SizedBox(width: 8 * scale),
+                  _buildFilterToggle(
+                    '航程: ${calculateTotalDistance(mapProvider)}NM',
+                    showRouteDistance,
+                    onShowRouteDistanceChanged,
+                    activeColor: Colors.purpleAccent,
+                  ),
+                ],
+                if (mapProvider.path.isNotEmpty) ...[
+                  SizedBox(width: 8 * scale),
+                  _buildFilterToggle(
+                    '清除轨迹',
+                    false,
+                    (val) => _showClearConfirmation(context),
+                    activeColor: Colors.redAccent,
+                    inactiveColor: Colors.redAccent.withOpacity(0.6),
+                  ),
+                ],
               ],
-              if (mapProvider.departureAirport != null &&
-                  mapProvider.destinationAirport != null) ...[
-                SizedBox(width: 8 * scale),
-                _buildFilterToggle(
-                  '航程: ${calculateTotalDistance(mapProvider)}NM',
-                  showRouteDistance,
-                  onShowRouteDistanceChanged,
-                  activeColor: Colors.purpleAccent,
-                ),
-              ],
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showClearConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清除飞行数据'),
+        content: const Text('确定要清除当前的飞行轨迹、起飞/降落标记点及起飞机场信息吗？该操作不可撤销。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              mapProvider.clearFlightData();
+              Navigator.pop(context);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: const Text('确定清除'),
           ),
         ],
       ),
@@ -208,6 +245,7 @@ class MapTopPanel extends StatelessWidget {
     bool value,
     Function(bool) onChanged, {
     Color activeColor = Colors.orangeAccent,
+    Color? inactiveColor,
   }) {
     return GestureDetector(
       onTap: () => onChanged(!value),
@@ -217,9 +255,13 @@ class MapTopPanel extends StatelessWidget {
           vertical: 4 * scale,
         ),
         decoration: BoxDecoration(
-          color: value ? activeColor.withValues(alpha: 0.2) : Colors.black54,
+          color: value
+              ? activeColor.withValues(alpha: 0.2)
+              : (inactiveColor?.withOpacity(0.2) ?? Colors.black54),
           borderRadius: BorderRadius.circular(16 * scale),
-          border: Border.all(color: value ? activeColor : Colors.white24),
+          border: Border.all(
+            color: value ? activeColor : (inactiveColor ?? Colors.white24),
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -228,11 +270,13 @@ class MapTopPanel extends StatelessWidget {
               SizedBox(width: 4 * scale),
               Icon(Icons.check, size: 12 * scale, color: activeColor),
             ],
-            SizedBox(width: value ? 4 * scale : 0),
+            SizedBox(width: (value || inactiveColor != null) ? 4 * scale : 0),
             Text(
               label,
               style: TextStyle(
-                color: value ? Colors.white : Colors.white70,
+                color: (value || inactiveColor != null)
+                    ? Colors.white
+                    : Colors.white70,
                 fontSize: 10 * scale,
                 fontWeight: FontWeight.bold,
               ),

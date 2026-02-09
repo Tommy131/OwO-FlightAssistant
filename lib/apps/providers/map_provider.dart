@@ -116,6 +116,15 @@ class MapProvider with ChangeNotifier {
   String? get currentRunway => _currentRunway;
   String? get currentRunwayAirportIcao => _currentRunwayAirportIcao;
 
+  /// 清除当前飞行轨迹及相关标记点数据
+  void clearFlightData() {
+    _path.clear();
+    _takeoffPoint = null;
+    _landingPoint = null;
+    _departureAirport = null;
+    notifyListeners();
+  }
+
   /// 获取所有已加载详细信息的机场列表
   List<AirportDetailData> get allDetailedAirports {
     final list = <AirportDetailData>[];
