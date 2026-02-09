@@ -46,7 +46,7 @@ class _CompassPainter extends CustomPainter {
 
     // 考虑地图旋转，将画布先旋转以抵消地图旋转对罗盘刻度的影响（刻度始终指向地理北）
     // 或者直接在计算刻度位置时加入 mapRotation
-    final rotationRad = mapRotation * math.pi / 180;
+    // final rotationRad = mapRotation * math.pi / 180;
 
     final paint = Paint()
       ..color = Colors.blueAccent.withValues(alpha: 0.3)
@@ -57,9 +57,7 @@ class _CompassPainter extends CustomPainter {
     canvas.drawCircle(center, radius, paint);
 
     // Draw heading ticks and labels
-    final textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-    );
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
 
     for (int i = 0; i < 360; i += 10) {
       final angle = (i - 90 + mapRotation) * math.pi / 180;
@@ -75,15 +73,25 @@ class _CompassPainter extends CustomPainter {
         center.dy + radius * math.sin(angle),
       );
 
-      canvas.drawLine(start, end, paint..color = Colors.blueAccent.withValues(alpha: 0.5));
+      canvas.drawLine(
+        start,
+        end,
+        paint..color = Colors.blueAccent.withValues(alpha: 0.5),
+      );
 
       if (isMajor) {
         String label = i.toString();
-        if (i == 0) label = 'N';
-        else if (i == 90) label = 'E';
-        else if (i == 180) label = 'S';
-        else if (i == 270) label = 'W';
-        else label = (i ~/ 10).toString();
+        if (i == 0) {
+          label = 'N';
+        } else if (i == 90) {
+          label = 'E';
+        } else if (i == 180) {
+          label = 'S';
+        } else if (i == 270) {
+          label = 'W';
+        } else {
+          label = (i ~/ 10).toString();
+        }
 
         textPainter.text = TextSpan(
           text: label,
@@ -94,10 +102,14 @@ class _CompassPainter extends CustomPainter {
           ),
         );
         textPainter.layout();
-        
+
         final textPos = Offset(
-          center.dx + (radius - tickLength - 12 * scale) * math.cos(angle) - textPainter.width / 2,
-          center.dy + (radius - tickLength - 12 * scale) * math.sin(angle) - textPainter.height / 2,
+          center.dx +
+              (radius - tickLength - 12 * scale) * math.cos(angle) -
+              textPainter.width / 2,
+          center.dy +
+              (radius - tickLength - 12 * scale) * math.sin(angle) -
+              textPainter.height / 2,
         );
         textPainter.paint(canvas, textPos);
       }
@@ -109,7 +121,7 @@ class _CompassPainter extends CustomPainter {
       center.dx + radius * math.cos(headingAngle),
       center.dy + radius * math.sin(headingAngle),
     );
-    
+
     // Heading line shadow/glow
     canvas.drawLine(
       center,
@@ -131,17 +143,13 @@ class _CompassPainter extends CustomPainter {
     );
 
     // Draw a small center circle
-    canvas.drawCircle(
-      center,
-      4 * scale,
-      Paint()..color = Colors.orangeAccent,
-    );
+    canvas.drawCircle(center, 4 * scale, Paint()..color = Colors.orangeAccent);
   }
 
   @override
   bool shouldRepaint(covariant _CompassPainter oldDelegate) {
-    return oldDelegate.heading != heading || 
-           oldDelegate.scale != scale || 
-           oldDelegate.mapRotation != mapRotation;
+    return oldDelegate.heading != heading ||
+        oldDelegate.scale != scale ||
+        oldDelegate.mapRotation != mapRotation;
   }
 }

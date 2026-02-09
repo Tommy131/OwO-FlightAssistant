@@ -46,7 +46,7 @@ class NewFlightPromptDialog extends StatelessWidget {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => NewFlightPromptDialog(provider: mapProvider),
+      builder: (context) => NewFlightPromptDialog(mapProvider: mapProvider),
     );
   }
 }
