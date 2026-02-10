@@ -2,18 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:latlong2/latlong.dart';
 import '../models/flight_log/flight_log.dart';
 import '../models/simulator_data.dart';
 import '../models/airport_detail_data.dart';
 import '../../core/utils/logger.dart';
 
 /// 飞行日志记录服务
-class FlightLogService {
+class FlightLogService extends ChangeNotifier {
   static final FlightLogService _instance = FlightLogService._internal();
   factory FlightLogService() => _instance;
   FlightLogService._internal();
@@ -42,14 +42,28 @@ class FlightLogService {
   FlightLog? get currentLog => _currentLog;
   bool get isRecording => _isRecording;
 
+  /// 切换录制状态
+  void toggleRecording(SimulatorData data, {String? flightNumber}) {
+    if (_isRecording) {
+      stopRecording(
+        arrivalAirport: data.arrivalAirport,
+        onGround: data.onGround,
+      );
+    } else {
+      startRecording(data, flightNumber: flightNumber);
+    }
+  }
+
   /// 开始记录
-  void startRecording(SimulatorData data) {
+  void startRecording(SimulatorData data, {String? flightNumber}) {
     if (_isRecording) return;
 
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     _currentLog = FlightLog(
       id: id,
       aircraftTitle: data.aircraftTitle ?? 'Unknown Aircraft',
+      aircraftType: data.aircraftType,
+      flightNumber: flightNumber,
       departureAirport: data.departureAirport ?? 'Unknown',
       startTime: DateTime.now(),
       points: [],
@@ -57,10 +71,12 @@ class FlightLogService {
     );
     _isRecording = true;
     _lastPointTime = null;
+    _wasInAir = !(data.onGround ?? true);
 
     // 记录初始点
     recordPoint(data);
     AppLogger.info('开始记录飞行日志: $id');
+    notifyListeners();
   }
 
   /// 记录一个点
@@ -69,7 +85,7 @@ class FlightLogService {
 
     final now = DateTime.now();
 
-    // 检查时间间隔
+    // 检查时间间隔 (除非是关键事件点，这里简单处理统一间隔)
     if (_lastPointTime != null &&
         now.difference(_lastPointTime!).inMilliseconds < _minIntervalMs) {
       return;
@@ -97,13 +113,35 @@ class FlightLogService {
       longitude: lon,
       altitude: data.altitude ?? 0,
       airspeed: data.airspeed ?? 0,
+      groundSpeed: data.groundSpeed ?? 0,
       verticalSpeed: data.verticalSpeed ?? 0,
       heading: data.heading ?? 0,
       pitch: data.pitch ?? 0,
       roll: data.roll ?? 0,
       gForce: data.gForce ?? 1.0,
       fuelQuantity: data.fuelQuantity ?? 0,
+      fuelFlow: data.fuelFlow,
       timestamp: now,
+      autopilotEngaged: data.autopilotEngaged,
+      autothrottleEngaged: data.autothrottleEngaged,
+      gearDown: data.gearDown,
+      flapsPosition: data.flapsPosition,
+      flapsLabel: data.flapsLabel,
+      windSpeed: data.windSpeed,
+      windDirection: data.windDirection,
+      outsideAirTemperature: data.outsideAirTemperature,
+      baroPressure: data.baroPressure,
+      masterWarning: data.masterWarning,
+      masterCaution: data.masterCaution,
+      engine1Running: data.engine1Running,
+      engine2Running: data.engine2Running,
+      transponderCode: data.transponderCode,
+      landingLights: data.landingLights,
+      beacon: data.beacon,
+      strobes: data.strobes,
+      onGround: data.onGround,
+      autoBrakeLevel: data.autoBrakeLevel,
+      speedBrakePosition: data.speedBrakePosition,
     );
 
     _currentLog!.points.add(point);
@@ -115,11 +153,18 @@ class FlightLogService {
       _recentPoints.removeAt(0);
     }
 
-    // 着陆检测逻辑
+    // 状态更新与检测
     final onGround = data.onGround ?? false;
+
+    // 起飞检测逻辑
+    if (!_wasInAir && !onGround) {
+      _handleTakeoff(point, data.activeRunway);
+    }
+
+    // 着陆检测逻辑
     if (_wasInAir && onGround) {
       // 触发着陆
-      _handleLanding(point);
+      _handleLanding(point, data.activeRunway);
     }
     _wasInAir = !onGround;
 
@@ -132,30 +177,22 @@ class FlightLogService {
     if (point.airspeed > _currentLog!.maxAirspeed) {
       _currentLog!.maxAirspeed = point.airspeed;
     }
+    if (point.groundSpeed > _currentLog!.maxGroundSpeed) {
+      _currentLog!.maxGroundSpeed = point.groundSpeed;
+    }
 
     // 持续更新是否在地面
     _currentLog!.wasOnGroundAtEnd = data.onGround ?? false;
-
-    // 起飞检测逻辑
-    if (!_wasInAir && !onGround) {
-      _handleTakeoff(point);
-    }
-
-    // 着陆检测逻辑
-    if (_wasInAir && onGround) {
-      // 触发着陆
-      _handleLanding(point);
-    }
-    _wasInAir = !onGround;
   }
 
-  void _handleTakeoff(FlightPoint takeoffPoint) async {
+  void _handleTakeoff(FlightPoint takeoffPoint, String? runwayFromData) async {
     if (_currentLog == null) return;
 
     // 获取当前最近的机场跑道信息，用于计算剩余跑道长度
     double? remainingRunwayFt;
+    String? runway = runwayFromData;
+
     try {
-      // 优先使用当前已加载的机场详情
       final airport = _currentAirportDetail;
       if (airport != null) {
         for (final r in airport.runways) {
@@ -163,10 +200,7 @@ class FlightLogService {
             takeoffPoint.latitude,
             takeoffPoint.longitude,
           )) {
-            // 简单计算到跑道末端的距离（高端或低端，取决于起飞方向）
-            // 这里使用简化的逻辑：计算到 le 和 he 的距离，取较大的那个作为剩余（因为起飞是向前的）
-            // 实际起飞时，飞机通常是从一端滑跑，所以剩余长度应该是 跑道全长 - 已滑跑长度
-            // 我们通过计算点到 he (High End) 和 le (Low End) 的距离来估算
+            runway ??= r.ident;
             if (r.leLat != null && r.heLat != null) {
               final distToLe = _calculateDistance(
                 takeoffPoint.latitude,
@@ -180,11 +214,9 @@ class FlightLogService {
                 r.heLat!,
                 r.heLon!,
               );
-              // 剩余长度通常是较长的那个方向（假设飞行员不会往短的那头飞）
               remainingRunwayFt =
                   (distToLe > distToHe ? distToLe : distToHe) / 0.3048;
 
-              // 修正：如果计算出的剩余长度大于跑道总长，则取跑道总长
               if (r.lengthFt != null && remainingRunwayFt > r.lengthFt!) {
                 remainingRunwayFt = r.lengthFt!.toDouble();
               }
@@ -201,26 +233,33 @@ class FlightLogService {
       latitude: takeoffPoint.latitude,
       longitude: takeoffPoint.longitude,
       airspeed: takeoffPoint.airspeed,
+      groundSpeed: takeoffPoint.groundSpeed,
       verticalSpeed: takeoffPoint.verticalSpeed,
       pitch: takeoffPoint.pitch,
       heading: takeoffPoint.heading,
       timestamp: takeoffPoint.timestamp,
       remainingRunwayFt: remainingRunwayFt,
+      runway: runway,
     );
 
     _currentLog!.takeoffData = takeoffData;
+    _currentLog!.endTime = null; // Clear end time if taking off again
     _takeoffController.add(takeoffData);
 
     AppLogger.info(
-      '检测到起飞: Spd: ${takeoffData.airspeed.toStringAsFixed(1)}, RemRwy: ${remainingRunwayFt?.toStringAsFixed(0)}ft',
+      '检测到起飞: Spd: ${takeoffData.airspeed.toStringAsFixed(1)}, Rwy: $runway',
     );
   }
 
-  void _handleLanding(FlightPoint touchdownPoint) async {
+  void _handleLanding(
+    FlightPoint touchdownPoint,
+    String? runwayFromData,
+  ) async {
     if (_currentLog == null) return;
 
-    // 获取当前最近的机场跑道信息，用于计算剩余跑道长度
     double? remainingRunwayFt;
+    String? runway = runwayFromData;
+
     try {
       final airport = _currentAirportDetail;
       if (airport != null) {
@@ -229,6 +268,7 @@ class FlightLogService {
             touchdownPoint.latitude,
             touchdownPoint.longitude,
           )) {
+            runway ??= r.ident;
             if (r.leLat != null && r.heLat != null) {
               final distToLe = _calculateDistance(
                 touchdownPoint.latitude,
@@ -242,8 +282,6 @@ class FlightLogService {
                 r.heLat!,
                 r.heLon!,
               );
-              // 落地后剩余长度是较短的那个方向（假设飞机是朝跑道另一头落地的）
-              // 或者更准确：计算投影点到两端的距离
               remainingRunwayFt =
                   (distToLe < distToHe ? distToLe : distToHe) / 0.3048;
 
@@ -259,28 +297,33 @@ class FlightLogService {
       AppLogger.error('计算降落剩余跑道长度失败', e);
     }
 
-    // 获取着陆前后的序列（最近的序列包含着陆瞬间）
     final sequence = List<FlightPoint>.from(_recentPoints);
 
     final landingData = LandingData(
+      latitude: touchdownPoint.latitude,
+      longitude: touchdownPoint.longitude,
       gForce: touchdownPoint.gForce,
       verticalSpeed: touchdownPoint.verticalSpeed,
       airspeed: touchdownPoint.airspeed,
+      groundSpeed: touchdownPoint.groundSpeed,
       pitch: touchdownPoint.pitch,
       roll: touchdownPoint.roll,
       rating: LandingRating.fromData(
         touchdownPoint.gForce,
         touchdownPoint.verticalSpeed,
       ),
+      timestamp: touchdownPoint.timestamp,
       touchdownSequence: sequence,
       remainingRunwayFt: remainingRunwayFt,
+      runway: runway,
     );
 
     _currentLog!.landingData = landingData;
+    _currentLog!.endTime = touchdownPoint.timestamp; // Set end time on landing
     _landingController.add(landingData);
 
     AppLogger.info(
-      '检测到着陆: ${landingData.rating.label}, G: ${landingData.gForce}, RemRwy: ${remainingRunwayFt?.toStringAsFixed(0)}ft',
+      '检测到着陆: ${landingData.rating.label}, G: ${landingData.gForce}, Rwy: $runway',
     );
   }
 
@@ -309,6 +352,15 @@ class FlightLogService {
     _currentAirportDetail = data;
   }
 
+  /// 重置开始时间（重新计时）
+  void resetStartTime() {
+    if (_currentLog != null) {
+      _currentLog!.startTime = DateTime.now();
+      _currentLog!.endTime = null;
+      notifyListeners();
+    }
+  }
+
   /// 停止记录并保存
   Future<String?> stopRecording({
     String? arrivalAirport,
@@ -322,25 +374,49 @@ class FlightLogService {
       _currentLog!.wasOnGroundAtEnd = onGround;
     }
 
-    _currentLog = FlightLog(
-      id: _currentLog!.id,
-      aircraftTitle: _currentLog!.aircraftTitle,
-      departureAirport: _currentLog!.departureAirport,
-      arrivalAirport: arrivalAirport ?? _currentLog!.arrivalAirport,
-      startTime: _currentLog!.startTime,
-      endTime: _currentLog!.endTime,
-      points: _currentLog!.points,
-      maxG: _currentLog!.maxG,
-      minG: _currentLog!.minG,
-      maxAltitude: _currentLog!.maxAltitude,
-      maxAirspeed: _currentLog!.maxAirspeed,
-      wasOnGroundAtStart: _currentLog!.wasOnGroundAtStart,
-      wasOnGroundAtEnd: _currentLog!.wasOnGroundAtEnd,
-    );
+    if (arrivalAirport != null) {
+      _currentLog = FlightLog(
+        id: _currentLog!.id,
+        aircraftTitle: _currentLog!.aircraftTitle,
+        aircraftType: _currentLog!.aircraftType,
+        departureAirport: _currentLog!.departureAirport,
+        arrivalAirport: arrivalAirport,
+        startTime: _currentLog!.startTime,
+        endTime: _currentLog!.endTime,
+        points: _currentLog!.points,
+        maxG: _currentLog!.maxG,
+        minG: _currentLog!.minG,
+        maxAltitude: _currentLog!.maxAltitude,
+        maxAirspeed: _currentLog!.maxAirspeed,
+        maxGroundSpeed: _currentLog!.maxGroundSpeed,
+        wasOnGroundAtStart: _currentLog!.wasOnGroundAtStart,
+        wasOnGroundAtEnd: _currentLog!.wasOnGroundAtEnd,
+        takeoffData: _currentLog!.takeoffData,
+        landingData: _currentLog!.landingData,
+      );
+    }
+
+    // 计算燃油消耗
+    if (_currentLog!.points.isNotEmpty) {
+      final firstPoint = _currentLog!.points.first;
+      final lastPoint = _currentLog!.points.last;
+      _currentLog!.totalFuelUsed =
+          firstPoint.fuelQuantity - lastPoint.fuelQuantity;
+    }
+
+    // 检查记录时长，太短的不予保存 (例如小于30秒)
+    final duration = _currentLog!.endTime!.difference(_currentLog!.startTime);
+    if (duration.inSeconds < 30) {
+      AppLogger.info('飞行日志记录时间太短 (${duration.inSeconds}s)，已丢弃');
+      _currentLog = null;
+      notifyListeners();
+      return null;
+    }
 
     final filePath = await saveLog(_currentLog!);
     AppLogger.info('停止记录并保存飞行日志: ${_currentLog!.id}');
 
+    notifyListeners();
     return filePath;
   }
 
@@ -404,13 +480,6 @@ class FlightLogService {
     }
   }
 
-  /// 导出当前正在记录或最近一次记录的日志
-  Future<void> exportCurrentLog() async {
-    if (_currentLog != null) {
-      await exportLog(_currentLog!);
-    }
-  }
-
   /// 导入日志
   Future<bool> importLog() async {
     final result = await FilePicker.platform.pickFiles(
@@ -426,6 +495,7 @@ class FlightLogService {
         final log = FlightLog.fromJson(json);
 
         await saveLog(log);
+        notifyListeners();
         return true;
       } catch (e) {
         AppLogger.error('导入飞行日志失败', e);
@@ -440,6 +510,14 @@ class FlightLogService {
     final file = File(p.join(directory.path, 'flight_logs', 'flight_$id.json'));
     if (await file.exists()) {
       await file.delete();
+      notifyListeners();
+    }
+  }
+
+  /// 导出当前正在记录或最近一次记录的日志
+  Future<void> exportCurrentLog() async {
+    if (_currentLog != null) {
+      await exportLog(_currentLog!);
     }
   }
 }

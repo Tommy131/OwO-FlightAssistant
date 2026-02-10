@@ -4,6 +4,7 @@ import '../../core/theme/app_theme_data.dart';
 import 'widgets/welcome_card.dart';
 import 'widgets/simulator_connection_card.dart';
 import 'widgets/checklist_phase_card.dart';
+import 'widgets/flight_number_card.dart';
 import 'widgets/flight_data_dashboard.dart';
 
 /// 首页 - 模拟器数据仪表盘
@@ -23,6 +24,11 @@ class HomePage extends StatelessWidget {
           children: [
             // 欢迎卡片
             const WelcomeCard(),
+
+            const SizedBox(height: AppThemeData.spacingLarge),
+
+            // 航班号设置
+            const FlightNumberCard(),
 
             const SizedBox(height: AppThemeData.spacingLarge),
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../apps/providers/briefing_provider.dart';
+import '../../../apps/providers/flight_provider.dart';
 import '../../../apps/providers/simulator/simulator_provider.dart';
 import '../../../apps/models/airport_info.dart';
 import '../../../apps/models/airport_detail_data.dart';
@@ -51,7 +52,17 @@ class _BriefingInputCardState extends State<BriefingInputCard> {
     // 延迟执行自动填充，确保Provider已初始化
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _autoFillFromSimulator();
+      _syncFlightNumberFromProvider();
     });
+  }
+
+  void _syncFlightNumberFromProvider() {
+    final flightProvider = context.read<FlightProvider>();
+    if (flightProvider.hasFlightNumber &&
+        _flightNumberController.text.isEmpty) {
+      _flightNumberController.text = flightProvider.flightNumber!;
+      setState(() {});
+    }
   }
 
   @override
@@ -163,7 +174,10 @@ class _BriefingInputCardState extends State<BriefingInputCard> {
 
     try {
       final service = AirportDetailService();
-      final detail = await service.fetchAirportDetail(icaoCode);
+      final detail = await service.fetchAirportDetail(
+        icaoCode,
+        cacheScope: AirportCacheScope.persistent,
+      );
 
       if (detail != null && mounted) {
         setState(() {
@@ -564,13 +578,27 @@ class _BriefingInputCardState extends State<BriefingInputCard> {
   }
 
   Widget _buildFlightNumberField() {
+    final flightProvider = context.watch<FlightProvider>();
+    final isFromGlobal = flightProvider.hasFlightNumber;
+
     return TextFormField(
       controller: _flightNumberController,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         labelText: '航班号 (可选)',
         hintText: '例如: CA1234',
-        prefixIcon: Icon(Icons.flight),
-        border: OutlineInputBorder(),
+        helperText: isFromGlobal ? '已识别全局配置的航班号' : null,
+        helperStyle: isFromGlobal
+            ? TextStyle(color: Theme.of(context).colorScheme.primary)
+            : null,
+        prefixIcon: const Icon(Icons.flight),
+        border: const OutlineInputBorder(),
+        suffixIcon: isFromGlobal
+            ? IconButton(
+                icon: const Icon(Icons.sync_disabled, size: 16),
+                tooltip: '清除自动填充',
+                onPressed: () => _flightNumberController.clear(),
+              )
+            : null,
       ),
       inputFormatters: [
         FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9]')),
@@ -580,8 +608,10 @@ class _BriefingInputCardState extends State<BriefingInputCard> {
       validator: (value) {
         if (value != null && value.trim().isNotEmpty) {
           // 航班号格式：2位航司代码 + 1-4位数字
-          if (!RegExp(r'^[A-Z]{2}\d{1,4}$').hasMatch(value.trim())) {
-            return '格式: 2位航司代码+数字 (如CA1234)';
+          if (!RegExp(
+            r'^[A-Z]{2,3}\d{1,4}[A-Z]?$',
+          ).hasMatch(value.trim().toUpperCase())) {
+            return '请输入正确的航班号格式 (如CCA1234)';
           }
         }
         return null;
