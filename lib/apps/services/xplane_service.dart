@@ -10,8 +10,8 @@ import '../data/aircraft_catalog.dart';
 import '../utils/aircraft_detector.dart';
 import '../utils/data_converters.dart';
 import '../../core/utils/logger.dart';
-import 'config/xplane_datarefs.dart';
-import 'config/simulator_config_service.dart';
+import '../config/xplane_datarefs.dart';
+import 'app_core/simulator_config_service.dart';
 
 /// X-Plane 连接服务（通过UDP）
 class XPlaneService {

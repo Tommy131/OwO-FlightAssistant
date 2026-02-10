@@ -201,7 +201,9 @@ class WeatherService {
     }
 
     try {
-      final response = await http.get(Uri.parse('$_baseUrl$icaoUpper.TXT'));
+      final url = '$_baseUrl$icaoUpper.TXT';
+      AppLogger.info('请求 METAR: $icaoUpper');
+      final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         // NOAA 返回的格式通常包含两行：第一行是时间戳，第二行是原始 METAR
         final lines = response.body.split('\n');
@@ -210,9 +212,13 @@ class WeatherService {
           if (rawMetar.isNotEmpty) {
             final data = MetarData.parse(icaoUpper, rawMetar);
             _cache[icaoUpper] = data;
+            AppLogger.info('METAR 获取成功: $icaoUpper');
             return data;
           }
         }
+        AppLogger.warning('METAR 内容为空: $icaoUpper');
+      } else {
+        AppLogger.warning('METAR 请求失败: $icaoUpper (HTTP ${response.statusCode})');
       }
     } catch (e) {
       AppLogger.error('Error fetching METAR for $icao: $e');

@@ -4,13 +4,13 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
-import '../models/flight_log/flight_log.dart';
+import '../models/flight_log.dart';
 import '../models/simulator_data.dart';
 import '../models/airport_detail_data.dart';
 import '../../core/utils/logger.dart';
+import '../../core/services/persistence/app_storage_paths.dart';
 
 /// 飞行日志记录服务
 class FlightLogService extends ChangeNotifier {
@@ -422,12 +422,7 @@ class FlightLogService extends ChangeNotifier {
 
   /// 保存日志到文件
   Future<String> saveLog(FlightLog log) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final logDir = Directory(p.join(directory.path, 'flight_logs'));
-    if (!await logDir.exists()) {
-      await logDir.create(recursive: true);
-    }
-
+    final logDir = await AppStoragePaths.getFlightLogDirectory();
     final file = File(p.join(logDir.path, 'flight_${log.id}.json'));
     await file.writeAsString(jsonEncode(log.toJson()));
     return file.path;
@@ -435,9 +430,8 @@ class FlightLogService extends ChangeNotifier {
 
   /// 获取所有日志列表
   Future<List<FlightLog>> getLogs() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final logDir = Directory(p.join(directory.path, 'flight_logs'));
-    if (!await logDir.exists()) return [];
+    AppLogger.info('读取飞行日志列表');
+    final logDir = await AppStoragePaths.getFlightLogDirectory();
 
     final List<FlightLog> logs = [];
     final files = logDir.listSync().whereType<File>().toList();
@@ -455,17 +449,14 @@ class FlightLogService extends ChangeNotifier {
 
     // 按时间降序排序
     logs.sort((a, b) => b.startTime.compareTo(a.startTime));
+    AppLogger.info('飞行日志加载完成: ${logs.length} 条');
     return logs;
   }
 
   /// 导出日志 (分享)
   Future<void> exportLog(FlightLog log) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final filePath = p.join(
-      directory.path,
-      'flight_logs',
-      'flight_${log.id}.json',
-    );
+    final logDir = await AppStoragePaths.getFlightLogDirectory();
+    final filePath = p.join(logDir.path, 'flight_${log.id}.json');
     final file = File(filePath);
 
     // 如果文件不存在（可能尚未保存），先保存
@@ -506,8 +497,8 @@ class FlightLogService extends ChangeNotifier {
 
   /// 删除日志
   Future<void> deleteLog(String id) async {
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File(p.join(directory.path, 'flight_logs', 'flight_$id.json'));
+    final logDir = await AppStoragePaths.getFlightLogDirectory();
+    final file = File(p.join(logDir.path, 'flight_$id.json'));
     if (await file.exists()) {
       await file.delete();
       notifyListeners();

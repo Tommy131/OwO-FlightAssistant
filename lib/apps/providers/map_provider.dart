@@ -2,14 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/airport_detail_data.dart';
-import '../models/flight_log/flight_log.dart';
+import '../models/flight_log.dart';
 import '../models/simulator_data.dart';
 import '../services/airport_detail_service.dart';
 import '../services/flight_log_service.dart';
 import '../data/airports_database.dart';
 import '../../core/utils/logger.dart';
 import 'simulator/simulator_provider.dart';
-import '../../pages/airport_info/providers/airport_info_provider.dart';
+import 'airport_info_provider.dart';
 
 class MapProvider with ChangeNotifier {
   final SimulatorProvider _simulatorProvider;

@@ -6,8 +6,8 @@ import 'package:web_socket_channel/status.dart' as status;
 import '../models/simulator_data.dart';
 import '../utils/aircraft_detector.dart';
 import '../../core/utils/logger.dart';
-import 'config/msfs_simvars.dart';
-import 'config/simulator_config_service.dart';
+import '../config/msfs_simvars.dart';
+import 'app_core/simulator_config_service.dart';
 
 /// MSFS 连接服务（通过WebSocket中间层）
 class MSFSService {

@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
-import '../../core/constants/app_constants.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/logger.dart';
 
 class UpdateService {
   static const String remoteVersionUrl =
@@ -15,6 +16,7 @@ class UpdateService {
   /// 返回: { 'hasUpdate': bool, 'remoteVersion': String, 'error': String? }
   static Future<Map<String, dynamic>> checkUpdate() async {
     try {
+      AppLogger.info('开始检查更新');
       final response = await http
           .get(Uri.parse(remoteVersionUrl))
           .timeout(const Duration(seconds: 10));
@@ -26,13 +28,20 @@ class UpdateService {
             .map((l) => l.trim())
             .toList();
         final remoteVersion = lines.isNotEmpty ? lines[0] : '';
+        final downloadUrl = lines.length > 1 ? lines[1] : null;
+
+        AppLogger.info(
+          '更新检测: 远程版本为 $remoteVersion, 本地版本为 ${AppConstants.appVersion}',
+        );
 
         return {
           'hasUpdate': _isNewer(remoteVersion, AppConstants.appVersion),
           'remoteVersion': remoteVersion,
+          'downloadUrl': downloadUrl,
           'error': null,
         };
       } else {
+        AppLogger.warning('更新检测: 获取远程版本失败 (HTTP ${response.statusCode})');
         return {
           'hasUpdate': false,
           'remoteVersion': '',
@@ -40,6 +49,7 @@ class UpdateService {
         };
       }
     } catch (e) {
+      AppLogger.error('更新检测: 异常 $e');
       return {'hasUpdate': false, 'remoteVersion': '', 'error': '版本检测异常: $e'};
     }
   }

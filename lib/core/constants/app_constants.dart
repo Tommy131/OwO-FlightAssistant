@@ -23,6 +23,7 @@ class AppConstants {
   static const String appName = 'OwO! FlightAssistant';
   static const String appPackageName = 'com.owoblog.owo_flight_assistant';
   static const String appVersion = '1.0.0-beta';
+  static const String appBuildVersion = 'internal-build-20260210';
 
   // ========== 开发者信息 ==========
   static const String developerName = 'HanskiJay';
@@ -33,6 +34,8 @@ class AppConstants {
   // ========== 外部链接 ==========
   static const String donationUrl = 'https://owoblog.com/donation';
   static const String githubUrl = 'https://github.com/Tommy131';
+  static const String githubRepoUrl =
+      'https://github.com/Tommy131/OwO-FlightAssistant';
   static const String instagramUrl = 'https://instagram.com/$instagramName';
   static const String owoServiceUrl = 'https://owoblog.com/service';
 
@@ -42,5 +45,6 @@ class AppConstants {
 
   // ========== License ==========
   static const String copyright = '© 2025 $developerName. All rights reserved.';
-  static const String license = 'MIT License';
+  static const String license =
+      'Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)';
 }

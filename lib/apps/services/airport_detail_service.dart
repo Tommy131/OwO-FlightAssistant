@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqlite3/sqlite3.dart';
 import '../../core/utils/logger.dart';
 import '../models/airport_detail_data.dart';
 import '../data/xplane_apt_dat_parser.dart';
@@ -130,12 +129,6 @@ class AirportDetailService {
     await prefs.setString(_dataSourceKey, source.name);
   }
 
-  /// 重置 API 消耗计数
-  Future<void> resetTokenCount() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_tokenCountKey, 0);
-  }
-
   /// 获取缓存的在线 API 数据
   Future<AirportDetailData?> getCachedOnlineDetail(String icaoCode) async {
     return _getCachedData(icaoCode, AirportDataSourceType.aviationApi);
@@ -168,6 +161,7 @@ class AirportDetailService {
         if (cacheScope == AirportCacheScope.persistent) {
           final cached = await _getCachedData(icaoCode, source.dataSourceType);
           if (cached != null && !cached.isExpired(expiryDays)) {
+            AppLogger.info('命中机场缓存: $icaoCode (${source.name}) persistent');
             return cached;
           }
         } else {
@@ -177,12 +171,14 @@ class AirportDetailService {
             expiryDays,
           );
           if (cached != null) {
+            AppLogger.info('命中机场缓存: $icaoCode (${source.name}) temporary');
             return cached;
           }
         }
       }
 
       // 1. 从数据源获取基础数据
+      AppLogger.info('加载机场数据: $icaoCode (${source.name})');
       AirportDetailData? data = await _fetchFromSource(icaoCode, source);
 
       // 补充名称（如果 API 返回的名称不详细）
@@ -205,6 +201,7 @@ class AirportDetailService {
         final metar = await weatherService.fetchMetar(icaoCode);
         data = data.copyWith(metar: metar, isCached: false);
         await _cacheData(icaoCode, data, cacheScope);
+        AppLogger.info('机场数据缓存完成: $icaoCode (${source.name})');
       }
 
       return data;
@@ -290,6 +287,7 @@ class AirportDetailService {
       if (token == null || token.isEmpty) return null;
 
       final url = '$_aviationApiBase/$icaoCode?apiToken=$token';
+      AppLogger.info('请求机场 API: $icaoCode');
       final response = await http
           .get(Uri.parse(url))
           .timeout(const Duration(seconds: 15));
@@ -303,6 +301,7 @@ class AirportDetailService {
 
         return _parseAviationApiResponse(icaoCode, json);
       }
+      AppLogger.warning('机场 API 请求失败: $icaoCode (HTTP ${response.statusCode})');
       return null;
     } catch (e) {
       AppLogger.error('Aviation API error: $e');
@@ -543,8 +542,12 @@ class AirportDetailService {
         final file = File(lnmPath);
         if (await file.exists()) {
           try {
+            AppLogger.info('读取 LNM 机场数据库: $lnmPath');
             final airports = await LNMDatabaseParser.getAllAirports(file);
-            if (airports.isNotEmpty) return airports;
+            if (airports.isNotEmpty) {
+              AppLogger.info('LNM 机场数据库加载完成: ${airports.length} 条');
+              return airports;
+            }
           } catch (e) {
             AppLogger.error('Error loading airports from LNM: $e');
           }
@@ -563,8 +566,12 @@ class AirportDetailService {
           if (aptPath != null) {
             final file = File(aptPath);
             if (await file.exists()) {
+              AppLogger.info('读取 X-Plane 机场数据库: $aptPath');
               final airports = await XPlaneAptDatParser.getAllAirports(file);
-              if (airports.isNotEmpty) return airports;
+              if (airports.isNotEmpty) {
+                AppLogger.info('X-Plane 机场数据库加载完成: ${airports.length} 条');
+                return airports;
+              }
             }
           }
         } catch (e) {
@@ -573,63 +580,6 @@ class AirportDetailService {
       }
     }
     return [];
-  }
-
-  /// 验证 Token
-  Future<bool> validateToken(String token) async {
-    if (token.isEmpty) return false;
-    try {
-      final url = '$_aviationApiBase/ZSSS?apiToken=$token';
-      final response = await http
-          .get(Uri.parse(url))
-          .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        return json['error'] == null;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// 验证 LNM DB
-  Future<bool> validateLnmDatabase(String path) async {
-    final file = File(path);
-    if (!await file.exists()) return false;
-    try {
-      final db = sqlite3.open(path);
-      try {
-        final tables = db.select(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='airport'",
-        );
-        return tables.isNotEmpty;
-      } finally {
-        db.dispose();
-      }
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// 验证 X-Plane 导航数据
-  Future<bool> validateXPlaneData(String path) async {
-    try {
-      final aptPath = await XPlaneAptDatParser.resolveAptDatPath(path);
-      if (aptPath == null) return false;
-      final file = File(aptPath);
-      if (!await file.exists()) return false;
-      final lines = await file
-          .openRead(0, 1024)
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())
-          .take(1)
-          .toList();
-      if (lines.isEmpty) return false;
-      return lines.first.trim() == 'I' || lines.first.trim() == '1000';
-    } catch (e) {
-      return false;
-    }
   }
 
   /// 清除机场详细信息缓存
@@ -675,196 +625,10 @@ class AirportDetailService {
     }
   }
 
-  /// 清除气象缓存
-  Future<void> clearMetarCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys().where((k) => k.startsWith('metar_'));
-    for (final key in keys) {
-      await prefs.remove(key);
-    }
-  }
-
-  /// 获取数据库信息（包括 AIRAC 周期和过期信息）
-  Future<Map<String, String>> getDatabaseInfo(
-    String path,
-    AirportDataSource source,
-  ) async {
-    final info = <String, String>{
-      'path': path,
-      'type': source.displayName,
-      'airac': '未知',
-      'expiry': '', // 过期日期
-      'is_expired': 'false',
-    };
-
-    try {
-      final file = File(path);
-      final parentDir = file.parent;
-
-      // 1. 优先尝试从 cycle_info.txt 获取信息 (LNM 和 X-Plane 通用)
-      // LNM 通常在数据库同级目录，X-Plane 可能在同级或父级 (Custom Data)
-      final possibleCycleFiles = [
-        File('${parentDir.path}/cycle_info.txt'),
-        if (source == AirportDataSource.xplaneData)
-          File('${parentDir.parent.path}/cycle_info.txt'),
-      ];
-
-      for (final cycleFile in possibleCycleFiles) {
-        if (await cycleFile.exists()) {
-          final content = await cycleFile.readAsString();
-
-          // 提取 AIRAC Cycle
-          final cycleMatch = RegExp(
-            r'AIRAC cycle\s*:\s*(\d+)',
-            caseSensitive: false,
-          ).firstMatch(content);
-          if (cycleMatch != null) {
-            info['airac'] = cycleMatch.group(1) ?? '未知';
-          }
-
-          // 提取有效期 (支持格式: Valid (from/to): 22/JAN/2026 - 19/FEB/2026)
-          final validityMatch = RegExp(
-            r'Valid\s*\(from/to\):\s*[^-\n]+-\s*(\d{1,2}/[A-Z]{3}/\d{4})',
-            caseSensitive: false,
-          ).firstMatch(content);
-
-          if (validityMatch != null) {
-            final expiryStr = validityMatch.group(1)!;
-            info['expiry'] = expiryStr;
-
-            // 判断是否过期
-            try {
-              final months = {
-                'JAN': 1,
-                'FEB': 2,
-                'MAR': 3,
-                'APR': 4,
-                'MAY': 5,
-                'JUN': 6,
-                'JUL': 7,
-                'AUG': 8,
-                'SEP': 9,
-                'OCT': 10,
-                'NOV': 11,
-                'DEC': 12,
-              };
-              final parts = expiryStr.split('/');
-              if (parts.length == 3) {
-                final day = int.parse(parts[0]);
-                final month = months[parts[1].toUpperCase()] ?? 1;
-                final year = int.parse(parts[2]);
-                final expiryDate = DateTime(year, month, day);
-                if (DateTime.now().isAfter(
-                  expiryDate.add(const Duration(days: 1)),
-                )) {
-                  info['is_expired'] = 'true';
-                }
-              }
-            } catch (_) {}
-          } else {
-            // 兼容旧格式: to 23 MAR 2023
-            final oldExpiryMatch = RegExp(
-              r'to\s+(\d{1,2}\s+[A-Z]{3}\s+\d{4})',
-              caseSensitive: false,
-            ).firstMatch(content);
-            if (oldExpiryMatch != null) {
-              final expiryStr = oldExpiryMatch.group(1)!;
-              info['expiry'] = expiryStr;
-
-              // 补充旧格式解析逻辑
-              try {
-                final months = {
-                  'JAN': 1,
-                  'FEB': 2,
-                  'MAR': 3,
-                  'APR': 4,
-                  'MAY': 5,
-                  'JUN': 6,
-                  'JUL': 7,
-                  'AUG': 8,
-                  'SEP': 9,
-                  'OCT': 10,
-                  'NOV': 11,
-                  'DEC': 12,
-                };
-                final parts = expiryStr.split(RegExp(r'\s+'));
-                if (parts.length == 3) {
-                  final day = int.parse(parts[0]);
-                  final month = months[parts[1].toUpperCase()] ?? 1;
-                  final year = int.parse(parts[2]);
-                  final expiryDate = DateTime(year, month, day);
-                  if (DateTime.now().isAfter(
-                    expiryDate.add(const Duration(days: 1)),
-                  )) {
-                    info['is_expired'] = 'true';
-                  }
-                }
-              } catch (_) {}
-            }
-          }
-
-          if (info['airac'] != '未知') break;
-        }
-      }
-
-      // 2. 如果没找到文件或信息，执行备选方案
-      if (source == AirportDataSource.lnmData && info['airac'] == '未知') {
-        final db = sqlite3.open(path);
-        try {
-          final metadataTables = db.select(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='metadata'",
-          );
-          if (metadataTables.isNotEmpty) {
-            final columns = db
-                .select("PRAGMA table_info(metadata)")
-                .map((row) => row['name'].toString().toLowerCase())
-                .toList();
-            final keyCol = columns.contains('key')
-                ? 'key'
-                : (columns.contains('name') ? 'name' : null);
-            final valueCol = columns.contains('value') ? 'value' : null;
-            if (keyCol != null && valueCol != null) {
-              final result = db.select(
-                "SELECT $valueCol FROM metadata WHERE $keyCol = 'NavDataCycle'",
-              );
-              if (result.isNotEmpty) {
-                info['airac'] = result.first[valueCol].toString();
-              }
-            }
-          }
-        } catch (e) {
-          AppLogger.error('Error reading LNM metadata: $e');
-        } finally {
-          db.dispose();
-        }
-      } else if (source == AirportDataSource.xplaneData &&
-          info['airac'] == '未知') {
-        final lines = await file
-            .openRead(0, 2048)
-            .transform(utf8.decoder)
-            .transform(const LineSplitter())
-            .take(10)
-            .toList();
-        for (final line in lines) {
-          if (line.contains('Cycle')) {
-            final match = RegExp(r'Cycle\s+(\d+)').firstMatch(line);
-            if (match != null) {
-              info['airac'] = match.group(1)!;
-              break;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      AppLogger.error('Error getting database info: $e');
-    }
-
-    return info;
-  }
-
   /// 获取气象雷达的时间戳 (RainViewer)
   Future<int?> fetchWeatherRadarTimestamp() async {
     try {
+      AppLogger.info('请求气象雷达时间戳');
       final response = await http.get(
         Uri.parse('https://api.rainviewer.com/public/weather-maps.json'),
       );
@@ -873,8 +637,12 @@ class AirportDetailService {
         final List<dynamic> past = data['radar']['past'];
         if (past.isNotEmpty) {
           // 获取最新的时间戳
+          AppLogger.info('气象雷达时间戳获取成功');
           return past.last['time'] as int;
         }
+        AppLogger.warning('气象雷达时间戳为空');
+      } else {
+        AppLogger.warning('气象雷达请求失败 (HTTP ${response.statusCode})');
       }
     } catch (e) {
       AppLogger.error('Error fetching weather radar timestamp: $e');

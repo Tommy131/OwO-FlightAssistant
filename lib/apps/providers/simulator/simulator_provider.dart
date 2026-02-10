@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../models/flight_log/flight_log.dart';
+import '../../models/flight_log.dart';
 import '../../models/simulator_data.dart';
 import '../../services/msfs_service.dart';
 import '../../services/xplane_service.dart';
