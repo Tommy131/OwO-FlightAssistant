@@ -9,16 +9,20 @@ import '../../apps/providers/map_provider.dart';
 import 'models/map_types.dart';
 import 'utils/map_utils.dart';
 import 'widgets/airport_bottom_console.dart';
-import 'widgets/map_labels.dart';
 import 'widgets/map_layer_picker.dart';
 import 'widgets/map_right_controls.dart';
 import 'widgets/map_top_panel.dart';
 import 'widgets/airport_geometry_layers.dart';
 import 'widgets/route_layers.dart';
 import 'widgets/danger_overlay.dart';
+import 'widgets/crash_overlay.dart';
+import 'widgets/map_loading_overlay.dart';
+import '../../core/widgets/common/warning_overlay.dart';
 import 'widgets/aircraft_compass.dart';
 import 'widgets/landing_report_dialog.dart';
 import 'widgets/new_flight_prompt_dialog.dart';
+import 'widgets/airport_layers/nearby_airports_layer.dart';
+import 'widgets/airport_markers_layer.dart';
 import '../../apps/services/flight_log_service.dart';
 
 class MapPage extends StatefulWidget {
@@ -37,9 +41,9 @@ class _MapPageState extends State<MapPage> {
   bool _showParkings = true;
   bool _showTaxiways = true;
   bool _showRunways = true;
-  bool _showGs = true;
   bool _showRouteDistance = false;
   bool _showAircraftCompass = true;
+  bool _showNearbyAirports = false; // 新增：显示附近机场图钉
   bool _isFilterExpanded = true;
   double _scale = 1.0;
   DateTime? _lastMoveUpdate;
@@ -48,9 +52,6 @@ class _MapPageState extends State<MapPage> {
   );
   StreamSubscription? _landingSubscription;
 
-  // 新飞行检测标记
-  bool _hasPromptedNewFlight = false;
-  String? _lastPromptedAircraft;
   String? _lastFlightPhase;
 
   @override
@@ -83,6 +84,7 @@ class _MapPageState extends State<MapPage> {
           });
         });
       }
+      _lastFlightPhase = null;
       return;
     }
 
@@ -100,7 +102,6 @@ class _MapPageState extends State<MapPage> {
           // 飞行状态：隐藏滑行道、停机位，收起区域
           _showTaxiways = false;
           _showParkings = false;
-          _showGs = true; // 飞行中通常需要查看进近下滑道
           _isFilterExpanded = false;
           // 自动勾选气象雷达
           if (!map.showWeatherRadar) {
@@ -110,7 +111,6 @@ class _MapPageState extends State<MapPage> {
           // 地面状态：自动勾选滑行道、停机位
           _showTaxiways = true;
           _showParkings = true;
-          _showGs = false; // 地面不需要下滑道
         }
       });
     });
@@ -131,24 +131,12 @@ class _MapPageState extends State<MapPage> {
         _updateAutoFilterLogic(simProvider, mapProvider);
 
         // 新飞行提示检测逻辑
-        if (simProvider.isConnected && mapProvider.path.length > 10) {
-          final currentAircraft = data.aircraftTitle;
-          // 如果尚未提示，或者更换了机型，则弹出提示
-          if (!_hasPromptedNewFlight ||
-              (currentAircraft != null &&
-                  currentAircraft != 'Unknown Aircraft' &&
-                  currentAircraft != _lastPromptedAircraft)) {
-            _hasPromptedNewFlight = true;
-            _lastPromptedAircraft = currentAircraft;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                NewFlightPromptDialog.show(context, mapProvider);
-              }
-            });
-          }
-        } else if (!simProvider.isConnected) {
-          // 断开连接后重置标记，以便下次连接时再次检测
-          _hasPromptedNewFlight = false;
+        if (mapProvider.shouldPromptNewFlight(data)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              NewFlightPromptDialog.show(context, mapProvider);
+            }
+          });
         }
 
         // Determine which airport to show info for
@@ -186,6 +174,18 @@ class _MapPageState extends State<MapPage> {
         final onGround = data.onGround ?? true;
         final zoom = _isMapReady ? _mapController.camera.zoom : 15.0;
         final tileSubdomains = const ['a', 'b', 'c', 'd'];
+
+        if (!simProvider.isConnected && _isMapReady) {
+          final center = _mapController.camera.center;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            mapProvider.updateCenterAirport(
+              center.latitude,
+              center.longitude,
+              zoom: zoom,
+            );
+          });
+        }
 
         // Danger Detection
         String? dangerMsg;
@@ -290,16 +290,39 @@ class _MapPageState extends State<MapPage> {
                       ),
                     ),
 
-                  if (airport != null && zoom > 10.5)
+                  if (airportForMapDetails.isNotEmpty && zoom > 10.5)
                     ...buildAirportGeometryLayers(
                       airports: airportForMapDetails,
                       zoom: zoom,
                       showTaxiways: _showTaxiways,
                       showRunways: _showRunways,
                       showParkings: _showParkings,
-                      showGs: _showGs,
                       layerType: _layerType,
                       scale: _scale,
+                    ),
+
+                  // 附近机场图钉图层
+                  if (_showNearbyAirports && _isMapReady && zoom > 8)
+                    NearbyAirportsLayer(
+                      minLat: _mapController.camera.visibleBounds.south,
+                      maxLat: _mapController.camera.visibleBounds.north,
+                      minLon: _mapController.camera.visibleBounds.west,
+                      maxLon: _mapController.camera.visibleBounds.east,
+                      scale: _scale,
+                      zoom: zoom,
+                      mapProvider: mapProvider,
+                      excludeIcaoCodes: {
+                        if (mapProvider.currentAirport != null)
+                          mapProvider.currentAirport!.icaoCode,
+                        if (mapProvider.destinationAirport != null)
+                          mapProvider.destinationAirport!.icaoCode,
+                        if (mapProvider.alternateAirport != null)
+                          mapProvider.alternateAirport!.icaoCode,
+                        if (mapProvider.targetAirport != null)
+                          mapProvider.targetAirport!.icaoCode,
+                        if (mapProvider.departureAirport != null)
+                          mapProvider.departureAirport!.icaoCode,
+                      },
                     ),
 
                   ...buildRouteLayers(
@@ -307,8 +330,11 @@ class _MapPageState extends State<MapPage> {
                     showRouteDistance: _showRouteDistance,
                   ),
 
+                  // 机场标记图层（使用组件化）
+                  AirportMarkersLayer(mapProvider: mapProvider, scale: _scale),
+
                   MarkerLayer(
-                    rotate: true,
+                    rotate: false,
                     markers: [
                       // Compass
                       if (_showAircraftCompass && simProvider.isConnected)
@@ -346,61 +372,6 @@ class _MapPageState extends State<MapPage> {
                           ),
                         ),
                       ),
-                      // Destination Airport
-                      if (mapProvider.destinationAirport != null)
-                        Marker(
-                          point: getAirportCenter(
-                            mapProvider.destinationAirport!,
-                          ),
-                          width: 60,
-                          height: 60,
-                          child: AirportPin(
-                            icon: Icons.flight_land,
-                            color: Colors.purpleAccent,
-                            label: 'DEST',
-                          ),
-                        ),
-                      // Departure Airport (Star Icon)
-                      if (mapProvider.departureAirport != null)
-                        Marker(
-                          point: getAirportCenter(
-                            mapProvider.departureAirport!,
-                          ),
-                          width: 60,
-                          height: 60,
-                          child: AirportPin(
-                            icon: Icons.star,
-                            color: Colors.amber,
-                            label: 'DEP',
-                          ),
-                        ),
-                      // Alternate Airport
-                      if (mapProvider.alternateAirport != null)
-                        Marker(
-                          point: getAirportCenter(
-                            mapProvider.alternateAirport!,
-                          ),
-                          width: 60,
-                          height: 60,
-                          child: AirportPin(
-                            icon: Icons.directions_outlined,
-                            color: Colors.cyanAccent,
-                            label: 'ALTN',
-                          ),
-                        ),
-                      // Target (Searched) Airport Center
-                      if (mapProvider.targetAirport != null)
-                        Marker(
-                          point: getAirportCenter(mapProvider.targetAirport!),
-                          width: 80,
-                          height: 80,
-                          child: AirportPin(
-                            icon: Icons.location_on,
-                            color: Colors.redAccent,
-                            label: mapProvider.targetAirport!.icaoCode,
-                            isBig: true,
-                          ),
-                        ),
 
                       // Takeoff Point
                       if (mapProvider.takeoffPoint != null)
@@ -490,17 +461,18 @@ class _MapPageState extends State<MapPage> {
                 showRunways: _showRunways,
                 showTaxiways: _showTaxiways,
                 showParkings: _showParkings,
-                showGs: _showGs,
                 showRouteDistance: _showRouteDistance,
                 showAircraftCompass: _showAircraftCompass,
+                showNearbyAirports: _showNearbyAirports,
                 onShowRunwaysChanged: (v) => setState(() => _showRunways = v),
                 onShowTaxiwaysChanged: (v) => setState(() => _showTaxiways = v),
                 onShowParkingsChanged: (v) => setState(() => _showParkings = v),
-                onShowGsChanged: (v) => setState(() => _showGs = v),
                 onShowRouteDistanceChanged: (v) =>
                     setState(() => _showRouteDistance = v),
                 onShowAircraftCompassChanged: (v) =>
                     setState(() => _showAircraftCompass = v),
+                onShowNearbyAirportsChanged: (v) =>
+                    setState(() => _showNearbyAirports = v),
                 isFilterExpanded: _isFilterExpanded,
                 onFilterExpandedChanged: (v) =>
                     setState(() => _isFilterExpanded = v),
@@ -531,6 +503,20 @@ class _MapPageState extends State<MapPage> {
 
               if (dangerMsg != null)
                 DangerOverlay(message: dangerMsg, subMessage: dangerSub!),
+
+              WarningOverlay(
+                isStall: data.isStall ?? false,
+                isOverspeed: data.isOverspeed ?? false,
+              ),
+
+              if (simProvider.showCrashOverlay)
+                Positioned.fill(
+                  child: CrashOverlay(
+                    onDismiss: () => simProvider.dismissCrashOverlay(),
+                  ),
+                ),
+
+              MapLoadingOverlay(isLoading: mapProvider.isLoadingAirport),
             ],
           ),
         );

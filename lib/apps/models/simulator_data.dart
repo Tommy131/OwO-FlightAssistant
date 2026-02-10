@@ -76,6 +76,9 @@ class SimulatorData {
   final bool? fireWarningEngine1; // 发动机1火警
   final bool? fireWarningEngine2; // 发动机2火警
   final bool? fireWarningAPU; // APU火警
+  final bool? isStall; // 失速警告
+  final bool? isOverspeed; // 超速警告
+  final bool? isCrashed; // 是否坠毁
 
   // 燃油和发动机
   final double? fuelQuantity;
@@ -159,6 +162,9 @@ class SimulatorData {
     this.fireWarningEngine1,
     this.fireWarningEngine2,
     this.fireWarningAPU,
+    this.isStall,
+    this.isOverspeed,
+    this.isCrashed,
     this.fuelQuantity,
     this.fuelFlow,
     this.apuRunning,
@@ -246,6 +252,9 @@ class SimulatorData {
     bool? fireWarningEngine1,
     bool? fireWarningEngine2,
     bool? fireWarningAPU,
+    bool? isStall,
+    bool? isOverspeed,
+    bool? isCrashed,
     double? fuelQuantity,
     double? fuelFlow,
     bool? apuRunning,
@@ -329,6 +338,9 @@ class SimulatorData {
       fireWarningEngine1: fireWarningEngine1 ?? this.fireWarningEngine1,
       fireWarningEngine2: fireWarningEngine2 ?? this.fireWarningEngine2,
       fireWarningAPU: fireWarningAPU ?? this.fireWarningAPU,
+      isStall: isStall ?? this.isStall,
+      isOverspeed: isOverspeed ?? this.isOverspeed,
+      isCrashed: isCrashed ?? this.isCrashed,
       fuelQuantity: fuelQuantity ?? this.fuelQuantity,
       fuelFlow: fuelFlow ?? this.fuelFlow,
       apuRunning: apuRunning ?? this.apuRunning,

@@ -98,6 +98,36 @@ class MSFSSimVars {
     description: '机身注册号',
   );
 
+  static const MSFSSimVar stallWarning = MSFSSimVar(
+    name: 'STALL WARNING',
+    unit: 'Bool',
+    description: '失速警告',
+  );
+
+  static const MSFSSimVar overspeedWarning = MSFSSimVar(
+    name: 'OVERSPEED WARNING',
+    unit: 'Bool',
+    description: '超速警告',
+  );
+
+  static const MSFSSimVar crashFlag = MSFSSimVar(
+    name: 'CRASH FLAG',
+    unit: 'number',
+    description: '坠毁标志',
+  );
+
+  static const MSFSSimVar onGround = MSFSSimVar(
+    name: 'SIM ON GROUND',
+    unit: 'bool',
+    description: '是否在地面',
+  );
+
+  static const MSFSSimVar isPaused = MSFSSimVar(
+    name: 'SIMULATION PAUSED',
+    unit: 'bool',
+    description: '模拟器是否暂停',
+  );
+
   // ==================== 系统状态 ====================
 
   static const MSFSSimVar parkingBrake = MSFSSimVar(
@@ -363,6 +393,8 @@ class MSFSSimVars {
       atcModel,
       atcType,
       atcId,
+      onGround,
+      isPaused,
       // 系统状态
       parkingBrake,
       beaconLight,
@@ -384,6 +416,7 @@ class MSFSSimVars {
       autopilotMaster, autopilotThrottle,
       // 监控数据
       gForce, barometerPressure,
+      crashFlag,
       // 起落架详细状态
       noseGearPosition, leftGearPosition, rightGearPosition,
       // 减速板与扰流板

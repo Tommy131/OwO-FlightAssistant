@@ -643,6 +643,15 @@ class XPlaneService {
       case XPlaneDataRefKey.fireWarningAPU:
         _currentData = _currentData.copyWith(fireWarningAPU: value > 0.5);
         break;
+      case XPlaneDataRefKey.stallWarning:
+        _currentData = _currentData.copyWith(isStall: value > 0.5);
+        break;
+      case XPlaneDataRefKey.overspeedWarning:
+        _currentData = _currentData.copyWith(isOverspeed: value > 0.5);
+        break;
+      case XPlaneDataRefKey.crashFlag:
+        _currentData = _currentData.copyWith(isCrashed: value > 0.5);
+        break;
       case XPlaneDataRefKey.numEngines:
         _currentData = _currentData.copyWith(numEngines: value.toInt());
         _detectAircraftType();

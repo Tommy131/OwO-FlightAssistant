@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'apps/providers/checklist_provider.dart';
+import 'apps/providers/flight_provider.dart';
 import 'apps/providers/simulator/simulator_provider.dart';
 import 'apps/providers/briefing_provider.dart';
 import 'apps/providers/map_provider.dart';
@@ -28,6 +29,7 @@ import 'pages/settings/settings_page.dart';
 import 'pages/toolbox/toolbox_page.dart';
 import 'pages/setup/setup_guide_page.dart';
 import 'pages/splash/splash_screen.dart';
+import 'pages/flight_logs/flight_logs_page.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -37,12 +39,16 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => FlightProvider()),
         ChangeNotifierProvider(create: (_) => ChecklistProvider()),
         ChangeNotifierProvider(create: (_) => SimulatorProvider()),
         ChangeNotifierProvider(create: (_) => AirportInfoProvider()),
         ChangeNotifierProvider(create: (_) => BriefingProvider()),
         ChangeNotifierProvider(
-          create: (context) => MapProvider(context.read<SimulatorProvider>()),
+          create: (context) => MapProvider(
+            context.read<SimulatorProvider>(),
+            context.read<AirportInfoProvider>(),
+          ),
         ),
       ],
       child: Consumer<ThemeProvider>(
@@ -74,7 +80,7 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
   bool _needsSetup = false;
 
   // 定义导航项
-  final List<NavigationItem> _navigationItems = const [
+  final List<NavigationItem> _navigationItems = [
     NavigationItem(
       id: 'home',
       title: '首页',
@@ -116,6 +122,13 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       icon: Icons.checklist_outlined,
       activeIcon: Icons.checklist,
       page: ChecklistPage(),
+    ),
+    NavigationItem(
+      id: 'flight_logs',
+      title: '飞行日志',
+      icon: Icons.history_edu_outlined,
+      activeIcon: Icons.history_edu,
+      page: FlightLogsPage(),
     ),
     NavigationItem(
       id: 'toolbox',

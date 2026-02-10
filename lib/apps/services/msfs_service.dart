@@ -208,6 +208,19 @@ class MSFSService {
       );
     }
 
+    if (data.containsKey('SIM ON GROUND')) {
+      _currentData = _currentData.copyWith(
+        onGround: data['SIM ON GROUND'] == true || data['SIM ON GROUND'] == 1,
+      );
+    }
+
+    if (data.containsKey('SIMULATION PAUSED')) {
+      _currentData = _currentData.copyWith(
+        isPaused:
+            data['SIMULATION PAUSED'] == true || data['SIMULATION PAUSED'] == 1,
+      );
+    }
+
     final resolvedTitle = _resolveAircraftTitle(data);
     if (resolvedTitle != null &&
         (_currentData.aircraftTitle == null ||
@@ -382,6 +395,25 @@ class MSFSService {
       final position = (data['SPOILERS LEFT POSITION'] as num?)?.toDouble();
       _currentData = _currentData.copyWith(
         spoilersDeployed: position != null && position > 0.1,
+      );
+    }
+
+    if (data.containsKey('STALL WARNING')) {
+      _currentData = _currentData.copyWith(
+        isStall: data['STALL WARNING'] == true || data['STALL WARNING'] == 1,
+      );
+    }
+
+    if (data.containsKey('OVERSPEED WARNING')) {
+      _currentData = _currentData.copyWith(
+        isOverspeed:
+            data['OVERSPEED WARNING'] == true || data['OVERSPEED WARNING'] == 1,
+      );
+    }
+
+    if (data.containsKey('CRASH FLAG')) {
+      _currentData = _currentData.copyWith(
+        isCrashed: (data['CRASH FLAG'] as num?) == 1,
       );
     }
 

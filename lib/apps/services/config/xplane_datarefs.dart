@@ -67,6 +67,11 @@ enum XPlaneDataRefKey {
   totalWeight,
   emptyWeight,
   payloadWeight,
+
+  // 警告
+  stallWarning,
+  overspeedWarning,
+  crashFlag,
 }
 
 /// X-Plane DataRef 配置项
@@ -491,6 +496,24 @@ class XPlaneDataRefs {
     description: '主告警',
   );
 
+  static const XPlaneDataRef stallWarning = XPlaneDataRef(
+    key: XPlaneDataRefKey.stallWarning,
+    path: 'sim/cockpit2/annunciators/stall_warning',
+    description: '失速警告',
+  );
+
+  static const XPlaneDataRef overspeedWarning = XPlaneDataRef(
+    key: XPlaneDataRefKey.overspeedWarning,
+    path: 'sim/cockpit2/annunciators/airspeed_high',
+    description: '超速警告',
+  );
+
+  static const XPlaneDataRef crashFlag = XPlaneDataRef(
+    key: XPlaneDataRefKey.crashFlag,
+    path: 'sim/operation/failures/rel_crash',
+    description: '坠毁状态',
+  );
+
   static const XPlaneDataRef fireWarningEng1 = XPlaneDataRef(
     key: XPlaneDataRefKey.fireWarningEng1,
     path: 'sim/cockpit2/annunciators/fire_warning[0]',
@@ -590,6 +613,7 @@ class XPlaneDataRefs {
       com1Frequency,
       transponderMode,
       transponderCode,
+      crashFlag,
       // 起落架详细状态
       noseGearDeploy, leftGearDeploy, rightGearDeploy,
       // 襟翼状态
