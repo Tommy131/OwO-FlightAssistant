@@ -5,7 +5,7 @@ import 'airport_layers/taxiway_layer.dart';
 import 'airport_layers/runway_layer.dart';
 import 'airport_layers/parking_layer.dart';
 
-/// 构建机场几何相关的图层（滑行道、跑道、门牌、停机位、下滑道）
+/// 构建机场几何相关的图层（滑行道、跑道、门牌、停机位）
 /// 采用组件化重构，提高代码可维护性和复用性
 List<Widget> buildAirportGeometryLayers({
   required List<AirportDetailData> airports,
@@ -13,7 +13,6 @@ List<Widget> buildAirportGeometryLayers({
   required bool showTaxiways,
   required bool showRunways,
   required bool showParkings,
-  required bool showGs,
   required MapLayerType layerType,
   required double scale,
 }) {

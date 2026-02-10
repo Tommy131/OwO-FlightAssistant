@@ -6,6 +6,7 @@ import '../../models/navigation_item.dart';
 import '../../theme/theme_provider.dart';
 import '../../../apps/providers/simulator/simulator_provider.dart';
 import '../../../apps/models/simulator_data.dart';
+import '../../../apps/providers/flight_provider.dart';
 
 /// 桌面端侧边栏组件（紧凑型）
 /// 支持展开/折叠，带有流畅的动画过渡
@@ -179,13 +180,20 @@ class _DesktopSidebarState extends State<DesktopSidebar>
   Widget _buildLogoText(ThemeData theme) {
     return Expanded(
       child: _buildFadeTransition(
-        child: Text(
-          '你好!',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-          ),
-          overflow: TextOverflow.ellipsis,
+        child: Consumer<FlightProvider>(
+          builder: (context, flight, _) {
+            final text = flight.hasFlightNumber
+                ? '你好，${flight.flightNumber}！'
+                : '你好！';
+            return Text(
+              text,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+              overflow: TextOverflow.ellipsis,
+            );
+          },
         ),
       ),
     );

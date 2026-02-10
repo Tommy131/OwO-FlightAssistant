@@ -3,16 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/airport_detail_data.dart';
 import '../models/flight_log/flight_log.dart';
+import '../models/simulator_data.dart';
 import '../services/airport_detail_service.dart';
 import '../services/flight_log_service.dart';
 import '../data/airports_database.dart';
 import '../../core/utils/logger.dart';
 import 'simulator/simulator_provider.dart';
+import '../../pages/airport_info/providers/airport_info_provider.dart';
 
 class MapProvider with ChangeNotifier {
   final SimulatorProvider _simulatorProvider;
+  final AirportInfoProvider _infoProvider;
   final AirportDetailService _airportService = AirportDetailService();
   final FlightLogService _flightLogService = FlightLogService();
+
+  AirportDataSource? _lastSource;
 
   AirportDetailData? _currentAirport;
   AirportDetailData? _destinationAirport;
@@ -20,6 +25,7 @@ class MapProvider with ChangeNotifier {
   AirportDetailData? _targetAirport;
   AirportDetailData? _centerAirport;
   AirportDetailData? _departureAirport;
+  String? _departureAirportIcao;
 
   final Map<String, AirportDetailData> _airportDetails = {};
   final List<LatLng> _path = [];
@@ -35,14 +41,34 @@ class MapProvider with ChangeNotifier {
   String? _currentRunway;
   String? _currentRunwayAirportIcao;
   DateTime? _lastAutoRefresh;
+  bool _hasPromptedNewFlight = false;
+  String? _lastPromptedAircraft;
 
   StreamSubscription<TakeoffData>? _takeoffSubscription;
   StreamSubscription<LandingData>? _landingSubscription;
 
-  MapProvider(this._simulatorProvider) {
+  MapProvider(this._simulatorProvider, this._infoProvider) {
     _simulatorProvider.addListener(_onSimulatorUpdate);
+    _infoProvider.addListener(_onInfoUpdate);
+    _lastSource = _infoProvider.currentDataSource;
     _updateWeatherRadarTimestamp();
     _initFlightLogSubscriptions();
+  }
+
+  void _onInfoUpdate() {
+    if (_infoProvider.currentDataSource != _lastSource) {
+      _lastSource = _infoProvider.currentDataSource;
+      _airportDetails.clear();
+      _currentAirport = null;
+      _destinationAirport = null;
+      _alternateAirport = null;
+      _centerAirport = null;
+      _targetAirport = null;
+      _lastIcao = null;
+      _lastDestIcao = null;
+      _lastAltIcao = null;
+      notifyListeners();
+    }
   }
 
   void _initFlightLogSubscriptions() {
@@ -123,6 +149,11 @@ class MapProvider with ChangeNotifier {
     _takeoffPoint = null;
     _landingPoint = null;
     _departureAirport = null;
+    _departureAirportIcao = null;
+    _destinationAirport = null;
+    _lastDestIcao = null;
+    _simulatorProvider.setDestination(null);
+    _resetNewFlightPromptState();
     notifyListeners();
   }
 
@@ -198,6 +229,29 @@ class MapProvider with ChangeNotifier {
   List<LatLng> get path => _path;
   bool get isLoadingAirport => _isLoadingAirport;
 
+  bool shouldPromptNewFlight(SimulatorData data) {
+    if (!_simulatorProvider.isConnected) {
+      _resetNewFlightPromptState();
+      return false;
+    }
+    if (_path.length <= 10) return false;
+    final currentAircraft = data.aircraftTitle;
+    if (!_hasPromptedNewFlight ||
+        (currentAircraft != null &&
+            currentAircraft != 'Unknown Aircraft' &&
+            currentAircraft != _lastPromptedAircraft)) {
+      _hasPromptedNewFlight = true;
+      _lastPromptedAircraft = currentAircraft;
+      return true;
+    }
+    return false;
+  }
+
+  void _resetNewFlightPromptState() {
+    _hasPromptedNewFlight = false;
+    _lastPromptedAircraft = null;
+  }
+
   void _onSimulatorUpdate() {
     if (!_simulatorProvider.isConnected) {
       // 断开连接时，清除所有与当前位置相关的机场信息，但保留搜索结果
@@ -211,6 +265,9 @@ class MapProvider with ChangeNotifier {
       _currentRunway = null;
       _currentRunwayAirportIcao = null;
       _lastAutoRefresh = null; // 重连后允许立即触发一次自动刷新
+      _departureAirport = null;
+      _departureAirportIcao = null;
+      _resetNewFlightPromptState();
       notifyListeners();
       return;
     }
@@ -255,12 +312,23 @@ class MapProvider with ChangeNotifier {
       // Map-Matching for active runway
       _updateCurrentRunway(data.latitude!, data.longitude!);
 
+      final onGround =
+          data.onGround ?? (data.altitude != null && data.altitude! < 50);
+
+      if (_departureAirportIcao == null && onGround && nearest != null) {
+        _departureAirportIcao = nearest.icaoCode;
+        if (_departureAirport == null && _departureAirportIcao != null) {
+          _loadSpecificAirport(
+            _departureAirportIcao!,
+            (data) => _departureAirport = data,
+          );
+        }
+      }
+
       // 自动检测机场数据完整性并按需刷新（仅在连接时且位于地面/低空时触发）
       if (_simulatorProvider.isConnected &&
           nearest != null &&
           _lastIcao == nearest.icaoCode) {
-        final onGround =
-            data.onGround ?? (data.altitude != null && data.altitude! < 50);
         if (onGround && _isAirportIncomplete(_currentAirport)) {
           final now = DateTime.now();
           if (_lastAutoRefresh == null ||
@@ -273,9 +341,7 @@ class MapProvider with ChangeNotifier {
       }
 
       // Auto-detect departure airport (Lock the first airport found when on ground)
-      if (_departureAirport == null &&
-          data.onGround == true &&
-          _currentAirport != null) {
+      if (_departureAirport == null && onGround && _currentAirport != null) {
         _departureAirport = _currentAirport;
         notifyListeners();
       }
@@ -334,6 +400,9 @@ class MapProvider with ChangeNotifier {
     if (_airportDetails.containsKey(icao)) {
       final detail = _airportDetails[icao];
       setter(detail);
+      if (_departureAirport == null && _departureAirportIcao == icao) {
+        _departureAirport = detail;
+      }
       if (setter == (data) => _currentAirport = data) {
         _flightLogService.setCurrentAirportDetail(detail);
       }
@@ -341,11 +410,20 @@ class MapProvider with ChangeNotifier {
       return;
     }
 
+    _isLoadingAirport = true;
+    notifyListeners();
+
     try {
-      final detail = await _airportService.fetchAirportDetail(icao);
+      final detail = await _airportService.fetchAirportDetail(
+        icao,
+        cacheScope: AirportCacheScope.temporary,
+      );
       if (detail != null) {
         _airportDetails[icao] = detail;
         setter(detail);
+        if (_departureAirport == null && _departureAirportIcao == icao) {
+          _departureAirport = detail;
+        }
         if (setter == (data) => _currentAirport = data) {
           _flightLogService.setCurrentAirportDetail(detail);
         }
@@ -353,15 +431,25 @@ class MapProvider with ChangeNotifier {
       }
     } catch (e) {
       // Ignore errors for secondary airports
+    } finally {
+      _isLoadingAirport = false;
+      notifyListeners();
     }
   }
 
   /// 选择并定位到搜索的机场
-  Future<void> selectTargetAirport(String icao) async {
+  Future<void> selectTargetAirport(
+    String icao, {
+    bool forceRefresh = false,
+  }) async {
     _isLoadingAirport = true;
     notifyListeners();
     try {
-      final detail = await _airportService.fetchAirportDetail(icao);
+      final detail = await _airportService.fetchAirportDetail(
+        icao,
+        forceRefresh: forceRefresh,
+        cacheScope: AirportCacheScope.temporary,
+      );
       if (detail != null) {
         _airportDetails[icao] = detail;
         _targetAirport = detail;
@@ -371,6 +459,40 @@ class MapProvider with ChangeNotifier {
       // Handle error
     } finally {
       _isLoadingAirport = false;
+      notifyListeners();
+    }
+  }
+
+  AirportDetailData? getCachedAirportDetail(String icao) {
+    return _airportDetails[icao];
+  }
+
+  Future<void> prefetchAirportDetails(Iterable<String> icaos) async {
+    final targets = <String>{};
+    for (final icao in icaos) {
+      final normalized = icao.trim().toUpperCase();
+      if (normalized.isEmpty) continue;
+      if (_airportDetails.containsKey(normalized)) continue;
+      targets.add(normalized);
+    }
+    if (targets.isEmpty) return;
+
+    var updated = false;
+    for (final icao in targets) {
+      try {
+        final detail = await _airportService.fetchAirportDetail(
+          icao,
+          cacheScope: AirportCacheScope.temporary,
+        );
+        if (detail != null) {
+          _airportDetails[icao] = detail;
+          updated = true;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    if (updated) {
       notifyListeners();
     }
   }
@@ -389,6 +511,7 @@ class MapProvider with ChangeNotifier {
       final detail = await _airportService.fetchAirportDetail(
         icao,
         forceRefresh: force,
+        cacheScope: AirportCacheScope.temporary,
       );
       _currentAirport = detail;
       _flightLogService.setCurrentAirportDetail(detail);
@@ -408,7 +531,7 @@ class MapProvider with ChangeNotifier {
     try {
       // 优先刷新搜索的机场
       if (_targetAirport != null) {
-        await selectTargetAirport(_targetAirport!.icaoCode);
+        await selectTargetAirport(_targetAirport!.icaoCode, forceRefresh: true);
         return;
       }
 
@@ -418,6 +541,7 @@ class MapProvider with ChangeNotifier {
         final detail = await _airportService.fetchAirportDetail(
           icao,
           forceRefresh: true,
+          cacheScope: AirportCacheScope.temporary,
         );
         if (detail != null) {
           _airportDetails[icao] = detail;

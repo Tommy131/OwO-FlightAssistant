@@ -4,8 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../apps/data/airports_database.dart';
 import '../../../../apps/models/airport_detail_data.dart';
 import '../../../apps/providers/simulator/simulator_provider.dart';
+import '../../../../apps/services/airport_detail_service.dart';
 import '../../../../apps/services/weather_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
+import '../providers/airport_info_provider.dart';
 
 import 'airport_detail_view.dart';
 
@@ -210,7 +212,10 @@ class _AirportCardState extends State<AirportCard> {
                       currentDetail?.dataSourceDisplay ??
                           ((_showOnline && widget.onlineDetail != null)
                               ? '在线 API'
-                              : '本地数据库'),
+                              : context
+                                    .read<AirportInfoProvider>()
+                                    .currentDataSource
+                                    .shortName),
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.onSecondaryContainer,
                         fontWeight: FontWeight.bold,

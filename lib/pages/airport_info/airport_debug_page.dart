@@ -424,6 +424,7 @@ class _AirportDetailDialogState extends State<_AirportDetailDialog> {
       final detail = await widget.service.fetchAirportDetail(
         widget.airport.icaoCode,
         preferredSource: widget.source,
+        cacheScope: AirportCacheScope.temporary,
       );
 
       if (mounted) {

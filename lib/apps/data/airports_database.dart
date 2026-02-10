@@ -107,4 +107,36 @@ class AirportsDatabase {
       return false;
     }).toList();
   }
+
+  /// 查找地图视图范围内的所有机场
+  ///
+  /// [minLat] 最小纬度
+  /// [maxLat] 最大纬度
+  /// [minLon] 最小经度
+  /// [maxLon] 最大经度
+  /// [maxResults] 最大返回数量，默认50
+  ///
+  /// 返回视图范围内的机场列表
+  static List<AirportInfo> findInBounds({
+    required double minLat,
+    required double maxLat,
+    required double minLon,
+    required double maxLon,
+    int maxResults = 50,
+  }) {
+    final results = <AirportInfo>[];
+
+    for (final airport in _airports) {
+      if (results.length >= maxResults) break;
+
+      if (airport.latitude >= minLat &&
+          airport.latitude <= maxLat &&
+          airport.longitude >= minLon &&
+          airport.longitude <= maxLon) {
+        results.add(airport);
+      }
+    }
+
+    return results;
+  }
 }

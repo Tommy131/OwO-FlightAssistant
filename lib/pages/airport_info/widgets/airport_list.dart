@@ -10,6 +10,103 @@ import '../../../core/widgets/common/dialog.dart';
 import '../providers/airport_info_provider.dart';
 import 'airport_card.dart';
 
+Future<String?> showAirportUpdateConfirmationDialog(
+  BuildContext context,
+  AirportInfo airport,
+  AirportDetailData existing,
+  AirportDetailData freshData,
+) async {
+  return showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return AlertDialog(
+        title: Text('机场数据更新: ${airport.icaoCode}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('检测到新旧数据存在显著差异，请选择保留哪一份：'),
+            const SizedBox(height: 16),
+            buildAirportDiffInfo('机场名称', existing.name, freshData.name),
+            buildAirportDiffInfo(
+              '坐标',
+              '${existing.latitude.toStringAsFixed(3)}, ${existing.longitude.toStringAsFixed(3)}',
+              '${freshData.latitude.toStringAsFixed(3)}, ${freshData.longitude.toStringAsFixed(3)}',
+            ),
+            buildAirportDiffInfo(
+              '跑道数量',
+              existing.runways.length.toString(),
+              freshData.runways.length.toString(),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '新数据源: ${freshData.dataSourceDisplay}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'all_skip'),
+            child: const Text('全部跳过'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'old'),
+            child: const Text('保留旧版本'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'new'),
+            child: const Text('使用新数据'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'all_new'),
+            child: const Text('一键更新所有'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+Widget buildAirportDiffInfo(String label, String oldVal, String newVal) {
+  final hasDiff = oldVal != newVal;
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 70,
+          child: Text('$label:', style: const TextStyle(color: Colors.grey)),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                oldVal,
+                style: TextStyle(
+                  color: hasDiff ? Colors.red : null,
+                  fontSize: 13,
+                ),
+              ),
+              if (hasDiff)
+                Text(
+                  newVal,
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class AirportList extends StatefulWidget {
   final List<AirportInfo> airports;
 
@@ -180,94 +277,11 @@ class _AirportListState extends State<AirportList> {
     AirportDetailData existing,
     AirportDetailData freshData,
   ) async {
-    return showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('机场数据更新: ${airport.icaoCode}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('检测到新旧数据存在显著差异，请选择保留哪一份：'),
-              const SizedBox(height: 16),
-              _buildDiffInfo('机场名称', existing.name, freshData.name),
-              _buildDiffInfo(
-                '坐标',
-                '${existing.latitude.toStringAsFixed(3)}, ${existing.longitude.toStringAsFixed(3)}',
-                '${freshData.latitude.toStringAsFixed(3)}, ${freshData.longitude.toStringAsFixed(3)}',
-              ),
-              _buildDiffInfo(
-                '跑道数量',
-                existing.runways.length.toString(),
-                freshData.runways.length.toString(),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '新数据源: ${freshData.dataSourceDisplay}',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'all_skip'),
-              child: const Text('全部跳过'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'old'),
-              child: const Text('保留旧版本'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, 'new'),
-              child: const Text('使用新数据'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, 'all_new'),
-              child: const Text('一键更新所有'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDiffInfo(String label, String oldVal, String newVal) {
-    final hasDiff = oldVal != newVal;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 70,
-            child: Text('$label:', style: const TextStyle(color: Colors.grey)),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  oldVal,
-                  style: TextStyle(
-                    color: hasDiff ? Colors.red : null,
-                    fontSize: 13,
-                  ),
-                ),
-                if (hasDiff)
-                  Text(
-                    newVal,
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return showAirportUpdateConfirmationDialog(
+      context,
+      airport,
+      existing,
+      freshData,
     );
   }
 }

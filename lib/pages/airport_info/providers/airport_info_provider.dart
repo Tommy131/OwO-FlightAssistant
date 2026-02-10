@@ -120,7 +120,6 @@ class AirportInfoProvider extends ChangeNotifier {
     _userSavedAirports.clear();
     _userSavedAirports.addAll(loadedAirports);
 
-    // Initialize cache
     final expiryMinutes = prefs.getInt('metar_cache_expiry') ?? 60;
     for (final airport in loadedAirports) {
       final cachedMetar = _weatherService.getCachedMetar(airport.icaoCode);
@@ -237,6 +236,7 @@ class AirportInfoProvider extends ChangeNotifier {
         final freshDetail = await _detailService.fetchAirportDetail(
           airport.icaoCode,
           forceRefresh: force,
+          cacheScope: AirportCacheScope.persistent,
         );
         if (freshDetail != null) {
           // Note: In the original code there was complex update logic with dialogs.
@@ -356,6 +356,7 @@ class AirportInfoProvider extends ChangeNotifier {
 
       _currentDataSource = source;
       _dataSourceSwitchError = null;
+      _fetchErrors.clear();
     } catch (e) {
       _dataSourceSwitchError = '切换失败: $e';
     } finally {
@@ -384,6 +385,7 @@ class AirportInfoProvider extends ChangeNotifier {
         airport.icaoCode,
         forceRefresh: true,
         preferredSource: source,
+        cacheScope: AirportCacheScope.persistent,
       );
       if (fresh != null) {
         applyUpdate(airport, fresh);
@@ -398,6 +400,20 @@ class AirportInfoProvider extends ChangeNotifier {
 
   Future<bool> isDataSourceAvailable(AirportDataSource source) {
     return _detailService.isDataSourceAvailable(source);
+  }
+
+  Future<AirportDetailData?> fetchLocalDetail(
+    String icaoCode, {
+    bool forceRefresh = true,
+    AirportDataSource? source,
+  }) async {
+    final target = source ?? _currentDataSource;
+    return _detailService.fetchAirportDetail(
+      icaoCode,
+      forceRefresh: forceRefresh,
+      preferredSource: target,
+      cacheScope: AirportCacheScope.persistent,
+    );
   }
 
   Future<void> clearOnlineCache(String icaoCode) async {
@@ -416,6 +432,7 @@ class AirportInfoProvider extends ChangeNotifier {
         icaoCode,
         forceRefresh: true,
         preferredSource: AirportDataSource.aviationApi,
+        cacheScope: AirportCacheScope.persistent,
       );
       return freshDetail;
     } catch (e) {

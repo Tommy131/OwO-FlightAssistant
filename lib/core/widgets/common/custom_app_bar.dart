@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../apps/providers/simulator/simulator_provider.dart';
-import '../../../../apps/services/flight_log_service.dart';
+import '../../../../apps/providers/flight_provider.dart';
 
 import '../../models/navigation_item.dart';
 import '../../theme/app_theme_data.dart';
@@ -31,36 +31,19 @@ class CustomAppBar {
       ),
       // 右侧操作按钮
       actions: [
-        // 飞行日志导入/导出
-        IconButton(
-          icon: const Icon(Icons.file_download_outlined),
-          tooltip: '导入飞行轨迹',
-          onPressed: () async {
-            final success = await FlightLogService().importLog();
-            if (success && context.mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('飞行轨迹导入成功')));
-            }
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.file_upload_outlined),
-          tooltip: '导出当前飞行轨迹',
-          onPressed: () async {
-            final sim = context.read<SimulatorProvider>();
-            if (sim.canExportCurrentLog) {
-              await FlightLogService().exportLog(sim.currentFlightLog!);
-            } else {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(sim.exportValidationMessage ?? '当前状态无法导出数据'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-              }
-            }
+        // 录制按钮
+        Consumer2<SimulatorProvider, FlightProvider>(
+          builder: (context, sim, flight, child) {
+            if (!sim.isConnected) return const SizedBox.shrink();
+            return IconButton(
+              icon: Icon(
+                sim.isRecording ? Icons.stop_circle : Icons.fiber_manual_record,
+                color: sim.isRecording ? Colors.red : Colors.grey,
+              ),
+              tooltip: sim.isRecording ? '停止录制' : '开始录制飞行日志',
+              onPressed: () =>
+                  sim.toggleRecording(flightNumber: flight.flightNumber),
+            );
           },
         ),
         const SizedBox(width: AppThemeData.spacingSmall),

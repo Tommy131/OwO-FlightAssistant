@@ -51,37 +51,55 @@ class MapRightControls extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Consumer<MapProvider>(
-                    builder: (context, provider, _) => MapButton(
-                      icon: provider.isLoadingAirport
-                          ? Icons.sync
-                          : Icons.refresh,
-                      onPressed: () async {
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (c) => const Center(
-                            child: Card(
-                              child: Padding(
-                                padding: EdgeInsets.all(20),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CircularProgressIndicator(),
-                                    SizedBox(height: 16),
-                                    Text("正在刷新数据..."),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                        await provider.refreshAirport();
-                        if (context.mounted) Navigator.pop(context);
-                      },
-                      highlight: provider.isLoadingAirport,
-                      tooltip: '刷新机场数据',
-                      scale: scale,
-                    ),
+                    builder: (context, provider, _) {
+                      // 检查是否有可刷新的机场
+                      final hasAirportToRefresh =
+                          provider.targetAirport != null ||
+                          provider.centerAirport != null ||
+                          provider.currentAirport != null;
+
+                      return MapButton(
+                        icon: provider.isLoadingAirport
+                            ? Icons.sync
+                            : Icons.refresh,
+                        onPressed: hasAirportToRefresh
+                            ? () async {
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (c) => const Center(
+                                    child: Card(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(20),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            CircularProgressIndicator(),
+                                            SizedBox(height: 16),
+                                            Text("正在刷新数据..."),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                                await provider.refreshAirport();
+                                if (context.mounted) Navigator.pop(context);
+                              }
+                            : () {
+                                // 没有可刷新的机场时显示提示
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('请先搜索或移动地图到机场位置'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                        highlight: provider.isLoadingAirport,
+                        tooltip: '刷新机场数据',
+                        scale: scale,
+                      );
+                    },
                   ),
                   const SizedBox(height: 12),
                   if (isConnected) ...[

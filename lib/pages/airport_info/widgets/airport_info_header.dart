@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../apps/models/airport_detail_data.dart';
 import '../../../apps/services/airport_detail_service.dart';
 import '../../../core/theme/app_theme_data.dart';
+import '../../../core/widgets/common/dialog.dart';
 import '../../home/widgets/airport_search_bar.dart';
 import '../providers/airport_info_provider.dart';
+import 'airport_list.dart';
 
 class AirportInfoHeader extends StatelessWidget {
   final VoidCallback onRefresh;
@@ -95,6 +98,9 @@ class AirportInfoHeader extends StatelessWidget {
             style: theme.textTheme.bodySmall,
             onChanged: (source) async {
               if (source != null && source != provider.currentDataSource) {
+                final previousDetails = Map<String, AirportDetailData>.from(
+                  provider.airportDetails,
+                );
                 showDialog(
                   context: context,
                   barrierDismissible: false,
@@ -126,6 +132,14 @@ class AirportInfoHeader extends StatelessWidget {
                   await provider.switchDataSource(source);
                 } finally {
                   if (context.mounted) Navigator.pop(context);
+                }
+                if (context.mounted) {
+                  await _compareLocalDataChanges(
+                    context,
+                    provider,
+                    source,
+                    previousDetails,
+                  );
                 }
               }
             },
@@ -163,5 +177,66 @@ class AirportInfoHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _compareLocalDataChanges(
+    BuildContext context,
+    AirportInfoProvider provider,
+    AirportDataSource source,
+    Map<String, AirportDetailData> previousDetails,
+  ) async {
+    final airports = provider.savedAirports;
+    if (airports.isEmpty || previousDetails.isEmpty) return;
+
+    showLoadingDialog(context: context, message: '正在比对新旧机场数据...');
+    final freshDetails = <String, AirportDetailData>{};
+    for (final airport in airports) {
+      final fresh = await provider.fetchLocalDetail(
+        airport.icaoCode,
+        forceRefresh: true,
+        source: source,
+      );
+      if (fresh != null) {
+        freshDetails[airport.icaoCode] = fresh;
+      }
+    }
+    if (context.mounted) {
+      hideLoadingDialog(context);
+    }
+
+    bool updateAll = false;
+    bool skipAll = false;
+    for (final airport in airports) {
+      final fresh = freshDetails[airport.icaoCode];
+      if (fresh == null) continue;
+      final existing = previousDetails[airport.icaoCode];
+      if (existing == null || !existing.hasSignificantDifference(fresh)) {
+        provider.applyUpdate(airport, fresh);
+        continue;
+      }
+      if (updateAll) {
+        provider.applyUpdate(airport, fresh);
+        continue;
+      }
+      if (skipAll) {
+        continue;
+      }
+      final userChoice = await showAirportUpdateConfirmationDialog(
+        context,
+        airport,
+        existing,
+        fresh,
+      );
+      if (userChoice == 'new') {
+        provider.applyUpdate(airport, fresh);
+      } else if (userChoice == 'all_new') {
+        updateAll = true;
+        provider.applyUpdate(airport, fresh);
+      } else if (userChoice == 'all_skip') {
+        skipAll = true;
+      } else if (userChoice == 'old') {
+        provider.applyUpdate(airport, existing);
+      }
+    }
   }
 }

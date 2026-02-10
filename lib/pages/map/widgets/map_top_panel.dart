@@ -2,12 +2,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../apps/models/flight_log/flight_log.dart';
 import '../../../apps/providers/simulator/simulator_provider.dart';
 import '../../home/widgets/airport_search_bar.dart';
 import '../../../apps/providers/map_provider.dart';
 import '../utils/map_utils.dart';
 import 'map_button.dart';
 import 'map_info_chip.dart';
+import 'filter_toggle_button.dart';
 
 /// 顶部 HUD 面板：搜索、数值、筛选项
 class MapTopPanel extends StatelessWidget {
@@ -20,17 +22,17 @@ class MapTopPanel extends StatelessWidget {
   final bool showRunways;
   final bool showTaxiways;
   final bool showParkings;
-  final bool showGs;
   final bool showRouteDistance;
   final bool showAircraftCompass;
+  final bool showNearbyAirports;
   final bool isFilterExpanded;
   final ValueChanged<bool> onFilterExpandedChanged;
   final ValueChanged<bool> onShowRunwaysChanged;
   final ValueChanged<bool> onShowTaxiwaysChanged;
   final ValueChanged<bool> onShowParkingsChanged;
-  final ValueChanged<bool> onShowGsChanged;
   final ValueChanged<bool> onShowRouteDistanceChanged;
   final ValueChanged<bool> onShowAircraftCompassChanged;
+  final ValueChanged<bool> onShowNearbyAirportsChanged;
 
   const MapTopPanel({
     super.key,
@@ -43,17 +45,17 @@ class MapTopPanel extends StatelessWidget {
     required this.showRunways,
     required this.showTaxiways,
     required this.showParkings,
-    required this.showGs,
     required this.showRouteDistance,
     required this.showAircraftCompass,
+    required this.showNearbyAirports,
     required this.isFilterExpanded,
     required this.onFilterExpandedChanged,
     required this.onShowRunwaysChanged,
     required this.onShowTaxiwaysChanged,
     required this.onShowParkingsChanged,
-    required this.onShowGsChanged,
     required this.onShowRouteDistanceChanged,
     required this.onShowAircraftCompassChanged,
+    required this.onShowNearbyAirportsChanged,
   });
 
   @override
@@ -134,9 +136,28 @@ class MapTopPanel extends StatelessWidget {
                           ),
                           _buildValue(
                             'TIME',
-                            _formatDuration(sim.currentFlightLog?.startTime),
+                            _formatDuration(sim.currentFlightLog),
                             '',
                             color: Colors.cyanAccent,
+                            trailWidget: sim.currentFlightLog != null
+                                ? GestureDetector(
+                                    onTap: () => sim.resetFlightTime(),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.cyanAccent.withValues(
+                                          alpha: 0.2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Icon(
+                                        Icons.refresh_rounded,
+                                        size: 10 * scale,
+                                        color: Colors.cyanAccent,
+                                      ),
+                                    ),
+                                  )
+                                : null,
                           ),
                           _buildValue(
                             'VS',
@@ -213,64 +234,80 @@ class MapTopPanel extends StatelessWidget {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: [
-                            _buildFilterToggle(
-                              '跑道',
-                              showRunways,
-                              onShowRunwaysChanged,
+                            FilterToggleButton(
+                              label: '跑道',
+                              value: showRunways,
+                              onChanged: onShowRunwaysChanged,
+                              scale: scale,
                             ),
                             SizedBox(width: 8 * scale),
                             if (sim.simulatorData.onGround ?? true) ...[
-                              _buildFilterToggle(
-                                '滑行道',
-                                showTaxiways,
-                                onShowTaxiwaysChanged,
+                              FilterToggleButton(
+                                label: '滑行道',
+                                value: showTaxiways,
+                                onChanged: onShowTaxiwaysChanged,
+                                scale: scale,
                               ),
                               SizedBox(width: 8 * scale),
-                              _buildFilterToggle(
-                                '停机位',
-                                showParkings,
-                                onShowParkingsChanged,
+                              FilterToggleButton(
+                                label: '停机位',
+                                value: showParkings,
+                                onChanged: onShowParkingsChanged,
+                                scale: scale,
                               ),
                               SizedBox(width: 8 * scale),
                             ],
-                            _buildFilterToggle('下滑道', showGs, onShowGsChanged),
+                            FilterToggleButton(
+                              label: '附近机场',
+                              value: showNearbyAirports,
+                              onChanged: onShowNearbyAirportsChanged,
+                              activeColor: Colors.blueGrey,
+                              scale: scale,
+                            ),
                             SizedBox(width: 8 * scale),
                             if (sim.isConnected) ...[
-                              _buildFilterToggle(
-                                '罗盘',
-                                showAircraftCompass,
-                                onShowAircraftCompassChanged,
+                              FilterToggleButton(
+                                label: '罗盘',
+                                value: showAircraftCompass,
+                                onChanged: onShowAircraftCompassChanged,
                                 activeColor: Colors.blueAccent,
+                                scale: scale,
                               ),
                             ],
                             if (sim.isConnected) ...[
                               SizedBox(width: 8 * scale),
-                              _buildFilterToggle(
-                                '气象雷达',
-                                mapProvider.showWeatherRadar,
-                                (val) => mapProvider.toggleWeatherRadar(),
+                              FilterToggleButton(
+                                label: '气象雷达',
+                                value: mapProvider.showWeatherRadar,
+                                onChanged: (val) =>
+                                    mapProvider.toggleWeatherRadar(),
+                                scale: scale,
                               ),
                             ],
                             if (mapProvider.departureAirport != null &&
                                 mapProvider.destinationAirport != null) ...[
                               SizedBox(width: 8 * scale),
-                              _buildFilterToggle(
-                                '航程: ${calculateTotalDistance(mapProvider)}NM',
-                                showRouteDistance,
-                                onShowRouteDistanceChanged,
+                              FilterToggleButton(
+                                label:
+                                    '航程: ${calculateTotalDistance(mapProvider)}NM',
+                                value: showRouteDistance,
+                                onChanged: onShowRouteDistanceChanged,
                                 activeColor: Colors.purpleAccent,
+                                scale: scale,
                               ),
                             ],
                             if (mapProvider.path.isNotEmpty) ...[
                               SizedBox(width: 8 * scale),
-                              _buildFilterToggle(
-                                '清除轨迹',
-                                false,
-                                (val) => _showClearConfirmation(context),
+                              FilterToggleButton(
+                                label: '清除轨迹',
+                                value: false,
+                                onChanged: (val) =>
+                                    _showClearConfirmation(context),
                                 activeColor: Colors.redAccent,
-                                inactiveColor: Colors.redAccent.withOpacity(
-                                  0.6,
+                                inactiveColor: Colors.redAccent.withValues(
+                                  alpha: 0.6,
                                 ),
+                                scale: scale,
                               ),
                             ],
                           ],
@@ -287,9 +324,9 @@ class MapTopPanel extends StatelessWidget {
     );
   }
 
-  String _formatDuration(DateTime? startTime) {
-    if (startTime == null) return '00:00:00';
-    final duration = DateTime.now().difference(startTime);
+  String _formatDuration(FlightLog? log) {
+    if (log == null) return '00:00:00';
+    final duration = log.duration;
     final hours = duration.inHours.toString().padLeft(2, '0');
     final minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
     final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
@@ -329,53 +366,6 @@ class MapTopPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildFilterToggle(
-    String label,
-    bool value,
-    Function(bool) onChanged, {
-    Color activeColor = Colors.orangeAccent,
-    Color? inactiveColor,
-  }) {
-    return GestureDetector(
-      onTap: () => onChanged(!value),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: 10 * scale,
-          vertical: 4 * scale,
-        ),
-        decoration: BoxDecoration(
-          color: value
-              ? activeColor.withValues(alpha: 0.2)
-              : (inactiveColor?.withOpacity(0.2) ?? Colors.black54),
-          borderRadius: BorderRadius.circular(16 * scale),
-          border: Border.all(
-            color: value ? activeColor : (inactiveColor ?? Colors.white24),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (value) ...[
-              SizedBox(width: 4 * scale),
-              Icon(Icons.check, size: 12 * scale, color: activeColor),
-            ],
-            SizedBox(width: (value || inactiveColor != null) ? 4 * scale : 0),
-            Text(
-              label,
-              style: TextStyle(
-                color: (value || inactiveColor != null)
-                    ? Colors.white
-                    : Colors.white70,
-                fontSize: 10 * scale,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Color _getVSColor(double vs) {
     if (vs.abs() > 2000) return Colors.redAccent;
     if (vs.abs() > 1000) return Colors.orangeAccent;
@@ -395,18 +385,28 @@ class MapTopPanel extends StatelessWidget {
     String unit, {
     Color? color,
     IconData? icon,
+    Widget? trailWidget,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white54,
-            fontSize: 10 * scale,
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 10 * scale,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (trailWidget != null) ...[
+              SizedBox(width: 4 * scale),
+              trailWidget,
+            ],
+          ],
         ),
         Row(
           crossAxisAlignment: CrossAxisAlignment.baseline,

@@ -17,6 +17,8 @@ enum AirportDataSource {
   lnmData, // Little Navmap数据库
 }
 
+enum AirportCacheScope { persistent, temporary }
+
 extension AirportDataSourceExtension on AirportDataSource {
   String get displayName {
     switch (this) {
@@ -26,6 +28,17 @@ extension AirportDataSourceExtension on AirportDataSource {
         return 'X-Plane 导航数据';
       case AirportDataSource.lnmData:
         return 'Little Navmap 数据库';
+    }
+  }
+
+  String get shortName {
+    switch (this) {
+      case AirportDataSource.aviationApi:
+        return '在线 API';
+      case AirportDataSource.xplaneData:
+        return 'X-Plane';
+      case AirportDataSource.lnmData:
+        return 'Little Navmap';
     }
   }
 
@@ -55,6 +68,9 @@ class AirportDetailService {
 
   // Aviation API (免费，无需API key)
   static const String _aviationApiBase = 'https://airportdb.io/api/v1/airport';
+  static const int _temporaryCacheLimit = 200;
+
+  final Map<String, AirportDetailData> _temporaryCache = {};
 
   /// 检查特定数据源是否可用（已配置）
   Future<bool> isDataSourceAvailable(AirportDataSource source) async {
@@ -127,9 +143,13 @@ class AirportDetailService {
 
   /// 获取缓存的本地数据库数据
   Future<AirportDetailData?> getCachedLocalDetail(String icaoCode) async {
-    final lnm = await _getCachedData(icaoCode, AirportDataSourceType.lnmData);
-    if (lnm != null) return lnm;
-    return await _getCachedData(icaoCode, AirportDataSourceType.xplaneData);
+    final source = await getDataSource();
+    if (source == AirportDataSource.aviationApi) {
+      final lnm = await _getCachedData(icaoCode, AirportDataSourceType.lnmData);
+      if (lnm != null) return lnm;
+      return await _getCachedData(icaoCode, AirportDataSourceType.xplaneData);
+    }
+    return await _getCachedData(icaoCode, source.dataSourceType);
   }
 
   /// 获取机场详细信息（带缓存和气象）
@@ -137,21 +157,32 @@ class AirportDetailService {
     String icaoCode, {
     bool forceRefresh = false,
     AirportDataSource? preferredSource,
+    AirportCacheScope cacheScope = AirportCacheScope.temporary,
   }) async {
     try {
       final source = preferredSource ?? await getDataSource();
 
-      // 1. 检查对应空间的缓存
       if (!forceRefresh) {
         final prefs = await SharedPreferences.getInstance();
         final expiryDays = prefs.getInt('airport_data_expiry') ?? 30;
-        final cached = await _getCachedData(icaoCode, source.dataSourceType);
-        if (cached != null && !cached.isExpired(expiryDays)) {
-          return cached;
+        if (cacheScope == AirportCacheScope.persistent) {
+          final cached = await _getCachedData(icaoCode, source.dataSourceType);
+          if (cached != null && !cached.isExpired(expiryDays)) {
+            return cached;
+          }
+        } else {
+          final cached = _getTemporaryCachedData(
+            icaoCode,
+            source.dataSourceType,
+            expiryDays,
+          );
+          if (cached != null) {
+            return cached;
+          }
         }
       }
 
-      // 2. 从数据源获取基础数据
+      // 1. 从数据源获取基础数据
       AirportDetailData? data = await _fetchFromSource(icaoCode, source);
 
       // 补充名称（如果 API 返回的名称不详细）
@@ -168,20 +199,22 @@ class AirportDetailService {
         data = await _fillMissingGeometry(icaoCode, data, source);
       }
 
-      // 3. 同时获取气象报文，封装成完整机场数据
+      // 2. 同时获取气象报文，封装成完整机场数据
       if (data != null) {
         final weatherService = WeatherService();
         final metar = await weatherService.fetchMetar(icaoCode);
         data = data.copyWith(metar: metar, isCached: false);
-        // 4. 保存到各自的缓存空间
-        await _cacheData(icaoCode, data);
+        await _cacheData(icaoCode, data, cacheScope);
       }
 
       return data;
     } catch (e) {
       AppLogger.error('Error fetching airport detail for $icaoCode: $e');
       final source = preferredSource ?? await getDataSource();
-      return await _getCachedData(icaoCode, source.dataSourceType);
+      if (cacheScope == AirportCacheScope.persistent) {
+        return await _getCachedData(icaoCode, source.dataSourceType);
+      }
+      return _getTemporaryCachedData(icaoCode, source.dataSourceType, null);
     }
   }
 
@@ -403,14 +436,17 @@ class AirportDetailService {
     }
   }
 
-  /// 获取对应来源的缓存前缀
   String _getPrefix(AirportDataSourceType type) {
-    return type == AirportDataSourceType.aviationApi
-        ? _onlineCachePrefix
-        : _localCachePrefix;
+    switch (type) {
+      case AirportDataSourceType.aviationApi:
+        return _onlineCachePrefix;
+      case AirportDataSourceType.xplaneData:
+        return '${_localCachePrefix}xplane_';
+      case AirportDataSourceType.lnmData:
+        return '${_localCachePrefix}lnm_';
+    }
   }
 
-  /// 从缓存读取数据
   Future<AirportDetailData?> _getCachedData(
     String icaoCode,
     AirportDataSourceType type,
@@ -430,8 +466,30 @@ class AirportDetailService {
     return null;
   }
 
-  /// 保存数据到缓存
-  Future<void> _cacheData(String icaoCode, AirportDetailData data) async {
+  AirportDetailData? _getTemporaryCachedData(
+    String icaoCode,
+    AirportDataSourceType type,
+    int? expiryDays,
+  ) {
+    final key = _getCacheKey(icaoCode, type);
+    final data = _temporaryCache[key];
+    if (data == null) return null;
+    if (expiryDays != null && data.isExpired(expiryDays)) {
+      _temporaryCache.remove(key);
+      return null;
+    }
+    return data;
+  }
+
+  Future<void> _cacheData(
+    String icaoCode,
+    AirportDetailData data,
+    AirportCacheScope cacheScope,
+  ) async {
+    if (cacheScope == AirportCacheScope.temporary) {
+      _setTemporaryCache(icaoCode, data);
+      return;
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       final prefix = _getPrefix(data.dataSource);
@@ -440,6 +498,20 @@ class AirportDetailService {
       await prefs.setString(key, jsonString);
     } catch (e) {
       AppLogger.error('Error caching data for $icaoCode: $e');
+    }
+  }
+
+  String _getCacheKey(String icaoCode, AirportDataSourceType type) {
+    return '${_getPrefix(type)}$icaoCode';
+  }
+
+  void _setTemporaryCache(String icaoCode, AirportDetailData data) {
+    final key = _getCacheKey(icaoCode, data.dataSource);
+    _temporaryCache.remove(key);
+    _temporaryCache[key] = data;
+    if (_temporaryCache.length > _temporaryCacheLimit) {
+      final oldestKey = _temporaryCache.keys.first;
+      _temporaryCache.remove(oldestKey);
     }
   }
 
@@ -570,7 +642,9 @@ class AirportDetailService {
     if (all) {
       final keys = prefs.getKeys().where(
         (k) =>
-            k.startsWith(_onlineCachePrefix) || k.startsWith(_localCachePrefix),
+            k.startsWith(_onlineCachePrefix) ||
+            k.startsWith('${_localCachePrefix}xplane_') ||
+            k.startsWith('${_localCachePrefix}lnm_'),
       );
       for (final key in keys) {
         await prefs.remove(key);
@@ -579,8 +653,11 @@ class AirportDetailService {
       if (type == null || type == AirportDataSourceType.aviationApi) {
         await prefs.remove('$_onlineCachePrefix$icao');
       }
-      if (type == null || type != AirportDataSourceType.aviationApi) {
-        await prefs.remove('$_localCachePrefix$icao');
+      if (type == null || type == AirportDataSourceType.xplaneData) {
+        await prefs.remove('${_localCachePrefix}xplane_$icao');
+      }
+      if (type == null || type == AirportDataSourceType.lnmData) {
+        await prefs.remove('${_localCachePrefix}lnm_$icao');
       }
     }
   }
@@ -591,7 +668,8 @@ class AirportDetailService {
     final keys = prefs.getKeys();
     for (final key in keys) {
       if (key.startsWith(_onlineCachePrefix) ||
-          key.startsWith(_localCachePrefix)) {
+          key.startsWith('${_localCachePrefix}xplane_') ||
+          key.startsWith('${_localCachePrefix}lnm_')) {
         await prefs.remove(key);
       }
     }

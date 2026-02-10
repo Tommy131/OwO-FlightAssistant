@@ -79,6 +79,11 @@ int calculateTotalDistance(MapProvider provider) {
   return (totalMeters * 0.000539957).round();
 }
 
+/// 获取机场的几何中心点
+///
+/// 通过收集机场所有几何要素（跑道、滑行道、停机位）的坐标点，
+/// 计算边界框（bounding box）的中心作为机场中心。
+/// 这样可以确保图钉放置在机场的真实中央位置。
 LatLng getAirportCenter(AirportDetailData airport) {
   double? minLat;
   double? maxLat;
@@ -94,35 +99,114 @@ LatLng getAirportCenter(AirportDetailData airport) {
     maxLon = maxLon == null ? lon : (lon > maxLon! ? lon : maxLon);
   }
 
-  var hasRunway = false;
+  // 1. 收集所有跑道端点
   for (final runway in airport.runways) {
     if (runway.leLat != null && runway.leLon != null) {
       addPoint(runway.leLat, runway.leLon);
-      hasRunway = true;
     }
     if (runway.heLat != null && runway.heLon != null) {
       addPoint(runway.heLat, runway.heLon);
-      hasRunway = true;
     }
   }
 
-  if (!hasRunway) {
-    for (final taxiway in airport.taxiways) {
-      for (final point in taxiway.points) {
-        addPoint(point.latitude, point.longitude);
+  // 2. 收集滑行道点（用于更准确的边界）
+  // 但为了性能，只采样部分点
+  for (final taxiway in airport.taxiways) {
+    if (taxiway.points.isNotEmpty) {
+      // 采样：首尾点 + 中间点
+      addPoint(taxiway.points.first.latitude, taxiway.points.first.longitude);
+      if (taxiway.points.length > 2) {
+        final mid = taxiway.points[taxiway.points.length ~/ 2];
+        addPoint(mid.latitude, mid.longitude);
       }
+      addPoint(taxiway.points.last.latitude, taxiway.points.last.longitude);
     }
   }
 
-  if (minLat == null) {
-    for (final parking in airport.parkings) {
-      addPoint(parking.latitude, parking.longitude);
-    }
+  // 3. 收集停机位点（用于更准确的边界）
+  // 停机位通常在航站楼附近，有助于确定机场范围
+  for (final parking in airport.parkings) {
+    addPoint(parking.latitude, parking.longitude);
   }
 
+  // 4. 如果没有任何几何数据，使用机场的参考点（ARP）
   if (minLat == null || maxLat == null || minLon == null || maxLon == null) {
     return LatLng(airport.latitude, airport.longitude);
   }
 
+  // 5. 计算边界框的中心点
   return LatLng((minLat! + maxLat!) / 2.0, (minLon! + maxLon!) / 2.0);
+}
+
+/// 获取机场边界框信息（用于调试和可视化）
+///
+/// 返回机场的边界框坐标，可用于绘制机场范围矩形
+Map<String, double> getAirportBounds(AirportDetailData airport) {
+  double? minLat;
+  double? maxLat;
+  double? minLon;
+  double? maxLon;
+
+  void addPoint(double? lat, double? lon) {
+    if (lat == null || lon == null) return;
+    if (lat == 0 && lon == 0) return;
+    minLat = minLat == null ? lat : (lat < minLat! ? lat : minLat);
+    maxLat = maxLat == null ? lat : (lat > maxLat! ? lat : maxLat);
+    minLon = minLon == null ? lon : (lon < minLon! ? lon : minLon);
+    maxLon = maxLon == null ? lon : (lon > maxLon! ? lon : maxLon);
+  }
+
+  // 收集所有几何点
+  for (final runway in airport.runways) {
+    addPoint(runway.leLat, runway.leLon);
+    addPoint(runway.heLat, runway.heLon);
+  }
+
+  for (final taxiway in airport.taxiways) {
+    for (final point in taxiway.points) {
+      addPoint(point.latitude, point.longitude);
+    }
+  }
+
+  for (final parking in airport.parkings) {
+    addPoint(parking.latitude, parking.longitude);
+  }
+
+  return {
+    'minLat': minLat ?? airport.latitude,
+    'maxLat': maxLat ?? airport.latitude,
+    'minLon': minLon ?? airport.longitude,
+    'maxLon': maxLon ?? airport.longitude,
+  };
+}
+
+LatLng getAirportMarkerPoint({
+  required double latitude,
+  required double longitude,
+  AirportDetailData? detail,
+}) {
+  if (detail != null) {
+    final center = getAirportCenter(detail);
+    if (center.latitude != 0 && center.longitude != 0) {
+      return center;
+    }
+  }
+  return LatLng(latitude, longitude);
+}
+
+String formatTaxiwayLabel(String name) {
+  var label = name.trim();
+  label = label.replaceAll(RegExp(r'^\d+\.\d+\s*'), '');
+  label = label.replaceAll(
+    RegExp(r'\b(TAXIWAY|TAXI|TWY|TXY)\b', caseSensitive: false),
+    '',
+  );
+  label = label.replaceAll(RegExp(r'[()\[\]{}]'), '');
+  label = label.replaceAll(RegExp(r'[_-]+'), ' ');
+  label = label.replaceAll(RegExp(r'\s{2,}'), ' ');
+  label = label.trim();
+  if (label.isEmpty) {
+    return name.trim();
+  }
+  return label.toUpperCase();
 }
