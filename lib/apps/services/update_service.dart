@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import '../../core/constants/app_constants.dart';
 import '../../core/utils/logger.dart';
 
 class UpdateService {
@@ -14,21 +15,6 @@ class UpdateService {
     return 'https://github.com/Tommy131/OwO-FlightAssistant/archive/refs/tags/$tag.zip';
   }
 
-  static const String localVersionFile = 'version.txt';
-
-  /// 获取本地版本号
-  static Future<String> getLocalVersion() async {
-    try {
-      final file = File(p.join(Directory.current.path, localVersionFile));
-      if (await file.exists()) {
-        return (await file.readAsString()).trim();
-      }
-    } catch (e) {
-      AppLogger.error('读取本地版本失败: $e');
-    }
-    return '0.0.0';
-  }
-
   /// 检查是否有更新
   /// 返回: { 'hasUpdate': bool, 'remoteVersion': String, 'error': String? }
   static Future<Map<String, dynamic>> checkUpdate() async {
@@ -39,12 +25,10 @@ class UpdateService {
 
       if (response.statusCode == 200) {
         final remoteVersion = response.body.trim();
-        final localVersion = await getLocalVersion();
 
         return {
-          'hasUpdate': _isNewer(remoteVersion, localVersion),
+          'hasUpdate': _isNewer(remoteVersion, AppConstants.appVersion),
           'remoteVersion': remoteVersion,
-          'localVersion': localVersion,
           'error': null,
         };
       } else {
