@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../apps/models/flight_log/flight_log.dart';
+import '../../../apps/models/flight_log.dart';
 
 class AnalysisBlackBox extends StatelessWidget {
   final FlightLog log;

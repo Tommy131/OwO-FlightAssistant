@@ -7,7 +7,7 @@ import '../../../apps/models/airport_info.dart';
 import '../../../apps/services/airport_detail_service.dart'; // for AirportDataSource/Type
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
-import '../providers/airport_info_provider.dart';
+import '../../../apps/providers/airport_info_provider.dart';
 import 'airport_card.dart';
 
 Future<String?> showAirportUpdateConfirmationDialog(

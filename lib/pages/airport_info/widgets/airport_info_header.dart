@@ -5,7 +5,7 @@ import '../../../apps/services/airport_detail_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
 import '../../home/widgets/airport_search_bar.dart';
-import '../providers/airport_info_provider.dart';
+import '../../../apps/providers/airport_info_provider.dart';
 import 'airport_list.dart';
 
 class AirportInfoHeader extends StatelessWidget {

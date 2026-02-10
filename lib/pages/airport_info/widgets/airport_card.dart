@@ -7,7 +7,7 @@ import '../../../apps/providers/simulator/simulator_provider.dart';
 import '../../../../apps/services/airport_detail_service.dart';
 import '../../../../apps/services/weather_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
-import '../providers/airport_info_provider.dart';
+import '../../../apps/providers/airport_info_provider.dart';
 
 import 'airport_detail_view.dart';
 

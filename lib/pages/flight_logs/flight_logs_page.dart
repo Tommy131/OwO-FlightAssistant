@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../apps/models/flight_log/flight_log.dart';
+import '../../apps/models/flight_log.dart';
 import '../../apps/services/flight_log_service.dart';
 import 'flight_log_detail_page.dart';
 import 'widgets/flight_log_list_item.dart';

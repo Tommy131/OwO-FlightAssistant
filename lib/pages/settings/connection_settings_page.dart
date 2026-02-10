@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme_data.dart';
 import 'package:provider/provider.dart';
-import '../../apps/services/config/simulator_config_service.dart';
+import '../../apps/services/app_core/simulator_config_service.dart';
 import '../../apps/providers/simulator/simulator_provider.dart';
 import 'widgets/settings_widgets.dart';
 

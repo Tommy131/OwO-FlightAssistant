@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../apps/models/flight_log/flight_log.dart';
+import '../../../apps/models/flight_log.dart';
 import '../../../core/theme/app_theme_data.dart';
 
 class FlightLogListItem extends StatelessWidget {
@@ -27,16 +27,20 @@ class FlightLogListItem extends StatelessWidget {
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;
 
+    final borderColor = AppThemeData.getBorderColor(
+      theme,
+    ).withValues(alpha: isDark ? 0.4 : 0.6);
+    final routeBackground = theme.colorScheme.surfaceContainerHighest;
+
     return Card(
       margin: const EdgeInsets.only(bottom: AppThemeData.spacingMedium),
-      elevation: 0,
+      elevation: 1.2,
+      shadowColor: theme.shadowColor.withValues(alpha: 0.08),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
-        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.1)),
+        side: BorderSide(color: borderColor),
       ),
-      color: isDark
-          ? Colors.white.withValues(alpha: 0.05)
-          : Colors.grey.shade50,
+      color: theme.colorScheme.surface,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
@@ -87,28 +91,67 @@ class FlightLogListItem extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildInfoColumn(
-                    context,
-                    '起飞',
-                    log.departureAirport,
-                    Icons.flight_takeoff,
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_rounded,
-                    size: 16,
-                    color: Colors.grey,
-                  ),
-                  _buildInfoColumn(
-                    context,
-                    '到达',
-                    log.arrivalAirport ?? '未知',
-                    Icons.flight_land,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: routeBackground,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Row(
+                  children: [
+                    _buildInfoColumn(
+                      context,
+                      '起飞',
+                      log.departureAirport,
+                      Icons.flight_takeoff,
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                height: 1,
+                                color: theme.colorScheme.outline.withValues(
+                                  alpha: 0.4,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 16,
+                              color: theme.colorScheme.outline.withValues(
+                                alpha: 0.6,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Container(
+                                height: 1,
+                                color: theme.colorScheme.outline.withValues(
+                                  alpha: 0.4,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    _buildInfoColumn(
+                      context,
+                      '到达',
+                      log.arrivalAirport ?? '未知',
+                      Icons.flight_land,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                    ),
+                  ],
+                ),
               ),
               const Divider(height: 24),
               Row(

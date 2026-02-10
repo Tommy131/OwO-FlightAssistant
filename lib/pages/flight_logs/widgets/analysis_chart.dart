@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../../apps/models/flight_log/flight_log.dart';
+import '../../../apps/models/flight_log.dart';
 import '../../../core/theme/app_theme_data.dart';
 
 class AnalysisChart extends StatelessWidget {
@@ -87,11 +87,12 @@ class AnalysisChart extends StatelessWidget {
                       showTitles: true,
                       reservedSize: 45,
                       getTitlesWidget: (value, meta) {
-                        if (value >= 1000)
+                        if (value >= 1000) {
                           return Text(
                             '${(value / 1000).toStringAsFixed(0)}k',
                             style: theme.textTheme.bodySmall,
                           );
+                        }
                         return Text(
                           value.toInt().toString(),
                           style: theme.textTheme.bodySmall,

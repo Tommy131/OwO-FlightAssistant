@@ -1,8 +1,8 @@
 // theme_provider.dart
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'app_theme_data.dart';
+import '../services/persistence/persistence_service.dart';
 
 /// 主题管理器（整合版）
 /// 管理应用的主题配色和主题模式（跟随系统、亮色、暗色）
@@ -27,7 +27,7 @@ class ThemeProvider extends ChangeNotifier {
   bool get isDarkMode => _themeMode == ThemeMode.dark;
   bool get isSystemMode => _themeMode == ThemeMode.system;
 
-  // ============ 主题配色切换（新增功能）============
+  // ============ 主题配色切换 ============
 
   /// 切换主题配色
   Future<void> setTheme(AppThemeData theme) async {
@@ -55,7 +55,7 @@ class ThemeProvider extends ChangeNotifier {
     await setTheme(customTheme);
   }
 
-  // ============ 主题模式切换（保留原有功能）============
+  // ============ 主题模式切换 ============
 
   /// 设置主题模式（system/light/dark）
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -116,16 +116,16 @@ class ThemeProvider extends ChangeNotifier {
   /// 保存到本地存储
   Future<void> _saveToPreferences() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final persistence = PersistenceService();
 
       // 保存主题配色
-      await prefs.setString(
+      await persistence.setString(
         _currentThemeKey,
         json.encode(_currentTheme.toJson()),
       );
 
       // 保存主题模式
-      await prefs.setInt(_themeModeKey, _themeMode.index);
+      await persistence.setInt(_themeModeKey, _themeMode.index);
     } catch (e) {
       debugPrint('保存主题设置失败: $e');
     }
@@ -134,16 +134,16 @@ class ThemeProvider extends ChangeNotifier {
   /// 从本地存储加载
   Future<void> _loadFromPreferences() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final persistence = PersistenceService();
 
       // 加载主题配色
-      final themeJson = prefs.getString(_currentThemeKey);
+      final themeJson = persistence.getString(_currentThemeKey);
       if (themeJson != null) {
         _currentTheme = AppThemeData.fromJson(json.decode(themeJson));
       }
 
       // 加载主题模式
-      final themeModeIndex = prefs.getInt(_themeModeKey);
+      final themeModeIndex = persistence.getInt(_themeModeKey);
       if (themeModeIndex != null && themeModeIndex < ThemeMode.values.length) {
         _themeMode = ThemeMode.values[themeModeIndex];
       }

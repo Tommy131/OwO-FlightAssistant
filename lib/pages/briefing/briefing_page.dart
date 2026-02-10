@@ -314,7 +314,7 @@ class _BriefingGeneratePage extends StatelessWidget {
                   width: 420,
                   color: theme.colorScheme.surface.withValues(alpha: 0.3),
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(AppThemeData.spacingLarge),
+                    padding: const EdgeInsets.all(AppThemeData.spacingSmall),
                     child: const BriefingInputCard(),
                   ),
                 ),

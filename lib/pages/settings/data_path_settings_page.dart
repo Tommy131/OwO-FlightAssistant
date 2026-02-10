@@ -1,16 +1,18 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_theme_data.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/data_path_item.dart';
 
 import '../../apps/services/airport_detail_service.dart';
-import '../../apps/services/database_path_service.dart';
+import '../../apps/services/app_core/database_path_service.dart';
+import '../../core/utils/logger.dart';
 import '../../core/widgets/common/database_selection_dialog.dart';
+import '../../core/services/persistence/app_storage_paths.dart';
+import '../../core/services/persistence/persistence_service.dart';
 
 /// 数据路径设置页面
 class DataPathSettingsPage extends StatefulWidget {
@@ -33,6 +35,8 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
   int _airportDataExpiry = 30; // 默认 30 天
   int _tokenThreshold = 5000;
   int _tokenCount = 0;
+  bool _fileLoggingEnabled = false;
+  int _logRotationThresholdMb = 2; // 默认 2MB
 
   bool _clearMetarCache = true;
   bool _clearAirportCache = true;
@@ -46,6 +50,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
   final TextEditingController _tokenController = TextEditingController();
   final AirportDetailService _airportService = AirportDetailService();
   final DatabasePathService _databasePathService = DatabasePathService();
+  final PersistenceService _persistence = PersistenceService();
 
   static const String _airportDbTokenKey = 'airportdb_token';
   static const String _metarExpiryKey = 'metar_cache_expiry';
@@ -68,43 +73,78 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
   Future<void> _loadSavedPaths() async {
     setState(() => _isLoading = true);
 
-    final prefs = await SharedPreferences.getInstance();
-    final appSupportDir = await getApplicationSupportDirectory();
+    // Updated to use _persistence
+    final baseDir = await AppStoragePaths.getBaseDirectory();
 
-    final xplanePath = prefs.getString(DatabasePathService.xplanePathKey);
-    final lnmPath = prefs.getString(DatabasePathService.lnmPathKey);
+    final xplanePath = _persistence.getString(
+      DatabasePathService.xplanePathKey,
+    );
+    final lnmPath = _persistence.getString(DatabasePathService.lnmPathKey);
 
     Map<String, String>? xplaneInfo;
     Map<String, String>? lnmInfo;
 
     if (xplanePath != null && await File(xplanePath).exists()) {
-      xplaneInfo = await _airportService.getDatabaseInfo(
+      xplaneInfo = await _databasePathService.getDatabaseInfo(
         xplanePath,
         AirportDataSource.xplaneData,
       );
     }
 
     if (lnmPath != null && await File(lnmPath).exists()) {
-      lnmInfo = await _airportService.getDatabaseInfo(
+      lnmInfo = await _databasePathService.getDatabaseInfo(
         lnmPath,
         AirportDataSource.lnmData,
       );
     }
+
+    final fileLoggingEnabled = await AppLogger.isFileLoggingEnabled();
+    final logRotationThreshold = await AppLogger.getLogRotationThreshold();
 
     setState(() {
       _xplanePath = xplanePath;
       _lnmPath = lnmPath;
       _xplaneInfo = xplaneInfo;
       _lnmInfo = lnmInfo;
-      _airportDbToken = prefs.getString(_airportDbTokenKey);
+      _airportDbToken = _persistence.getString(_airportDbTokenKey);
       _tokenController.text = _airportDbToken ?? '';
-      _metarCacheExpiry = prefs.getInt(_metarExpiryKey) ?? 60;
-      _airportDataExpiry = prefs.getInt(_airportExpiryKey) ?? 30;
-      _tokenThreshold = prefs.getInt(_tokenThresholdKey) ?? 5000;
-      _tokenCount = prefs.getInt(_tokenCountKey) ?? 0;
-      _appDataPath = appSupportDir.path;
+      _metarCacheExpiry = _persistence.getInt(_metarExpiryKey) ?? 60;
+      _airportDataExpiry = _persistence.getInt(_airportExpiryKey) ?? 30;
+      _tokenThreshold = _persistence.getInt(_tokenThresholdKey) ?? 5000;
+      _tokenCount = _persistence.getInt(_tokenCountKey) ?? 0;
+      _appDataPath = baseDir.path;
+      _fileLoggingEnabled = fileLoggingEnabled;
+      _logRotationThresholdMb = logRotationThreshold;
       _isLoading = false;
     });
+  }
+
+  Future<String?> _resolveInitialDirectory(String? path) async {
+    if (path == null || path.isEmpty) return null;
+    final file = File(path);
+    if (await file.exists()) {
+      final parentDir = Directory(p.dirname(path));
+      if (await parentDir.exists()) return parentDir.path;
+    }
+
+    final dir = Directory(path);
+    if (await dir.exists()) return dir.path;
+
+    final parentDir = Directory(p.dirname(path));
+    if (await parentDir.exists()) return parentDir.path;
+
+    return null;
+  }
+
+  Future<void> _updateFileLogging(bool enabled) async {
+    setState(() => _fileLoggingEnabled = enabled);
+    await AppLogger.setFileLoggingEnabled(enabled);
+  }
+
+  Future<void> _updateLogRotationThreshold(double value) async {
+    final threshold = value.toInt();
+    await AppLogger.setLogRotationThreshold(threshold);
+    setState(() => _logRotationThresholdMb = threshold);
   }
 
   Future<void> _autoDetectPaths() async {
@@ -139,12 +179,14 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
 
                 if (mounted) {
                   Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ 数据库路径已更新'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('✅ 数据库路径已更新'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
                 }
               },
             ),
@@ -175,9 +217,11 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
 
   Future<void> _pickXPlanePath() async {
     final messenger = ScaffoldMessenger.of(context);
+    final initialDir = await _resolveInitialDirectory(_xplanePath);
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: '选择 X-Plane 导航数据文件 (earth_nav.dat)',
       type: FileType.any,
+      initialDirectory: initialDir,
     );
 
     if (result != null && result.files.single.path != null) {
@@ -213,9 +257,11 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
 
   Future<void> _pickLNMPath() async {
     final messenger = ScaffoldMessenger.of(context);
+    final initialDir = await _resolveInitialDirectory(_lnmPath);
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: '选择 Little Navmap 数据库文件 (little_navmap_navigraph.sqlite)',
       type: FileType.any,
+      initialDirectory: initialDir,
     );
     if (result != null && result.files.single.path != null) {
       final path = result.files.single.path!;
@@ -248,6 +294,53 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
     }
   }
 
+  Future<void> _openAppDataPath() async {
+    if (_appDataPath == null) return;
+    final uri = Uri.directory(_appDataPath!);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _pickAppDataPath() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final initialDir = await _resolveInitialDirectory(_appDataPath);
+    final selected = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: '选择应用数据存储目录',
+      initialDirectory: initialDir,
+    );
+    if (selected == null) return;
+
+    setState(() => _isValidating = true);
+    try {
+      final oldBase = await AppStoragePaths.getBaseDirectory();
+      await AppStoragePaths.setCustomBaseDirectory(selected);
+      final newBase = await AppStoragePaths.getBaseDirectory();
+      await AppStoragePaths.migrateBaseDirectory(oldBase, newBase);
+      await _persistence.switchBaseDirectory(newBase);
+
+      if (mounted) {
+        setState(() => _appDataPath = newBase.path);
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('✅ 应用数据存储路径已更新'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('修改失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isValidating = false);
+      }
+    }
+  }
+
   Future<void> _saveToken(String token) async {
     if (token.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -261,13 +354,11 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
 
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _isValidating = true);
-    final isValid = await _airportService.validateToken(token);
+    final isValid = await _databasePathService.validateToken(token);
     setState(() => _isValidating = false);
 
     if (isValid && mounted) {
-      final prefs = await SharedPreferences.getInstance();
-      if (!mounted) return;
-      await prefs.setString(_airportDbTokenKey, token);
+      await _databasePathService.saveToken(token);
       setState(() => _airportDbToken = token);
       messenger.showSnackBar(
         const SnackBar(
@@ -287,22 +378,22 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
 
   Future<void> _updateMetarExpiry(double value) async {
     final expiry = value.toInt();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_metarExpiryKey, expiry);
+    // Updated to use _persistence
+    await _persistence.setInt(_metarExpiryKey, expiry);
     setState(() => _metarCacheExpiry = expiry);
   }
 
   Future<void> _updateAirportExpiry(double value) async {
     final expiry = value.toInt();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_airportExpiryKey, expiry);
+    // Updated to use _persistence
+    await _persistence.setInt(_airportExpiryKey, expiry);
     setState(() => _airportDataExpiry = expiry);
   }
 
   Future<void> _updateTokenThreshold(double value) async {
     final threshold = value.toInt();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_tokenThresholdKey, threshold);
+    // Simplified logic using _persistence
+    await _persistence.setInt(_tokenThresholdKey, threshold);
     setState(() => _tokenThreshold = threshold);
   }
 
@@ -323,7 +414,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
       return;
     }
 
-    await _airportService.resetTokenCount();
+    await _databasePathService.resetTokenCount();
     setState(() {
       _tokenCount = 0;
       _needsResetConfirmation = false;
@@ -353,7 +444,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
     }
 
     if (_clearMetarCache) {
-      await _airportService.clearMetarCache();
+      await _databasePathService.clearMetarCache();
     }
     if (_clearAirportCache) {
       await _airportService.clearAirportCache(all: true);
@@ -397,6 +488,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
           _buildApiSection(),
           _buildCacheSection(theme),
           _buildCacheManagementSection(theme),
+          _buildLoggingSection(theme),
           _buildStorageSection(theme),
         ],
       ),
@@ -708,7 +800,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
             ],
           ),
           const SizedBox(height: AppThemeData.spacingLarge),
-          const Divider(),
+          Divider(color: Colors.grey.withValues(alpha: 0.2)),
           const SizedBox(height: AppThemeData.spacingLarge),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -725,13 +817,13 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.secondary.withValues(alpha: 0.1),
+                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '$_airportDataExpiry 天',
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.secondary,
+                    color: theme.colorScheme.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -752,7 +844,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
             divisions: 89,
             label: '$_airportDataExpiry 天',
             onChanged: _updateAirportExpiry,
-            activeColor: theme.colorScheme.secondary,
+            activeColor: theme.colorScheme.primary,
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -766,61 +858,151 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
     );
   }
 
+  Widget _buildLoggingSection(ThemeData theme) {
+    return SettingsCard(
+      title: '日志记录',
+      subtitle: '在生产环境中写入本地日志文件',
+      icon: Icons.receipt_long_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _fileLoggingEnabled ? '已开启' : '已关闭',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Switch(
+                value: _fileLoggingEnabled,
+                onChanged: _updateFileLogging,
+                activeThumbColor: theme.colorScheme.primary,
+              ),
+            ],
+          ),
+          if (_fileLoggingEnabled) ...[
+            const SizedBox(height: AppThemeData.spacingMedium),
+            Divider(color: Colors.grey.withValues(alpha: 0.2)),
+            const SizedBox(height: AppThemeData.spacingMedium),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '日志自动分割阈值',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$_logRotationThresholdMb MB',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '当日志文件体积超过该值时，系统将自动对日志进行分割存档。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+            Slider(
+              value: _logRotationThresholdMb.toDouble(),
+              min: 1,
+              max: 20,
+              divisions: 19,
+              label: '$_logRotationThresholdMb MB',
+              onChanged: _updateLogRotationThreshold,
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('1 MB', style: theme.textTheme.labelSmall),
+                Text('20 MB', style: theme.textTheme.labelSmall),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildStorageSection(ThemeData theme) {
     return SettingsCard(
       title: '应用存储',
       subtitle: '应用程序内部数据存储路径 (包含配置与缓存)',
       icon: Icons.folder_shared_rounded,
-      child: InkWell(
-        onTap: () async {
-          if (_appDataPath != null) {
-            final uri = Uri.directory(_appDataPath!);
-            if (await canLaunchUrl(uri)) await launchUrl(uri);
-          }
-        },
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(
-              alpha: 0.1,
-            ),
-            borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
-            border: Border.all(
-              color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.3),
-            ),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.1,
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _appDataPath ?? '正在获取...',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontFamily: 'monospace',
+          borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
+          border: Border.all(
+            color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.3),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _appDataPath ?? '正在获取...',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontFamily: 'monospace',
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '点击在文件管理器中打开',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.primary,
+                      const SizedBox(height: 4),
+                      Text(
+                        '点击右侧按钮在文件管理器中打开',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.open_in_new_rounded,
-                size: 18,
-                color: theme.colorScheme.primary,
-              ),
-            ],
-          ),
+                IconButton(
+                  onPressed: _openAppDataPath,
+                  icon: Icon(
+                    Icons.open_in_new_rounded,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  tooltip: '打开目录',
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _pickAppDataPath,
+              icon: const Icon(Icons.drive_folder_upload_rounded, size: 18),
+              label: const Text('选择存储目录'),
+            ),
+          ],
         ),
       ),
     );

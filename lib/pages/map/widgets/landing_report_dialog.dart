@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../../apps/models/flight_log/flight_log.dart';
+import '../../../apps/models/flight_log.dart';
 
 class LandingReportDialog extends StatelessWidget {
   final LandingData data;

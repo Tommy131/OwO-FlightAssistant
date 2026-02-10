@@ -19,20 +19,20 @@ class AppThemeData {
 
   // ============ 私有颜色常量 ============
   // 背景色
-  static const Color _backgroundColor = Color(0xFFF5F6FA);
+  static const Color _backgroundColor = Color(0xFFF7F8FA);
   static const Color _surfaceColor = Colors.white;
-  static const Color _darkBackgroundColor = Color(0xFF1A1A2E);
-  static const Color _darkSurfaceColor = Color(0xFF16213E);
+  static const Color _darkBackgroundColor = Color(0xFF0F172A);
+  static const Color _darkSurfaceColor = Color(0xFF111827);
 
   // 文字颜色
-  static const Color _textPrimaryColor = Color(0xFF2D3436);
-  static const Color _textSecondaryColor = Color(0xFF636E72);
-  static const Color _textDarkPrimaryColor = Color(0xFFDFE6E9);
-  static const Color _textDarkSecondaryColor = Color(0xFFB2BEC3);
+  static const Color _textPrimaryColor = Color(0xFF1F2937);
+  static const Color _textSecondaryColor = Color(0xFF4B5563);
+  static const Color _textDarkPrimaryColor = Color(0xFFE5E7EB);
+  static const Color _textDarkSecondaryColor = Color(0xFF9CA3AF);
 
   // 边框和分割线
-  static const Color _borderColor = Color(0xFFDFE6E9);
-  static const Color _darkBorderColor = Color(0xFF2D3436);
+  static const Color _borderColor = Color(0xFFE2E8F0);
+  static const Color _darkBorderColor = Color(0xFF1F2937);
 
   // ============ 布局常量 ============
   // 圆角
@@ -108,10 +108,12 @@ class AppThemeData {
         error: Colors.red,
         onPrimary: getContrastColor(primaryColor),
         onSecondary: getContrastColor(secondaryColor),
-        onSurface: Colors.black87,
+        onSurface: _textPrimaryColor,
         onError: Colors.white,
-        surfaceContainerHighest: Colors.grey.shade100,
-        outline: primaryColor.withValues(alpha: 0.3),
+        surfaceContainerHighest: const Color(0xFFF1F5F9),
+        outline: const Color(0xFF94A3B8),
+        outlineVariant: _borderColor,
+        onSurfaceVariant: _textSecondaryColor,
       ),
       appBarTheme: const AppBarTheme(
         elevation: 0,
@@ -149,12 +151,43 @@ class AppThemeData {
           backgroundColor: _surfaceColor,
           foregroundColor: primaryColor,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          side: BorderSide(color: secondaryColor, width: 1.8),
+          side: const BorderSide(color: _borderColor, width: 1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadiusLarge),
           ),
         ),
       ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(borderRadiusSmall),
+          borderSide: const BorderSide(color: _borderColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(borderRadiusSmall),
+          borderSide: const BorderSide(color: _borderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(borderRadiusSmall),
+          borderSide: BorderSide(color: primaryColor, width: 1.2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(borderRadiusSmall),
+          borderSide: const BorderSide(color: Colors.redAccent),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(borderRadiusSmall),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.2),
+        ),
+        labelStyle: const TextStyle(color: _textSecondaryColor),
+        hintStyle: const TextStyle(color: _textSecondaryColor),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: _borderColor,
+        thickness: 1,
+      ),
+      iconTheme: const IconThemeData(color: _textSecondaryColor),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: primaryColor,
         foregroundColor: getContrastColor(primaryColor),
@@ -182,6 +215,10 @@ class AppThemeData {
         ),
         bodyLarge: TextStyle(fontSize: 16, color: _textPrimaryColor),
         bodyMedium: TextStyle(fontSize: 14, color: _textSecondaryColor),
+        bodySmall: TextStyle(fontSize: 12, color: _textSecondaryColor),
+        labelLarge: TextStyle(fontSize: 14, color: _textSecondaryColor),
+        labelMedium: TextStyle(fontSize: 12, color: _textSecondaryColor),
+        labelSmall: TextStyle(fontSize: 11, color: _textSecondaryColor),
       ),
     );
   }
@@ -200,10 +237,12 @@ class AppThemeData {
         error: Colors.redAccent,
         onPrimary: getContrastColor(primaryColor), // 智能对比色
         onSecondary: getContrastColor(secondaryColor),
-        onSurface: Colors.white,
+        onSurface: _textDarkPrimaryColor,
         onError: Colors.white,
-        surfaceContainerHighest: const Color(0xFF2C2C2C),
-        outline: primaryColor.withValues(alpha: 0.4),
+        surfaceContainerHighest: const Color(0xFF1F2937),
+        outline: const Color(0xFF475569),
+        outlineVariant: _darkBorderColor,
+        onSurfaceVariant: _textDarkSecondaryColor,
       ),
       appBarTheme: const AppBarTheme(
         elevation: 0,
@@ -241,12 +280,43 @@ class AppThemeData {
           backgroundColor: _darkSurfaceColor,
           foregroundColor: primaryColor,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          side: BorderSide(color: secondaryColor, width: 1.8),
+          side: const BorderSide(color: _darkBorderColor, width: 1),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadiusLarge),
           ),
         ),
       ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFF111827),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(borderRadiusSmall),
+          borderSide: const BorderSide(color: _darkBorderColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(borderRadiusSmall),
+          borderSide: const BorderSide(color: _darkBorderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(borderRadiusSmall),
+          borderSide: BorderSide(color: primaryColor, width: 1.2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(borderRadiusSmall),
+          borderSide: const BorderSide(color: Colors.redAccent),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(borderRadiusSmall),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.2),
+        ),
+        labelStyle: const TextStyle(color: _textDarkSecondaryColor),
+        hintStyle: const TextStyle(color: _textDarkSecondaryColor),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: _darkBorderColor,
+        thickness: 1,
+      ),
+      iconTheme: const IconThemeData(color: _textDarkSecondaryColor),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: primaryColor,
         foregroundColor: getContrastColor(primaryColor),
@@ -274,6 +344,10 @@ class AppThemeData {
         ),
         bodyLarge: TextStyle(fontSize: 16, color: _textDarkPrimaryColor),
         bodyMedium: TextStyle(fontSize: 14, color: _textDarkSecondaryColor),
+        bodySmall: TextStyle(fontSize: 12, color: _textDarkSecondaryColor),
+        labelLarge: TextStyle(fontSize: 14, color: _textDarkSecondaryColor),
+        labelMedium: TextStyle(fontSize: 12, color: _textDarkSecondaryColor),
+        labelSmall: TextStyle(fontSize: 11, color: _textDarkSecondaryColor),
       ),
     );
   }

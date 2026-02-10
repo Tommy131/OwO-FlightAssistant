@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import '../../../apps/models/flight_log/flight_log.dart';
+import '../../../apps/models/flight_log.dart';
 import '../../../apps/providers/simulator/simulator_provider.dart';
 import '../../home/widgets/airport_search_bar.dart';
 import '../../../apps/providers/map_provider.dart';

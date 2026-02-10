@@ -121,6 +121,8 @@ class SettingsInputField extends StatelessWidget {
   final bool obscureText;
   final VoidCallback? onSave;
   final String? helperText;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
 
   const SettingsInputField({
     super.key,
@@ -131,6 +133,8 @@ class SettingsInputField extends StatelessWidget {
     this.obscureText = false,
     this.onSave,
     this.helperText,
+    this.onChanged,
+    this.onSubmitted,
   });
 
   @override
@@ -153,6 +157,8 @@ class SettingsInputField extends StatelessWidget {
         TextField(
           controller: controller,
           obscureText: obscureText,
+          onChanged: onChanged,
+          onSubmitted: onSubmitted,
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: icon != null ? Icon(icon, size: 20) : null,

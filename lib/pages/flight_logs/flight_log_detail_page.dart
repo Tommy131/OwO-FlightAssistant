@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../apps/models/flight_log/flight_log.dart';
+import '../../apps/models/flight_log.dart';
 import '../../../apps/services/flight_log_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import 'widgets/analysis_summary_card.dart';

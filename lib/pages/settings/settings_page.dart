@@ -5,9 +5,10 @@ import 'theme_settings_page.dart';
 import 'data_path_settings_page.dart';
 import 'connection_settings_page.dart';
 import '../airport_info/airport_debug_page.dart';
+import 'about/about_page.dart';
 
 /// 设置页面类型枚举
-enum SettingsPageType { main, theme, dataPath, connection, debug }
+enum SettingsPageType { main, theme, dataPath, connection, debug, about }
 
 /// 设置页面配置类
 class SettingsPageConfig {
@@ -66,6 +67,13 @@ class _SettingsPageState extends State<SettingsPage> {
       subtitle: '查看当前加载的所有机场 ICAO 列表及状态',
       icon: Icons.bug_report_rounded,
       builder: (onBack) => AirportDebugPage(onBack: onBack),
+    ),
+    SettingsPageConfig(
+      type: SettingsPageType.about,
+      title: '关于应用',
+      subtitle: '版本信息、开发者、更新检测及法律声明',
+      icon: Icons.info_outline_rounded,
+      builder: (onBack) => AboutPage(onBack: onBack),
     ),
   ];
 
@@ -163,7 +171,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   const _SectionHeader(title: '关于应用'),
                   const SizedBox(height: AppThemeData.spacingSmall),
 
-                  _AboutCard(),
+                  _AboutCard(
+                    onTap: () => _navigateToPage(SettingsPageType.about),
+                  ),
 
                   const SizedBox(height: AppThemeData.spacingLarge),
 
@@ -301,6 +311,10 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _AboutCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AboutCard({required this.onTap});
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -312,34 +326,39 @@ class _AboutCard extends StatelessWidget {
           color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.5),
         ),
       ),
-      child: Column(
-        children: [
-          const _AboutItem(
-            icon: Icons.info_outline_rounded,
-            label: '应用名称',
-            value: 'OwO Flight Assistant',
-          ),
-          Divider(
-            height: 1,
-            indent: 50,
-            color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.3),
-          ),
-          const _AboutItem(
-            icon: Icons.vibration_rounded,
-            label: '版本',
-            value: AppConstants.appVersion,
-          ),
-          Divider(
-            height: 1,
-            indent: 50,
-            color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.3),
-          ),
-          const _AboutItem(
-            icon: Icons.code_rounded,
-            label: '开发者',
-            value: 'Hanski Jay (OwO Team)',
-          ),
-        ],
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+        child: Column(
+          children: [
+            const _AboutItem(
+              icon: Icons.info_outline_rounded,
+              label: '应用名称',
+              value: 'OwO Flight Assistant',
+            ),
+            Divider(
+              height: 1,
+              indent: 50,
+              color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.3),
+            ),
+            const _AboutItem(
+              icon: Icons.vibration_rounded,
+              label: '版本',
+              value:
+                  "${AppConstants.appVersion} (${AppConstants.appBuildVersion})",
+            ),
+            Divider(
+              height: 1,
+              indent: 50,
+              color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.3),
+            ),
+            const _AboutItem(
+              icon: Icons.code_rounded,
+              label: '开发者',
+              value: 'Hanski Jay (OwO Team)',
+            ),
+          ],
+        ),
       ),
     );
   }

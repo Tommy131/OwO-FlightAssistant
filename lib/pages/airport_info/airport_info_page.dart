@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../apps/data/airports_database.dart';
 import '../../apps/providers/simulator/simulator_provider.dart';
 import '../../core/theme/app_theme_data.dart';
-import 'providers/airport_info_provider.dart';
+import '../../apps/providers/airport_info_provider.dart';
 import 'widgets/airport_empty_state.dart';
 import 'widgets/airport_info_header.dart';
 import 'widgets/airport_list.dart';

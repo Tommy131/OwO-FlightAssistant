@@ -300,279 +300,323 @@ class _BriefingInputCardState extends State<BriefingInputCard> {
 
     return Padding(
       padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 标题和刷新按钮
-            Row(
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppThemeData.borderRadiusLarge),
+          border: Border.all(
+            color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.6),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: theme.shadowColor.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Form(
+          key: _formKey,
+          child: Padding(
+            padding: const EdgeInsets.all(AppThemeData.spacingLarge),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    '航班信息',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (simProvider.isConnected)
-                  IconButton(
-                    icon: const Icon(Icons.refresh),
-                    tooltip: '从模拟器刷新',
-                    onPressed: _refreshFromSimulator,
-                    iconSize: 20,
-                  ),
-              ],
-            ),
-
-            // 模拟器状态提示
-            if (simProvider.isConnected) ...[
-              const SizedBox(height: AppThemeData.spacingSmall),
-              SimulatorAutoFillHelper.buildStatusBanner(context, simProvider),
-            ],
-
-            const SizedBox(height: AppThemeData.spacingMedium),
-
-            // 航班号
-            _buildFlightNumberField(),
-            const SizedBox(height: AppThemeData.spacingMedium),
-
-            // 起飞机场
-            AirportSearchField(
-              controller: _departureController,
-              label: '起飞机场',
-              hint: 'ICAO代码',
-              icon: Icons.flight_takeoff,
-              iconColor: Colors.green,
-              required: true,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '请输入起飞机场';
-                }
-                if (!RegExp(r'^[A-Z]{4}$').hasMatch(value.trim())) {
-                  return '请输入4位ICAO代码';
-                }
-                return null;
-              },
-              onAirportSelected: (airport) {
-                setState(() {
-                  _departureAirport = airport;
-                  _departureDetail = null;
-                  _selectedDepartureRunway = null;
-                  _isDepartureValid = airport != null;
-                });
-                if (airport != null) {
-                  _loadAirportRunways(airport.icaoCode, true);
-                }
-              },
-            ),
-
-            if (_departureAirport != null) ...[
-              const SizedBox(height: 4),
-              _buildAirportInfo(_departureAirport!, Colors.green),
-            ],
-            const SizedBox(height: AppThemeData.spacingMedium),
-
-            // 起飞跑道选择
-            if (_departureDetail != null) ...[
-              RunwaySelector(
-                runways: _departureDetail!.runways,
-                selectedRunway: _selectedDepartureRunway,
-                label: '起飞跑道',
-                onChanged: (runway) {
-                  setState(() => _selectedDepartureRunway = runway);
-                },
-                enabled: !provider.isLoading,
-                isDeparture: true,
-              ),
-              const SizedBox(height: AppThemeData.spacingMedium),
-            ] else if (_isLoadingRunways && _departureAirport != null) ...[
-              const LinearProgressIndicator(),
-              const SizedBox(height: AppThemeData.spacingMedium),
-            ],
-
-            // 到达机场
-            AirportSearchField(
-              controller: _arrivalController,
-              label: '到达机场',
-              hint: 'ICAO代码',
-              icon: Icons.flight_land,
-              iconColor: Colors.orange,
-              required: true,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '请输入到达机场';
-                }
-                if (!RegExp(r'^[A-Z]{4}$').hasMatch(value.trim())) {
-                  return '请输入4位ICAO代码';
-                }
-                if (value.trim() == _departureController.text.trim()) {
-                  return '到达机场不能与起飞机场相同';
-                }
-                return null;
-              },
-              onAirportSelected: (airport) {
-                setState(() {
-                  _arrivalAirport = airport;
-                  _arrivalDetail = null;
-                  _selectedArrivalRunway = null;
-                  _isArrivalValid = airport != null;
-                });
-                if (airport != null) {
-                  _loadAirportRunways(airport.icaoCode, false);
-                }
-              },
-            ),
-
-            if (_arrivalAirport != null) ...[
-              const SizedBox(height: 4),
-              _buildAirportInfo(_arrivalAirport!, Colors.orange),
-            ],
-            const SizedBox(height: AppThemeData.spacingMedium),
-
-            // 到达跑道选择
-            if (_arrivalDetail != null) ...[
-              RunwaySelector(
-                runways: _arrivalDetail!.runways,
-                selectedRunway: _selectedArrivalRunway,
-                label: '到达跑道',
-                onChanged: (runway) {
-                  setState(() => _selectedArrivalRunway = runway);
-                },
-                enabled: !provider.isLoading,
-                isDeparture: false,
-              ),
-              const SizedBox(height: AppThemeData.spacingMedium),
-            ] else if (_isLoadingRunways && _arrivalAirport != null) ...[
-              const LinearProgressIndicator(),
-              const SizedBox(height: AppThemeData.spacingMedium),
-            ],
-
-            // 备降机场
-            AirportSearchField(
-              controller: _alternateController,
-              label: '备降机场',
-              hint: 'ICAO代码 (可选)',
-              icon: Icons.alt_route,
-              validator: (value) {
-                if (value != null && value.trim().isNotEmpty) {
-                  if (!RegExp(r'^[A-Z]{4}$').hasMatch(value.trim())) {
-                    return '请输入4位ICAO代码';
-                  }
-                  if (value.trim() == _departureController.text.trim() ||
-                      value.trim() == _arrivalController.text.trim()) {
-                    return '备降机场不能与起飞/到达机场相同';
-                  }
-                }
-                return null;
-              },
-              onAirportSelected: (airport) {
-                setState(() {
-                  _alternateAirport = airport;
-                  // 如果有输入内容，则必须是有效的机场；如果没有输入，则视为有效（可选）
-                  _isAlternateValid =
-                      _alternateController.text.trim().isEmpty ||
-                      airport != null;
-                });
-              },
-            ),
-
-            if (_alternateAirport != null) ...[
-              const SizedBox(height: 4),
-              _buildAirportInfo(_alternateAirport!, Colors.purple),
-            ],
-            const SizedBox(height: AppThemeData.spacingMedium),
-
-            // 航路
-            _buildRouteField(),
-            const SizedBox(height: AppThemeData.spacingMedium),
-
-            // 巡航高度
-            _buildCruiseAltitudeField(),
-            const SizedBox(height: AppThemeData.spacingLarge),
-
-            // 生成按钮
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: (provider.isLoading || !_canGenerateBriefing())
-                    ? null
-                    : _generateBriefing,
-                icon: provider.isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.description),
-                label: Text(provider.isLoading ? '生成中...' : '生成简报'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-            ),
-
-            // 验证提示
-            if (!_canGenerateBriefing() && !provider.isLoading) ...[
-              const SizedBox(height: AppThemeData.spacingSmall),
-              Container(
-                padding: const EdgeInsets.all(AppThemeData.spacingSmall),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.orange.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
+                Row(
                   children: [
-                    const Icon(
-                      Icons.info_outline,
-                      color: Colors.orange,
-                      size: 20,
-                    ),
-                    const SizedBox(width: AppThemeData.spacingSmall),
                     Expanded(
                       child: Text(
-                        _getValidationMessage(),
-                        style: const TextStyle(
-                          color: Colors.orange,
-                          fontSize: 12,
+                        '航班信息',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
+                    if (simProvider.isConnected)
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: '从模拟器刷新',
+                        onPressed: _refreshFromSimulator,
+                        iconSize: 20,
+                      ),
                   ],
                 ),
-              ),
-            ],
-
-            // 错误信息
-            if (provider.errorMessage != null) ...[
-              const SizedBox(height: AppThemeData.spacingMedium),
-              Container(
-                padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                ),
-                child: Row(
+                if (simProvider.isConnected) ...[
+                  const SizedBox(height: AppThemeData.spacingSmall),
+                  SimulatorAutoFillHelper.buildStatusBanner(
+                    context,
+                    simProvider,
+                  ),
+                ],
+                const SizedBox(height: AppThemeData.spacingMedium),
+                _buildSectionCard(
+                  title: '机场与跑道',
+                  icon: Icons.flight_rounded,
                   children: [
-                    const Icon(Icons.error_outline, color: Colors.red),
-                    const SizedBox(width: AppThemeData.spacingSmall),
-                    Expanded(
-                      child: Text(
-                        provider.errorMessage!,
-                        style: const TextStyle(color: Colors.red),
+                    AirportSearchField(
+                      controller: _departureController,
+                      label: '起飞机场',
+                      hint: 'ICAO代码',
+                      icon: Icons.flight_takeoff,
+                      iconColor: Colors.green,
+                      required: true,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return '请输入起飞机场';
+                        }
+                        if (!RegExp(r'^[A-Z]{4}$').hasMatch(value.trim())) {
+                          return '请输入4位ICAO代码';
+                        }
+                        return null;
+                      },
+                      onAirportSelected: (airport) {
+                        setState(() {
+                          _departureAirport = airport;
+                          _departureDetail = null;
+                          _selectedDepartureRunway = null;
+                          _isDepartureValid = airport != null;
+                        });
+                        if (airport != null) {
+                          _loadAirportRunways(airport.icaoCode, true);
+                        }
+                      },
+                    ),
+                    if (_departureAirport != null) ...[
+                      const SizedBox(height: 6),
+                      _buildAirportInfo(_departureAirport!, Colors.green),
+                    ],
+                    const SizedBox(height: AppThemeData.spacingMedium),
+                    if (_departureDetail != null) ...[
+                      RunwaySelector(
+                        runways: _departureDetail!.runways,
+                        selectedRunway: _selectedDepartureRunway,
+                        label: '起飞跑道',
+                        onChanged: (runway) {
+                          setState(() => _selectedDepartureRunway = runway);
+                        },
+                        enabled: !provider.isLoading,
+                        isDeparture: true,
+                      ),
+                      const SizedBox(height: AppThemeData.spacingMedium),
+                    ] else if (_isLoadingRunways && _departureAirport != null) ...[
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: AppThemeData.spacingMedium),
+                    ],
+                    AirportSearchField(
+                      controller: _arrivalController,
+                      label: '到达机场',
+                      hint: 'ICAO代码',
+                      icon: Icons.flight_land,
+                      iconColor: Colors.orange,
+                      required: true,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return '请输入到达机场';
+                        }
+                        if (!RegExp(r'^[A-Z]{4}$').hasMatch(value.trim())) {
+                          return '请输入4位ICAO代码';
+                        }
+                        if (value.trim() == _departureController.text.trim()) {
+                          return '到达机场不能与起飞机场相同';
+                        }
+                        return null;
+                      },
+                      onAirportSelected: (airport) {
+                        setState(() {
+                          _arrivalAirport = airport;
+                          _arrivalDetail = null;
+                          _selectedArrivalRunway = null;
+                          _isArrivalValid = airport != null;
+                        });
+                        if (airport != null) {
+                          _loadAirportRunways(airport.icaoCode, false);
+                        }
+                      },
+                    ),
+                    if (_arrivalAirport != null) ...[
+                      const SizedBox(height: 6),
+                      _buildAirportInfo(_arrivalAirport!, Colors.orange),
+                    ],
+                    const SizedBox(height: AppThemeData.spacingMedium),
+                    if (_arrivalDetail != null) ...[
+                      RunwaySelector(
+                        runways: _arrivalDetail!.runways,
+                        selectedRunway: _selectedArrivalRunway,
+                        label: '到达跑道',
+                        onChanged: (runway) {
+                          setState(() => _selectedArrivalRunway = runway);
+                        },
+                        enabled: !provider.isLoading,
+                        isDeparture: false,
+                      ),
+                      const SizedBox(height: AppThemeData.spacingMedium),
+                    ] else if (_isLoadingRunways && _arrivalAirport != null) ...[
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: AppThemeData.spacingMedium),
+                    ],
+                    AirportSearchField(
+                      controller: _alternateController,
+                      label: '备降机场',
+                      hint: 'ICAO代码 (可选)',
+                      icon: Icons.alt_route,
+                      validator: (value) {
+                        if (value != null && value.trim().isNotEmpty) {
+                          if (!RegExp(r'^[A-Z]{4}$').hasMatch(value.trim())) {
+                            return '请输入4位ICAO代码';
+                          }
+                          if (value.trim() ==
+                                  _departureController.text.trim() ||
+                              value.trim() == _arrivalController.text.trim()) {
+                            return '备降机场不能与起飞/到达机场相同';
+                          }
+                        }
+                        return null;
+                      },
+                      onAirportSelected: (airport) {
+                        setState(() {
+                          _alternateAirport = airport;
+                          _isAlternateValid =
+                              _alternateController.text.trim().isEmpty ||
+                                  airport != null;
+                        });
+                      },
+                    ),
+                    if (_alternateAirport != null) ...[
+                      const SizedBox(height: 6),
+                      _buildAirportInfo(_alternateAirport!, Colors.purple),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: AppThemeData.spacingMedium),
+                _buildSectionCard(
+                  title: '航班参数',
+                  icon: Icons.tune_rounded,
+                  children: [
+                    _buildFlightNumberField(),
+                    const SizedBox(height: AppThemeData.spacingMedium),
+                    _buildRouteField(),
+                    const SizedBox(height: AppThemeData.spacingMedium),
+                    _buildCruiseAltitudeField(),
+                  ],
+                ),
+                const SizedBox(height: AppThemeData.spacingLarge),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (provider.isLoading || !_canGenerateBriefing())
+                        ? null
+                        : _generateBriefing,
+                    icon: provider.isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.description),
+                    label: Text(provider.isLoading ? '生成中...' : '生成简报'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ),
+                if (!_canGenerateBriefing() && !provider.isLoading) ...[
+                  const SizedBox(height: AppThemeData.spacingSmall),
+                  Container(
+                    padding: const EdgeInsets.all(AppThemeData.spacingSmall),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.orange.withValues(alpha: 0.3),
                       ),
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                        const SizedBox(width: AppThemeData.spacingSmall),
+                        Expanded(
+                          child: Text(
+                            _getValidationMessage(),
+                            style: const TextStyle(
+                              color: Colors.orange,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (provider.errorMessage != null) ...[
+                  const SizedBox(height: AppThemeData.spacingMedium),
+                  Container(
+                    padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.red.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red),
+                        const SizedBox(width: AppThemeData.spacingSmall),
+                        Expanded(
+                          child: Text(
+                            provider.errorMessage!,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+        border: Border.all(
+          color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
-          ],
-        ),
+          ),
+          const SizedBox(height: AppThemeData.spacingMedium),
+          ...children,
+        ],
       ),
     );
   }
@@ -686,14 +730,28 @@ class _BriefingInputCardState extends State<BriefingInputCard> {
   }
 
   Widget _buildAirportInfo(AirportInfo airport, Color color) {
+    final theme = Theme.of(context);
+    final textColor = Color.lerp(
+          color,
+          theme.colorScheme.onSurface,
+          theme.brightness == Brightness.dark ? 0.3 : 0.5,
+        ) ??
+        theme.colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.only(left: 40),
-      child: Text(
-        airport.nameChinese,
-        style: TextStyle(
-          fontSize: 12,
-          color: Color.lerp(color, Colors.black, 0.3),
-          fontWeight: FontWeight.w500,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          airport.nameChinese,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: textColor,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

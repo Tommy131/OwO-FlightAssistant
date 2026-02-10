@@ -262,8 +262,7 @@ class _MapPageState extends State<MapPage> {
                       child: TileLayer(
                         urlTemplate: aviationOverlayUrl,
                         subdomains: const ['a', 'b', 'c'],
-                        userAgentPackageName:
-                            'com.owo.flight_assistant/1.0 (Aviation Overlay)',
+                        userAgentPackageName: 'com.owo.flight_assistant',
                         maxNativeZoom: 19,
                         minZoom: 3,
                         tileDisplay: const TileDisplay.fadeIn(
@@ -282,8 +281,7 @@ class _MapPageState extends State<MapPage> {
                       child: TileLayer(
                         urlTemplate:
                             'https://tilecache.rainviewer.com/v2/radar/${mapProvider.weatherRadarTimestamp}/256/{z}/{x}/{y}/4/1_1.png',
-                        userAgentPackageName:
-                            'com.owo.flight_assistant/1.0 (Radar Layer)',
+                        userAgentPackageName: 'com.owo.flight_assistant',
                         tileUpdateTransformer: _weatherRadarTransformer,
                         maxNativeZoom: 7, // RainViewer 免费版最高支持到 Zoom 7
                         minZoom: 3,
@@ -388,7 +386,9 @@ class _MapPageState extends State<MapPage> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.blueAccent.withOpacity(0.9),
+                                  color: Colors.blueAccent.withValues(
+                                    alpha: 0.9,
+                                  ),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: const Text(
@@ -424,7 +424,9 @@ class _MapPageState extends State<MapPage> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.greenAccent.withOpacity(0.9),
+                                  color: Colors.greenAccent.withValues(
+                                    alpha: 0.9,
+                                  ),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: const Text(
