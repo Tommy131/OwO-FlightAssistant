@@ -62,5 +62,7 @@ class AppInitializer {
     await windowManager.setSize(const Size(1266, 800));
     await windowManager.setMinimumSize(const Size(816, 600));
     await windowManager.center();
+    await windowManager.show();
+    await windowManager.focus();
   }
 }

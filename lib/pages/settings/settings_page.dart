@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme_data.dart';
 import 'theme_settings_page.dart';
 import 'data_path_settings_page.dart';
@@ -326,7 +327,7 @@ class _AboutCard extends StatelessWidget {
           const _AboutItem(
             icon: Icons.vibration_rounded,
             label: '版本',
-            value: 'v1.0.0-alpha',
+            value: AppConstants.appVersion,
           ),
           Divider(
             height: 1,

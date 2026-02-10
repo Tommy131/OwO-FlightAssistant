@@ -1,4 +1,5 @@
 @echo off
-TITLE Run On Windows
+TITLE Build for Windows
 
 flutter build windows
+pause
