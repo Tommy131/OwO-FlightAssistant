@@ -22,7 +22,7 @@ class AppConstants {
   // ========== 应用信息 ==========
   static const String appName = 'OwO! FlightAssistant';
   static const String appPackageName = 'com.owoblog.owo_flight_assistant';
-  static const String appVersion = '0.0.1';
+  static const String appVersion = '1.0.0-beta';
 
   // ========== 开发者信息 ==========
   static const String developerName = 'HanskiJay';

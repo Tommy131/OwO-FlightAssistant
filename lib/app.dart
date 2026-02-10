@@ -18,6 +18,8 @@ import 'core/models/navigation_item.dart';
 import 'apps/services/app_initializer.dart';
 import 'core/theme/theme_provider.dart';
 import 'core/widgets/common/dialog.dart';
+import 'core/widgets/common/update_dialog.dart';
+import 'apps/services/update_service.dart';
 import 'core/widgets/desktop/custom_title_bar.dart';
 import 'pages/airport_info/airport_info_page.dart';
 import 'pages/checklist/checklist_page.dart';
@@ -176,6 +178,65 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
   }
 
   Future<void> _initializeApp() async {
+    // 1. 检查更新
+    try {
+      final updateInfo = await UpdateService.checkUpdate();
+      if (updateInfo['error'] != null) {
+        if (mounted) {
+          await showAdvancedConfirmDialog(
+            context: context,
+            title: '更新检测失败',
+            content: '无法连接到更新服务器：${updateInfo['error']}',
+            icon: Icons.error_outline_rounded,
+            confirmColor: Colors.orange,
+            confirmText: '好的',
+            cancelText: '',
+          );
+        }
+      } else if (updateInfo['hasUpdate'] == true) {
+        if (mounted) {
+          final shouldUpdate = await showAdvancedConfirmDialog(
+            context: context,
+            title: '发现新版本',
+            content:
+                '发现最新版本 ${updateInfo['remoteVersion']} (当前: ${updateInfo['localVersion']})。是否立即下载更新？',
+            icon: Icons.system_update_rounded,
+            confirmText: '去下载',
+            cancelText: '暂不更新',
+          );
+
+          if (shouldUpdate == true && mounted) {
+            await showGeneralDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              barrierLabel: 'Downloading',
+              barrierColor: Colors.black54,
+              pageBuilder: (_, __, ___) => UpdateProgressDialog(
+                onDownload: (onProgress) => UpdateService.downloadUpdate(
+                  version: updateInfo['remoteVersion'],
+                  onProgress: onProgress,
+                ),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      // 捕获意外产生的错误并提示
+      if (mounted) {
+        await showAdvancedConfirmDialog(
+          context: context,
+          title: '更新检测异常',
+          content: '在检查更新时发生了错误：$e',
+          icon: Icons.warning_amber_rounded,
+          confirmColor: Colors.redAccent,
+          confirmText: '好的',
+          cancelText: '',
+        );
+      }
+    }
+
+    // 2. 检查是否需要初次设置
     final needsSetup = await AppInitializer.checkSetupNeeded();
 
     if (needsSetup) {
@@ -189,6 +250,7 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       return;
     }
 
+    // 3. 预加载机场数据 (导航中心加载)
     await AppInitializer.preloadAirportData();
 
     if (mounted) {
