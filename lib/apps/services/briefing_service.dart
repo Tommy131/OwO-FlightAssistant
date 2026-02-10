@@ -34,13 +34,19 @@ class BriefingService {
       AppLogger.info('Generating briefing: $departureIcao -> $arrivalIcao');
 
       // 1. 获取机场信息
-      final departure = await _airportService.fetchAirportDetail(departureIcao);
+      final departure = await _airportService.fetchAirportDetail(
+        departureIcao,
+        cacheScope: AirportCacheScope.persistent,
+      );
       if (departure == null) {
         AppLogger.error('Failed to get departure airport: $departureIcao');
         return null;
       }
 
-      final arrival = await _airportService.fetchAirportDetail(arrivalIcao);
+      final arrival = await _airportService.fetchAirportDetail(
+        arrivalIcao,
+        cacheScope: AirportCacheScope.persistent,
+      );
       if (arrival == null) {
         AppLogger.error('Failed to get arrival airport: $arrivalIcao');
         return null;
@@ -48,7 +54,10 @@ class BriefingService {
 
       AirportDetailData? alternate;
       if (alternateIcao != null && alternateIcao.isNotEmpty) {
-        alternate = await _airportService.fetchAirportDetail(alternateIcao);
+        alternate = await _airportService.fetchAirportDetail(
+          alternateIcao,
+          cacheScope: AirportCacheScope.persistent,
+        );
       }
 
       // 2. 获取天气信息

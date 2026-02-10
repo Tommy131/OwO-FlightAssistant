@@ -16,6 +16,8 @@ class BriefingProvider extends ChangeNotifier {
   // 历史简报列表
   final List<FlightBriefing> _briefingHistory = [];
   bool _isHistoryLoaded = false;
+  bool _isHistoryLoading = false;
+  Future<void>? _historyLoadFuture;
 
   FlightBriefing? get currentBriefing => _currentBriefing;
   bool get isLoading => _isLoading;
@@ -26,7 +28,17 @@ class BriefingProvider extends ChangeNotifier {
   /// 初始化 - 加载历史记录
   Future<void> initialize() async {
     if (_isHistoryLoaded) return;
+    if (_isHistoryLoading) {
+      await _historyLoadFuture;
+      return;
+    }
 
+    _isHistoryLoading = true;
+    _historyLoadFuture = _loadHistory();
+    await _historyLoadFuture;
+  }
+
+  Future<void> _loadHistory() async {
     try {
       final briefings = await _storageService.loadBriefings();
       _briefingHistory.clear();
@@ -37,6 +49,9 @@ class BriefingProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e, stackTrace) {
       AppLogger.error('加载简报历史失败', e, stackTrace);
+    } finally {
+      _isHistoryLoading = false;
+      _historyLoadFuture = null;
     }
   }
 

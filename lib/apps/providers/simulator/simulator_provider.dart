@@ -9,6 +9,7 @@ import '../../data/airports_database.dart';
 import '../../data/aircraft_catalog.dart';
 import 'dart:math' as math;
 
+import '../../../core/utils/logger.dart';
 import 'chart_history_mixin.dart';
 import 'weather_sync_mixin.dart';
 
@@ -27,6 +28,8 @@ class SimulatorProvider
   SimulatorData _simulatorData = SimulatorData.empty();
   String? _errorMessage;
   AirportInfo? _destinationAirport;
+  bool _timerWaitingForMovement = false;
+  bool _showCrashOverlay = false;
 
   XPlaneService get xplaneService => _xplaneService;
   MSFSService get msfsService => _msfsService;
@@ -55,68 +58,94 @@ class SimulatorProvider
   String? get errorMessage => _errorMessage;
   AirportInfo? get destinationAirport => _destinationAirport;
   AirportInfo? get alternateAirport => _alternateAirport;
+  bool get showCrashOverlay => _showCrashOverlay;
 
   bool get isRecording => _flightLogService.isRecording;
   FlightLog? get currentFlightLog => _flightLogService.currentLog;
 
-  /// 检查当前飞行日志是否满足导出条件（完整性校验）
-  bool get canExportCurrentLog {
-    final log = currentFlightLog;
-    if (log == null) return false;
-
-    // 必须从地面开始，且在地面结束（或当前就在地面）
-    final startedOnGround = log.wasOnGroundAtStart;
-    final currentlyOnGround = _simulatorData.onGround ?? true;
-
-    // 如果已经停止记录，则检查结束时是否在地面
-    final endedOnGround = log.endTime != null
-        ? log.wasOnGroundAtEnd
-        : currentlyOnGround;
-
-    // 轨迹点必须足够多（至少10个点）
-    final hasEnoughPoints = log.points.length >= 10;
-
-    return startedOnGround && endedOnGround && hasEnoughPoints;
-  }
-
-  /// 获取无法导出的原因提示
-  String? get exportValidationMessage {
-    final log = currentFlightLog;
-    if (log == null) return '当前没有正在记录或已加载的飞行轨迹';
-
-    if (!log.wasOnGroundAtStart) return '飞行轨迹不完整：记录未从地面开始';
-
-    final currentlyOnGround = _simulatorData.onGround ?? true;
-    final endedOnGround = log.endTime != null
-        ? log.wasOnGroundAtEnd
-        : currentlyOnGround;
-    if (!endedOnGround) return '飞行轨迹不完整：飞机当前不在地面或降落未记录';
-
-    if (log.points.length < 10) return '飞行轨迹太短，无法导出';
-
-    return null;
-  }
-
-  void toggleRecording() {
+  void toggleRecording({String? flightNumber}) {
     if (isRecording) {
       _flightLogService.stopRecording(
         arrivalAirport: nearestAirport?.displayName,
       );
     } else {
       if (isConnected) {
-        _flightLogService.startRecording(_simulatorData);
+        _flightLogService.startRecording(
+          _simulatorData,
+          flightNumber: flightNumber,
+        );
       }
     }
     notifyListeners();
   }
 
+  /// 重置飞行时间计时
+  void resetFlightTime() {
+    _flightLogService.resetStartTime();
+    _timerWaitingForMovement = true;
+    _showCrashOverlay = false;
+    notifyListeners();
+  }
+
+  void dismissCrashOverlay() {
+    _showCrashOverlay = false;
+    notifyListeners();
+  }
+
   void _onDataReceived(SimulatorData data) {
-    _simulatorData = data;
+    var updatedData = data;
+    if ((updatedData.departureAirport == null ||
+            updatedData.departureAirport!.isEmpty) &&
+        _simulatorData.departureAirport != null &&
+        _simulatorData.departureAirport!.isNotEmpty) {
+      updatedData = updatedData.copyWith(
+        departureAirport: _simulatorData.departureAirport,
+      );
+    }
+
+    final onGround =
+        updatedData.onGround ??
+        (updatedData.altitude != null && updatedData.altitude! < 50);
+    if (onGround &&
+        (updatedData.departureAirport == null ||
+            updatedData.departureAirport!.isEmpty) &&
+        updatedData.latitude != null &&
+        updatedData.longitude != null) {
+      final nearest = AirportsDatabase.findNearestByCoords(
+        updatedData.latitude!,
+        updatedData.longitude!,
+        threshold: 1.0,
+      );
+      if (nearest != null) {
+        updatedData = updatedData.copyWith(departureAirport: nearest.icaoCode);
+      }
+    }
+
+    _simulatorData = updatedData;
+
+    // 定时器等待移动逻辑
+    if (_timerWaitingForMovement && isConnected) {
+      final gs = updatedData.groundSpeed ?? 0;
+      final as = updatedData.airspeed ?? 0;
+      // 检测到明显位移或空速（大于1节地速或5节空速）
+      if (gs > 1.0 || as > 5.0) {
+        _timerWaitingForMovement = false;
+        _flightLogService.resetStartTime();
+        AppLogger.info('检测到飞机移动，计时器开始工作');
+      } else {
+        // 持续重置直到移动
+        _flightLogService.resetStartTime();
+      }
+    }
 
     // 自动记录逻辑
     if (isConnected) {
-      // 如果正在记录，则记录当前点
+      // 如果正在记录，则记录当前点 (增加暂停检查)
       if (_flightLogService.isRecording) {
+        if (data.isPaused == true) {
+          // 模拟器处于暂停状态，跳过点记录
+          return;
+        }
         _flightLogService.recordPoint(data);
       } else {
         // 自动开始记录逻辑：如果高度增加或空速超过30且在移动
@@ -126,6 +155,17 @@ class SimulatorProvider
           // _flightLogService.startRecording(data); // 暂时不自动开始，由用户手动控制或以后优化
         }
       }
+    }
+
+    // 检测坠毁
+    if (updatedData.isCrashed == true && !_showCrashOverlay) {
+      _showCrashOverlay = true;
+      AppLogger.warning('检测到飞行器坠毁！');
+      notifyListeners();
+    } else if (updatedData.isCrashed == false && _showCrashOverlay) {
+      // 如果模拟器重置了，我们也关闭遮罩
+      _showCrashOverlay = false;
+      notifyListeners();
     }
   }
 
@@ -437,6 +477,15 @@ class SimulatorProvider
   }
 
   void _handleConnectionLoss() {
+    // 意外断开连接时，如果正在记录，则尝试保存日志
+    if (_flightLogService.isRecording) {
+      AppLogger.info('连接丢失，自动停止并保存飞行日志');
+      _flightLogService.stopRecording(
+        arrivalAirport: nearestAirport?.displayName,
+        onGround: _simulatorData.onGround,
+      );
+    }
+
     _status = ConnectionStatus.disconnected;
     _currentSimulator = SimulatorType.none;
     _errorMessage = '模拟器连接已中断';
@@ -445,6 +494,14 @@ class SimulatorProvider
   }
 
   Future<void> disconnect() async {
+    // 主动断开连接时，如果正在记录，则停止并保存日志
+    if (_flightLogService.isRecording) {
+      await _flightLogService.stopRecording(
+        arrivalAirport: nearestAirport?.displayName,
+        onGround: _simulatorData.onGround,
+      );
+    }
+
     await _dataSubscription?.cancel();
     _dataSubscription = null;
 
