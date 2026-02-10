@@ -74,8 +74,8 @@ class MapLayerPicker {
                   _buildOption(
                     context,
                     current,
-                    MapLayerType.aviation,
-                    '航空',
+                    MapLayerType.taxiway,
+                    '滑行道',
                     Icons.flight,
                     onSelected,
                   ),
@@ -83,8 +83,8 @@ class MapLayerPicker {
                   _buildOption(
                     context,
                     current,
-                    MapLayerType.aviationDark,
-                    '航空·深色',
+                    MapLayerType.taxiwayDark,
+                    '滑行道·深色',
                     Icons.flight,
                     onSelected,
                   ),

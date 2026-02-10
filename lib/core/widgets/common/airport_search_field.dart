@@ -93,7 +93,7 @@ class _AirportSearchFieldState extends State<AirportSearchField> {
       if (text.isNotEmpty) {
         if (text.length == 4 && RegExp(r'^[A-Z0-9]{4}$').hasMatch(text)) {
           _validateAndNotify(text);
-        } else if (text.length > 0) {
+        } else if (text.isNotEmpty) {
           // 输入了内容但不是有效的ICAO格式
           if (mounted) {
             setState(() => _validationError = '请输入4位有效的ICAO代码');

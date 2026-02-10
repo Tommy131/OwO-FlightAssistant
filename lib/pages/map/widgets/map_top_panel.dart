@@ -20,6 +20,7 @@ class MapTopPanel extends StatelessWidget {
   final bool showRunways;
   final bool showTaxiways;
   final bool showParkings;
+  final bool showGs;
   final bool showRouteDistance;
   final bool showAircraftCompass;
   final bool isFilterExpanded;
@@ -27,6 +28,7 @@ class MapTopPanel extends StatelessWidget {
   final ValueChanged<bool> onShowRunwaysChanged;
   final ValueChanged<bool> onShowTaxiwaysChanged;
   final ValueChanged<bool> onShowParkingsChanged;
+  final ValueChanged<bool> onShowGsChanged;
   final ValueChanged<bool> onShowRouteDistanceChanged;
   final ValueChanged<bool> onShowAircraftCompassChanged;
 
@@ -41,6 +43,7 @@ class MapTopPanel extends StatelessWidget {
     required this.showRunways,
     required this.showTaxiways,
     required this.showParkings,
+    required this.showGs,
     required this.showRouteDistance,
     required this.showAircraftCompass,
     required this.isFilterExpanded,
@@ -48,6 +51,7 @@ class MapTopPanel extends StatelessWidget {
     required this.onShowRunwaysChanged,
     required this.onShowTaxiwaysChanged,
     required this.onShowParkingsChanged,
+    required this.onShowGsChanged,
     required this.onShowRouteDistanceChanged,
     required this.onShowAircraftCompassChanged,
   });
@@ -229,12 +233,16 @@ class MapTopPanel extends StatelessWidget {
                               ),
                               SizedBox(width: 8 * scale),
                             ],
-                            _buildFilterToggle(
-                              '罗盘',
-                              showAircraftCompass,
-                              onShowAircraftCompassChanged,
-                              activeColor: Colors.blueAccent,
-                            ),
+                            _buildFilterToggle('下滑道', showGs, onShowGsChanged),
+                            SizedBox(width: 8 * scale),
+                            if (sim.isConnected) ...[
+                              _buildFilterToggle(
+                                '罗盘',
+                                showAircraftCompass,
+                                onShowAircraftCompassChanged,
+                                activeColor: Colors.blueAccent,
+                              ),
+                            ],
                             if (sim.isConnected) ...[
                               SizedBox(width: 8 * scale),
                               _buildFilterToggle(

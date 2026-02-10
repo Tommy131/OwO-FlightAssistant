@@ -98,6 +98,29 @@ class LNMDatabaseParser {
                         ? 'lonx'
                         : (reColumns.contains('pos_lon') ? 'pos_lon' : null)));
 
+        // 检查是否有 ils 表
+        final hasIlsTable = db
+            .select(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='ils'",
+            )
+            .isNotEmpty;
+
+        final String ilsJoin;
+        final String ilsSelect;
+        if (hasIlsTable && reColumns.contains('ils_id')) {
+          ilsJoin = '''
+            LEFT JOIN ils i1 ON re1.ils_id = i1.ils_id
+            LEFT JOIN ils i2 ON re2.ils_id = i2.ils_id
+          ''';
+          ilsSelect = '''
+            , i1.ident as le_ils_ident, i1.freq as le_ils_freq, i1.course as le_ils_course, i1.gs_angle as le_ils_gs, i1.latitude as le_ils_lat, i1.longitude as le_ils_lon
+            , i2.ident as he_ils_ident, i2.freq as he_ils_freq, i2.course as he_ils_course, i2.gs_angle as he_ils_gs, i2.latitude as he_ils_lat, i2.longitude as he_ils_lon
+          ''';
+        } else {
+          ilsJoin = '';
+          ilsSelect = '';
+        }
+
         if (reLatCol == null || reLonCol == null) {
           AppLogger.error(
             'Could not find lat/lon in runway_end. Available: ${reColumns.join(', ')}',
@@ -116,9 +139,11 @@ class LNMDatabaseParser {
             re2.name as he_ident,
             ${reLatCol != null ? "re2.$reLatCol" : "NULL"} as he_lat,
             ${reLonCol != null ? "re2.$reLonCol" : "NULL"} as he_lon
+            $ilsSelect
           FROM runway r
           JOIN runway_end re1 ON r.primary_end_id = re1.runway_end_id
           JOIN runway_end re2 ON r.secondary_end_id = re2.runway_end_id
+          $ilsJoin
           WHERE r.airport_id = ?
         ''';
         runwayRows = db.select(sql, [airportId]).map((row) => row).toList();
@@ -144,6 +169,35 @@ class LNMDatabaseParser {
 
       final runways = <RunwayInfo>[];
       for (final row in runwayRows) {
+        // 解析 ILS 信息
+        IlsInfo? leIls;
+        if (row['le_ils_freq'] != null) {
+          final double rawFreq = (row['le_ils_freq'] as num).toDouble();
+          leIls = IlsInfo(
+            ident: row['le_ils_ident'] as String?,
+            // LNM 频率通常以 kHz 存储（如 110500 代表 110.50），或者是 10Hz 为单位（如 11050）
+            // 根据常规做法，如果大于 10000 则是 kHz，否则可能是已经处理过的 MHz 或其他单位
+            freq: rawFreq > 1000 ? rawFreq / 1000.0 : rawFreq,
+            course: (row['le_ils_course'] as num?)?.toInt() ?? 0,
+            gsAngle: (row['le_ils_gs'] as num?)?.toDouble(),
+            lat: (row['le_ils_lat'] as num?)?.toDouble(),
+            lon: (row['le_ils_lon'] as num?)?.toDouble(),
+          );
+        }
+
+        IlsInfo? heIls;
+        if (row['he_ils_freq'] != null) {
+          final double rawFreq = (row['he_ils_freq'] as num).toDouble();
+          heIls = IlsInfo(
+            ident: row['he_ils_ident'] as String?,
+            freq: rawFreq > 1000 ? rawFreq / 1000.0 : rawFreq,
+            course: (row['he_ils_course'] as num?)?.toInt() ?? 0,
+            gsAngle: (row['he_ils_gs'] as num?)?.toDouble(),
+            lat: (row['he_ils_lat'] as num?)?.toDouble(),
+            lon: (row['he_ils_lon'] as num?)?.toDouble(),
+          );
+        }
+
         runways.add(
           RunwayInfo(
             ident: row['runway_ident'] as String,
@@ -156,6 +210,8 @@ class LNMDatabaseParser {
             heIdent: row['he_ident'] as String?,
             heLat: (row['he_lat'] as num?)?.toDouble(),
             heLon: (row['he_lon'] as num?)?.toDouble(),
+            leIls: leIls,
+            heIls: heIls,
           ),
         );
       }

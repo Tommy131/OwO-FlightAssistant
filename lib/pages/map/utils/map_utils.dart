@@ -14,20 +14,17 @@ String getTileUrl(MapLayerType type) {
       return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}';
     case MapLayerType.dark:
       return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    case MapLayerType.aviation:
+    case MapLayerType.taxiway:
       return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png';
-    case MapLayerType.aviationDark:
+    case MapLayerType.taxiwayDark:
       return 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}{r}.png';
   }
 }
 
 String? getAviationOverlayUrl(MapLayerType type) {
   switch (type) {
-    case MapLayerType.aviation:
-      // 使用标准 OSM 瓦片作为基础，它对中文等非拉丁字符有更好的支持
-      return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    case MapLayerType.aviationDark:
-      // 航空深色模式下，我们依然使用标准 OSM，但会在 map_page 中通过 Opacity 和背景色进行处理
+    case MapLayerType.taxiway:
+    case MapLayerType.taxiwayDark:
       return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     default:
       return null;

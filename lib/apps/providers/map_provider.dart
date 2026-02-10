@@ -402,24 +402,38 @@ class MapProvider with ChangeNotifier {
 
   /// 强制重新加载当前机场数据
   Future<void> refreshAirport() async {
-    // 优先刷新搜索的机场
-    if (_targetAirport != null) {
-      await selectTargetAirport(_targetAirport!.icaoCode);
-      return;
-    }
+    _isLoadingAirport = true;
+    notifyListeners();
 
-    // 其次刷新地图中心机场
-    if (_centerAirport != null) {
-      await _loadSpecificAirport(
-        _centerAirport!.icaoCode,
-        (data) => _centerAirport = data,
-      );
-      return;
-    }
+    try {
+      // 优先刷新搜索的机场
+      if (_targetAirport != null) {
+        await selectTargetAirport(_targetAirport!.icaoCode);
+        return;
+      }
 
-    // 最后才尝试刷新根据模拟器位置识别的机场
-    if (_lastIcao != null) {
-      await _loadAirportDetail(_lastIcao!, force: true);
+      // 其次刷新地图中心机场
+      if (_centerAirport != null) {
+        final icao = _centerAirport!.icaoCode;
+        final detail = await _airportService.fetchAirportDetail(
+          icao,
+          forceRefresh: true,
+        );
+        if (detail != null) {
+          _airportDetails[icao] = detail;
+          _centerAirport = detail;
+          notifyListeners();
+        }
+        return;
+      }
+
+      // 最后才尝试刷新根据模拟器位置识别的机场
+      if (_lastIcao != null) {
+        await _loadAirportDetail(_lastIcao!, force: true);
+      }
+    } finally {
+      _isLoadingAirport = false;
+      notifyListeners();
     }
   }
 

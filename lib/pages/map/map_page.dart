@@ -37,6 +37,7 @@ class _MapPageState extends State<MapPage> {
   bool _showParkings = true;
   bool _showTaxiways = true;
   bool _showRunways = true;
+  bool _showGs = true;
   bool _showRouteDistance = false;
   bool _showAircraftCompass = true;
   bool _isFilterExpanded = true;
@@ -73,6 +74,18 @@ class _MapPageState extends State<MapPage> {
   }
 
   void _updateAutoFilterLogic(SimulatorProvider sim, MapProvider map) {
+    if (!sim.isConnected) {
+      if (_showAircraftCompass) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _showAircraftCompass = false;
+          });
+        });
+      }
+      return;
+    }
+
     final phase = sim.flightPhase;
     if (phase == _lastFlightPhase) return;
     _lastFlightPhase = phase;
@@ -87,6 +100,7 @@ class _MapPageState extends State<MapPage> {
           // 飞行状态：隐藏滑行道、停机位，收起区域
           _showTaxiways = false;
           _showParkings = false;
+          _showGs = true; // 飞行中通常需要查看进近下滑道
           _isFilterExpanded = false;
           // 自动勾选气象雷达
           if (!map.showWeatherRadar) {
@@ -96,6 +110,7 @@ class _MapPageState extends State<MapPage> {
           // 地面状态：自动勾选滑行道、停机位
           _showTaxiways = true;
           _showParkings = true;
+          _showGs = false; // 地面不需要下滑道
         }
       });
     });
@@ -113,9 +128,7 @@ class _MapPageState extends State<MapPage> {
         final heading = data.heading ?? 0.0;
 
         // 自动过滤逻辑
-        if (simProvider.isConnected) {
-          _updateAutoFilterLogic(simProvider, mapProvider);
-        }
+        _updateAutoFilterLogic(simProvider, mapProvider);
 
         // 新飞行提示检测逻辑
         if (simProvider.isConnected && mapProvider.path.length > 10) {
@@ -195,6 +208,13 @@ class _MapPageState extends State<MapPage> {
           dangerSub = '过载超出限制';
         }
 
+        final aviationOverlayUrl = getAviationOverlayUrl(_layerType);
+        final showAirportDetailTiles =
+            aviationOverlayUrl != null &&
+            (_layerType == MapLayerType.taxiway ||
+                _layerType == MapLayerType.taxiwayDark) &&
+            zoom >= 14;
+
         return Scaffold(
           body: Stack(
             children: [
@@ -236,14 +256,11 @@ class _MapPageState extends State<MapPage> {
                     userAgentPackageName: 'com.owo.flight_assistant',
                     tileDisplay: const TileDisplay.fadeIn(),
                   ),
-                  if (_layerType == MapLayerType.aviation ||
-                      _layerType == MapLayerType.aviationDark)
+                  if (showAirportDetailTiles)
                     Opacity(
-                      opacity: _layerType == MapLayerType.aviation
-                          ? 0.35
-                          : 0.25,
+                      opacity: _layerType == MapLayerType.taxiway ? 0.35 : 0.25,
                       child: TileLayer(
-                        urlTemplate: getAviationOverlayUrl(_layerType)!,
+                        urlTemplate: aviationOverlayUrl,
                         subdomains: const ['a', 'b', 'c'],
                         userAgentPackageName:
                             'com.owo.flight_assistant/1.0 (Aviation Overlay)',
@@ -280,6 +297,7 @@ class _MapPageState extends State<MapPage> {
                       showTaxiways: _showTaxiways,
                       showRunways: _showRunways,
                       showParkings: _showParkings,
+                      showGs: _showGs,
                       layerType: _layerType,
                       scale: _scale,
                     ),
@@ -293,7 +311,7 @@ class _MapPageState extends State<MapPage> {
                     rotate: true,
                     markers: [
                       // Compass
-                      if (_showAircraftCompass)
+                      if (_showAircraftCompass && simProvider.isConnected)
                         Marker(
                           point: aircraftPos,
                           width: 200 * _scale,
@@ -472,11 +490,13 @@ class _MapPageState extends State<MapPage> {
                 showRunways: _showRunways,
                 showTaxiways: _showTaxiways,
                 showParkings: _showParkings,
+                showGs: _showGs,
                 showRouteDistance: _showRouteDistance,
                 showAircraftCompass: _showAircraftCompass,
                 onShowRunwaysChanged: (v) => setState(() => _showRunways = v),
                 onShowTaxiwaysChanged: (v) => setState(() => _showTaxiways = v),
                 onShowParkingsChanged: (v) => setState(() => _showParkings = v),
+                onShowGsChanged: (v) => setState(() => _showGs = v),
                 onShowRouteDistanceChanged: (v) =>
                     setState(() => _showRouteDistance = v),
                 onShowAircraftCompassChanged: (v) =>

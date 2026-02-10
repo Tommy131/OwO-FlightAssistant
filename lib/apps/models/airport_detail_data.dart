@@ -434,19 +434,41 @@ class RunwayInfo {
 
 /// ILS 信息
 class IlsInfo {
+  final String? ident; // ILS Identifier
   final double freq; // 频率 (MHz)
   final int course; // 航向 (Degrees)
+  final double? gsAngle; // 下滑角 (Degrees, 通常为 3.0)
+  final double? lat; // LOC/GS 坐标 (通常取 LOC 坐标)
+  final double? lon;
 
-  IlsInfo({required this.freq, required this.course});
+  IlsInfo({
+    this.ident,
+    required this.freq,
+    required this.course,
+    this.gsAngle,
+    this.lat,
+    this.lon,
+  });
 
   Map<String, dynamic> toJson() {
-    return {'freq': freq, 'course': course};
+    return {
+      'ident': ident,
+      'freq': freq,
+      'course': course,
+      'gsAngle': gsAngle,
+      'lat': lat,
+      'lon': lon,
+    };
   }
 
   factory IlsInfo.fromJson(Map<String, dynamic> json) {
     return IlsInfo(
+      ident: json['ident'] as String?,
       freq: (json['freq'] as num).toDouble(),
       course: (json['course'] as num).toInt(),
+      gsAngle: (json['gsAngle'] as num?)?.toDouble(),
+      lat: (json['lat'] as num?)?.toDouble(),
+      lon: (json['lon'] as num?)?.toDouble(),
     );
   }
 }

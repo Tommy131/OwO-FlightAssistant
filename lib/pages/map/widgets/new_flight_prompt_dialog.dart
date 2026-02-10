@@ -40,8 +40,9 @@ class NewFlightPromptDialog extends StatelessWidget {
     // 检查是否已经在飞行中，且有一定长度的轨迹。
     // 如果是 Tab 切换导致的重新 build，不应该重复弹出。
     // 我们已经在 MapPage 逻辑中处理了 _hasPromptedNewFlight，但这里可以增加一个安全检查
-    if (mapProvider.path.length < 50)
+    if (mapProvider.path.length < 50) {
       return; // 轨迹太短不提示，通常意味着刚刚开始记录，或者是静止状态下的漂移点
+    }
 
     showDialog(
       context: context,
