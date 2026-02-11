@@ -120,7 +120,7 @@ class _UnitConversionTabState extends State<UnitConversionTab> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 DropdownButtonFormField<String>(
-                  value: _selectedUnitType,
+                  initialValue: _selectedUnitType,
                   decoration: const InputDecoration(
                     labelText: '换算类型',
                     border: OutlineInputBorder(),
