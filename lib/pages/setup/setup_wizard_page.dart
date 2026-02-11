@@ -45,8 +45,8 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
     super.initState();
     _steps.addAll([
       WelcomeStep(onChoice: _handleWelcomeChoice),
-      PersonalizationStep(onNext: _nextStep),
       DatabaseStep(onNext: _nextStep),
+      PersonalizationStep(onNext: _nextStep),
       OnlineConfigStep(onNext: _nextStep),
       LoggingStep(onNext: _nextStep),
       CompletionStep(onFinish: _finishSetup),
@@ -59,7 +59,7 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
     } else {
       // 如果跳过引导，直接进入数据库配置（最基础的配置）
       _pageController.animateToPage(
-        2, // DatabaseStep
+        1, // DatabaseStep
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOut,
       );
@@ -69,6 +69,15 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
   void _nextStep() {
     if (_currentStep < _steps.length - 1) {
       _pageController.nextPage(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _previousStep() {
+    if (_currentStep > 0) {
+      _pageController.previousPage(
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOut,
       );
@@ -91,7 +100,15 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
             if (_currentStep > 0)
               Padding(
                 padding: const EdgeInsets.only(top: 20, bottom: 10),
-                child: _buildProgressBar(),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: _previousStep,
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+                    Expanded(child: _buildProgressBar()),
+                  ],
+                ),
               ),
 
             // 步骤内容

@@ -29,11 +29,28 @@ class LoggingStep extends StatefulWidget {
   State<LoggingStep> createState() => _LoggingStepState();
 }
 
-class _LoggingStepState extends State<LoggingStep> {
+class _LoggingStepState extends State<LoggingStep> with AutomaticKeepAliveClientMixin {
   bool _loggingEnabled = true;
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLoggingStatus();
+  }
+
+  Future<void> _loadLoggingStatus() async {
+    final enabled = await AppLogger.isFileLoggingEnabled();
+    if (mounted) {
+      setState(() => _loggingEnabled = enabled);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     return WizardStepView(
       title: '日志记录',
       subtitle: '启用日志记录可以帮助我们在您遇到问题时更快地进行诊断。',

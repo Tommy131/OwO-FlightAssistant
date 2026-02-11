@@ -17,6 +17,7 @@
  */
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 import 'package:path/path.dart' as p;
 import '../services/persistence/app_storage_paths.dart';
@@ -59,27 +60,55 @@ class AppLogger {
     _fileLoggingEnabled = enabled;
     _logger = await _buildLogger();
     if (enabled) {
-      final logDir = await AppStoragePaths.getLogDirectory();
-      final normalLog = File(p.join(logDir.path, 'app.log'));
-      final errorLog = File(p.join(logDir.path, 'app_error.log'));
-      if (!await normalLog.exists()) {
-        await normalLog.create(recursive: true);
+      try {
+        final logDir = await AppStoragePaths.getLogDirectory();
+        final normalLog = File(p.join(logDir.path, 'app.log'));
+        final errorLog = File(p.join(logDir.path, 'app_error.log'));
+
+        // Ensure log directory exists
+        if (!await logDir.exists()) {
+          await logDir.create(recursive: true);
+        }
+
+        // Create log files if they don't exist
+        if (!await normalLog.exists()) {
+          await normalLog.create(recursive: true);
+        }
+        if (!await errorLog.exists()) {
+          await errorLog.create(recursive: true);
+        }
+
+        _logger.i('File logging enabled at: ${logDir.path}');
+      } catch (e, stackTrace) {
+        _print('Failed to enable file logging: $e');
+        _print('Stack trace: $stackTrace');
+        _logger.w('File logging enabled but directory setup failed: $e');
       }
-      if (!await errorLog.exists()) {
-        await errorLog.create(recursive: true);
-      }
-      _logger.i('File logging enabled');
     } else {
       _logger.i('File logging disabled');
     }
   }
 
   static Logger _createLogger({LogOutput? fileOutput}) {
-    final outputs = <LogOutput>[ConsoleOutput()];
+    final outputs = <LogOutput>[];
+
+    // In debug mode, always add console output
+    // In release mode, only add console if no file output is available
+    if (kDebugMode || fileOutput == null) {
+      outputs.add(ConsoleOutput());
+    }
+
     if (fileOutput != null) {
       outputs.add(fileOutput);
     }
+
+    // Ensure we always have at least one output
+    if (outputs.isEmpty) {
+      outputs.add(ConsoleOutput());
+    }
+
     return Logger(
+      filter: ProductionFilter(), // 明确指定在生产环境下也进行日志记录
       printer: PrettyPrinter(
         methodCount: 2,
         errorMethodCount: 8,
@@ -112,12 +141,46 @@ class AppLogger {
 class _FileLogOutput extends LogOutput {
   final String logDirPath;
   final int thresholdMb;
+  bool _directoryVerified = false;
 
-  _FileLogOutput(this.logDirPath, this.thresholdMb);
+  _FileLogOutput(this.logDirPath, this.thresholdMb) {
+    // Log initialization info
+    _print(
+      'Initializing file logger in ${kDebugMode ? 'DEBUG' : 'RELEASE'} mode',
+    );
+    _print('Log directory: $logDirPath');
+    _print('Rotation threshold: ${thresholdMb}MB');
+
+    // Verify directory exists on creation
+    _verifyDirectory();
+
+    if (_directoryVerified) {
+      _print('Log directory verified successfully');
+    }
+  }
+
+  void _verifyDirectory() {
+    try {
+      final dir = Directory(logDirPath);
+      if (!dir.existsSync()) {
+        dir.createSync(recursive: true);
+      }
+      _directoryVerified = true;
+    } catch (e) {
+      // Print to console if directory creation fails
+      _print('Failed to create log directory: $e');
+      _directoryVerified = false;
+    }
+  }
 
   @override
   void output(OutputEvent event) {
     if (event.lines.isEmpty) return;
+    if (!_directoryVerified) {
+      _verifyDirectory();
+      if (!_directoryVerified) return;
+    }
+
     final content = event.lines.join('\n');
     final cleanContent = content.replaceAll(
       RegExp(r'\x1B\[[0-9;]*[A-Za-z]'),
@@ -127,14 +190,37 @@ class _FileLogOutput extends LogOutput {
     final isError = event.level.index >= Level.error.index;
     final fileName = isError ? 'app_error.log' : 'app.log';
     final filePath = p.join(logDirPath, fileName);
-    final file = File(filePath);
 
+    _print('Attempting to write ${event.level.name} log to: $filePath');
+
+    // Use async write in a separate isolate to avoid blocking
+    _writeToFile(filePath, line);
+  }
+
+  void _writeToFile(String filePath, String line) {
     try {
-      if (file.existsSync() && file.lengthSync() > thresholdMb * 1024 * 1024) {
-        _rotateLogFile(filePath);
+      final file = File(filePath);
+
+      // Ensure parent directory exists
+      final parentDir = file.parent;
+      if (!parentDir.existsSync()) {
+        parentDir.createSync(recursive: true);
       }
+
+      // Check file size and rotate if needed
+      if (file.existsSync()) {
+        final fileSize = file.lengthSync();
+        if (fileSize > thresholdMb * 1024 * 1024) {
+          _rotateLogFile(filePath);
+        }
+      }
+
+      // Write to file with flush to ensure data is written immediately
       file.writeAsStringSync(line, mode: FileMode.append, flush: true);
-    } catch (_) {}
+    } catch (e) {
+      // Print to console if file write fails (for debugging production issues)
+      _print('Failed to write log to file: $e');
+    }
   }
 
   void _rotateLogFile(String filePath) {
@@ -156,8 +242,21 @@ class _FileLogOutput extends LogOutput {
       );
 
       file.renameSync(newPath);
+
+      // Create new empty file
+      File(filePath).createSync();
     } catch (e) {
-      // Rotation failed
+      // Print to console if rotation fails
+      _print('Failed to rotate log file: $e');
     }
+  }
+}
+
+void _print(String message) {
+  if (kDebugMode) {
+    print(message);
+  } else {
+    // In release mode, write to stderr for diagnostics
+    stderr.writeln('[AppLogger] $message');
   }
 }

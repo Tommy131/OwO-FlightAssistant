@@ -12,19 +12,22 @@ class SetupGuideAutoDetectButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: isDetecting ? null : onAutoDetect,
-      icon: isDetecting
-          ? const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.search_rounded),
-      label: Text(isDetecting ? '正在自动识别中...' : '自动识别本地已安装的数据库'),
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: isDetecting ? null : onAutoDetect,
+        icon: isDetecting
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.search_rounded),
+        label: Text(isDetecting ? '正在自动识别中...' : '自动识别本地已安装的数据库'),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
       ),
     );
   }

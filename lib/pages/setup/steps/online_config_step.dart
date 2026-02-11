@@ -18,6 +18,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../apps/services/app_core/database_loader.dart';
 import '../../../apps/services/app_core/database_path_service.dart';
 import '../widgets/wizard_step_view.dart';
 
@@ -30,11 +31,29 @@ class OnlineConfigStep extends StatefulWidget {
   State<OnlineConfigStep> createState() => _OnlineConfigStepState();
 }
 
-class _OnlineConfigStepState extends State<OnlineConfigStep> {
+class _OnlineConfigStepState extends State<OnlineConfigStep>
+    with AutomaticKeepAliveClientMixin {
   final TextEditingController _tokenController = TextEditingController();
   final DatabasePathService _databaseService = DatabasePathService();
   bool _isValidating = false;
   String? _errorText;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedToken();
+  }
+
+  Future<void> _loadSavedToken() async {
+    final settings = DatabaseSettingsService();
+    final token = await settings.getString('airportdb_token');
+    if (token != null && mounted) {
+      _tokenController.text = token;
+    }
+  }
 
   Future<void> _validateAndNext() async {
     final token = _tokenController.text.trim();
@@ -63,6 +82,7 @@ class _OnlineConfigStepState extends State<OnlineConfigStep> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     return WizardStepView(
       title: '在线数据库配置',
       subtitle: '配置 API Token 后，应用可以从云端获取更详细的机场天气和详细信息。',

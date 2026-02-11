@@ -59,11 +59,13 @@ class AppStoragePaths {
   }
 
   /// 获取基础数据存储目录
-  static Future<Directory> getBaseDirectory() async {
+  static Future<Directory> getBaseDirectory({
+    bool createIfMissing = true,
+  }) async {
     final customPath = await _getCustomBaseDirPath();
     if (customPath != null && customPath.isNotEmpty) {
       final customDir = Directory(customPath);
-      if (!await customDir.exists()) {
+      if (createIfMissing && !await customDir.exists()) {
         await customDir.create(recursive: true);
       }
       return customDir;
@@ -100,28 +102,34 @@ class AppStoragePaths {
     }
   }
 
-  static Future<Directory> getLogDirectory() async {
-    final baseDir = await getBaseDirectory();
+  static Future<Directory> getLogDirectory({
+    bool createIfMissing = true,
+  }) async {
+    final baseDir = await getBaseDirectory(createIfMissing: createIfMissing);
     final logDir = Directory(p.join(baseDir.path, 'logs'));
-    if (!await logDir.exists()) {
+    if (createIfMissing && !await logDir.exists()) {
       await logDir.create(recursive: true);
     }
     return logDir;
   }
 
-  static Future<Directory> getFlightLogDirectory() async {
-    final baseDir = await getBaseDirectory();
+  static Future<Directory> getFlightLogDirectory({
+    bool createIfMissing = true,
+  }) async {
+    final baseDir = await getBaseDirectory(createIfMissing: createIfMissing);
     final flightDir = Directory(p.join(baseDir.path, 'flight_logs'));
-    if (!await flightDir.exists()) {
+    if (createIfMissing && !await flightDir.exists()) {
       await flightDir.create(recursive: true);
     }
     return flightDir;
   }
 
-  static Future<Directory> getBriefingDirectory() async {
-    final baseDir = await getBaseDirectory();
+  static Future<Directory> getBriefingDirectory({
+    bool createIfMissing = true,
+  }) async {
+    final baseDir = await getBaseDirectory(createIfMissing: createIfMissing);
     final briefingDir = Directory(p.join(baseDir.path, 'flight_briefings'));
-    if (!await briefingDir.exists()) {
+    if (createIfMissing && !await briefingDir.exists()) {
       await briefingDir.create(recursive: true);
     }
     return briefingDir;

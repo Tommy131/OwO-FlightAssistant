@@ -422,7 +422,9 @@ class FlightLogService extends ChangeNotifier {
 
   /// 保存日志到文件
   Future<String> saveLog(FlightLog log) async {
-    final logDir = await AppStoragePaths.getFlightLogDirectory();
+    final logDir = await AppStoragePaths.getFlightLogDirectory(
+      createIfMissing: true,
+    );
     final file = File(p.join(logDir.path, 'flight_${log.id}.json'));
     await file.writeAsString(jsonEncode(log.toJson()));
     return file.path;
@@ -431,9 +433,14 @@ class FlightLogService extends ChangeNotifier {
   /// 获取所有日志列表
   Future<List<FlightLog>> getLogs() async {
     AppLogger.info('读取飞行日志列表');
-    final logDir = await AppStoragePaths.getFlightLogDirectory();
+    final logDir = await AppStoragePaths.getFlightLogDirectory(
+      createIfMissing: false,
+    );
 
     final List<FlightLog> logs = [];
+    if (!await logDir.exists()) {
+      return logs;
+    }
     final files = logDir.listSync().whereType<File>().toList();
 
     for (final file in files) {
@@ -455,7 +462,9 @@ class FlightLogService extends ChangeNotifier {
 
   /// 导出日志 (分享)
   Future<void> exportLog(FlightLog log) async {
-    final logDir = await AppStoragePaths.getFlightLogDirectory();
+    final logDir = await AppStoragePaths.getFlightLogDirectory(
+      createIfMissing: true,
+    );
     final filePath = p.join(logDir.path, 'flight_${log.id}.json');
     final file = File(filePath);
 
@@ -497,7 +506,9 @@ class FlightLogService extends ChangeNotifier {
 
   /// 删除日志
   Future<void> deleteLog(String id) async {
-    final logDir = await AppStoragePaths.getFlightLogDirectory();
+    final logDir = await AppStoragePaths.getFlightLogDirectory(
+      createIfMissing: false,
+    );
     final file = File(p.join(logDir.path, 'flight_$id.json'));
     if (await file.exists()) {
       await file.delete();

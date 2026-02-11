@@ -12,8 +12,10 @@ class BriefingStorageService {
   static const int _maxHistoryCount = 50; // 最多保存50条历史记录
   static const String _briefingsFileName = 'briefings.json';
 
-  Future<File> _getBriefingsFile() async {
-    final dir = await AppStoragePaths.getBriefingDirectory();
+  Future<File> _getBriefingsFile({bool createIfMissing = true}) async {
+    final dir = await AppStoragePaths.getBriefingDirectory(
+      createIfMissing: createIfMissing,
+    );
     return File(p.join(dir.path, _briefingsFileName));
   }
 
@@ -27,7 +29,7 @@ class BriefingStorageService {
       final jsonList = briefingsToSave.map((b) => b.toJson()).toList();
       final jsonString = jsonEncode(jsonList);
 
-      final file = await _getBriefingsFile();
+      final file = await _getBriefingsFile(createIfMissing: true);
       await file.writeAsString(jsonString);
       AppLogger.info('成功保存 ${briefingsToSave.length} 条简报记录');
       return true;
@@ -40,7 +42,7 @@ class BriefingStorageService {
   /// 加载简报历史记录
   Future<List<FlightBriefing>> loadBriefings() async {
     try {
-      final file = await _getBriefingsFile();
+      final file = await _getBriefingsFile(createIfMissing: false);
       if (await file.exists()) {
         final jsonString = await file.readAsString();
         if (jsonString.trim().isEmpty) {
@@ -67,7 +69,7 @@ class BriefingStorageService {
   /// 清除所有简报记录
   Future<bool> clearBriefings() async {
     try {
-      final file = await _getBriefingsFile();
+      final file = await _getBriefingsFile(createIfMissing: false);
       if (await file.exists()) {
         await file.delete();
       }

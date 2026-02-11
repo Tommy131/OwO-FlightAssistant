@@ -166,9 +166,6 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
           }
         });
 
-        // 初始化简报提供者，加载历史记录
-        briefingProvider.initialize();
-
         // 在这里启动预加载，确保在 UI 渲染出 SplashScreen 后开始
         _initializeApp();
       }
@@ -192,10 +189,14 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       return;
     }
 
-    // 2. 预加载机场数据 (导航中心加载)
+    // 2. 预加载地图缓存和机场数据 (导航中心加载)
+    AppInitializer.initializeMapCache();
     await AppInitializer.preloadAirportData();
 
     if (mounted) {
+      // 初始化简报提供者，加载历史记录
+      context.read<BriefingProvider>().initialize();
+
       setState(() => _isPreloading = false);
       await AppInitializer.setupWindow();
 
