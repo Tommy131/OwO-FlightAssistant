@@ -75,14 +75,15 @@ class _NearbyAirportsLayerState extends State<NearbyAirportsLayer> {
   }
 
   void _prefetchIfNeeded(List<AirportInfo> airports) {
+    if (widget.zoom < 12) return;
     final now = DateTime.now();
     if (_lastPrefetch != null &&
-        now.difference(_lastPrefetch!).inMilliseconds < 500) {
+        now.difference(_lastPrefetch!).inMilliseconds < 1500) {
       return;
     }
 
     final pending = <String>{};
-    for (final airport in airports.take(8)) {
+    for (final airport in airports.take(3)) {
       final icao = airport.icaoCode.toUpperCase();
       if (_prefetched.contains(icao)) continue;
       if (widget.mapProvider.getCachedAirportDetail(icao) != null) {

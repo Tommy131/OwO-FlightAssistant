@@ -43,6 +43,8 @@ class MapProvider with ChangeNotifier {
   DateTime? _lastAutoRefresh;
   bool _hasPromptedNewFlight = false;
   String? _lastPromptedAircraft;
+  bool _isPrefetching = false;
+  final Set<String> _pendingPrefetch = {};
 
   StreamSubscription<TakeoffData>? _takeoffSubscription;
   StreamSubscription<LandingData>? _landingSubscription;
@@ -472,13 +474,21 @@ class MapProvider with ChangeNotifier {
     for (final icao in icaos) {
       final normalized = icao.trim().toUpperCase();
       if (normalized.isEmpty) continue;
-      if (_airportDetails.containsKey(normalized)) continue;
       targets.add(normalized);
     }
     if (targets.isEmpty) return;
 
+    _pendingPrefetch.addAll(
+      targets.where((icao) => !_airportDetails.containsKey(icao)),
+    );
+    if (_pendingPrefetch.isEmpty || _isPrefetching) return;
+
+    _isPrefetching = true;
     var updated = false;
-    for (final icao in targets) {
+    while (_pendingPrefetch.isNotEmpty) {
+      final icao = _pendingPrefetch.first;
+      _pendingPrefetch.remove(icao);
+      if (_airportDetails.containsKey(icao)) continue;
       try {
         final detail = await _airportService.fetchAirportDetail(
           icao,
@@ -491,7 +501,9 @@ class MapProvider with ChangeNotifier {
       } catch (e) {
         continue;
       }
+      await Future<void>.delayed(const Duration(milliseconds: 8));
     }
+    _isPrefetching = false;
     if (updated) {
       notifyListeners();
     }
