@@ -16,7 +16,6 @@
  * @GitHub       : https://github.com/Tommy131
  */
 
-import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -24,6 +23,7 @@ import '../../data/airports_database.dart';
 import '../airport_detail_service.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/services/persistence/persistence_service.dart';
+import 'database_loader.dart';
 
 class AppInitializer {
   /// 初始化地图缓存，设置默认过期时间以消除警告
@@ -36,6 +36,9 @@ class AppInitializer {
   /// 检查是否需要显示启动引导
   static Future<bool> checkSetupNeeded() async {
     final persistence = PersistenceService();
+    final settings = DatabaseSettingsService();
+    final loader = DatabaseLoader();
+    await settings.ensureSynced();
 
     // 如果设置已完成标记不存在或为 false，则需要引导
     if (!(persistence.getBool('is_setup_complete') ?? false)) {
@@ -43,8 +46,10 @@ class AppInitializer {
     }
 
     // 同时检查关键数据路径是否有效
-    final lnmPath = persistence.getString('lnm_nav_data_path');
-    if (lnmPath == null || lnmPath.isEmpty || !await File(lnmPath).exists()) {
+    final lnmPath = await loader.resolveLnmPath();
+    final aptPath = await loader.resolveXPlaneAptPath();
+    if ((lnmPath == null || lnmPath.isEmpty) &&
+        (aptPath == null || aptPath.isEmpty)) {
       return true;
     }
 
@@ -55,12 +60,27 @@ class AppInitializer {
     await Future.delayed(const Duration(milliseconds: 800));
 
     if (!AirportsDatabase.isEmpty) {
+      AppLogger.debug('机场数据库已加载，跳过预加载');
       return;
     }
 
     try {
+      // 1. 验证数据库加载状态
+      final loader = DatabaseLoader();
+      final loadResult = await loader.loadAndValidate();
+
+      AppLogger.info('数据库状态:\n${loadResult.getStatusMessage()}');
+
+      if (!loadResult.hasAnyDatabase) {
+        AppLogger.error('无可用数据库，请在设置中配置数据源');
+        return;
+      }
+
+      // 2. 加载机场数据
       final detailService = AirportDetailService();
       final currentDataSource = await detailService.getDataSource();
+
+      AppLogger.info('当前数据源: ${currentDataSource.displayName}');
 
       final airports = await detailService.loadAllAirports(
         source: currentDataSource,
@@ -78,14 +98,14 @@ class AppInitializer {
             );
           }).toList(),
         );
-        AppLogger.info('App 启动: 成功预加载 ${airports.length} 个机场数据');
+        AppLogger.info('✓ 成功预加载 ${airports.length} 个机场数据');
       } else {
         AppLogger.warning(
-          'App 启动: 未能预加载机场数据 (数据源: ${currentDataSource.displayName})',
+          '⚠ 未能预加载机场数据 (数据源: ${currentDataSource.displayName})',
         );
       }
-    } catch (e) {
-      AppLogger.error('App 启动: 预加载机场数据失败: $e');
+    } catch (e, stackTrace) {
+      AppLogger.error('✗ 预加载机场数据失败: $e\n$stackTrace');
     }
   }
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme_data.dart';
+import '../../apps/services/app_core/database_loader.dart';
 
 class DataCacheSettingsPage extends StatefulWidget {
   final VoidCallback? onBack;
@@ -23,23 +23,28 @@ class _DataCacheSettingsPageState extends State<DataCacheSettingsPage> {
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    final settings = DatabaseSettingsService();
+    await settings.ensureSynced();
+    final metarExpiry =
+        await settings.getInt(DatabaseSettingsService.metarExpiryKey) ?? 60;
+    final airportExpiry =
+        await settings.getInt(DatabaseSettingsService.airportExpiryKey) ?? 30;
     setState(() {
-      _metarExpiryMinutes = prefs.getInt('metar_cache_expiry') ?? 60;
-      _airportExpiryDays = prefs.getInt('airport_data_expiry') ?? 30;
+      _metarExpiryMinutes = metarExpiry;
+      _airportExpiryDays = airportExpiry;
       _isLoading = false;
     });
   }
 
   Future<void> _saveMetarExpiry(int minutes) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('metar_cache_expiry', minutes);
+    final settings = DatabaseSettingsService();
+    await settings.setInt(DatabaseSettingsService.metarExpiryKey, minutes);
     setState(() => _metarExpiryMinutes = minutes);
   }
 
   Future<void> _saveAirportExpiry(int days) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('airport_data_expiry', days);
+    final settings = DatabaseSettingsService();
+    await settings.setInt(DatabaseSettingsService.airportExpiryKey, days);
     setState(() => _airportExpiryDays = days);
   }
 

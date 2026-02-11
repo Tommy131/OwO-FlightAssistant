@@ -20,7 +20,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../airport_detail_service.dart';
 import 'auto_detect_service.dart';
-import '../../../core/services/persistence/persistence_service.dart';
+import 'database_loader.dart';
 
 class DatabasePathSelectionResult {
   final String? lnmPath;
@@ -44,7 +44,7 @@ class DatabasePathService {
   static const String _aviationApiBase = 'https://airportdb.io/api/v1/airport';
 
   final AutoDetectService _autoDetectService;
-  final PersistenceService _persistence = PersistenceService();
+  final DatabaseSettingsService _settings = DatabaseSettingsService();
 
   DatabasePathService({AutoDetectService? autoDetectService})
     : _autoDetectService = autoDetectService ?? AutoDetectService();
@@ -71,14 +71,14 @@ class DatabasePathService {
   Future<Map<String, String>?> saveLnmPath(String path) async {
     final isValid = await validateLnmDatabase(path);
     if (!isValid) return null;
-    await _persistence.setString(lnmPathKey, path);
+    await _settings.setString(lnmPathKey, path);
     return getDatabaseInfo(path, AirportDataSource.lnmData);
   }
 
   Future<Map<String, String>?> saveXPlanePath(String path) async {
     final isValid = await validateXPlaneData(path);
     if (!isValid) return null;
-    await _persistence.setString(xplanePathKey, path);
+    await _settings.setString(xplanePathKey, path);
     return getDatabaseInfo(path, AirportDataSource.xplaneData);
   }
 
@@ -90,11 +90,11 @@ class DatabasePathService {
     Map<String, String>? xplaneInfo;
 
     if (lnmPath != null) {
-      await _persistence.setString(lnmPathKey, lnmPath);
+      await _settings.setString(lnmPathKey, lnmPath);
       lnmInfo = await getDatabaseInfo(lnmPath, AirportDataSource.lnmData);
     }
     if (xplanePath != null) {
-      await _persistence.setString(xplanePathKey, xplanePath);
+      await _settings.setString(xplanePathKey, xplanePath);
       xplaneInfo = await getDatabaseInfo(
         xplanePath,
         AirportDataSource.xplaneData,
@@ -127,7 +127,7 @@ class DatabasePathService {
   }
 
   Future<void> resetTokenCount() async {
-    await _persistence.setInt(_tokenCountKey, 0);
+    await _settings.setInt(_tokenCountKey, 0);
   }
 
   Future<void> clearMetarCache() async {
@@ -137,6 +137,6 @@ class DatabasePathService {
   }
 
   Future<void> saveToken(String token) async {
-    await _persistence.setString(_airportDbTokenKey, token);
+    await _settings.setString(_airportDbTokenKey, token);
   }
 }

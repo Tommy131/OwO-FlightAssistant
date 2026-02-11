@@ -13,6 +13,7 @@ import '../../core/utils/logger.dart';
 import '../../core/widgets/common/database_selection_dialog.dart';
 import '../../core/services/persistence/app_storage_paths.dart';
 import '../../core/services/persistence/persistence_service.dart';
+import '../../apps/services/app_core/database_loader.dart';
 
 /// 数据路径设置页面
 class DataPathSettingsPage extends StatefulWidget {
@@ -72,6 +73,7 @@ class _DataPathSettingsPageState extends State<DataPathSettingsPage> {
 
   Future<void> _loadSavedPaths() async {
     setState(() => _isLoading = true);
+    await DatabaseSettingsService().ensureSynced();
 
     // Updated to use _persistence
     final baseDir = await AppStoragePaths.getBaseDirectory();

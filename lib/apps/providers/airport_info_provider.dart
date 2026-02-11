@@ -5,11 +5,13 @@ import '../data/airports_database.dart';
 import '../models/airport_detail_data.dart';
 import '../services/airport_detail_service.dart';
 import '../services/weather_service.dart';
+import '../services/app_core/database_loader.dart';
 import '../../core/utils/logger.dart';
 
 class AirportInfoProvider extends ChangeNotifier {
   final AirportDetailService _detailService = AirportDetailService();
   final WeatherService _weatherService = WeatherService();
+  final DatabaseSettingsService _settings = DatabaseSettingsService();
 
   // State
   final List<AirportInfo> _userSavedAirports = [];
@@ -130,7 +132,9 @@ class AirportInfoProvider extends ChangeNotifier {
     _userSavedAirports.addAll(loadedAirports);
     AppLogger.info('已加载保存机场: ${_userSavedAirports.length} 个');
 
-    final expiryMinutes = prefs.getInt('metar_cache_expiry') ?? 60;
+    await _settings.ensureSynced();
+    final expiryMinutes =
+        await _settings.getInt(DatabaseSettingsService.metarExpiryKey) ?? 60;
     for (final airport in loadedAirports) {
       final cachedMetar = _weatherService.getCachedMetar(airport.icaoCode);
       if (cachedMetar != null && !cachedMetar.isExpired(expiryMinutes)) {
@@ -165,8 +169,11 @@ class AirportInfoProvider extends ChangeNotifier {
 
     if (airports.isEmpty) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final expiryMinutes = prefs.getInt('metar_cache_expiry') ?? 60;
+    await _settings.ensureSynced();
+    final expiryMinutes =
+        await _settings.getInt(DatabaseSettingsService.metarExpiryKey) ?? 60;
+    final airportExpiryDays =
+        await _settings.getInt(DatabaseSettingsService.airportExpiryKey) ?? 30;
 
     // Check if fetch is needed
     bool needsFetch = force;
@@ -178,7 +185,6 @@ class AirportInfoProvider extends ChangeNotifier {
           break;
         }
         final detail = _airportDetails[airport.icaoCode];
-        final airportExpiryDays = prefs.getInt('airport_data_expiry') ?? 30;
         if (detail == null || detail.isExpired(airportExpiryDays)) {
           needsFetch = true;
           break;
@@ -195,7 +201,7 @@ class AirportInfoProvider extends ChangeNotifier {
       // Fetch METAR
       await _fetchMetarForAirport(airport, force, expiryMinutes);
       // Fetch Details
-      await _fetchDetailsForAirport(airport, force, prefs);
+      await _fetchDetailsForAirport(airport, force, airportExpiryDays);
     }
 
     _isLoading = false;
@@ -236,10 +242,9 @@ class AirportInfoProvider extends ChangeNotifier {
   Future<void> _fetchDetailsForAirport(
     AirportInfo airport,
     bool force,
-    SharedPreferences prefs,
+    int airportExpiryDays,
   ) async {
     final detail = _airportDetails[airport.icaoCode];
-    final airportExpiryDays = prefs.getInt('airport_data_expiry') ?? 30;
 
     if (force || detail == null || detail.isExpired(airportExpiryDays)) {
       try {

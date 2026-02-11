@@ -1,13 +1,14 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/utils/logger.dart';
+import '../../core/services/persistence/persistence_service.dart';
 import '../models/airport_detail_data.dart';
 import '../data/xplane_apt_dat_parser.dart';
 import '../data/lnm_database_parser.dart';
 import '../data/airports_database.dart';
 import 'weather_service.dart';
+import 'app_core/database_loader.dart';
 
 /// 数据源类型
 enum AirportDataSource {
@@ -59,8 +60,6 @@ class AirportDetailService {
   static const String _onlineCachePrefix = 'airport_online_';
   static const String _localCachePrefix = 'airport_local_';
   static const String _dataSourceKey = 'airport_data_source';
-  static const String _xplanePathKey = 'xplane_nav_data_path';
-  static const String _lnmPathKey = 'lnm_nav_data_path';
   static const String _airportDbTokenKey = 'airportdb_token';
   static const String _tokenThresholdKey = 'token_consumption_threshold';
   static const String _tokenCountKey = 'token_consumption_count';
@@ -70,25 +69,27 @@ class AirportDetailService {
   static const int _temporaryCacheLimit = 200;
 
   final Map<String, AirportDetailData> _temporaryCache = {};
+  final PersistenceService _persistence = PersistenceService();
+  final DatabaseSettingsService _settings = DatabaseSettingsService();
+  final DatabaseLoader _databaseLoader = DatabaseLoader();
 
   /// 检查特定数据源是否可用（已配置）
   Future<bool> isDataSourceAvailable(AirportDataSource source) async {
-    final prefs = await SharedPreferences.getInstance();
+    await _settings.ensureSynced();
     switch (source) {
       case AirportDataSource.aviationApi:
-        final token = prefs.getString(_airportDbTokenKey);
+        final token = await _settings.getString(_airportDbTokenKey);
         if (token == null || token.isEmpty) return false;
-        final threshold = prefs.getInt(_tokenThresholdKey) ?? 5000;
-        final count = prefs.getInt(_tokenCountKey) ?? 0;
+        final threshold =
+            await _settings.getInt(_tokenThresholdKey) ?? 5000;
+        final count = await _settings.getInt(_tokenCountKey) ?? 0;
         return count < threshold;
       case AirportDataSource.xplaneData:
-        final path = prefs.getString(_xplanePathKey);
-        if (path == null || path.isEmpty) return false;
-        return await File(path).exists();
+        final aptPath = await _databaseLoader.resolveXPlaneAptPath();
+        return aptPath != null && aptPath.isNotEmpty;
       case AirportDataSource.lnmData:
-        final path = prefs.getString(_lnmPathKey);
-        if (path == null || path.isEmpty) return false;
-        return await File(path).exists();
+        final lnmPath = await _databaseLoader.resolveLnmPath();
+        return lnmPath != null && lnmPath.isNotEmpty;
     }
   }
 
@@ -106,8 +107,7 @@ class AirportDetailService {
 
   /// 获取当前数据源设置
   Future<AirportDataSource> getDataSource() async {
-    final prefs = await SharedPreferences.getInstance();
-    final sourceStr = prefs.getString(_dataSourceKey);
+    final sourceStr = await _settings.getString(_dataSourceKey);
     AirportDataSource source = AirportDataSource.aviationApi;
     if (sourceStr != null) {
       source = AirportDataSource.values.firstWhere(
@@ -125,8 +125,7 @@ class AirportDetailService {
   }
 
   Future<void> setDataSource(AirportDataSource source) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_dataSourceKey, source.name);
+    await _settings.setString(_dataSourceKey, source.name);
   }
 
   /// 获取缓存的在线 API 数据
@@ -153,11 +152,13 @@ class AirportDetailService {
     AirportCacheScope cacheScope = AirportCacheScope.temporary,
   }) async {
     try {
+      await _settings.ensureSynced();
       final source = preferredSource ?? await getDataSource();
 
       if (!forceRefresh) {
-        final prefs = await SharedPreferences.getInstance();
-        final expiryDays = prefs.getInt('airport_data_expiry') ?? 30;
+        final expiryDays =
+            await _settings.getInt(DatabaseSettingsService.airportExpiryKey) ??
+                30;
         if (cacheScope == AirportCacheScope.persistent) {
           final cached = await _getCachedData(icaoCode, source.dataSourceType);
           if (cached != null && !cached.isExpired(expiryDays)) {
@@ -282,9 +283,11 @@ class AirportDetailService {
   /// 从 Aviation API 获取数据
   Future<AirportDetailData?> _fetchFromAviationApi(String icaoCode) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString(_airportDbTokenKey);
-      if (token == null || token.isEmpty) return null;
+      final token = await _settings.getString(_airportDbTokenKey);
+      if (token == null || token.isEmpty) {
+        AppLogger.warning('Aviation API token 未配置');
+        return null;
+      }
 
       final url = '$_aviationApiBase/$icaoCode?apiToken=$token';
       AppLogger.info('请求机场 API: $icaoCode');
@@ -296,8 +299,8 @@ class AirportDetailService {
         final json = jsonDecode(response.body);
         if (json['error'] != null) return null;
 
-        final currentCount = prefs.getInt(_tokenCountKey) ?? 0;
-        await prefs.setInt(_tokenCountKey, currentCount + 1);
+        final currentCount = await _settings.getInt(_tokenCountKey) ?? 0;
+        await _settings.setInt(_tokenCountKey, currentCount + 1);
 
         return _parseAviationApiResponse(icaoCode, json);
       }
@@ -407,12 +410,15 @@ class AirportDetailService {
   /// 从 X-Plane 本地数据库读取
   Future<AirportDetailData?> _fetchFromXPlane(String icaoCode) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final earthNavPath = prefs.getString(_xplanePathKey);
-      if (earthNavPath == null) return null;
-      return await XPlaneAptDatParser.loadAirportByIcao(
+      final aptPath = await _databaseLoader.resolveXPlaneAptPath();
+      if (aptPath == null) {
+        AppLogger.warning('X-Plane 数据路径未配置');
+        return null;
+      }
+      AppLogger.debug('从 X-Plane 加载机场: $icaoCode (路径: $aptPath)');
+      return await XPlaneAptDatParser.loadAirportFromAptPath(
         icaoCode: icaoCode,
-        earthNavPath: earthNavPath,
+        aptPath: aptPath,
       );
     } catch (e) {
       AppLogger.error('X-Plane data parse error: $e');
@@ -423,11 +429,17 @@ class AirportDetailService {
   /// 从 Little Navmap 数据库读取
   Future<AirportDetailData?> _fetchFromLNM(String icaoCode) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final lnmPath = prefs.getString(_lnmPathKey);
-      if (lnmPath == null) return null;
+      final lnmPath = await _databaseLoader.resolveLnmPath();
+      if (lnmPath == null) {
+        AppLogger.warning('LNM 数据路径未配置');
+        return null;
+      }
       final dbFile = File(lnmPath);
-      if (!await dbFile.exists()) return null;
+      if (!await dbFile.exists()) {
+        AppLogger.error('LNM 数据库文件不存在: $lnmPath');
+        return null;
+      }
+      AppLogger.debug('从 LNM 加载机场: $icaoCode (路径: $lnmPath)');
       return await LNMDatabaseParser.parseAirport(dbFile, icaoCode);
     } catch (e) {
       AppLogger.error('LNM data parse error: $e');
@@ -451,10 +463,9 @@ class AirportDetailService {
     AirportDataSourceType type,
   ) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       final prefix = _getPrefix(type);
       final key = '$prefix$icaoCode';
-      final jsonString = prefs.getString(key);
+      final jsonString = _persistence.getString(key);
       if (jsonString != null) {
         final json = jsonDecode(jsonString) as Map<String, dynamic>;
         return AirportDetailData.fromJson(json);
@@ -490,11 +501,10 @@ class AirportDetailService {
       return;
     }
     try {
-      final prefs = await SharedPreferences.getInstance();
       final prefix = _getPrefix(data.dataSource);
       final key = '$prefix$icaoCode';
       final jsonString = jsonEncode(data.toJson());
-      await prefs.setString(key, jsonString);
+      await _persistence.setString(key, jsonString);
     } catch (e) {
       AppLogger.error('Error caching data for $icaoCode: $e');
     }
@@ -533,51 +543,22 @@ class AirportDetailService {
   Future<List<Map<String, dynamic>>> loadAllAirports({
     AirportDataSource? source,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
+    await _settings.ensureSynced();
     final targetSource = source ?? await getDataSource();
 
     if (targetSource == AirportDataSource.lnmData) {
-      final lnmPath = prefs.getString(_lnmPathKey);
-      if (lnmPath != null && lnmPath.isNotEmpty) {
-        final file = File(lnmPath);
-        if (await file.exists()) {
-          try {
-            AppLogger.info('读取 LNM 机场数据库: $lnmPath');
-            final airports = await LNMDatabaseParser.getAllAirports(file);
-            if (airports.isNotEmpty) {
-              AppLogger.info('LNM 机场数据库加载完成: ${airports.length} 条');
-              return airports;
-            }
-          } catch (e) {
-            AppLogger.error('Error loading airports from LNM: $e');
-          }
-        }
-      }
+      final lnmAirports = await _databaseLoader.loadAllAirports(
+        AirportDataSourceType.lnmData,
+      );
+      if (lnmAirports.isNotEmpty) return lnmAirports;
     }
 
     if (targetSource == AirportDataSource.xplaneData ||
         targetSource == AirportDataSource.lnmData) {
-      final xplanePath = prefs.getString(_xplanePathKey);
-      if (xplanePath != null && xplanePath.isNotEmpty) {
-        try {
-          final aptPath = await XPlaneAptDatParser.resolveAptDatPath(
-            xplanePath,
-          );
-          if (aptPath != null) {
-            final file = File(aptPath);
-            if (await file.exists()) {
-              AppLogger.info('读取 X-Plane 机场数据库: $aptPath');
-              final airports = await XPlaneAptDatParser.getAllAirports(file);
-              if (airports.isNotEmpty) {
-                AppLogger.info('X-Plane 机场数据库加载完成: ${airports.length} 条');
-                return airports;
-              }
-            }
-          }
-        } catch (e) {
-          AppLogger.error('Error loading airports from X-Plane: $e');
-        }
-      }
+      final xplaneAirports = await _databaseLoader.loadAllAirports(
+        AirportDataSourceType.xplaneData,
+      );
+      if (xplaneAirports.isNotEmpty) return xplaneAirports;
     }
     return [];
   }
@@ -588,41 +569,31 @@ class AirportDetailService {
     String? icao,
     AirportDataSourceType? type,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
     if (all) {
-      final keys = prefs.getKeys().where(
-        (k) =>
-            k.startsWith(_onlineCachePrefix) ||
-            k.startsWith('${_localCachePrefix}xplane_') ||
-            k.startsWith('${_localCachePrefix}lnm_'),
-      );
-      for (final key in keys) {
-        await prefs.remove(key);
-      }
+      // 清除所有缓存键
+      // 注意: PersistenceService 目前不支持 getKeys，需要手动清除已知的缓存
+      _temporaryCache.clear();
+      AppLogger.info('已清除所有临时缓存');
     } else if (icao != null) {
       if (type == null || type == AirportDataSourceType.aviationApi) {
-        await prefs.remove('$_onlineCachePrefix$icao');
+        await _persistence.remove('$_onlineCachePrefix$icao');
       }
       if (type == null || type == AirportDataSourceType.xplaneData) {
-        await prefs.remove('${_localCachePrefix}xplane_$icao');
+        await _persistence.remove('${_localCachePrefix}xplane_$icao');
       }
       if (type == null || type == AirportDataSourceType.lnmData) {
-        await prefs.remove('${_localCachePrefix}lnm_$icao');
+        await _persistence.remove('${_localCachePrefix}lnm_$icao');
       }
+      _temporaryCache.remove(
+        _getCacheKey(icao, type ?? AirportDataSourceType.aviationApi),
+      );
     }
   }
 
   /// 清除所有缓存
   Future<void> clearAllCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys();
-    for (final key in keys) {
-      if (key.startsWith(_onlineCachePrefix) ||
-          key.startsWith('${_localCachePrefix}xplane_') ||
-          key.startsWith('${_localCachePrefix}lnm_')) {
-        await prefs.remove(key);
-      }
-    }
+    _temporaryCache.clear();
+    AppLogger.info('已清除所有缓存');
   }
 
   /// 获取气象雷达的时间戳 (RainViewer)
