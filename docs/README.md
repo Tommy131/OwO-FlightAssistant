@@ -8,8 +8,8 @@
 用户使用手册和操作指南，帮助你快速上手和使用应用。
 
 - **[QUICK_START.md](guides/QUICK_START.md)** - 快速入门指南
-- **[USAGE_EXAMPLES.md](guides/USAGE_EXAMPLES.md)** - 使用示例
 - **[SIMULATOR_CONNECTION_GUIDE.md](guides/SIMULATOR_CONNECTION_GUIDE.md)** - 模拟器连接指南
+- **[USAGE_EXAMPLES.md](guides/USAGE_EXAMPLES.md)** - 使用示例
 
 ### ✨ [features/](features/) - 功能文档
 各个功能模块的详细说明和使用方法。

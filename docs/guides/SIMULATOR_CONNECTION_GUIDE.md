@@ -63,41 +63,51 @@ X-Plane 原生支持 UDP 数据输出，无需额外插件。
 
 ## ✈️ MSFS 连接设置
 
-### 1. 安装 WebSocket 服务器
+### 1. 安装并启动 WebSocket 服务器
 
-MSFS 需要一个中间层来桥接 SimConnect 和 WebSocket。
+MSFS 需要一个中间层来桥接 SimConnect 和 WebSocket。我们提供了一个高性能的 Go 语言服务器。
 
-#### 推荐方案：使用 Node.js WebSocket 服务器
+#### 安装步骤：
 
-**下载并安装：**
-```bash
-# 克隆仓库
-git clone https://github.com/odwdinc/MSFS-WebSocket-Server.git
-cd MSFS-WebSocket-Server
+1. **安装 Go**（首次使用）
+   - 下载地址: https://golang.org/
+   - 推荐版本: 1.21 或更高
 
-# 安装依赖
-npm install
+2. **编译服务器**（首次使用）
+   ```bash
+   cd msfs_bridge
+   go build -o msfs-bridge.exe
+   ```
+   或双击 `build.bat`
 
-# 启动服务器
-npm start
+3. **启动服务器**
+   
+   方式一：使用批处理文件（Windows）
+   ```bash
+   双击 start.bat
+   ```
+   
+   方式二：使用命令行
+   ```bash
+   cd msfs_bridge
+   msfs-bridge.exe
+   ```
+
+服务器将在 `ws://localhost:8080` 运行
+
+#### 验证服务器运行
+
+启动后你应该看到：
 ```
-
-服务器默认运行在 `ws://localhost:8080`
-
-#### 替代方案：Python SimConnect 桥接
-
-```bash
-# 安装 Python-SimConnect
-pip install Python-SimConnect
-
-# 运行桥接脚本（需要自行编写）
-python msfs_websocket_bridge.py
+MSFS WebSocket Bridge started on port 8080
+Attempting to connect to MSFS...
+Connected to MSFS SimConnect
 ```
 
 ### 2. 在应用中连接
 
-1. **确保 MSFS 正在运行**
-2. **启动 WebSocket 服务器**
+1. **确保 MSFS 正在运行**（必须已加载飞机）
+2. **确保 WebSocket 服务器正在运行**
 3. 打开 **OwO! FlightAssistant**
 4. 进入 **飞行检查单** 页面
 5. 点击顶部的连接状态按钮
@@ -146,11 +156,23 @@ python msfs_websocket_bridge.py
 
 ### MSFS 无法连接
 
-1. **检查 WebSocket 服务器**：确保服务器正在运行
-2. **检查端口**：默认端口是 8080，确保没有被占用
-3. **检查 MSFS**：确保 MSFS 正在运行且已加载飞机
-4. **查看服务器日志**：检查 WebSocket 服务器的控制台输出
-5. **防火墙**：确保允许 WebSocket 连接
+1. **检查 MSFS 是否运行**：确保模拟器已启动并加载了飞机
+2. **检查 WebSocket 服务器**：
+   - 确保服务器正在运行（查看命令行窗口）
+   - 应该显示 "Connected to MSFS SimConnect"
+3. **检查端口**：默认端口是 8080，确保没有被占用
+4. **查看服务器日志**：使用 `-verbose` 参数查看详细日志
+   ```bash
+   msfs-bridge.exe -verbose
+   ```
+5. **防火墙**：确保允许 msfs-bridge.exe 访问网络
+6. **重启顺序**：
+   - 先启动 MSFS 并加载飞机
+   - 再启动 WebSocket 服务器
+   - 最后在应用中连接
+7. **SimConnect 配置**：
+   - 位置: `%LOCALAPPDATA%\Packages\Microsoft.FlightSimulator_*\LocalCache\SimConnect.xml`
+   - 通常不需要修改，但确保文件存在且格式正确
 
 ### 连接成功但无数据
 
