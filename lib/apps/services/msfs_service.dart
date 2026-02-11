@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/status.dart' as status;
 
 import '../models/simulator_data.dart';
 import '../utils/aircraft_detector.dart';
@@ -81,12 +80,37 @@ class MSFSService {
       // 发送订阅请求
       await _subscribeToSimVars();
 
-      _isConnected = true;
-      _currentData = _currentData.copyWith(isConnected: true);
-      _notifyData(_currentData);
+      // 注意：实际连接状态由服务器的status消息确定
+      // 这里只表示WebSocket握手成功
+      AppLogger.info('WebSocket 握手成功，等待 MSFS 连接确认...');
 
-      AppLogger.info('已成功连接到 MSFS！');
-      return true;
+      // 等待服务器确认连接（最多3秒）
+      final completer = Completer<bool>();
+      StreamSubscription? sub;
+
+      sub = _dataController.stream.listen((data) {
+        if (data.isConnected && !completer.isCompleted) {
+          completer.complete(true);
+          sub?.cancel();
+        }
+      });
+
+      try {
+        final connected = await completer.future.timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            // 超时也认为连接成功，可能服务器已经连接但还没发送status
+            _isConnected = true;
+            _currentData = _currentData.copyWith(isConnected: true);
+            _notifyData(_currentData);
+            return true;
+          },
+        );
+        AppLogger.info('已成功连接到 MSFS！');
+        return connected;
+      } finally {
+        sub.cancel();
+      }
     } catch (e) {
       AppLogger.error('连接 MSFS 过程出现异常', e);
       _handleDisconnect();
@@ -150,6 +174,22 @@ class MSFSService {
       final data = jsonDecode(message as String);
 
       if (data is Map<String, dynamic>) {
+        // 处理状态消息
+        if (data.containsKey('status')) {
+          final status = data['status'];
+          if (status == 'connected') {
+            AppLogger.info('MSFS WebSocket 服务器已连接到模拟器');
+            _isConnected = true;
+            _currentData = _currentData.copyWith(isConnected: true);
+            _notifyData(_currentData);
+          } else if (status == 'disconnected') {
+            AppLogger.warning('MSFS WebSocket 服务器与模拟器断开');
+            _handleDisconnect();
+          }
+          return;
+        }
+
+        // 处理数据消息
         _updateSimulatorData(data);
         _notifyData(_currentData);
       }
@@ -621,9 +661,9 @@ class MSFSService {
     _notifyData(_currentData);
 
     try {
-      // 避免某些情况下 sink.close 永远等待
+      // 使用标准的关闭代码 1000 (正常关闭)
       await _channel?.sink
-          .close(status.goingAway)
+          .close(1000)
           .timeout(
             const Duration(seconds: 1),
             onTimeout: () => AppLogger.error('MSFSService: WebSocket 关闭超时'),
