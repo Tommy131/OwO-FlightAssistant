@@ -749,17 +749,24 @@ class LNMDatabaseParser {
 
       if (identCol == null || latCol == null || lonCol == null) {
         AppLogger.error(
-          'Could determine ident/lat/lon columns in LNM database. Available: ${airportColumns.join(', ')}',
+          'Could not determine ident/lat/lon columns in LNM database. Available: ${airportColumns.join(', ')}',
         );
         return [];
       }
 
+      final columnTypes = _getTableColumnTypes(db, 'airport');
+      final typeColType = columnTypes['type']?.toLowerCase() ?? '';
       final hasTypeCol = airportColumns.contains('type');
-      // 如果有 type 且为 'H' 则是直升机场，我们通常过滤掉，但如果没有 type 则不进行过滤
+      final shouldFilterHeliport = hasTypeCol &&
+          (typeColType.contains('char') ||
+              typeColType.contains('text') ||
+              typeColType.contains('clob'));
       final selectIata = iataCol != null ? ", $iataCol as iata" : "";
-      final query = hasTypeCol
-          ? "SELECT $identCol as ident, name$selectIata, $latCol as lat, $lonCol as lon FROM airport WHERE type != 'H' AND $identCol IS NOT NULL AND $identCol != '' ORDER BY $identCol ASC"
-          : "SELECT $identCol as ident, name$selectIata, $latCol as lat, $lonCol as lon FROM airport WHERE $identCol IS NOT NULL AND $identCol != '' ORDER BY $identCol ASC";
+      final baseSelect =
+          "SELECT $identCol as ident, name$selectIata, $latCol as lat, $lonCol as lon FROM airport WHERE $identCol IS NOT NULL AND $identCol != ''";
+      final query = shouldFilterHeliport
+          ? "$baseSelect AND type != 'H' ORDER BY $identCol ASC"
+          : "$baseSelect ORDER BY $identCol ASC";
       final results = db.select(query);
 
       return results
@@ -790,6 +797,22 @@ class LNMDatabaseParser {
       return results.map((row) => row['name'] as String).toSet();
     } catch (e) {
       AppLogger.error('Error getting columns for table $tableName: $e');
+      return {};
+    }
+  }
+
+  static Map<String, String> _getTableColumnTypes(
+    Database db,
+    String tableName,
+  ) {
+    try {
+      final results = db.select('PRAGMA table_info($tableName)');
+      return {
+        for (final row in results)
+          (row['name'] as String): (row['type'] as String? ?? ''),
+      };
+    } catch (e) {
+      AppLogger.error('Error getting column types for table $tableName: $e');
       return {};
     }
   }
