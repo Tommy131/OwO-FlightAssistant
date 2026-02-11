@@ -29,6 +29,7 @@ import 'widgets/cards/acknowledgement_card.dart';
 import 'widgets/cards/legal_card.dart';
 import 'widgets/cards/copyright_card.dart';
 import 'widgets/cards/sponsor_card.dart';
+import 'widgets/cards/troubleshooting_card.dart';
 
 class AboutPage extends StatefulWidget {
   final VoidCallback onBack;
@@ -197,6 +198,8 @@ class _AboutPageState extends State<AboutPage> {
               const AcknowledgementCard(),
               const SizedBox(height: 16),
               const LegalCard(),
+              const SizedBox(height: 16),
+              const TroubleshootingCard(),
               const SizedBox(height: 16),
               const CopyrightCard(),
               const SizedBox(height: 32),
