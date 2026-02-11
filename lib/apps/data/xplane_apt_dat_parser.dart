@@ -66,6 +66,11 @@ class XPlaneAptDatParser {
       final dir = Directory(inputPath);
       final direct = File('${dir.path}${Platform.pathSeparator}apt.dat');
       if (await direct.exists()) return direct.path;
+      final root = await _findXPlaneRoot(dir);
+      if (root != null) {
+        final aptPath = await _findAptDatInRoot(root);
+        if (aptPath != null) return aptPath;
+      }
       final found = await _findFileRecursively(dir, 'apt.dat', maxDepth: 4);
       return found?.path;
     }
@@ -82,6 +87,11 @@ class XPlaneAptDatParser {
     if (lowerName == 'apt.dat') return file.path;
 
     // 如果是 earth_nav.dat 或其他文件，尝试通过相对位置定位 apt.dat
+    final root = await _findXPlaneRoot(file.parent);
+    if (root != null) {
+      final aptPath = await _findAptDatInRoot(root);
+      if (aptPath != null) return aptPath;
+    }
     return _locateAptDat(file.path);
   }
 
@@ -92,57 +102,63 @@ class XPlaneAptDatParser {
       final earthFile = File(earthNavPath);
       if (!await earthFile.exists()) return null;
 
-      final sep = Platform.pathSeparator;
-      final earthParent = earthFile.parent;
-      final parentName = earthParent.path
-          .split(Platform.pathSeparator)
-          .last
-          .toLowerCase();
-      Directory resourcesDir;
-      Directory xplaneRoot;
-      if (parentName == 'default data') {
-        resourcesDir = earthParent.parent;
-        xplaneRoot = resourcesDir.parent;
-      } else if (parentName == 'custom data') {
-        xplaneRoot = earthParent.parent;
-        resourcesDir = Directory('${xplaneRoot.path}${sep}Resources');
-      } else {
-        resourcesDir = earthParent.parent;
-        if (!resourcesDir.path.toLowerCase().endsWith('resources')) {
-          final probe = Directory('${resourcesDir.path}${sep}Resources');
-          resourcesDir = probe;
-        }
-        xplaneRoot = resourcesDir.parent;
-      }
-
-      final candidates = <Directory>[
-        Directory(
-          '${resourcesDir.path}${sep}default scenery${sep}default apt dat${sep}Earth nav data',
-        ),
-        Directory(
-          '${resourcesDir.path}${sep}default scenery${sep}Global Airports${sep}Earth nav data',
-        ),
-        Directory(
-          '${xplaneRoot.path}${sep}Custom Scenery${sep}Global Airports${sep}Earth nav data',
-        ),
-        Directory(
-          '${xplaneRoot.path}${sep}Global Scenery${sep}X-Plane 12 Global Airports${sep}Earth nav data',
-        ),
-      ];
-
-      for (final dir in candidates) {
-        final aptFile = File('${dir.path}${sep}apt.dat');
-        if (await aptFile.exists()) {
-          return aptFile.path;
-        }
-      }
-
-      final rootDir = xplaneRoot;
-      final found = await _findFileRecursively(rootDir, 'apt.dat', maxDepth: 8);
-      return found?.path;
+      final root = await _findXPlaneRoot(earthFile.parent);
+      if (root == null) return null;
+      return _findAptDatInRoot(root);
     } catch (_) {
       return null;
     }
+  }
+
+  static Future<Directory?> _findXPlaneRoot(Directory startDir) async {
+    var current = startDir;
+    for (var i = 0; i < 6; i++) {
+      final resources = Directory(
+        '${current.path}${Platform.pathSeparator}Resources',
+      );
+      final customData = Directory(
+        '${current.path}${Platform.pathSeparator}Custom Data',
+      );
+      if (await resources.exists() && await customData.exists()) {
+        return current;
+      }
+      final parent = current.parent;
+      if (parent.path == current.path) break;
+      current = parent;
+    }
+    return null;
+  }
+
+  static Future<String?> _findAptDatInRoot(Directory root) async {
+    final sep = Platform.pathSeparator;
+    final resourcesDir = Directory('${root.path}${sep}Resources');
+    final candidates = <Directory>[
+      Directory(
+        '${resourcesDir.path}${sep}default scenery${sep}default apt dat${sep}Earth nav data',
+      ),
+      Directory(
+        '${resourcesDir.path}${sep}default scenery${sep}Global Airports${sep}Earth nav data',
+      ),
+      Directory(
+        '${root.path}${sep}Custom Scenery${sep}Global Airports${sep}Earth nav data',
+      ),
+      Directory(
+        '${root.path}${sep}Global Scenery${sep}Global Airports${sep}Earth nav data',
+      ),
+      Directory(
+        '${root.path}${sep}Global Scenery${sep}X-Plane 12 Global Airports${sep}Earth nav data',
+      ),
+    ];
+
+    for (final dir in candidates) {
+      final aptFile = File('${dir.path}${sep}apt.dat');
+      if (await aptFile.exists()) {
+        return aptFile.path;
+      }
+    }
+
+    final found = await _findFileRecursively(root, 'apt.dat', maxDepth: 8);
+    return found?.path;
   }
 
   /// 递归查找指定文件名的文件
@@ -155,9 +171,13 @@ class XPlaneAptDatParser {
       if (depth > maxDepth) return null;
       try {
         await for (final entity in dir.list(followLinks: false)) {
-          if (entity is File &&
-              entity.path.toLowerCase().endsWith(fileName.toLowerCase())) {
-            return entity;
+          if (entity is File) {
+            final name = entity.uri.pathSegments.isEmpty
+                ? ''
+                : entity.uri.pathSegments.last;
+            if (name.toLowerCase() == fileName.toLowerCase()) {
+              return entity;
+            }
           }
           if (entity is Directory) {
             final res = await walk(entity, depth + 1);
