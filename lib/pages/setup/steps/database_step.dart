@@ -19,7 +19,10 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../apps/services/app_core/database_path_service.dart';
+import '../../../core/services/persistence/app_storage_paths.dart';
+import '../../../core/services/persistence/persistence_service.dart';
 import '../../../core/widgets/common/database_selection_dialog.dart';
+import '../../settings/widgets/settings_widgets.dart';
 import '../widgets/setup_guide_database_cards.dart';
 import '../widgets/wizard_step_view.dart';
 import '../widgets/setup_guide_actions.dart';
@@ -34,12 +37,28 @@ class DatabaseStep extends StatefulWidget {
 }
 
 class _DatabaseStepState extends State<DatabaseStep> {
+  String? _appDataPath;
   String? _lnmPath;
   String? _xplanePath;
   Map<String, String>? _lnmInfo;
   Map<String, String>? _xplaneInfo;
   bool _isDetecting = false;
+  bool _isUpdatingPath = false;
   final DatabasePathService _databasePathService = DatabasePathService();
+  final PersistenceService _persistence = PersistenceService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppDataPath();
+  }
+
+  Future<void> _loadAppDataPath() async {
+    final baseDir = await AppStoragePaths.getBaseDirectory();
+    if (mounted) {
+      setState(() => _appDataPath = baseDir.path);
+    }
+  }
 
   Future<void> _autoDetectPaths() async {
     setState(() => _isDetecting = true);
@@ -127,6 +146,41 @@ class _DatabaseStepState extends State<DatabaseStep> {
     }
   }
 
+  Future<void> _pickAppDataPath() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final selected = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: '选择应用数据存储目录',
+      initialDirectory: _appDataPath,
+    );
+    if (selected == null) return;
+
+    setState(() => _isUpdatingPath = true);
+    try {
+      final oldBase = await AppStoragePaths.getBaseDirectory();
+      await AppStoragePaths.setCustomBaseDirectory(selected);
+      final newBase = await AppStoragePaths.getBaseDirectory();
+      await AppStoragePaths.migrateBaseDirectory(oldBase, newBase);
+      await _persistence.switchBaseDirectory(newBase);
+      if (mounted) {
+        setState(() => _appDataPath = newBase.path);
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('✅ 应用数据存储路径已更新'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('修改失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdatingPath = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return WizardStepView(
@@ -139,6 +193,36 @@ class _DatabaseStepState extends State<DatabaseStep> {
             onAutoDetect: _autoDetectPaths,
           ),
           const SizedBox(height: 24),
+          SettingsCard(
+            title: '应用数据存储目录',
+            subtitle: '默认使用应用根目录，可按需更改',
+            icon: Icons.folder_shared_rounded,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _appDataPath ?? '正在获取...',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontFamily: 'monospace',
+                      ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _isUpdatingPath ? null : _pickAppDataPath,
+                  icon: _isUpdatingPath
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.drive_folder_upload_rounded, size: 18),
+                  label: Text(_isUpdatingPath ? '更新中...' : '选择存储目录'),
+                ),
+              ],
+            ),
+          ),
           SetupGuideDatabaseCards(
             lnmPath: _lnmPath,
             xplanePath: _xplanePath,
