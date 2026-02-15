@@ -15,8 +15,8 @@
  * @Telegram     : https://t.me/HanskiJay
  * @GitHub       : https://github.com/Tommy131
  */
-import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'logger.dart';
 
 class UrlLauncherHelper {
   UrlLauncherHelper._();
@@ -27,10 +27,10 @@ class UrlLauncherHelper {
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
       } else {
-        debugPrint('Cannot open link: $urlString');
+        AppLogger.warning('Cannot open link: $urlString');
       }
     } catch (e) {
-      debugPrint('打开链接失败: $e');
+      AppLogger.error('打开链接失败: $e');
     }
   }
 }

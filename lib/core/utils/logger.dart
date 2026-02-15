@@ -17,76 +17,67 @@
  */
 
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 import 'package:path/path.dart' as p;
-import '../services/persistence/app_storage_paths.dart';
-import '../services/persistence/persistence_service.dart';
+import '../services/persistence_service.dart';
 
 class AppLogger {
-  static const String fileLoggingEnabledKey = 'app_file_logging_enabled';
-  static const String logRotationThresholdKey = 'app_log_rotation_threshold_mb';
+  static const String _enabledKey = 'log_enabled';
+  static const String _maxSizeKey = 'log_split_size_mb';
+  static const int _defaultMaxSizeMb = 5;
 
   static Logger _logger = _createLogger();
-  static bool _fileLoggingEnabled = false;
-  static int _rotationThresholdMb = 2; // Default 2MB
+  static bool _enabled = true;
+  static int _maxSizeMb = _defaultMaxSizeMb;
+  static String? _logDirectory;
   static bool _initialized = false;
 
-  static Future<void> initialize() async {
+  static Future<void> init() async {
     if (_initialized) return;
-    final persistence = PersistenceService();
-    _fileLoggingEnabled = persistence.getBool(fileLoggingEnabledKey) ?? false;
-    _rotationThresholdMb = persistence.getInt(logRotationThresholdKey) ?? 2;
-    _logger = await _buildLogger();
+    final settings = loadSettings();
+    await _configure(settings);
     _initialized = true;
   }
 
-  static Future<bool> isFileLoggingEnabled() async {
-    return PersistenceService().getBool(fileLoggingEnabledKey) ?? false;
+  static LogSettings loadSettings() {
+    final persistence = PersistenceService();
+    final enabled = persistence.getBool(_enabledKey) ?? true;
+    final maxSizeMb = persistence.getInt(_maxSizeKey) ?? _defaultMaxSizeMb;
+    return LogSettings(enabled: enabled, maxFileSizeMb: maxSizeMb);
   }
 
-  static Future<int> getLogRotationThreshold() async {
-    return PersistenceService().getInt(logRotationThresholdKey) ?? 2;
+  static Future<void> updateSettings({
+    bool? enabled,
+    int? maxFileSizeMb,
+  }) async {
+    final persistence = PersistenceService();
+    final nextEnabled = enabled ?? _enabled;
+    final nextMaxSizeMb = maxFileSizeMb ?? _maxSizeMb;
+    await persistence.setBool(_enabledKey, nextEnabled);
+    await persistence.setInt(_maxSizeKey, nextMaxSizeMb);
+    await _configure(
+      LogSettings(enabled: nextEnabled, maxFileSizeMb: nextMaxSizeMb),
+    );
   }
 
-  static Future<void> setLogRotationThreshold(int mb) async {
-    await PersistenceService().setInt(logRotationThresholdKey, mb);
-    _rotationThresholdMb = mb;
+  static bool get isEnabled => _enabled;
+  static int get maxFileSizeMb => _maxSizeMb;
+  static String? get logDirectory => _logDirectory;
+
+  static void debug(String message) => _logger.d(message);
+  static void info(String message) => _logger.i(message);
+  static void warning(String message) => _logger.w(message);
+  static void error(String message, [dynamic error, StackTrace? stackTrace]) {
+    _logger.e(message, error: error, stackTrace: stackTrace);
+  }
+
+  static Future<void> _configure(LogSettings settings) async {
+    _enabled = settings.enabled;
+    _maxSizeMb = settings.maxFileSizeMb.clamp(1, 1024);
+
     _logger = await _buildLogger();
-  }
-
-  static Future<void> setFileLoggingEnabled(bool enabled) async {
-    await PersistenceService().setBool(fileLoggingEnabledKey, enabled);
-    _fileLoggingEnabled = enabled;
-    _logger = await _buildLogger();
-    if (enabled) {
-      try {
-        final logDir = await AppStoragePaths.getLogDirectory();
-        final normalLog = File(p.join(logDir.path, 'app.log'));
-        final errorLog = File(p.join(logDir.path, 'app_error.log'));
-
-        // Ensure log directory exists
-        if (!await logDir.exists()) {
-          await logDir.create(recursive: true);
-        }
-
-        // Create log files if they don't exist
-        if (!await normalLog.exists()) {
-          await normalLog.create(recursive: true);
-        }
-        if (!await errorLog.exists()) {
-          await errorLog.create(recursive: true);
-        }
-
-        _logger.i('File logging enabled at: ${logDir.path}');
-      } catch (e, stackTrace) {
-        _print('Failed to enable file logging: $e');
-        _print('Stack trace: $stackTrace');
-        _logger.w('File logging enabled but directory setup failed: $e');
-      }
-    } else {
-      _logger.i('File logging disabled');
-    }
   }
 
   static Logger _createLogger({LogOutput? fileOutput}) {
@@ -108,34 +99,48 @@ class AppLogger {
     }
 
     return Logger(
-      filter: ProductionFilter(), // 明确指定在生产环境下也进行日志记录
+      filter: ProductionFilter(), // Explicitly allow logs in release mode
+      output: MultiOutput(outputs),
       printer: PrettyPrinter(
         methodCount: 2,
         errorMethodCount: 8,
         lineLength: 120,
-        colors: true,
+        colors: true, // Enable console colors, file logs will strip ANSI codes
         printEmojis: true,
         dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart,
       ),
-      output: MultiOutput(outputs),
     );
   }
 
   static Future<Logger> _buildLogger() async {
     LogOutput? fileOutput;
-    if (_fileLoggingEnabled) {
-      final logDir = await AppStoragePaths.getLogDirectory();
-      fileOutput = _FileLogOutput(logDir.path, _rotationThresholdMb);
+
+    if (_enabled) {
+      _logDirectory = p.join(PersistenceService.getAppCacheRootPath(), 'logs');
+      try {
+        final logDir = Directory(_logDirectory!);
+        if (!await logDir.exists()) {
+          await logDir.create(recursive: true);
+        }
+        fileOutput = _FileLogOutput(_logDirectory!, _maxSizeMb);
+        _print('File logging enabled at: $_logDirectory');
+      } catch (e) {
+        _print('Failed to enable file logging: $e');
+      }
+    } else {
+      _logDirectory = null;
+      _print('File logging disabled');
     }
+
     return _createLogger(fileOutput: fileOutput);
   }
+}
 
-  static void debug(String message) => _logger.d(message);
-  static void info(String message) => _logger.i(message);
-  static void warning(String message) => _logger.w(message);
-  static void error(String message, [dynamic error, StackTrace? stackTrace]) {
-    _logger.e(message, error: error, stackTrace: stackTrace);
-  }
+class LogSettings {
+  final bool enabled;
+  final int maxFileSizeMb;
+
+  const LogSettings({required this.enabled, required this.maxFileSizeMb});
 }
 
 class _FileLogOutput extends LogOutput {
@@ -144,19 +149,7 @@ class _FileLogOutput extends LogOutput {
   bool _directoryVerified = false;
 
   _FileLogOutput(this.logDirPath, this.thresholdMb) {
-    // Log initialization info
-    _print(
-      'Initializing file logger in ${kDebugMode ? 'DEBUG' : 'RELEASE'} mode',
-    );
-    _print('Log directory: $logDirPath');
-    _print('Rotation threshold: ${thresholdMb}MB');
-
-    // Verify directory exists on creation
     _verifyDirectory();
-
-    if (_directoryVerified) {
-      _print('Log directory verified successfully');
-    }
   }
 
   void _verifyDirectory() {
@@ -167,7 +160,6 @@ class _FileLogOutput extends LogOutput {
       }
       _directoryVerified = true;
     } catch (e) {
-      // Print to console if directory creation fails
       _print('Failed to create log directory: $e');
       _directoryVerified = false;
     }
@@ -188,12 +180,11 @@ class _FileLogOutput extends LogOutput {
     );
     final line = cleanContent.endsWith('\n') ? cleanContent : '$cleanContent\n';
     final isError = event.level.index >= Level.error.index;
-    final fileName = isError ? 'app_error.log' : 'app.log';
+
+    // Determine file name based on error level
+    final fileName = isError ? 'error.log' : 'app.log';
     final filePath = p.join(logDirPath, fileName);
 
-    _print('Attempting to write ${event.level.name} log to: $filePath');
-
-    // Use async write in a separate isolate to avoid blocking
     _writeToFile(filePath, line);
   }
 
@@ -207,7 +198,7 @@ class _FileLogOutput extends LogOutput {
         parentDir.createSync(recursive: true);
       }
 
-      // Check file size and rotate if needed
+      // Check rotation
       if (file.existsSync()) {
         final fileSize = file.lengthSync();
         if (fileSize > thresholdMb * 1024 * 1024) {
@@ -215,10 +206,9 @@ class _FileLogOutput extends LogOutput {
         }
       }
 
-      // Write to file with flush to ensure data is written immediately
+      // Write synchronously to ensure it hits disk
       file.writeAsStringSync(line, mode: FileMode.append, flush: true);
     } catch (e) {
-      // Print to console if file write fails (for debugging production issues)
       _print('Failed to write log to file: $e');
     }
   }
@@ -230,33 +220,33 @@ class _FileLogOutput extends LogOutput {
 
       final extension = p.extension(filePath);
       final fileNameWithoutExt = p.basenameWithoutExtension(filePath);
-      final timestamp = DateTime.now()
-          .toString()
-          .replaceAll(':', '-')
-          .replaceAll(' ', '_')
-          .split('.')
-          .first;
+
+      // Use detailed timestamp for rotation
+      final now = DateTime.now();
+      final timestamp =
+          '${now.year}${_two(now.month)}${_two(now.day)}_'
+          '${_two(now.hour)}${_two(now.minute)}${_two(now.second)}';
+
       final newPath = p.join(
         logDirPath,
         '${fileNameWithoutExt}_$timestamp$extension',
       );
 
       file.renameSync(newPath);
-
-      // Create new empty file
       File(filePath).createSync();
     } catch (e) {
-      // Print to console if rotation fails
       _print('Failed to rotate log file: $e');
     }
   }
+
+  String _two(int value) => value.toString().padLeft(2, '0');
 }
 
 void _print(String message) {
   if (kDebugMode) {
-    print(message);
+    print('[AppLogger] $message');
   } else {
-    // In release mode, write to stderr for diagnostics
+    // In release mode, write to stderr for diagnostics if needed
     stderr.writeln('[AppLogger] $message');
   }
 }

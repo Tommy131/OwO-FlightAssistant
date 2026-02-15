@@ -1,9 +1,13 @@
 // theme_model.dart
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../localization/localization_keys.dart';
+import '../services/localization_service.dart';
 
 /// 主题配置模型
 class AppThemeData {
   final String name;
+  final String? localizationKey;
   final Color primaryColor;
   final Color secondaryColor;
   final Color accentColor;
@@ -11,28 +15,36 @@ class AppThemeData {
 
   const AppThemeData({
     required this.name,
+    this.localizationKey,
     required this.primaryColor,
     required this.secondaryColor,
     required this.accentColor,
     this.isCustom = false,
   });
 
+  String getLocalizedName(BuildContext context) {
+    if (localizationKey != null) {
+      return localizationKey!.tr(context);
+    }
+    return name;
+  }
+
   // ============ 私有颜色常量 ============
   // 背景色
-  static const Color _backgroundColor = Color(0xFFF7F8FA);
+  static const Color _backgroundColor = Color(0xFFF5F6FA);
   static const Color _surfaceColor = Colors.white;
-  static const Color _darkBackgroundColor = Color(0xFF0F172A);
-  static const Color _darkSurfaceColor = Color(0xFF111827);
+  static const Color _darkBackgroundColor = Color(0xFF1A1A2E);
+  static const Color _darkSurfaceColor = Color(0xFF16213E);
 
   // 文字颜色
-  static const Color _textPrimaryColor = Color(0xFF1F2937);
-  static const Color _textSecondaryColor = Color(0xFF4B5563);
-  static const Color _textDarkPrimaryColor = Color(0xFFE5E7EB);
-  static const Color _textDarkSecondaryColor = Color(0xFF9CA3AF);
+  static const Color _textPrimaryColor = Color(0xFF2D3436);
+  static const Color _textSecondaryColor = Color(0xFF636E72);
+  static const Color _textDarkPrimaryColor = Color(0xFFDFE6E9);
+  static const Color _textDarkSecondaryColor = Color(0xFFB2BEC3);
 
   // 边框和分割线
-  static const Color _borderColor = Color(0xFFE2E8F0);
-  static const Color _darkBorderColor = Color(0xFF1F2937);
+  static const Color _borderColor = Color(0xFFDFE6E9);
+  static const Color _darkBorderColor = Color(0xFF2D3436);
 
   // ============ 布局常量 ============
   // 圆角
@@ -53,215 +65,215 @@ class AppThemeData {
   // 动画时长
   static const Duration animationDuration = Duration(milliseconds: 300);
 
-  /// 预设主题列表（你原有的主题作为第一个）
+  /// 预设主题列表
   static final List<AppThemeData> presetThemes = [
-    // 默认主题（保留你原有的设计）
+    // 默认主题
     const AppThemeData(
       name: '默认紫',
+      localizationKey: LocalizationKeys.themeDefaultPurple,
       primaryColor: Color(0xFF6C5CE7),
       secondaryColor: Color(0xFFA29BFE),
       accentColor: Color(0xFF00B894),
     ),
     const AppThemeData(
       name: '圣诞红',
+      localizationKey: LocalizationKeys.themeChristmasRed,
       primaryColor: Color(0xFFD32F2F),
       secondaryColor: Color(0xFFEF5350),
       accentColor: Color(0xFFFF9800),
     ),
     const AppThemeData(
       name: '海洋蓝',
+      localizationKey: LocalizationKeys.themeOceanBlue,
       primaryColor: Color(0xFF0277BD),
       secondaryColor: Color(0xFF4FC3F7),
       accentColor: Color(0xFF00BCD4),
     ),
     const AppThemeData(
       name: '自然绿',
+      localizationKey: LocalizationKeys.themeNaturalGreen,
       primaryColor: Color(0xFF388E3C),
       secondaryColor: Color(0xFF66BB6A),
       accentColor: Color(0xFF8BC34A),
     ),
     const AppThemeData(
       name: '温暖橙',
+      localizationKey: LocalizationKeys.themeWarmOrange,
       primaryColor: Color(0xFFE64A19),
       secondaryColor: Color(0xFFFF7043),
       accentColor: Color(0xFFFFB74D),
     ),
     const AppThemeData(
       name: '优雅紫',
+      localizationKey: LocalizationKeys.themeElegantPurple,
       primaryColor: Color(0xFF7B1FA2),
       secondaryColor: Color(0xFFAB47BC),
       accentColor: Color(0xFFBA68C8),
     ),
   ];
 
-  /// 生成浅色主题（保留你的设计风格）
-  ThemeData generateLightTheme() {
-    return ThemeData(
+  /// 生成浅色主题
+  /// [adjustment] 对比度/亮度调整，范围 0.0 到 1.0
+  /// 生成浅色主题
+  /// [adjustment] 对比度/亮度调整，范围 0.0 到 1.0
+  ThemeData generateLightTheme({double adjustment = 0.0}) {
+    // 浅色模式下调整背景，数值越大越暗（趋向黑色）
+    final bgColor =
+        Color.lerp(_backgroundColor, Colors.black, adjustment) ??
+        _backgroundColor;
+    final surfaceColor =
+        Color.lerp(_surfaceColor, Colors.black, adjustment) ?? _surfaceColor;
+
+    final baseTheme = ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       primaryColor: primaryColor,
-      scaffoldBackgroundColor: _backgroundColor,
+      scaffoldBackgroundColor: bgColor,
       colorScheme: ColorScheme.light(
         primary: primaryColor,
         secondary: secondaryColor,
-        surface: _surfaceColor,
+        surface: surfaceColor,
         error: Colors.red,
         onPrimary: getContrastColor(primaryColor),
         onSecondary: getContrastColor(secondaryColor),
-        onSurface: _textPrimaryColor,
+        onSurface: Colors.black87,
         onError: Colors.white,
-        surfaceContainerHighest: const Color(0xFFF1F5F9),
-        outline: const Color(0xFF94A3B8),
-        outlineVariant: _borderColor,
-        onSurfaceVariant: _textSecondaryColor,
+        surfaceContainerHighest: Colors.grey.shade100,
+        outline: primaryColor.withValues(alpha: 0.3),
       ),
-      appBarTheme: const AppBarTheme(
-        elevation: 0,
-        backgroundColor: _surfaceColor,
-        foregroundColor: _textPrimaryColor,
-        centerTitle: false,
-        titleTextStyle: TextStyle(
-          color: _textPrimaryColor,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      cardTheme: CardThemeData(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(borderRadiusMedium),
-          side: const BorderSide(color: _borderColor, width: 1),
-        ),
-        color: _surfaceColor,
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          backgroundColor: primaryColor,
-          foregroundColor: getContrastColor(primaryColor),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadiusSmall),
-          ),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          elevation: 0,
-          backgroundColor: _surfaceColor,
-          foregroundColor: primaryColor,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          side: const BorderSide(color: _borderColor, width: 1),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadiusLarge),
-          ),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: const Color(0xFFF8FAFC),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadiusSmall),
-          borderSide: const BorderSide(color: _borderColor),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadiusSmall),
-          borderSide: const BorderSide(color: _borderColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadiusSmall),
-          borderSide: BorderSide(color: primaryColor, width: 1.2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadiusSmall),
-          borderSide: const BorderSide(color: Colors.redAccent),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadiusSmall),
-          borderSide: const BorderSide(color: Colors.redAccent, width: 1.2),
-        ),
-        labelStyle: const TextStyle(color: _textSecondaryColor),
-        hintStyle: const TextStyle(color: _textSecondaryColor),
-      ),
-      dividerTheme: const DividerThemeData(
-        color: _borderColor,
-        thickness: 1,
-      ),
-      iconTheme: const IconThemeData(color: _textSecondaryColor),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: primaryColor,
-        foregroundColor: getContrastColor(primaryColor),
-      ),
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-          color: _textPrimaryColor,
-        ),
-        displayMedium: TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-          color: _textPrimaryColor,
-        ),
-        displaySmall: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-          color: _textPrimaryColor,
-        ),
-        headlineMedium: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: _textPrimaryColor,
-        ),
-        bodyLarge: TextStyle(fontSize: 16, color: _textPrimaryColor),
-        bodyMedium: TextStyle(fontSize: 14, color: _textSecondaryColor),
-        bodySmall: TextStyle(fontSize: 12, color: _textSecondaryColor),
-        labelLarge: TextStyle(fontSize: 14, color: _textSecondaryColor),
-        labelMedium: TextStyle(fontSize: 12, color: _textSecondaryColor),
-        labelSmall: TextStyle(fontSize: 11, color: _textSecondaryColor),
-      ),
+    );
+    return _applyCommonTheme(
+      baseTheme,
+      Brightness.light,
+      surfaceColor: surfaceColor,
     );
   }
 
-  /// 生成深色主题（保留你的设计风格）
-  ThemeData generateDarkTheme() {
-    return ThemeData(
+  /// 生成深色主题
+  /// 生成深色主题
+  /// [adjustment] 昏暗程度/对比度调整，范围 0.0 到 1.0
+  ThemeData generateDarkTheme({double adjustment = 0.0}) {
+    final bgColor =
+        Color.lerp(_darkBackgroundColor, const Color(0xFF050505), adjustment) ??
+        _darkBackgroundColor;
+    final surfaceColor =
+        Color.lerp(_darkSurfaceColor, const Color(0xFF0A0A15), adjustment) ??
+        _darkSurfaceColor;
+
+    final baseTheme = ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      scaffoldBackgroundColor: bgColor,
       primaryColor: primaryColor,
-      scaffoldBackgroundColor: _darkBackgroundColor,
       colorScheme: ColorScheme.dark(
         primary: primaryColor,
         secondary: secondaryColor,
-        surface: _darkSurfaceColor,
+        surface: surfaceColor,
         error: Colors.redAccent,
-        onPrimary: getContrastColor(primaryColor), // 智能对比色
+        onPrimary: getContrastColor(primaryColor),
         onSecondary: getContrastColor(secondaryColor),
-        onSurface: _textDarkPrimaryColor,
+        onSurface: Colors.white,
         onError: Colors.white,
-        surfaceContainerHighest: const Color(0xFF1F2937),
-        outline: const Color(0xFF475569),
-        outlineVariant: _darkBorderColor,
-        onSurfaceVariant: _textDarkSecondaryColor,
+        surfaceContainerHighest: const Color(0xFF2C2C2C),
+        outline: primaryColor.withValues(alpha: 0.4),
       ),
-      appBarTheme: const AppBarTheme(
+    );
+
+    return _applyCommonTheme(
+      baseTheme,
+      Brightness.dark,
+      surfaceColor: surfaceColor,
+    );
+  }
+
+  ThemeData _applyCommonTheme(
+    ThemeData base,
+    Brightness brightness, {
+    Color? surfaceColor,
+  }) {
+    final isDark = brightness == Brightness.dark;
+    final primaryTxt = isDark ? _textDarkPrimaryColor : _textPrimaryColor;
+    final secondaryTxt = isDark ? _textDarkSecondaryColor : _textSecondaryColor;
+    final surf = surfaceColor ?? (isDark ? _darkSurfaceColor : _surfaceColor);
+    final border = isDark ? _darkBorderColor : _borderColor;
+
+    return base.copyWith(
+      primaryColor: primaryColor,
+      textTheme: GoogleFonts.notoSansScTextTheme(base.textTheme).copyWith(
+        displayLarge: GoogleFonts.notoSansSc(
+          textStyle: base.textTheme.displayLarge?.copyWith(
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+            color: primaryTxt,
+          ),
+        ),
+        displayMedium: GoogleFonts.notoSansSc(
+          textStyle: base.textTheme.displayMedium?.copyWith(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: primaryTxt,
+          ),
+        ),
+        displaySmall: GoogleFonts.notoSansSc(
+          textStyle: base.textTheme.displaySmall?.copyWith(
+            fontSize: 24,
+            fontWeight: FontWeight.w600,
+            color: primaryTxt,
+          ),
+        ),
+        headlineMedium: GoogleFonts.notoSansSc(
+          textStyle: base.textTheme.headlineMedium?.copyWith(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: primaryTxt,
+          ),
+        ),
+        titleSmall: TextStyle(
+          fontFamily: 'MicrosoftYaHei',
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: primaryTxt,
+        ),
+        bodyLarge: GoogleFonts.notoSansSc(
+          textStyle: base.textTheme.bodyLarge?.copyWith(
+            fontSize: 16,
+            color: primaryTxt,
+          ),
+        ),
+        bodyMedium: GoogleFonts.notoSansSc(
+          textStyle: base.textTheme.bodyMedium?.copyWith(
+            fontSize: 14,
+            color: secondaryTxt,
+          ),
+        ),
+      ),
+      appBarTheme: AppBarTheme(
         elevation: 0,
-        backgroundColor: _darkSurfaceColor,
-        foregroundColor: _textDarkPrimaryColor,
+        backgroundColor: surf,
+        foregroundColor: primaryTxt,
         centerTitle: false,
         titleTextStyle: TextStyle(
-          color: _textDarkPrimaryColor,
+          fontFamily: 'MicrosoftYaHei',
+          color: primaryTxt,
           fontSize: 20,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: surf,
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(borderRadiusMedium),
+          side: BorderSide(color: border, width: 0.5),
         ),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(borderRadiusMedium),
-          side: const BorderSide(color: _darkBorderColor, width: 1),
+          side: BorderSide(color: border, width: 1),
         ),
-        color: _darkSurfaceColor,
+        color: surf,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -277,82 +289,27 @@ class AppThemeData {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           elevation: 0,
-          backgroundColor: _darkSurfaceColor,
+          backgroundColor: surf,
           foregroundColor: primaryColor,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          side: const BorderSide(color: _darkBorderColor, width: 1),
+          side: BorderSide(color: secondaryColor, width: 1.8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadiusLarge),
           ),
         ),
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: const Color(0xFF111827),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadiusSmall),
-          borderSide: const BorderSide(color: _darkBorderColor),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadiusSmall),
-          borderSide: const BorderSide(color: _darkBorderColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadiusSmall),
-          borderSide: BorderSide(color: primaryColor, width: 1.2),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadiusSmall),
-          borderSide: const BorderSide(color: Colors.redAccent),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(borderRadiusSmall),
-          borderSide: const BorderSide(color: Colors.redAccent, width: 1.2),
-        ),
-        labelStyle: const TextStyle(color: _textDarkSecondaryColor),
-        hintStyle: const TextStyle(color: _textDarkSecondaryColor),
-      ),
-      dividerTheme: const DividerThemeData(
-        color: _darkBorderColor,
-        thickness: 1,
-      ),
-      iconTheme: const IconThemeData(color: _textDarkSecondaryColor),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: primaryColor,
         foregroundColor: getContrastColor(primaryColor),
       ),
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-          color: _textDarkPrimaryColor,
-        ),
-        displayMedium: TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.bold,
-          color: _textDarkPrimaryColor,
-        ),
-        displaySmall: TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-          color: _textDarkPrimaryColor,
-        ),
-        headlineMedium: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-          color: _textDarkPrimaryColor,
-        ),
-        bodyLarge: TextStyle(fontSize: 16, color: _textDarkPrimaryColor),
-        bodyMedium: TextStyle(fontSize: 14, color: _textDarkSecondaryColor),
-        bodySmall: TextStyle(fontSize: 12, color: _textDarkSecondaryColor),
-        labelLarge: TextStyle(fontSize: 14, color: _textDarkSecondaryColor),
-        labelMedium: TextStyle(fontSize: 12, color: _textDarkSecondaryColor),
-        labelSmall: TextStyle(fontSize: 11, color: _textDarkSecondaryColor),
+      colorScheme: base.colorScheme.copyWith(
+        primary: primaryColor,
+        secondary: secondaryColor,
+        surface: surf,
       ),
     );
   }
 
-  /// 计算对比色（确保按钮文字可见）
   static Color getContrastColor(Color color) {
     final luminance = color.computeLuminance();
     return luminance > 0.5 ? Colors.black87 : Colors.white;
@@ -370,7 +327,6 @@ class AppThemeData {
         : (isPrimary ? _textDarkPrimaryColor : _textDarkSecondaryColor);
   }
 
-  /// 转换为Map（用于持久化存储）
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -381,7 +337,6 @@ class AppThemeData {
     };
   }
 
-  /// 从Map创建（用于持久化存储）
   factory AppThemeData.fromJson(Map<String, dynamic> json) {
     return AppThemeData(
       name: json['name'] as String,

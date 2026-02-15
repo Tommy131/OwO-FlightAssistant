@@ -56,6 +56,41 @@ Future<bool?> showAdvancedConfirmDialog({
   }
 }
 
+/// 高级加载/处理弹窗 (不带按钮，带进度条或动画)
+Future<void> showLoadingDialog({
+  required BuildContext context,
+  ConfirmDialogStyle style = ConfirmDialogStyle.material,
+  required String title,
+  String content = '',
+}) {
+  switch (style) {
+    case ConfirmDialogStyle.glass:
+      return showGlassLoadingDialog(
+        context: context,
+        title: title,
+        content: content,
+      );
+    case ConfirmDialogStyle.darkNeon:
+      return showDarkNeonLoadingDialog(
+        context: context,
+        title: title,
+        content: content,
+      );
+    case ConfirmDialogStyle.cupertino:
+      return showCupertinoLoadingDialog(
+        context: context,
+        title: title,
+        content: content,
+      );
+    default:
+      return showMaterialLoadingDialog(
+        context: context,
+        title: title,
+        content: content,
+      );
+  }
+}
+
 // Material 高级动画弹窗 (Android 推荐)
 Future<bool?> showMaterialConfirmDialog({
   required BuildContext context,
@@ -103,12 +138,14 @@ Future<bool?> showMaterialConfirmDialog({
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  content,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade500),
-                ),
+                if (content.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    content,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey.shade500),
+                  ),
+                ],
                 if (hasConfirm || hasCancel) ...[
                   const SizedBox(height: 24),
                   Row(
@@ -170,10 +207,12 @@ Future<bool?> showCupertinoConfirmDialog({
     context: context,
     builder: (_) => CupertinoAlertDialog(
       title: Text(title),
-      content: Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Text(content),
-      ),
+      content: content.isEmpty
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(content),
+            ),
       actions: [
         if (hasCancel)
           CupertinoDialogAction(
@@ -235,16 +274,18 @@ Future<bool?> showGlassConfirmDialog({
                     decoration: TextDecoration.none,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  content,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                    decoration: TextDecoration.none,
+                if (content.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    content,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.white70,
+                      decoration: TextDecoration.none,
+                    ),
                   ),
-                ),
+                ],
                 if (hasConfirm || hasCancel) ...[
                   const SizedBox(height: 24),
                   Row(
@@ -328,16 +369,18 @@ Future<bool?> showDarkNeonConfirmDialog({
                   decoration: TextDecoration.none,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                content,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.white70,
-                  decoration: TextDecoration.none,
+              if (content.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  content,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.white70,
+                    decoration: TextDecoration.none,
+                  ),
                 ),
-              ),
+              ],
               if (hasConfirm || hasCancel) ...[
                 const SizedBox(height: 24),
                 Row(
@@ -384,49 +427,57 @@ Future<bool?> showDarkNeonConfirmDialog({
   );
 }
 
-// Loading 加载中弹窗 (毛玻璃)
-void showLoadingDialog({
+// ==================== Loading Dialog Implementations ====================
+
+Future<void> showMaterialLoadingDialog({
   required BuildContext context,
-  String message = '正在加载数据...',
+  required String title,
+  required String content,
 }) {
-  showDialog(
+  return showDialog(
     context: context,
     barrierDismissible: false,
-    barrierColor: Colors.black26,
-    builder: (_) => Center(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+    builder: (context) => PopScope(
+      canPop: false,
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
           child: Container(
-            width: 200,
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            width: 280,
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
+              color: Theme.of(context).cardColor,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white24),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 20),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
-                  ),
+                  width: 40,
+                  height: 40,
+                  child: CircularProgressIndicator(strokeWidth: 3),
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  message,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.white,
-                    decoration: TextDecoration.none,
-                    fontWeight: FontWeight.normal,
+                  title,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                if (content.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    content,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                  ),
+                ],
               ],
             ),
           ),
@@ -436,6 +487,164 @@ void showLoadingDialog({
   );
 }
 
-void hideLoadingDialog(BuildContext context) {
-  Navigator.of(context, rootNavigator: true).pop();
+Future<void> showCupertinoLoadingDialog({
+  required BuildContext context,
+  required String title,
+  required String content,
+}) {
+  return showCupertinoDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => PopScope(
+      canPop: false,
+      child: CupertinoAlertDialog(
+        title: Text(title),
+        content: Column(
+          children: [
+            const SizedBox(height: 16),
+            const CupertinoActivityIndicator(radius: 14),
+            if (content.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(content),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> showGlassLoadingDialog({
+  required BuildContext context,
+  required String title,
+  required String content,
+}) {
+  return showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => PopScope(
+      canPop: false,
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            child: Container(
+              width: 280,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(
+                    strokeWidth: 3,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                  if (content.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      content,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.white60,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> showDarkNeonLoadingDialog({
+  required BuildContext context,
+  required String title,
+  required String content,
+}) {
+  return showGeneralDialog(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: Colors.black87,
+    transitionDuration: const Duration(milliseconds: 300),
+    pageBuilder: (context, _, _) {
+      return PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            width: 280,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.cyanAccent.withValues(alpha: 0.3),
+                  blurRadius: 20,
+                ),
+              ],
+              border: Border.all(
+                color: Colors.cyanAccent.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.cyanAccent),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+                if (content.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    content,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.cyanAccent,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+    transitionBuilder: (_, anim, _, child) {
+      return FadeTransition(opacity: anim, child: child);
+    },
+  );
 }

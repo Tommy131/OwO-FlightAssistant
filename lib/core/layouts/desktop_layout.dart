@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/navigation_item.dart';
+import '../module_registry/navigation/navigation_item.dart';
 import '../widgets/common/custom_app_bar.dart';
 import '../widgets/desktop/sidebar.dart';
 

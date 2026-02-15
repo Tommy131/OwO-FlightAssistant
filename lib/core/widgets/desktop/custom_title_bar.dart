@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import '../../localization/localization_keys.dart';
+import '../../services/localization_service.dart';
 
 class CustomTitleBar extends StatefulWidget {
   final double height;
@@ -49,6 +51,10 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final minimizeLabel = LocalizationKeys.windowMinimize.tr(context);
+    final maximizeLabel = LocalizationKeys.windowMaximize.tr(context);
+    final restoreLabel = LocalizationKeys.windowRestore.tr(context);
+    final closeLabel = LocalizationKeys.windowClose.tr(context);
 
     return SizedBox(
       height: widget.height,
@@ -78,13 +84,13 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
             // ===== 窗口控制按钮 =====
             _WindowButton(
               icon: Icons.remove,
-              tooltip: '最小化',
+              tooltip: minimizeLabel,
               onPressed: () => windowManager.minimize(),
               hoverColor: Colors.grey,
             ),
             _WindowButton(
               icon: _isMaximized ? Icons.filter_none : Icons.crop_square,
-              tooltip: _isMaximized ? '还原' : '最大化',
+              tooltip: _isMaximized ? restoreLabel : maximizeLabel,
               onPressed: () async {
                 if (_isMaximized) {
                   await windowManager.unmaximize();
@@ -97,7 +103,7 @@ class _CustomTitleBarState extends State<CustomTitleBar> with WindowListener {
             ),
             _WindowButton(
               icon: Icons.close,
-              tooltip: '关闭',
+              tooltip: closeLabel,
               hoverColor: Colors.red,
               onPressed: () async {
                 bool isPreventClose = await windowManager.isPreventClose();
@@ -130,15 +136,19 @@ class _WindowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        hoverColor: hoverColor?.withValues(alpha: 0.5),
-        onTap: onPressed,
-        child: SizedBox(
-          width: 46,
-          height: double.infinity,
-          child: Icon(icon, size: 14),
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          hoverColor: hoverColor?.withValues(alpha: 0.5),
+          onTap: onPressed,
+          child: SizedBox(
+            width: 46,
+            height: double.infinity,
+            child: ExcludeSemantics(child: Icon(icon, size: 14)),
+          ),
         ),
       ),
     );

@@ -17,8 +17,8 @@
  */
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:owo_flight_assistant/apps/services/app_core/database_loader.dart';
-import 'package:owo_flight_assistant/core/services/persistence/persistence_service.dart';
+import '../../lib-0d/apps/services/app_core/database_loader.dart';
+import '../../lib-0d/core/services/persistence/persistence_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

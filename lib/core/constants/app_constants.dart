@@ -25,6 +25,9 @@ class AppConstants {
   static const String appVersion = '1.0.0-beta';
   static const String appBuildVersion = 'internal-build-20260210';
 
+  // ========== 资源路径 ==========
+  static const String assetIconPath = 'assets/icons/app_icon.png';
+
   // ========== 开发者信息 ==========
   static const String developerName = 'HanskiJay';
   static const String developerEmail = 'support@owoblog.com';

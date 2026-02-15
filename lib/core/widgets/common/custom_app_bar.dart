@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../apps/providers/simulator/simulator_provider.dart';
-import '../../../../apps/providers/flight_provider.dart';
 
-import '../../models/navigation_item.dart';
+import '../../module_registry/module_registry.dart';
+import '../../module_registry/navigation/navigation_item.dart';
 import '../../theme/app_theme_data.dart';
 import '../../theme/theme_provider.dart';
+import '../../localization/localization_keys.dart';
+import '../../services/localization_service.dart';
 
 class CustomAppBar {
   static PreferredSizeWidget build(
@@ -31,22 +32,14 @@ class CustomAppBar {
       ),
       // 右侧操作按钮
       actions: [
-        // 录制按钮
-        Consumer2<SimulatorProvider, FlightProvider>(
-          builder: (context, sim, flight, child) {
-            if (!sim.isConnected) return const SizedBox.shrink();
-            return IconButton(
-              icon: Icon(
-                sim.isRecording ? Icons.stop_circle : Icons.fiber_manual_record,
-                color: sim.isRecording ? Colors.red : Colors.grey,
-              ),
-              tooltip: sim.isRecording ? '停止录制' : '开始录制飞行日志',
-              onPressed: () =>
-                  sim.toggleRecording(flightNumber: flight.flightNumber),
-            );
-          },
+        // 动态加载已注册的操作按钮
+        ...ModuleRegistry().appBarActions.getAllActions().expand(
+          (action) => [
+            action.build(context),
+            const SizedBox(width: AppThemeData.spacingSmall),
+          ],
         ),
-        const SizedBox(width: AppThemeData.spacingSmall),
+
         // 主题选择器
         Consumer<ThemeProvider>(
           builder: (context, themeProvider, child) {
@@ -54,7 +47,7 @@ class CustomAppBar {
               icon: Icon(
                 themeProvider.getThemeModeIcon(themeProvider.themeMode),
               ),
-              tooltip: '主题设置',
+              tooltip: LocalizationKeys.themeSettingsTooltip.tr(context),
               onSelected: (ThemeMode mode) {
                 themeProvider.setThemeMode(mode);
               },
@@ -72,7 +65,7 @@ class CustomAppBar {
                       ),
                       const SizedBox(width: AppThemeData.spacingMedium),
                       Text(
-                        themeProvider.getThemeModeName(mode),
+                        themeProvider.getThemeModeName(context, mode),
                         style: TextStyle(
                           color: themeProvider.themeMode == mode
                               ? theme.colorScheme.primary
@@ -97,7 +90,7 @@ class CustomAppBar {
             );
           },
         ),
-        const SizedBox(width: AppThemeData.spacingSmall),
+        const SizedBox(width: AppThemeData.spacingMedium),
       ],
     );
   }

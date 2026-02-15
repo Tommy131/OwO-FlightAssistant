@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:owo_flight_assistant/apps/data/xplane_apt_dat_parser.dart';
+import '../lib-0d/apps/data/xplane_apt_dat_parser.dart';
 
 void main() {
   test('Parse airport from apt.dat snippet', () async {

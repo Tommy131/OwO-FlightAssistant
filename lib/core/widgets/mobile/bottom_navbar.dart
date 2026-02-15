@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../models/navigation_item.dart';
+import '../../module_registry/navigation/navigation_item.dart';
 import '../../theme/app_theme_data.dart';
+import '../../localization/localization_keys.dart';
+import '../../services/localization_service.dart';
 
 /// 移动端底部导航栏组件
 /// 参考Instagram、WeChat、Telegram的设计风格
@@ -47,7 +49,7 @@ class MobileBottomNavbar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(
               items.length,
-              (index) => _buildNavItem(items[index], index, theme),
+              (index) => _buildNavItem(context, items[index], index, theme),
             ),
           ),
         ),
@@ -55,100 +57,111 @@ class MobileBottomNavbar extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(NavigationItem item, int index, ThemeData theme) {
+  Widget _buildNavItem(
+    BuildContext context,
+    NavigationItem item,
+    int index,
+    ThemeData theme,
+  ) {
     final isSelected = selectedIndex == index;
+    final label = item.badge == null || item.badge!.isEmpty
+        ? item.title
+        : '${item.title}, ${LocalizationKeys.badgeLabel.tr(context)} ${item.badge}';
 
     return Expanded(
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
-          onTap: () => onItemSelected(index),
-          borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // 图标和徽章
-                SizedBox(
-                  height: 28,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.center,
-                    children: [
-                      AnimatedScale(
-                        scale: isSelected ? 1.1 : 1.0,
-                        duration: AppThemeData.animationDuration,
-                        curve: Curves.easeInOut,
-                        child: Icon(
-                          isSelected && item.activeIcon != null
-                              ? item.activeIcon
-                              : item.icon,
-                          color: isSelected
-                              ? theme.colorScheme.primary
-                              : AppThemeData.getTextColor(theme),
-                          size: 24,
-                        ),
-                      ),
-
-                      // 徽章
-                      if (item.badge != null)
-                        Positioned(
-                          right: -8,
-                          top: -2,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: theme.colorScheme.surface,
-                                width: 1.5,
-                              ),
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
-                            ),
-                            child: Text(
-                              item.badge!,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                height: 1.2,
-                              ),
-                              textAlign: TextAlign.center,
+        child: Semantics(
+          button: true,
+          selected: isSelected,
+          label: label,
+          child: ExcludeSemantics(
+            child: InkWell(
+              onTap: () => onItemSelected(index),
+              borderRadius: BorderRadius.circular(
+                AppThemeData.borderRadiusSmall,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      height: 28,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          AnimatedScale(
+                            scale: isSelected ? 1.1 : 1.0,
+                            duration: AppThemeData.animationDuration,
+                            curve: Curves.easeInOut,
+                            child: Icon(
+                              isSelected && item.activeIcon != null
+                                  ? item.activeIcon
+                                  : item.icon,
+                              color: isSelected
+                                  ? theme.colorScheme.primary
+                                  : AppThemeData.getTextColor(theme),
+                              size: 24,
                             ),
                           ),
-                        ),
-                    ],
-                  ),
+                          if (item.badge != null)
+                            Positioned(
+                              right: -8,
+                              top: -2,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: theme.colorScheme.surface,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
+                                ),
+                                child: Text(
+                                  item.badge!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.2,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: isSelected ? 11 : 10,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: isSelected
+                            ? theme.colorScheme.primary
+                            : AppThemeData.getTextColor(theme),
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
                 ),
-
-                const SizedBox(height: 2),
-
-                // 标题
-                Text(
-                  item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: isSelected ? 11 : 10,
-                    fontWeight: isSelected
-                        ? FontWeight.w600
-                        : FontWeight.normal,
-                    color: isSelected
-                        ? theme.colorScheme.primary
-                        : AppThemeData.getTextColor(theme),
-                    height: 1.2,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),

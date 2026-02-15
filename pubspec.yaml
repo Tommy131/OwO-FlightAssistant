@@ -30,6 +30,9 @@ dependencies:
   web_socket_channel: ^3.0.1
   window_manager: ^0.5.1
   intl: ^0.20.2
+  google_fonts: ^8.0.1
+  path_provider_platform_interface: ^2.1.2
+  confetti: ^0.8.0
 
 dev_dependencies:
   flutter_test:
@@ -39,6 +42,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icons/app_icon.png
 
 # 🖼️ **应用图标配置**：跨平台图标生成，使用flutter_launcher_icons插件。
 flutter_launcher_icons:
@@ -62,3 +67,11 @@ flutter_launcher_icons:
   macos:
     generate: false  # 生成macOS图标
     image_path: "assets/icons/app_icon.png"
+
+  fonts:
+    - family: MicrosoftYaHei
+      fonts:
+        - asset: assets/fonts/Microsoft-YaHei-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Microsoft-YaHei-Bold.ttf
+          weight: 700

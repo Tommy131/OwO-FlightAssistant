@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../constants/app_constants.dart';
 import '../../theme/app_theme_data.dart';
-import '../../models/navigation_item.dart';
+import '../../module_registry/navigation/navigation_item.dart';
 import '../../theme/theme_provider.dart';
-import '../../../apps/providers/simulator/simulator_provider.dart';
-import '../../../apps/models/simulator_data.dart';
-import '../../../apps/providers/flight_provider.dart';
+import '../../localization/localization_keys.dart';
+import '../../services/localization_service.dart';
+import '../../module_registry/module_registry.dart';
 
 /// 桌面端侧边栏组件（紧凑型）
 /// 支持展开/折叠，带有流畅的动画过渡
@@ -39,7 +40,6 @@ class _DesktopSidebarState extends State<DesktopSidebar>
   static const double _collapsedThreshold = 100.0;
   static const double _iconSize = 20.0;
   static const double _logoSize = 32.0;
-  static const double _avatarRadius = 16.0;
   static const double _headerHeight = 56.0;
 
   @override
@@ -105,7 +105,11 @@ class _DesktopSidebarState extends State<DesktopSidebar>
               _buildHeader(theme),
               const SizedBox(height: AppThemeData.spacingSmall),
               _buildNavigationList(),
-              _buildFooter(theme),
+              ...ModuleRegistry().sidebarFooters.getAllFooters().map(
+                (footer) => _isCollapsed
+                    ? footer.buildCollapsed(context)
+                    : footer.buildExpanded(context),
+              ),
             ],
           ),
         );
@@ -136,11 +140,17 @@ class _DesktopSidebarState extends State<DesktopSidebar>
 
   Widget _buildCollapsedHeader(ThemeData theme) {
     return Center(
-      child: _buildIconButton(
-        icon: Icons.menu,
-        tooltip: '展开侧边栏',
-        onPressed: _toggleSidebar,
-        theme: theme,
+      child: Semantics(
+        button: true,
+        label: LocalizationKeys.expandSidebar.tr(context),
+        child: Tooltip(
+          message: LocalizationKeys.expandSidebar.tr(context),
+          child: InkWell(
+            onTap: _toggleSidebar,
+            borderRadius: BorderRadius.circular(8),
+            child: ExcludeSemantics(child: _buildLogo(theme)),
+          ),
+        ),
       ),
     );
   }
@@ -153,7 +163,7 @@ class _DesktopSidebarState extends State<DesktopSidebar>
         _buildLogoText(theme),
         _buildIconButton(
           icon: Icons.menu_open,
-          tooltip: '折叠侧边栏',
+          tooltip: LocalizationKeys.collapseSidebar.tr(context),
           onPressed: _toggleSidebar,
           theme: theme,
         ),
@@ -166,34 +176,39 @@ class _DesktopSidebarState extends State<DesktopSidebar>
       width: _logoSize,
       height: _logoSize,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(6),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
-      child: const Icon(Icons.face, color: Colors.white, size: _iconSize),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Semantics(
+          image: true,
+          label: LocalizationKeys.appLogo.tr(context),
+          child: ExcludeSemantics(
+            child: Image.asset(AppConstants.assetIconPath, fit: BoxFit.contain),
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildLogoText(ThemeData theme) {
     return Expanded(
       child: _buildFadeTransition(
-        child: Consumer<FlightProvider>(
-          builder: (context, flight, _) {
-            final text = flight.hasFlightNumber
-                ? '你好，${flight.flightNumber}！'
-                : '你好！';
-            return Text(
-              text,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
-              overflow: TextOverflow.ellipsis,
-            );
-          },
+        child: Text(
+          LocalizationKeys.userGreeting.tr(context),
+          style: theme.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
@@ -205,14 +220,21 @@ class _DesktopSidebarState extends State<DesktopSidebar>
     required VoidCallback onPressed,
     required ThemeData theme,
   }) {
-    return IconButton(
-      icon: Icon(icon, color: theme.colorScheme.primary, size: _iconSize),
-      onPressed: onPressed,
-      tooltip: tooltip,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(
-        minWidth: _logoSize,
-        minHeight: _logoSize,
+    return Semantics(
+      button: true,
+      label: tooltip,
+      onTap: onPressed,
+      child: ExcludeSemantics(
+        child: IconButton(
+          icon: Icon(icon, color: theme.colorScheme.primary, size: _iconSize),
+          onPressed: onPressed,
+          tooltip: tooltip,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(
+            minWidth: _logoSize,
+            minHeight: _logoSize,
+          ),
+        ),
       ),
     );
   }
@@ -235,152 +257,6 @@ class _DesktopSidebarState extends State<DesktopSidebar>
           );
         },
       ),
-    );
-  }
-
-  Widget _buildFooter(ThemeData theme) {
-    return Consumer<SimulatorProvider>(
-      builder: (context, simProvider, _) {
-        final data = simProvider.simulatorData;
-
-        // 如果未连接模拟器，不显示页脚
-        if (!simProvider.isConnected) {
-          return const SizedBox.shrink();
-        }
-
-        final nearest = simProvider.nearestAirport;
-        final departure = data.departureAirport;
-        final phase = simProvider.flightPhase;
-        final phaseIcon = simProvider.flightPhaseIcon;
-        final weather = simProvider.weatherQuality;
-        final weatherIcon = simProvider.weatherIcon;
-        final dist = simProvider.remainingDistance;
-        final ete = simProvider.estimatedTimeEnroute;
-
-        // 优先显示：机场信息。如果没有机场信息，则显示飞行阶段+天气
-        final airportName = (data.onGround == false && nearest != null)
-            ? '${nearest.icaoCode} ${nearest.nameChinese}'
-            : (departure ??
-                  (nearest != null
-                      ? '${nearest.icaoCode} ${nearest.nameChinese}'
-                      : null));
-
-        return Container(
-          padding: EdgeInsets.all(_isCollapsed ? 4 : AppThemeData.spacingSmall),
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(
-                color: AppThemeData.getBorderColor(theme),
-                width: 1,
-              ),
-            ),
-          ),
-          child: _isCollapsed
-              ? _buildCollapsedFooter(
-                  theme,
-                  airportName ?? phase,
-                  airportName != null ? Icons.flight_takeoff : phaseIcon,
-                )
-              : _buildExpandedFooter(
-                  theme,
-                  data,
-                  airportName,
-                  phase,
-                  phaseIcon,
-                  weather,
-                  weatherIcon,
-                  dist,
-                  ete,
-                ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCollapsedFooter(ThemeData theme, String tooltip, IconData icon) {
-    return Center(
-      child: Tooltip(
-        message: tooltip,
-        child: CircleAvatar(
-          radius: _avatarRadius,
-          backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-          child: Icon(icon, size: 16, color: theme.colorScheme.primary),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildExpandedFooter(
-    ThemeData theme,
-    SimulatorData data,
-    String? airportName,
-    String phase,
-    IconData phaseIcon,
-    String weather,
-    IconData weatherIcon,
-    double? distance,
-    String? ete,
-  ) {
-    final distText = distance != null
-        ? ' | ${distance.toStringAsFixed(0)} NM'
-        : '';
-    final eteText = ete != null ? ' | ETE $ete' : '';
-    final comText = data.com1Frequency != null
-        ? '${data.com1Frequency!.toStringAsFixed(3)} MHz'
-        : '';
-    final visText = data.visibility != null
-        ? ' | VIS ${(data.visibility! / 1000).toStringAsFixed(1)} KM'
-        : '';
-
-    final mainText = airportName ?? (data.onGround == true ? '未知机场' : phase);
-    final subText = data.onGround == true
-        ? '$comText$visText'
-        : (airportName != null
-              ? '$phase$distText$eteText'
-              : '$weather$eteText');
-
-    final mainIcon = airportName != null ? Icons.flight_takeoff : phaseIcon;
-
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: _avatarRadius,
-          backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-          child: Icon(mainIcon, size: 16, color: theme.colorScheme.primary),
-        ),
-        const SizedBox(width: AppThemeData.spacingSmall),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                mainText,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-              Row(
-                children: [
-                  if (airportName == null) ...[
-                    Icon(weatherIcon, size: 10, color: theme.hintColor),
-                    const SizedBox(width: 4),
-                  ],
-                  Expanded(
-                    child: Text(
-                      subText,
-                      style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -417,20 +293,33 @@ class _NavigationItemWidget extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4),
       child: Material(
         color: Colors.transparent,
-        child: InkWell(
+        child: Semantics(
+          container: true,
+          button: true,
+          selected: isSelected,
+          label: _buildSemanticsLabel(context),
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
-          child: AnimatedContainer(
-            duration: AppThemeData.animationDuration,
-            curve: Curves.easeInOut,
-            padding: EdgeInsets.symmetric(
-              horizontal: isCollapsed ? 6 : AppThemeData.spacingSmall,
-              vertical: 10,
+          enabled: true,
+          focusable: true,
+          child: ExcludeSemantics(
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(
+                AppThemeData.borderRadiusSmall,
+              ),
+              child: AnimatedContainer(
+                duration: AppThemeData.animationDuration,
+                curve: Curves.easeInOut,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isCollapsed ? 6 : AppThemeData.spacingSmall,
+                  vertical: 10,
+                ),
+                decoration: _buildItemDecoration(theme),
+                child: isCollapsed
+                    ? _buildCollapsedItem(theme)
+                    : _buildExpandedItem(context, theme),
+              ),
             ),
-            decoration: _buildItemDecoration(theme),
-            child: isCollapsed
-                ? _buildCollapsedItem(theme)
-                : _buildExpandedItem(context, theme),
           ),
         ),
       ),
@@ -522,5 +411,12 @@ class _NavigationItemWidget extends StatelessWidget {
     return isSelected
         ? theme.colorScheme.primary
         : AppThemeData.getTextColor(theme, isPrimary: false);
+  }
+
+  String _buildSemanticsLabel(BuildContext context) {
+    if (item.badge == null || item.badge!.isEmpty) {
+      return item.title;
+    }
+    return '${item.title}, ${LocalizationKeys.badgeLabel.tr(context)} ${item.badge}';
   }
 }

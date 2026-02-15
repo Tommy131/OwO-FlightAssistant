@@ -1,0 +1,30 @@
+class BriefingLocalizationKeys {
+  static const String navTitle = 'briefing.nav.title';
+  static const String pageTitle = 'briefing.page.title';
+  static const String pageSubtitle = 'briefing.page.subtitle';
+  static const String generateTitle = 'briefing.generate.title';
+  static const String generateSubtitle = 'briefing.generate.subtitle';
+  static const String historyTitle = 'briefing.history.title';
+  static const String historySubtitle = 'briefing.history.subtitle';
+  static const String inputTitle = 'briefing.input.title';
+  static const String outputTitle = 'briefing.output.title';
+  static const String fieldDeparture = 'briefing.field.departure';
+  static const String fieldArrival = 'briefing.field.arrival';
+  static const String fieldAlternate = 'briefing.field.alternate';
+  static const String fieldFlightNumber = 'briefing.field.flight_number';
+  static const String fieldRoute = 'briefing.field.route';
+  static const String fieldCruiseAltitude = 'briefing.field.cruise_altitude';
+  static const String generateAction = 'briefing.action.generate';
+  static const String historyEmpty = 'briefing.history.empty';
+  static const String outputEmpty = 'briefing.output.empty';
+  static const String refresh = 'briefing.action.refresh';
+  static const String importFile = 'briefing.action.import';
+  static const String exportFile = 'briefing.action.export';
+  static const String importSuccess = 'briefing.message.import_success';
+  static const String importFailed = 'briefing.message.import_failed';
+  static const String exportSuccess = 'briefing.message.export_success';
+  static const String exportFailed = 'briefing.message.export_failed';
+  static const String refreshSuccess = 'briefing.message.refresh_success';
+  static const String refreshEmpty = 'briefing.message.refresh_empty';
+  static const String refreshFailed = 'briefing.message.refresh_failed';
+}
