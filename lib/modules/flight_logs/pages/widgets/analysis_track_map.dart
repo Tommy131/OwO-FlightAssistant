@@ -41,7 +41,7 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
     final center = LatLng((minLat + maxLat) / 2, (minLon + maxLon) / 2);
 
     final baseLayer = _showDetail
-        ? MapLayerStyle.satellite
+        ? MapLayerStyle.taxiway
         : (isDark ? MapLayerStyle.dark : MapLayerStyle.terrain);
 
     Widget mapWidget = FlutterMap(

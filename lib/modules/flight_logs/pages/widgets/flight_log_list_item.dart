@@ -31,6 +31,11 @@ class FlightLogListItem extends StatelessWidget {
     final durationText = '${duration.inHours}h ${duration.inMinutes % 60}m';
     final routeBackground = theme.colorScheme.surfaceContainerHighest;
     final landingRating = log.landingData?.rating;
+    final isCompleted = log.isCompleted;
+    final arrivalText = isCompleted
+        ? (log.arrivalAirport ??
+              FlightLogsLocalizationKeys.listUnknownAirport.tr(context))
+        : '----';
 
     return Card(
       margin: const EdgeInsets.only(bottom: AppThemeData.spacingMedium),
@@ -74,7 +79,9 @@ class FlightLogListItem extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  _buildLandingRatingBadge(context, landingRating),
+                  if (!isCompleted) _buildIncompleteBadge(context),
+                  if (isCompleted)
+                    _buildLandingRatingBadge(context, landingRating),
                 ],
               ),
               const SizedBox(height: 16),
@@ -133,10 +140,7 @@ class FlightLogListItem extends StatelessWidget {
                     _buildInfoColumn(
                       context,
                       FlightLogsLocalizationKeys.listArrival.tr(context),
-                      log.arrivalAirport ??
-                          FlightLogsLocalizationKeys.listUnknownAirport.tr(
-                            context,
-                          ),
+                      arrivalText,
                       Icons.flight_land,
                       crossAxisAlignment: CrossAxisAlignment.end,
                     ),
@@ -299,6 +303,24 @@ class FlightLogListItem extends StatelessWidget {
         _landingRatingLabel(context, rating),
         style: TextStyle(
           color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIncompleteBadge(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.redAccent,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        FlightLogsLocalizationKeys.listIncompleteFlight.tr(context),
+        style: const TextStyle(
+          color: Colors.white,
           fontSize: 12,
           fontWeight: FontWeight.bold,
         ),

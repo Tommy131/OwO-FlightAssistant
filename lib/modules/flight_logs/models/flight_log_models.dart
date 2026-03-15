@@ -189,6 +189,15 @@ class FlightLog {
   });
 
   Duration get duration => (endTime ?? DateTime.now()).difference(startTime);
+  FlightLogPoint? get lastPoint => points.isEmpty ? null : points.last;
+  bool get isCompleted {
+    final finalPoint = lastPoint;
+    if (finalPoint == null) return false;
+    final hasArrivalAirport =
+        arrivalAirport != null && arrivalAirport!.trim().isNotEmpty;
+    final endedOnGround = finalPoint.onGround ?? wasOnGroundAtEnd;
+    return hasArrivalAirport && endedOnGround;
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,

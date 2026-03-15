@@ -17,6 +17,17 @@ class AnalysisSummaryCard extends StatelessWidget {
     final hrs = duration.inHours;
     final mins = duration.inMinutes % 60;
     final secs = duration.inSeconds % 60;
+    final unknownAirport = FlightLogsLocalizationKeys.listUnknownAirport.tr(
+      context,
+    );
+    final departureAirport = log.departureAirport.isNotEmpty
+        ? log.departureAirport
+        : unknownAirport;
+    final arrivalAirport = log.isCompleted
+        ? ((log.arrivalAirport != null && log.arrivalAirport!.isNotEmpty)
+              ? log.arrivalAirport!
+              : unknownAirport)
+        : '----';
 
     return Container(
       padding: const EdgeInsets.all(AppThemeData.spacingMedium),
@@ -80,6 +91,34 @@ class AnalysisSummaryCard extends StatelessWidget {
                     : '--',
                 Icons.local_gas_station_outlined,
                 Colors.green,
+              ),
+              _buildSummaryItem(
+                context,
+                FlightLogsLocalizationKeys.listDeparture.tr(context),
+                departureAirport,
+                Icons.flight_takeoff,
+                Colors.teal,
+              ),
+              _buildSummaryItem(
+                context,
+                FlightLogsLocalizationKeys.listArrival.tr(context),
+                arrivalAirport,
+                Icons.flight_land,
+                Colors.deepOrange,
+              ),
+              _buildSummaryItem(
+                context,
+                FlightLogsLocalizationKeys.summaryMaxG.tr(context),
+                '${log.maxG.toStringAsFixed(2)} G',
+                Icons.trending_up,
+                Colors.redAccent,
+              ),
+              _buildSummaryItem(
+                context,
+                FlightLogsLocalizationKeys.summaryMinG.tr(context),
+                '${log.minG.toStringAsFixed(2)} G',
+                Icons.trending_down,
+                Colors.indigo,
               ),
             ],
           ),

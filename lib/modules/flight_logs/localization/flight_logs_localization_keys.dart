@@ -22,6 +22,7 @@ class FlightLogsLocalizationKeys {
   static const String listDeparture = 'flight_logs.list.departure';
   static const String listArrival = 'flight_logs.list.arrival';
   static const String listUnknownAirport = 'flight_logs.list.unknown_airport';
+  static const String listIncompleteFlight = 'flight_logs.list.incomplete';
   static const String runway = 'flight_logs.detail.runway';
   static const String airspeed = 'flight_logs.detail.airspeed';
   static const String verticalSpeed = 'flight_logs.detail.vertical_speed';
@@ -57,6 +58,8 @@ class FlightLogsLocalizationKeys {
   static const String summaryMaxAlt = 'flight_logs.summary.max_alt';
   static const String summaryMaxGs = 'flight_logs.summary.max_gs';
   static const String summaryFuel = 'flight_logs.summary.fuel';
+  static const String summaryMaxG = 'flight_logs.summary.max_g';
+  static const String summaryMinG = 'flight_logs.summary.min_g';
   static const String chartAltitude = 'flight_logs.chart.altitude';
   static const String chartSpeed = 'flight_logs.chart.speed';
   static const String chartTooltipAlt = 'flight_logs.chart.tooltip_alt';
