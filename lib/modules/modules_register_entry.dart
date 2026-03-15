@@ -3,6 +3,7 @@ import '../core/settings_pages/about_page.dart';
 
 // 导入所有业务模块
 import 'briefing/briefing_module.dart';
+import 'airport_search/airport_search_module.dart';
 import 'checklist/checklist_module.dart';
 import 'flight_logs/flight_logs_module.dart';
 import 'http/http_module.dart';
@@ -25,6 +26,7 @@ class ModulesRegisterEntry {
     registry.registerModule(CommonModule());
     registry.registerModule(ChecklistModule());
     registry.registerModule(MapModule());
+    registry.registerModule(AirportSearchModule());
     registry.registerModule(MonitorModule());
     registry.registerModule(BriefingModule());
     registry.registerModule(FlightLogsModule());
