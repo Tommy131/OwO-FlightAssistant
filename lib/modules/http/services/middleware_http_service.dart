@@ -229,6 +229,16 @@ class MiddlewareHttpService {
     return get('/api/v1/airport-list');
   }
 
+  Future<MiddlewareHttpResponse> getAirportSuggestions(
+    String query, {
+    int limit = 8,
+  }) {
+    return get(
+      '/api/v1/airport-suggest',
+      queryParameters: {'q': query.trim().toUpperCase(), 'limit': limit},
+    );
+  }
+
   Future<MiddlewareHttpResponse> getSimulatorState({required String type}) {
     return post(
       '/api/v1/simulator/state',
