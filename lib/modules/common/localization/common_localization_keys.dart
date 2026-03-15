@@ -18,8 +18,10 @@ class CommonLocalizationKeys {
   static const String simDisconnected = 'home.sim.disconnected';
   static const String simDisconnect = 'home.sim.disconnect';
   static const String simConnect = 'home.sim.connect';
-  static const String simConnectMsfs = 'home.sim.connect_msfs';
-  static const String simConnectXplane = 'home.sim.connect_xplane';
+  static const String simConnectXp11 = 'home.sim.connect_xp11';
+  static const String simConnectXp12 = 'home.sim.connect_xp12';
+  static const String simConnectMsfs2020 = 'home.sim.connect_msfs2020';
+  static const String simConnectMsfs2024 = 'home.sim.connect_msfs2024';
   static const String simConnectingTitle = 'home.sim.connecting_title';
   static const String simConnectingSubtitle = 'home.sim.connecting_subtitle';
   static const String simConnectFailedTitle = 'home.sim.connect_failed_title';

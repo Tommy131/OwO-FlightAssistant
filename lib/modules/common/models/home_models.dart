@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum HomeSimulatorType { none, msfs, xplane }
+enum HomeSimulatorType { none, xp11, xp12, msfs2020, msfs2024 }
 
 class HomeAirportInfo {
   final String icaoCode;

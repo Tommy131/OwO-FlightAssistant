@@ -17,9 +17,13 @@ class CommonModule implements ModuleRegistrar {
   void register() {
     final registry = ModuleRegistry();
     LocalizationService().registerModuleTranslations(commonTranslations);
+    final adapter = MiddlewareHomeDataAdapter();
+    registry.registerCleanup(() async {
+      adapter.dispose();
+    });
 
     registry.providers.register(
-      ChangeNotifierProvider(create: (_) => HomeProvider()),
+      ChangeNotifierProvider(create: (_) => HomeProvider(adapter: adapter)),
     );
 
     registry.navigation.register(
