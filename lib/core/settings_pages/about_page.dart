@@ -270,7 +270,7 @@ class _OpenSourceCard extends StatelessWidget {
             const SizedBox(height: 12),
             _ClickableInfoRow(
               label: LocalizationKeys.projectSourceCode.tr(context),
-              value: 'GitHub / OwO-Dashboard',
+              value: 'GitHub',
               icon: Icons.code_rounded,
               onTap: () =>
                   UrlLauncherHelper.launchURL(AppConstants.githubRepoUrl),
