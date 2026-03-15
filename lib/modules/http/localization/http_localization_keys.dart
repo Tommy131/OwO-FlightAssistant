@@ -1,0 +1,22 @@
+class HttpLocalizationKeys {
+  static const String settingsTitle = 'http.settings.title';
+  static const String settingsDescription = 'http.settings.description';
+  static const String backendSectionTitle =
+      'http.settings.backend_section_title';
+  static const String backendSectionDescription =
+      'http.settings.backend_section_description';
+  static const String hostLabel = 'http.settings.host_label';
+  static const String hostHint = 'http.settings.host_hint';
+  static const String portLabel = 'http.settings.port_label';
+  static const String portHint = 'http.settings.port_hint';
+  static const String currentAddress = 'http.settings.current_address';
+  static const String saveButton = 'http.settings.save_button';
+  static const String testButton = 'http.settings.test_button';
+  static const String saving = 'http.settings.saving';
+  static const String testing = 'http.settings.testing';
+  static const String saveSuccess = 'http.settings.save_success';
+  static const String testSuccess = 'http.settings.test_success';
+  static const String invalidHost = 'http.settings.invalid_host';
+  static const String invalidPort = 'http.settings.invalid_port';
+  static const String testFailed = 'http.settings.test_failed';
+}

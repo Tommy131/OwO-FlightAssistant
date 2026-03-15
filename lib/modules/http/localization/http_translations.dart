@@ -1,0 +1,46 @@
+import 'http_localization_keys.dart';
+
+final Map<String, Map<String, String>> httpTranslations = {
+  'zh_CN': {
+    HttpLocalizationKeys.settingsTitle: '中间件通信',
+    HttpLocalizationKeys.settingsDescription: '配置后端通讯的 IP 与端口',
+    HttpLocalizationKeys.backendSectionTitle: '后端连接地址',
+    HttpLocalizationKeys.backendSectionDescription: '保存后将作为模块默认请求地址',
+    HttpLocalizationKeys.hostLabel: '后端 IP / 域名',
+    HttpLocalizationKeys.hostHint: '例如 127.0.0.1 或 localhost',
+    HttpLocalizationKeys.portLabel: '后端端口',
+    HttpLocalizationKeys.portHint: '范围 1 - 65535',
+    HttpLocalizationKeys.currentAddress: '当前地址: {address}',
+    HttpLocalizationKeys.saveButton: '保存配置',
+    HttpLocalizationKeys.testButton: '测试连接',
+    HttpLocalizationKeys.saving: '保存中...',
+    HttpLocalizationKeys.testing: '测试中...',
+    HttpLocalizationKeys.saveSuccess: '后端地址已保存',
+    HttpLocalizationKeys.testSuccess: '连接测试通过',
+    HttpLocalizationKeys.invalidHost: '请输入有效的后端 IP 或域名',
+    HttpLocalizationKeys.invalidPort: '请输入有效端口（1-65535）',
+    HttpLocalizationKeys.testFailed: '连接测试失败',
+  },
+  'en_US': {
+    HttpLocalizationKeys.settingsTitle: 'Middleware Connection',
+    HttpLocalizationKeys.settingsDescription:
+        'Configure backend communication IP and port',
+    HttpLocalizationKeys.backendSectionTitle: 'Backend Address',
+    HttpLocalizationKeys.backendSectionDescription:
+        'The saved value is used as the default request target',
+    HttpLocalizationKeys.hostLabel: 'Backend IP / Host',
+    HttpLocalizationKeys.hostHint: 'For example 127.0.0.1 or localhost',
+    HttpLocalizationKeys.portLabel: 'Backend Port',
+    HttpLocalizationKeys.portHint: 'Range 1 - 65535',
+    HttpLocalizationKeys.currentAddress: 'Current address: {address}',
+    HttpLocalizationKeys.saveButton: 'Save',
+    HttpLocalizationKeys.testButton: 'Test Connection',
+    HttpLocalizationKeys.saving: 'Saving...',
+    HttpLocalizationKeys.testing: 'Testing...',
+    HttpLocalizationKeys.saveSuccess: 'Backend address saved',
+    HttpLocalizationKeys.testSuccess: 'Connection test succeeded',
+    HttpLocalizationKeys.invalidHost: 'Enter a valid backend IP or host',
+    HttpLocalizationKeys.invalidPort: 'Enter a valid port (1-65535)',
+    HttpLocalizationKeys.testFailed: 'Connection test failed',
+  },
+};
