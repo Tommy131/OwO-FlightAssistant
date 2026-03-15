@@ -14,6 +14,9 @@ final Map<String, Map<String, String>> briefingTranslations = {
     BriefingLocalizationKeys.fieldDeparture: '起飞机场',
     BriefingLocalizationKeys.fieldArrival: '到达机场',
     BriefingLocalizationKeys.fieldAlternate: '备降机场',
+    BriefingLocalizationKeys.fieldDepartureRunway: '起飞跑道',
+    BriefingLocalizationKeys.fieldArrivalRunway: '降落跑道',
+    BriefingLocalizationKeys.fieldAlternateRunway: '备降跑道',
     BriefingLocalizationKeys.fieldFlightNumber: '航班号',
     BriefingLocalizationKeys.fieldRoute: '航路',
     BriefingLocalizationKeys.fieldCruiseAltitude: '巡航高度(ft)',
@@ -30,6 +33,25 @@ final Map<String, Map<String, String>> briefingTranslations = {
     BriefingLocalizationKeys.refreshSuccess: '已加载 {} 条简报',
     BriefingLocalizationKeys.refreshEmpty: '未找到可用的简报',
     BriefingLocalizationKeys.refreshFailed: '简报刷新失败',
+    BriefingLocalizationKeys.fieldIcaoHint: '请输入4位ICAO，例如 ZBAA',
+    BriefingLocalizationKeys.fieldFlightNumberHint: '例如 CA1234',
+    BriefingLocalizationKeys.fieldRouteHint: '例如 B346 G212 W120',
+    BriefingLocalizationKeys.fieldCruiseAltitudeHint: '请输入巡航高度，例如 35000',
+    BriefingLocalizationKeys.fieldRunwayHint: '根据机场自动加载，可手动选择',
+    BriefingLocalizationKeys.runwayAutoOption: '自动推荐',
+    BriefingLocalizationKeys.requiredField: '{} 不能为空',
+    BriefingLocalizationKeys.requiredAllFields: '请填写完整表单后再生成简报',
+    BriefingLocalizationKeys.invalidIcao: '{} ICAO 无效，请输入4位字母或数字',
+    BriefingLocalizationKeys.invalidFlightNumber:
+        '航班号无效，请输入2-3位航司代码加1-4位数字（可选1位字母后缀）',
+    BriefingLocalizationKeys.invalidCruiseAltitude: '巡航高度必须为大于0的数字',
+    BriefingLocalizationKeys.airportValidateFailed: '{} 机场信息校验失败，请检查ICAO',
+    BriefingLocalizationKeys.deleteAction: '删除',
+    BriefingLocalizationKeys.deleteConfirmTitle: '删除简报',
+    BriefingLocalizationKeys.deleteConfirmContent: '确认删除该历史简报吗？',
+    BriefingLocalizationKeys.deleteSuccess: '简报已删除',
+    BriefingLocalizationKeys.deleteFailed: '删除失败，请稍后重试',
+    BriefingLocalizationKeys.copySuccess: '简报已复制到剪贴板',
   },
   'en_US': {
     BriefingLocalizationKeys.navTitle: 'Briefing',
@@ -47,6 +69,9 @@ final Map<String, Map<String, String>> briefingTranslations = {
     BriefingLocalizationKeys.fieldDeparture: 'Departure',
     BriefingLocalizationKeys.fieldArrival: 'Arrival',
     BriefingLocalizationKeys.fieldAlternate: 'Alternate',
+    BriefingLocalizationKeys.fieldDepartureRunway: 'Departure Runway',
+    BriefingLocalizationKeys.fieldArrivalRunway: 'Arrival Runway',
+    BriefingLocalizationKeys.fieldAlternateRunway: 'Alternate Runway',
     BriefingLocalizationKeys.fieldFlightNumber: 'Flight Number',
     BriefingLocalizationKeys.fieldRoute: 'Route',
     BriefingLocalizationKeys.fieldCruiseAltitude: 'Cruise Altitude(ft)',
@@ -63,5 +88,31 @@ final Map<String, Map<String, String>> briefingTranslations = {
     BriefingLocalizationKeys.refreshSuccess: 'Loaded {} briefings',
     BriefingLocalizationKeys.refreshEmpty: 'No briefings found',
     BriefingLocalizationKeys.refreshFailed: 'Refresh failed',
+    BriefingLocalizationKeys.fieldIcaoHint: 'Enter 4-char ICAO, e.g. ZBAA',
+    BriefingLocalizationKeys.fieldFlightNumberHint: 'e.g. CA1234',
+    BriefingLocalizationKeys.fieldRouteHint: 'e.g. B346 G212 W120',
+    BriefingLocalizationKeys.fieldCruiseAltitudeHint:
+        'Enter cruise altitude, e.g. 35000',
+    BriefingLocalizationKeys.fieldRunwayHint:
+        'Auto-loaded from airport, selectable manually',
+    BriefingLocalizationKeys.runwayAutoOption: 'Auto select',
+    BriefingLocalizationKeys.requiredField: '{} is required',
+    BriefingLocalizationKeys.requiredAllFields:
+        'Please complete the form before generating briefing',
+    BriefingLocalizationKeys.invalidIcao:
+        '{} ICAO is invalid, use 4 letters or digits',
+    BriefingLocalizationKeys.invalidFlightNumber:
+        'Invalid flight number, use 2-3 letters + 1-4 digits (optional suffix)',
+    BriefingLocalizationKeys.invalidCruiseAltitude:
+        'Cruise altitude must be a positive number',
+    BriefingLocalizationKeys.airportValidateFailed:
+        '{} airport validation failed, please check ICAO',
+    BriefingLocalizationKeys.deleteAction: 'Delete',
+    BriefingLocalizationKeys.deleteConfirmTitle: 'Delete Briefing',
+    BriefingLocalizationKeys.deleteConfirmContent:
+        'Are you sure you want to delete this briefing record?',
+    BriefingLocalizationKeys.deleteSuccess: 'Briefing deleted',
+    BriefingLocalizationKeys.deleteFailed: 'Delete failed, please retry',
+    BriefingLocalizationKeys.copySuccess: 'Briefing copied to clipboard',
   },
 };
