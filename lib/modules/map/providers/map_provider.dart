@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
+import '../../common/models/home_models.dart';
 import '../models/map_models.dart';
 
 class MapProvider extends ChangeNotifier {
@@ -30,6 +32,10 @@ class MapProvider extends ChangeNotifier {
   MapAircraftState? _aircraft;
   List<MapRoutePoint> _route = [];
   List<MapAirportMarker> _airports = [];
+  MapCoordinate? _takeoffPoint;
+  MapCoordinate? _landingPoint;
+  bool? _lastOnGround;
+  DateTime? _lastRouteTimestamp;
 
   MapLayerStyle get layerStyle => _layerStyle;
   MapOrientationMode get orientationMode => _orientationMode;
@@ -47,10 +53,37 @@ class MapProvider extends ChangeNotifier {
   MapAircraftState? get aircraft => _aircraft;
   List<MapRoutePoint> get route => _route;
   List<MapAirportMarker> get airports => _airports;
+  MapCoordinate? get takeoffPoint => _takeoffPoint;
+  MapCoordinate? get landingPoint => _landingPoint;
 
   void attachAdapter(MapDataAdapter? adapter) {
     _adapter = adapter;
     _subscribeAdapter();
+  }
+
+  void updateFromHomeSnapshot(HomeDataSnapshot snapshot) {
+    _isConnected = snapshot.isConnected;
+    _airports = _buildAirportsFromSnapshot(snapshot);
+    final flightData = snapshot.flightData;
+    final lat = flightData.latitude;
+    final lon = flightData.longitude;
+    if (lat != null && lon != null) {
+      final now = DateTime.now();
+      final aircraftState = MapAircraftState(
+        position: MapCoordinate(latitude: lat, longitude: lon),
+        heading: flightData.heading,
+        altitude: flightData.altitude,
+        groundSpeed: flightData.groundSpeed,
+        onGround: flightData.onGround,
+      );
+      _aircraft = aircraftState;
+      _appendRoutePoint(aircraftState, now);
+      _updateTakeoffLandingMarker(flightData.onGround, aircraftState.position);
+    } else if (!_isConnected) {
+      _aircraft = null;
+      _lastOnGround = null;
+    }
+    notifyListeners();
   }
 
   void setLayerStyle(MapLayerStyle style) {
@@ -158,6 +191,10 @@ class MapProvider extends ChangeNotifier {
   void clearRoute() {
     if (_route.isEmpty) return;
     _route = [];
+    _takeoffPoint = null;
+    _landingPoint = null;
+    _lastOnGround = null;
+    _lastRouteTimestamp = null;
     notifyListeners();
   }
 
@@ -177,6 +214,88 @@ class MapProvider extends ChangeNotifier {
       _isConnected = snapshot.isConnected;
       notifyListeners();
     });
+  }
+
+  List<MapAirportMarker> _buildAirportsFromSnapshot(HomeDataSnapshot snapshot) {
+    final result = <MapAirportMarker>[];
+    final added = <String>{};
+
+    void addAirport(HomeAirportInfo? airport, {required bool isPrimary}) {
+      if (airport == null) return;
+      final code = airport.icaoCode.trim().toUpperCase();
+      if (code.isEmpty || added.contains(code)) return;
+      added.add(code);
+      result.add(
+        MapAirportMarker(
+          code: code,
+          name: airport.displayName,
+          position: MapCoordinate(
+            latitude: airport.latitude,
+            longitude: airport.longitude,
+          ),
+          isPrimary: isPrimary,
+        ),
+      );
+    }
+
+    addAirport(snapshot.nearestAirport, isPrimary: true);
+    addAirport(snapshot.destinationAirport, isPrimary: true);
+    addAirport(snapshot.alternateAirport, isPrimary: false);
+    for (final airport in snapshot.suggestedAirports) {
+      addAirport(airport, isPrimary: false);
+    }
+    return result;
+  }
+
+  void _appendRoutePoint(MapAircraftState aircraftState, DateTime now) {
+    if (_route.isNotEmpty) {
+      final last = _route.last;
+      final movedDistance = const Distance().as(
+        LengthUnit.Meter,
+        LatLng(last.latitude, last.longitude),
+        LatLng(
+          aircraftState.position.latitude,
+          aircraftState.position.longitude,
+        ),
+      );
+      final secondsFromLast = _lastRouteTimestamp == null
+          ? 999
+          : now.difference(_lastRouteTimestamp!).inSeconds;
+      if (movedDistance < 6 && secondsFromLast < 2) {
+        return;
+      }
+    }
+
+    _route = [
+      ..._route,
+      MapRoutePoint(
+        latitude: aircraftState.position.latitude,
+        longitude: aircraftState.position.longitude,
+        altitude: aircraftState.altitude,
+        groundSpeed: aircraftState.groundSpeed,
+        timestamp: now,
+      ),
+    ];
+    if (_route.length > 3600) {
+      _route = _route.sublist(_route.length - 3600);
+    }
+    _lastRouteTimestamp = now;
+  }
+
+  void _updateTakeoffLandingMarker(bool? onGround, MapCoordinate position) {
+    if (onGround == null) {
+      return;
+    }
+    if (_lastOnGround == null) {
+      _lastOnGround = onGround;
+      return;
+    }
+    if (_lastOnGround == true && onGround == false) {
+      _takeoffPoint = position;
+    } else if (_lastOnGround == false && onGround == true) {
+      _landingPoint = position;
+    }
+    _lastOnGround = onGround;
   }
 
   @override

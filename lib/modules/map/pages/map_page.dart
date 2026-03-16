@@ -18,6 +18,8 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
+  static const double _nearbyAirportMinZoom = 8.5;
+  static const double _airportIcaoLabelMinZoom = 10.8;
   final MapController _mapController = MapController();
   final _weatherRadarTransformer = TileUpdateTransformers.throttle(
     const Duration(milliseconds: 100),
@@ -37,6 +39,9 @@ class _MapPageState extends State<MapPage> {
         final center = _resolveCenter(provider);
         final zoom = _mapReady ? _mapController.camera.zoom : 12;
         final aviationOverlayUrl = _aviationOverlayUrl(provider.layerStyle);
+        final showNearbyAirportMarkers =
+            provider.showAirports && zoom >= _nearbyAirportMinZoom;
+        final showAirportIcaoLabel = zoom >= _airportIcaoLabelMinZoom;
 
         if (_mapReady && provider.followAircraft && aircraft != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -125,7 +130,7 @@ class _MapPageState extends State<MapPage> {
                         ),
                       ],
                     ),
-                  if (provider.showAirports && provider.airports.isNotEmpty)
+                  if (showNearbyAirportMarkers && provider.airports.isNotEmpty)
                     MarkerLayer(
                       markers: provider.airports
                           .map(
@@ -134,9 +139,12 @@ class _MapPageState extends State<MapPage> {
                                 airport.position.latitude,
                                 airport.position.longitude,
                               ),
-                              width: 28,
-                              height: 28,
-                              child: _AirportMarker(airport: airport),
+                              width: showAirportIcaoLabel ? 108 : 28,
+                              height: showAirportIcaoLabel ? 56 : 28,
+                              child: _AirportMarker(
+                                airport: airport,
+                                showLabel: showAirportIcaoLabel,
+                              ),
                             ),
                           )
                           .toList(),
@@ -144,6 +152,22 @@ class _MapPageState extends State<MapPage> {
                   if (aircraft != null)
                     MarkerLayer(
                       markers: [
+                        if (provider.showCompass)
+                          Marker(
+                            point: LatLng(
+                              aircraft.position.latitude,
+                              aircraft.position.longitude,
+                            ),
+                            width: 140 * scale,
+                            height: 140 * scale,
+                            child: _AircraftCompassRing(
+                              heading: aircraft.heading,
+                              mapRotation: _mapReady
+                                  ? _mapController.camera.rotation
+                                  : 0,
+                              scale: scale,
+                            ),
+                          ),
                         Marker(
                           point: LatLng(
                             aircraft.position.latitude,
@@ -156,6 +180,34 @@ class _MapPageState extends State<MapPage> {
                             isDark: theme.brightness == Brightness.dark,
                           ),
                         ),
+                        if (provider.takeoffPoint != null)
+                          Marker(
+                            point: LatLng(
+                              provider.takeoffPoint!.latitude,
+                              provider.takeoffPoint!.longitude,
+                            ),
+                            width: 78,
+                            height: 68,
+                            child: const _FlightEventMarker(
+                              icon: Icons.flight_takeoff,
+                              label: 'TAKEOFF',
+                              color: Colors.blueAccent,
+                            ),
+                          ),
+                        if (provider.landingPoint != null)
+                          Marker(
+                            point: LatLng(
+                              provider.landingPoint!.latitude,
+                              provider.landingPoint!.longitude,
+                            ),
+                            width: 78,
+                            height: 68,
+                            child: const _FlightEventMarker(
+                              icon: Icons.flight_land,
+                              label: 'LANDING',
+                              color: Colors.greenAccent,
+                            ),
+                          ),
                       ],
                     ),
                 ],
@@ -255,6 +307,17 @@ class _MapPageState extends State<MapPage> {
                         ),
                       ),
                     ),
+                  ),
+                ),
+              if (provider.isConnected && aircraft != null)
+                Positioned(
+                  left: 20 * scale,
+                  right: 20 * scale,
+                  bottom: 20 * scale,
+                  child: _VirtualHudPanel(
+                    scale: scale,
+                    aircraft: aircraft,
+                    verticalSpeed: _calculateHudVerticalSpeed(provider.route),
                   ),
                 ),
               if (provider.isLoading)
@@ -363,6 +426,20 @@ class _MapPageState extends State<MapPage> {
       default:
         return null;
     }
+  }
+
+  double? _calculateHudVerticalSpeed(List<MapRoutePoint> route) {
+    if (route.length < 2) return null;
+    final last = route[route.length - 1];
+    final previous = route[route.length - 2];
+    if (last.altitude == null || previous.altitude == null) return null;
+    if (last.timestamp == null || previous.timestamp == null) return null;
+    final seconds = last.timestamp!
+        .difference(previous.timestamp!)
+        .inSeconds
+        .toDouble();
+    if (seconds <= 0) return null;
+    return ((last.altitude! - previous.altitude!) / seconds) * 60;
   }
 }
 
@@ -1261,8 +1338,9 @@ class _AircraftMarker extends StatelessWidget {
 
 class _AirportMarker extends StatelessWidget {
   final MapAirportMarker airport;
+  final bool showLabel;
 
-  const _AirportMarker({required this.airport});
+  const _AirportMarker({required this.airport, required this.showLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -1270,21 +1348,246 @@ class _AirportMarker extends StatelessWidget {
     final color = airport.isPrimary
         ? theme.colorScheme.primary
         : theme.colorScheme.secondary;
-    return Container(
+    final pin = Container(
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2),
       ),
-      child: Center(
-        child: Text(
-          airport.code,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+      child: const Icon(Icons.local_airport, color: Colors.white, size: 14),
+    );
+    if (!showLabel) {
+      return pin;
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        pin,
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: Text(
+            airport.code,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FlightEventMarker extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _FlightEventMarker({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.86),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        Icon(icon, color: color, size: 34),
+      ],
+    );
+  }
+}
+
+class _AircraftCompassRing extends StatelessWidget {
+  final double? heading;
+  final double mapRotation;
+  final double scale;
+
+  const _AircraftCompassRing({
+    required this.heading,
+    required this.mapRotation,
+    required this.scale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final angle = -((heading ?? 0) + mapRotation) * (math.pi / 180);
+    return IgnorePointer(
+      child: Transform.rotate(
+        angle: angle,
+        child: Container(
+          width: 120 * scale,
+          height: 120 * scale,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white24),
+          ),
+          child: Center(
+            child: Text(
+              'N',
+              style: TextStyle(
+                color: Colors.orangeAccent,
+                fontWeight: FontWeight.bold,
+                fontSize: 12 * scale,
+              ),
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _VirtualHudPanel extends StatelessWidget {
+  final double scale;
+  final MapAircraftState aircraft;
+  final double? verticalSpeed;
+
+  const _VirtualHudPanel({
+    required this.scale,
+    required this.aircraft,
+    required this.verticalSpeed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12 * scale),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: 14 * scale,
+            vertical: 8 * scale,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.42),
+            border: Border.all(
+              color: Colors.lightGreenAccent.withValues(alpha: 0.55),
+            ),
+            borderRadius: BorderRadius.circular(12 * scale),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _HudValue(
+                label: 'GS',
+                value: aircraft.groundSpeed != null
+                    ? '${aircraft.groundSpeed!.round()}'
+                    : '--',
+                unit: 'kt',
+                scale: scale,
+              ),
+              _HudValue(
+                label: 'ALT',
+                value: aircraft.altitude != null
+                    ? '${aircraft.altitude!.round()}'
+                    : '--',
+                unit: 'ft',
+                scale: scale,
+              ),
+              _HudValue(
+                label: 'HDG',
+                value: aircraft.heading != null
+                    ? '${aircraft.heading!.round()}'
+                    : '--',
+                unit: '°',
+                scale: scale,
+              ),
+              _HudValue(
+                label: 'VS',
+                value: verticalSpeed != null
+                    ? '${verticalSpeed!.round()}'
+                    : '--',
+                unit: 'fpm',
+                scale: scale,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HudValue extends StatelessWidget {
+  final String label;
+  final String value;
+  final String unit;
+  final double scale;
+
+  const _HudValue({
+    required this.label,
+    required this.value,
+    required this.unit,
+    required this.scale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.lightGreenAccent.withValues(alpha: 0.9),
+            fontSize: 10 * scale,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                color: Colors.lightGreenAccent,
+                fontSize: 14 * scale,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (unit.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.only(left: 4 * scale),
+                child: Text(
+                  unit,
+                  style: TextStyle(
+                    color: Colors.lightGreenAccent.withValues(alpha: 0.82),
+                    fontSize: 10 * scale,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

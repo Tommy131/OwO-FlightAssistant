@@ -4,6 +4,7 @@ import '../../core/module_registry/module_registrar.dart';
 import '../../core/module_registry/module_registry.dart';
 import '../../core/module_registry/navigation/navigation_item.dart';
 import '../../core/services/localization_service.dart';
+import '../common/providers/home_provider.dart';
 import 'localization/map_localization_keys.dart';
 import 'localization/map_translations.dart';
 import 'pages/map_page.dart';
@@ -19,7 +20,14 @@ class MapModule implements ModuleRegistrar {
     LocalizationService().registerModuleTranslations(mapTranslations);
 
     registry.providers.register(
-      ChangeNotifierProvider(create: (_) => MapProvider()),
+      ChangeNotifierProxyProvider<HomeProvider, MapProvider>(
+        create: (_) => MapProvider(),
+        update: (_, homeProvider, mapProvider) {
+          final provider = mapProvider ?? MapProvider();
+          provider.updateFromHomeSnapshot(homeProvider.snapshot);
+          return provider;
+        },
+      ),
     );
 
     registry.navigation.register(
