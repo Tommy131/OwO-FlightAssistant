@@ -11,6 +11,8 @@ class MonitorChartCard extends StatelessWidget {
   final double? minY;
   final double? maxY;
   final double currentTime;
+  final bool isCurved;
+  final double curveSmoothness;
 
   const MonitorChartCard({
     super.key,
@@ -21,6 +23,8 @@ class MonitorChartCard extends StatelessWidget {
     this.minY,
     this.maxY,
     required this.currentTime,
+    this.isCurved = true,
+    this.curveSmoothness = 0.2,
   });
 
   @override
@@ -80,7 +84,9 @@ class MonitorChartCard extends StatelessWidget {
                 lineBarsData: [
                   LineChartBarData(
                     spots: spots,
-                    isCurved: true,
+                    isCurved: isCurved,
+                    curveSmoothness: curveSmoothness,
+                    preventCurveOverShooting: true,
                     color: color,
                     barWidth: 2,
                     isStrokeCapRound: true,

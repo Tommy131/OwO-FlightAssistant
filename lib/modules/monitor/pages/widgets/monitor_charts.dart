@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
+import 'package:fl_chart/fl_chart.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
 import '../../localization/monitor_localization_keys.dart';
@@ -61,23 +63,53 @@ class MonitorCharts extends StatelessWidget {
     final chartData = provider.chartData;
     final theme = Theme.of(context);
     final unit = MonitorLocalizationKeys.unitFt.tr(context);
+    final fittedSpots = _buildFittedAltitudeSpots(chartData.altitudeSpots);
+    final axisMinRange = _altitudeAxisMinRange(data.altitude);
     return MonitorChartCard(
       title: MonitorLocalizationKeys.chartAltitudeTitle.tr(context),
       value: '${data.altitude?.toStringAsFixed(0) ?? "0"} $unit',
-      spots: chartData.altitudeSpots,
+      spots: fittedSpots,
       color: theme.colorScheme.primary,
       minY: MonitorChartCard.calculateMinY(
-        chartData.altitudeSpots,
-        100,
+        fittedSpots,
+        axisMinRange,
         defaultVal: 0,
       ),
       maxY: MonitorChartCard.calculateMaxY(
-        chartData.altitudeSpots,
-        100,
+        fittedSpots,
+        axisMinRange,
         defaultVal: 100,
       ),
       currentTime: chartData.currentTime,
+      isCurved: true,
+      curveSmoothness: 0.18,
     );
+  }
+
+  double _altitudeAxisMinRange(double? altitude) {
+    final base = (altitude ?? 0).abs() * 0.015;
+    return math.max(300, math.min(base, 2000));
+  }
+
+  List<FlSpot> _buildFittedAltitudeSpots(List<FlSpot> spots) {
+    if (spots.length < 3) return spots;
+    const int windowRadius = 2;
+    final fitted = <FlSpot>[];
+    for (var i = 0; i < spots.length; i++) {
+      final start = math.max(0, i - windowRadius);
+      final end = math.min(spots.length - 1, i + windowRadius);
+      double weightedSum = 0;
+      double weightTotal = 0;
+      for (var j = start; j <= end; j++) {
+        final distance = (i - j).abs();
+        final weight = 1.0 / (distance + 1);
+        weightedSum += spots[j].y * weight;
+        weightTotal += weight;
+      }
+      final y = weightedSum / weightTotal;
+      fitted.add(FlSpot(spots[i].x, y));
+    }
+    return fitted;
   }
 
   Widget _buildPressureChart(BuildContext context) {
