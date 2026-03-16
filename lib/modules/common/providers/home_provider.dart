@@ -533,6 +533,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       verticalSpeed: _toDouble(
         dataset['vertical_speed_fpm'] ?? dataset['vs_fpm'],
       ),
+      gForce: _toDouble(dataset['g_force_g'] ?? dataset['g_force']),
       latitude: _toDouble(dataset['latitude']),
       longitude: _toDouble(dataset['longitude']),
       departureAirport: _pickString(dataset, const [

@@ -53,6 +53,7 @@ class HomeFlightData {
   final double? altitude;
   final double? heading;
   final double? verticalSpeed;
+  final double? gForce;
   final double? groundSpeed;
   final double? trueAirspeed;
   final double? latitude;
@@ -121,6 +122,7 @@ class HomeFlightData {
     this.altitude,
     this.heading,
     this.verticalSpeed,
+    this.gForce,
     this.groundSpeed,
     this.trueAirspeed,
     this.latitude,

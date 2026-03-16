@@ -134,7 +134,7 @@ class FlightLogsProvider extends ChangeNotifier {
       heading: data.heading ?? 0,
       pitch: 0,
       roll: 0,
-      gForce: 1,
+      gForce: data.gForce ?? 1,
       fuelQuantity: data.fuelQuantity ?? 0,
       fuelFlow: data.fuelFlow,
       timestamp: now,

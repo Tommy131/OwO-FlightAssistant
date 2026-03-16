@@ -39,7 +39,7 @@ class MonitorProvider extends ChangeNotifier {
   void updateFromHomeSnapshot(HomeDataSnapshot snapshot) {
     final flightData = snapshot.flightData;
     _chartTime += 1;
-    final currentG = 1.0;
+    final currentG = flightData.gForce ?? 1.0;
     final currentAltitude = flightData.altitude ?? 0;
     final currentPressure = flightData.baroPressure ?? 29.92;
     _gForceSpots = _appendSpot(_gForceSpots, FlSpot(_chartTime, currentG));
