@@ -2,8 +2,8 @@ import 'map_localization_keys.dart';
 
 final Map<String, Map<String, String>> mapTranslations = {
   'zh_CN': {
-    MapLocalizationKeys.navTitle: '航图',
-    MapLocalizationKeys.panelTitle: '航图概览',
+    MapLocalizationKeys.navTitle: '地图',
+    MapLocalizationKeys.panelTitle: '地图概览',
     MapLocalizationKeys.panelSubtitle: '显示航迹与机场信息',
     MapLocalizationKeys.followAircraft: '跟随飞机',
     MapLocalizationKeys.orientationNorth: '正北朝上',
