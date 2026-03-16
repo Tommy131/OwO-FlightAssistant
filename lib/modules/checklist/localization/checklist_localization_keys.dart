@@ -5,6 +5,17 @@ class ChecklistLocalizationKeys {
   static const String emptyPhase = 'checklist.empty_phase';
   static const String resetPhase = 'checklist.footer.reset_phase';
   static const String resetAll = 'checklist.footer.reset_all';
+  static const String resetPhaseConfirmTitle =
+      'checklist.footer.reset_phase_confirm_title';
+  static const String resetPhaseConfirmContent =
+      'checklist.footer.reset_phase_confirm_content';
+  static const String resetAllConfirmTitle =
+      'checklist.footer.reset_all_confirm_title';
+  static const String resetAllConfirmContent =
+      'checklist.footer.reset_all_confirm_content';
+  static const String resetPhaseSuccess =
+      'checklist.message.reset_phase_success';
+  static const String resetAllSuccess = 'checklist.message.reset_all_success';
   static const String refresh = 'checklist.footer.refresh';
   static const String importFile = 'checklist.footer.import';
   static const String exportFile = 'checklist.footer.export';

@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/services/persistence_service.dart';
 import '../data/a320_checklist.dart';
 import '../data/b737_checklist.dart';
+import '../data/generic_checklist.dart';
 import '../models/flight_checklist.dart';
 
 class ChecklistService {
@@ -13,6 +14,7 @@ class ChecklistService {
 
   List<AircraftChecklist> getBuiltInChecklists() {
     return [
+      GenericChecklist.create('通用机型'),
       A320Checklist.create('A320-200 / A321 / A319'),
       B737Checklist.create('B737-800 / Max'),
     ];
@@ -64,7 +66,9 @@ class ChecklistService {
   ) async {
     final payload = _serializeChecklistPayload(aircraft);
     final file = File(targetPath);
-    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(payload));
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(payload),
+    );
   }
 
   List<AircraftChecklist> _parseChecklistPayload(dynamic jsonData) {
@@ -143,13 +147,16 @@ class ChecklistService {
   }
 
   AircraftFamily _parseFamily(String? value) {
-    if (value == null) return AircraftFamily.a320;
+    if (value == null) return AircraftFamily.generic;
     final normalized = value.toLowerCase();
     for (final family in AircraftFamily.values) {
       if (family.name.toLowerCase() == normalized) return family;
     }
     if (normalized.contains('737')) return AircraftFamily.b737;
-    return AircraftFamily.a320;
+    if (normalized.contains('320') || normalized.contains('321')) {
+      return AircraftFamily.a320;
+    }
+    return AircraftFamily.generic;
   }
 
   ChecklistPhase? _parsePhase(String? value) {

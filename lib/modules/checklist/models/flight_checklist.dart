@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum AircraftFamily { a320, b737 }
+enum AircraftFamily { generic, a320, b737 }
 
 enum ChecklistPhase {
   coldAndDark('checklist.phase.cold_and_dark', Icons.power_settings_new),

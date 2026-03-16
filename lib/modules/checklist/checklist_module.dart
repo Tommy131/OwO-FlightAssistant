@@ -4,6 +4,7 @@ import '../../core/module_registry/module_registrar.dart';
 import '../../core/module_registry/module_registry.dart';
 import '../../core/module_registry/navigation/navigation_item.dart';
 import '../../core/services/localization_service.dart';
+import '../common/providers/home_provider.dart';
 import 'localization/checklist_localization_keys.dart';
 import 'localization/checklist_translations.dart';
 import 'pages/checklist_page.dart';
@@ -19,7 +20,25 @@ class ChecklistModule implements ModuleRegistrar {
     LocalizationService().registerModuleTranslations(checklistTranslations);
 
     registry.providers.register(
-      ChangeNotifierProvider(create: (_) => ChecklistProvider()),
+      ChangeNotifierProxyProvider<HomeProvider, ChecklistProvider>(
+        create: (_) => ChecklistProvider(),
+        update: (_, homeProvider, checklistProvider) {
+          final provider = checklistProvider ?? ChecklistProvider();
+          final flightData = homeProvider.flightData;
+          final identifier = [
+            homeProvider.aircraftTitle,
+            flightData.aircraftDisplayName,
+            flightData.aircraftManufacturer,
+            flightData.aircraftFamily,
+            flightData.aircraftModel,
+            flightData.aircraftIcao,
+            flightData.aircraftProfile,
+            flightData.aircraftId,
+          ].whereType<String>().where((e) => e.trim().isNotEmpty).join(' ');
+          provider.updateAircraftByIdentifier(identifier);
+          return provider;
+        },
+      ),
     );
 
     registry.navigation.register(

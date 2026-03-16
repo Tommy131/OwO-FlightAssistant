@@ -12,6 +12,7 @@ class ChecklistProvider with ChangeNotifier {
   AircraftChecklist? _selectedAircraft;
   ChecklistPhase _currentPhase = ChecklistPhase.coldAndDark;
   bool _isLoading = false;
+  String? _pendingIdentifier;
 
   List<AircraftChecklist> get aircraftList => _aircraftList;
   AircraftChecklist? get selectedAircraft => _selectedAircraft;
@@ -24,6 +25,7 @@ class ChecklistProvider with ChangeNotifier {
 
   Future<void> _init() async {
     await reloadFromDirectory(fallbackToBuiltIn: true);
+    updateAircraftByIdentifier(_pendingIdentifier);
   }
 
   void selectAircraft(String id) {
@@ -113,6 +115,7 @@ class ChecklistProvider with ChangeNotifier {
       _applyAircraftList(loaded);
     }
     _isLoading = false;
+    updateAircraftByIdentifier(_pendingIdentifier);
     notifyListeners();
     return loaded.length;
   }
@@ -144,7 +147,75 @@ class ChecklistProvider with ChangeNotifier {
   }
 
   Future<bool> updateAircraftByIdentifier(String? identifier) async {
-    return false;
+    _pendingIdentifier = identifier;
+    if (_isLoading || _aircraftList.isEmpty) return false;
+    final selected = _resolveAircraftByIdentifier(identifier);
+    if (selected == null) return false;
+    if (_selectedAircraft?.id == selected.id) return true;
+    _selectedAircraft = selected;
+    _currentPhase = ChecklistPhase.coldAndDark;
+    notifyListeners();
+    return true;
+  }
+
+  AircraftChecklist? _resolveAircraftByIdentifier(String? identifier) {
+    final normalized = (identifier ?? '').trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return _findGenericChecklist() ?? _aircraftList.first;
+    }
+    for (final aircraft in _aircraftList) {
+      final id = aircraft.id.toLowerCase();
+      final name = aircraft.name.toLowerCase();
+      if (normalized.contains(id) || normalized.contains(name)) {
+        return aircraft;
+      }
+    }
+    if (_looksLikeB737(normalized)) {
+      return _findByFamily(AircraftFamily.b737) ??
+          _findGenericChecklist() ??
+          _aircraftList.first;
+    }
+    if (_looksLikeA320(normalized)) {
+      return _findByFamily(AircraftFamily.a320) ??
+          _findGenericChecklist() ??
+          _aircraftList.first;
+    }
+    return _findGenericChecklist() ?? _aircraftList.first;
+  }
+
+  bool _looksLikeA320(String text) {
+    return text.contains('a320') ||
+        text.contains('a319') ||
+        text.contains('a321') ||
+        text.contains('a32n') ||
+        text.contains('airbus a3');
+  }
+
+  bool _looksLikeB737(String text) {
+    return text.contains('b737') ||
+        text.contains('737') ||
+        text.contains('b738') ||
+        text.contains('zibo') ||
+        text.contains('boeing 737');
+  }
+
+  AircraftChecklist? _findByFamily(AircraftFamily family) {
+    for (final aircraft in _aircraftList) {
+      if (aircraft.family == family) {
+        return aircraft;
+      }
+    }
+    return null;
+  }
+
+  AircraftChecklist? _findGenericChecklist() {
+    for (final aircraft in _aircraftList) {
+      if (aircraft.family == AircraftFamily.generic ||
+          aircraft.id.toLowerCase() == 'generic') {
+        return aircraft;
+      }
+    }
+    return null;
   }
 
   void _applyAircraftList(List<AircraftChecklist> list) {

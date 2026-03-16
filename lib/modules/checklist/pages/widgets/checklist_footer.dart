@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme_data.dart';
 import '../../../../core/services/localization_service.dart';
+import '../../../../core/widgets/common/dialog.dart';
 import '../../../../core/widgets/common/snack_bar.dart';
 import '../../providers/checklist_provider.dart';
 import '../../localization/checklist_localization_keys.dart';
@@ -111,13 +112,47 @@ class ChecklistFooter extends StatelessWidget {
           ),
           const SizedBox(width: AppThemeData.spacingSmall),
           TextButton.icon(
-            onPressed: () => provider.resetCurrentPhase(),
+            onPressed: () async {
+              final confirm = await showAdvancedConfirmDialog(
+                context: context,
+                title: ChecklistLocalizationKeys.resetPhaseConfirmTitle.tr(
+                  context,
+                ),
+                content: ChecklistLocalizationKeys.resetPhaseConfirmContent.tr(
+                  context,
+                ),
+                icon: Icons.warning_amber_rounded,
+              );
+              if (confirm != true) return;
+              provider.resetCurrentPhase();
+              SnackBarHelper.showSuccess(
+                context,
+                ChecklistLocalizationKeys.resetPhaseSuccess.tr(context),
+              );
+            },
             icon: const Icon(Icons.refresh, size: 18),
             label: Text(ChecklistLocalizationKeys.resetPhase.tr(context)),
           ),
           const SizedBox(width: AppThemeData.spacingSmall),
           ElevatedButton.icon(
-            onPressed: () => provider.resetAll(),
+            onPressed: () async {
+              final confirm = await showAdvancedConfirmDialog(
+                context: context,
+                title: ChecklistLocalizationKeys.resetAllConfirmTitle.tr(
+                  context,
+                ),
+                content: ChecklistLocalizationKeys.resetAllConfirmContent.tr(
+                  context,
+                ),
+                icon: Icons.warning_amber_rounded,
+              );
+              if (confirm != true) return;
+              provider.resetAll();
+              SnackBarHelper.showSuccess(
+                context,
+                ChecklistLocalizationKeys.resetAllSuccess.tr(context),
+              );
+            },
             icon: const Icon(Icons.layers_clear, size: 18),
             label: Text(ChecklistLocalizationKeys.resetAll.tr(context)),
             style: ElevatedButton.styleFrom(
