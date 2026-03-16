@@ -54,7 +54,7 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
           body: SafeArea(
             child: CustomScrollView(
               slivers: [
-                SliverAppBar(
+                /* SliverAppBar(
                   expandedHeight: 70,
                   floating: false,
                   pinned: true,
@@ -71,7 +71,7 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
                     ),
                     centerTitle: false,
                   ),
-                ),
+                ), */
                 SliverPadding(
                   padding: const EdgeInsets.all(AppThemeData.spacingMedium),
                   sliver: SliverList(

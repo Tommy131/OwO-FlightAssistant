@@ -312,10 +312,10 @@ class FlightDataDashboard extends StatelessWidget {
     BuildContext context, {
     required bool isAlternate,
   }) {
+    final provider = context.read<HomeProvider>();
     showDialog(
       context: context,
       builder: (context) {
-        final provider = context.read<HomeProvider>();
         return AlertDialog(
           title: Text(
             isAlternate

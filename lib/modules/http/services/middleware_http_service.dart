@@ -16,12 +16,16 @@ class MiddlewareHttpService {
   MiddlewareHttpService._internal();
 
   static const String _baseUrlKey = 'middleware_http_base_url';
+  static const String _webSocketBaseUrlKey = 'middleware_ws_base_url';
   static const String _timeoutMsKey = 'middleware_http_timeout_ms';
   static const String _defaultBaseUrl = 'http://127.0.0.1:18080';
+  static const String _defaultWebSocketBaseUrl =
+      'ws://127.0.0.1:18081/api/v1/simulator/ws';
   static const int _defaultTimeoutMs = 10000;
 
   final http.Client _client = http.Client();
   String _baseUrl = _defaultBaseUrl;
+  String _webSocketBaseUrl = _defaultWebSocketBaseUrl;
   Duration _timeout = const Duration(milliseconds: _defaultTimeoutMs);
   final Map<String, String> _defaultHeaders = {
     'Accept': 'application/json',
@@ -29,6 +33,7 @@ class MiddlewareHttpService {
   };
 
   String get baseUrl => _baseUrl;
+  String get webSocketBaseUrl => _webSocketBaseUrl;
   Duration get timeout => _timeout;
   Map<String, String> get defaultHeaders => Map.unmodifiable(_defaultHeaders);
 
@@ -41,6 +46,13 @@ class MiddlewareHttpService {
     if (savedBaseUrl != null && savedBaseUrl.trim().isNotEmpty) {
       _baseUrl = _normalizeBaseUrl(savedBaseUrl);
     }
+    final savedWebSocketBaseUrl = persistence.getString(_webSocketBaseUrlKey);
+    if (savedWebSocketBaseUrl != null &&
+        savedWebSocketBaseUrl.trim().isNotEmpty) {
+      _webSocketBaseUrl = _normalizeWebSocketBaseUrl(savedWebSocketBaseUrl);
+    } else {
+      _webSocketBaseUrl = _deriveWebSocketUrlFromBase(_baseUrl);
+    }
     final timeoutMs = persistence.getInt(_timeoutMsKey);
     if (timeoutMs != null && timeoutMs > 0) {
       _timeout = Duration(milliseconds: timeoutMs);
@@ -49,12 +61,19 @@ class MiddlewareHttpService {
 
   Future<void> configure({
     String? baseUrl,
+    String? webSocketBaseUrl,
     Duration? timeout,
     Map<String, String>? defaultHeaders,
     bool persist = true,
   }) async {
     if (baseUrl != null && baseUrl.trim().isNotEmpty) {
       _baseUrl = _normalizeBaseUrl(baseUrl);
+      if (webSocketBaseUrl == null || webSocketBaseUrl.trim().isEmpty) {
+        _webSocketBaseUrl = _deriveWebSocketUrlFromBase(_baseUrl);
+      }
+    }
+    if (webSocketBaseUrl != null && webSocketBaseUrl.trim().isNotEmpty) {
+      _webSocketBaseUrl = _normalizeWebSocketBaseUrl(webSocketBaseUrl);
     }
     if (timeout != null && timeout.inMilliseconds > 0) {
       _timeout = timeout;
@@ -70,6 +89,7 @@ class MiddlewareHttpService {
         await persistence.ensureReady();
       }
       await persistence.setString(_baseUrlKey, _baseUrl);
+      await persistence.setString(_webSocketBaseUrlKey, _webSocketBaseUrl);
       await persistence.setInt(_timeoutMsKey, _timeout.inMilliseconds);
     }
   }
@@ -267,6 +287,33 @@ class MiddlewareHttpService {
     return post('/api/v1/simulator/disconnect', body: {'token': token.trim()});
   }
 
+  Future<MiddlewareHttpResponse> getSimulatorWebSocketInfo() {
+    return get('/api/v1/simulator/ws');
+  }
+
+  Future<Uri> resolveSimulatorWebSocketUri({required String token}) async {
+    String base = _webSocketBaseUrl;
+    try {
+      final infoResponse = await getSimulatorWebSocketInfo();
+      final infoBody = infoResponse.decodedBody;
+      if (infoBody is Map<String, dynamic>) {
+        final wsAddress = infoBody['ws_address']?.toString().trim() ?? '';
+        if (wsAddress.isNotEmpty) {
+          base = _normalizeWebSocketBaseUrl(wsAddress);
+        }
+      }
+    } catch (_) {}
+    return buildSimulatorWebSocketUri(base: base, token: token);
+  }
+
+  Uri buildSimulatorWebSocketUri({String? base, required String token}) {
+    final wsBase = _normalizeWebSocketBaseUrl(base ?? _webSocketBaseUrl);
+    final wsUri = Uri.parse(wsBase);
+    final query = <String, String>{...wsUri.queryParameters};
+    query['token'] = token.trim();
+    return wsUri.replace(queryParameters: query);
+  }
+
   Uri _buildUri(String path, Map<String, dynamic>? queryParameters) {
     final normalizedPath = path.trim().isEmpty ? '/' : path.trim();
     final baseUri = Uri.parse(_baseUrl);
@@ -314,6 +361,30 @@ class MiddlewareHttpService {
       fragment: null,
     );
     return normalized.toString().replaceAll(RegExp(r'\/+$'), '');
+  }
+
+  String _normalizeWebSocketBaseUrl(String value) {
+    final trimmed = value.trim();
+    final uri = Uri.parse(trimmed);
+    final normalized = uri.replace(
+      pathSegments: uri.pathSegments.where((e) => e.isNotEmpty).toList(),
+      query: null,
+      fragment: null,
+    );
+    return normalized.toString().replaceAll(RegExp(r'\/+$'), '');
+  }
+
+  String _deriveWebSocketUrlFromBase(String baseUrl) {
+    final uri = Uri.parse(baseUrl);
+    final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
+    final port = uri.hasPort ? uri.port + 1 : 18081;
+    final wsUri = Uri(
+      scheme: wsScheme,
+      host: uri.host,
+      port: port,
+      path: '/api/v1/simulator/ws',
+    );
+    return wsUri.toString().replaceAll(RegExp(r'\/+$'), '');
   }
 
   String _normalizeIcao(String icao) {

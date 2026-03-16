@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../../core/utils/logger.dart';
 import '../../http/models/http_models.dart';
 import '../../http/services/middleware_http_service.dart';
@@ -123,6 +125,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       StreamController<HomeDataSnapshot>.broadcast();
 
   Timer? _pollTimer;
+  WebSocketChannel? _wsChannel;
+  StreamSubscription<dynamic>? _wsSubscription;
   String? _token;
   HomeSimulatorType _simulatorType = HomeSimulatorType.none;
   bool _isConnected = false;
@@ -178,7 +182,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       _token = token;
       _simulatorType = type;
       _isConnected = true;
-      _startPolling();
+      await _startRealtimeUpdates(token);
       await _pollData();
       _emitSnapshot();
       return true;
@@ -196,9 +200,10 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
 
   @override
   Future<void> disconnect() async {
-    _stopPolling();
     final token = _token;
     _token = null;
+    await _closeWebSocket();
+    _stopPolling();
     if (token != null && token.isNotEmpty) {
       try {
         await _httpService.disconnectSimulator(token: token);
@@ -296,8 +301,75 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
 
   void dispose() {
     _isDisposed = true;
+    _closeWebSocket();
     _stopPolling();
     _controller.close();
+  }
+
+  Future<void> _startRealtimeUpdates(String token) async {
+    final connected = await _connectWebSocket(token);
+    if (!connected) {
+      _startPolling();
+    }
+  }
+
+  Future<bool> _connectWebSocket(String token) async {
+    try {
+      final wsUri = await _httpService.resolveSimulatorWebSocketUri(
+        token: token,
+      );
+      final channel = WebSocketChannel.connect(wsUri);
+      await _wsSubscription?.cancel();
+      await _wsChannel?.sink.close();
+      _wsChannel = channel;
+      _wsSubscription = channel.stream.listen(
+        (event) {
+          _handleWebSocketEvent(event);
+        },
+        onError: (_) {
+          _handleWebSocketClosed();
+        },
+        onDone: () {
+          _handleWebSocketClosed();
+        },
+        cancelOnError: true,
+      );
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error('Home websocket connect failed', e, stackTrace);
+      return false;
+    }
+  }
+
+  void _handleWebSocketEvent(dynamic event) {
+    if (event is! String) {
+      return;
+    }
+    try {
+      final payload = jsonDecode(event);
+      if (payload is! Map<String, dynamic>) {
+        return;
+      }
+      if (payload['error'] != null) {
+        _errorMessage = payload['error'].toString();
+        _emitSnapshot();
+        return;
+      }
+      _applySimulatorResponseBody(payload);
+    } catch (_) {}
+  }
+
+  void _handleWebSocketClosed() {
+    if (_token != null && _token!.isNotEmpty && !_isDisposed) {
+      _startPolling();
+    }
+  }
+
+  Future<void> _closeWebSocket() async {
+    await _wsSubscription?.cancel();
+    _wsSubscription = null;
+    await _wsChannel?.sink.close();
+    _wsChannel = null;
   }
 
   void _startPolling() {
@@ -321,13 +393,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       final response = await _httpService.getSimulatorData(token: token);
       final body = response.decodedBody;
       if (body is! Map<String, dynamic>) return;
-      final dataset = body['raw_dataset'];
-      if (dataset is! Map<String, dynamic>) return;
-      _errorMessage = null;
-      _isConnected = dataset['connected'] == true;
-      _flightData = _flightDataFromDataset(dataset);
-      _aircraftTitle ??= body['simulator_version']?.toString();
-      _emitSnapshot();
+      _applySimulatorResponseBody(body);
     } catch (e, stackTrace) {
       final message = _extractErrorMessage(e);
       _errorMessage = message;
@@ -357,17 +423,106 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     );
   }
 
+  void _applySimulatorResponseBody(Map<String, dynamic> body) {
+    final clientDataset = body['client_dataset'];
+    final rawDataset = body['raw_dataset'];
+    final dataset =
+        _toStringDynamicMap(clientDataset) ?? _toStringDynamicMap(rawDataset);
+    if (dataset == null) {
+      return;
+    }
+    _errorMessage = null;
+    _isConnected = _toBool(dataset['connected']) ?? true;
+    _isPaused = _toBool(dataset['is_paused']);
+    _aircraftTitle = body['simulator_version']?.toString() ?? _aircraftTitle;
+    _flightData = _flightDataFromDataset(dataset);
+    final nearest = dataset['nearest_airport'];
+    if (nearest is Map<String, dynamic>) {
+      _nearestAirport = _airportFromNearestAirport(nearest);
+      if (_nearestAirport != null) {
+        _addToSuggestions(_nearestAirport!);
+      }
+    }
+    _emitSnapshot();
+  }
+
   HomeFlightData _flightDataFromDataset(Map<String, dynamic> dataset) {
     return HomeFlightData(
-      airspeed: _toDouble(dataset['airspeed_kt']),
-      trueAirspeed: _toDouble(dataset['true_airspeed_kt']),
+      airspeed: _toDouble(dataset['ias_kt'] ?? dataset['airspeed_kt']),
+      machNumber: _toDouble(dataset['mach_number']),
+      trueAirspeed: _toDouble(dataset['tas_kt'] ?? dataset['true_airspeed_kt']),
       altitude: _toDouble(dataset['altitude_ft']),
       heading: _toDouble(dataset['heading_deg']),
-      verticalSpeed: _toDouble(dataset['vertical_speed_fpm']),
+      verticalSpeed: _toDouble(
+        dataset['vertical_speed_fpm'] ?? dataset['vs_fpm'],
+      ),
       latitude: _toDouble(dataset['latitude']),
       longitude: _toDouble(dataset['longitude']),
       groundSpeed: _toDouble(dataset['ground_speed_kt']),
+      com1Frequency: _toDouble(dataset['com1_frequency_mhz']),
+      outsideAirTemperature: _toDouble(dataset['outside_temp_c']),
+      totalAirTemperature: _toDouble(dataset['total_temp_c']),
+      windSpeed: _toDouble(dataset['wind_speed_kt']),
+      windDirection: _toDouble(dataset['wind_direction_deg']),
+      baroPressure: _toDouble(dataset['baro_pressure_inhg']),
+      baroPressureUnit: dataset['baro_pressure_unit']?.toString(),
+      visibility: _toDouble(dataset['visibility_m']),
+      numEngines: _toInt(dataset['num_engines']),
+      fuelQuantity: _toDouble(dataset['fuel_quantity_kg']),
+      fuelFlow: _toDouble(dataset['fuel_flow_kg_h']),
+      engine1N1: _toDouble(dataset['engine1_n1']),
+      engine2N1: _toDouble(dataset['engine2_n1']),
+      engine1EGT: _toDouble(dataset['engine1_egt_c']),
+      engine2EGT: _toDouble(dataset['engine2_egt_c']),
+      masterWarning: _toBool(dataset['master_warning']),
+      masterCaution: _toBool(dataset['master_caution']),
+      fireWarningEngine1: _toBool(dataset['fire_warning_engine1']),
+      fireWarningEngine2: _toBool(dataset['fire_warning_engine2']),
+      fireWarningAPU: _toBool(dataset['fire_warning_apu']),
+      beacon: _toBool(dataset['beacon']),
+      strobes: _toBool(dataset['strobes']),
+      navLights: _toBool(dataset['nav_lights']),
+      logoLights: _toBool(dataset['logo_lights']),
+      wingLights: _toBool(dataset['wing_lights']),
+      landingLights: _toBool(dataset['landing_lights']),
+      taxiLights: _toBool(dataset['taxi_lights']),
+      runwayTurnoffLights: _toBool(dataset['runway_turnoff_lights']),
+      wheelWellLights: _toBool(dataset['wheel_well_lights']),
       onGround: _toBool(dataset['on_ground']),
+      parkingBrake: _toBool(dataset['parking_brake']),
+      speedBrake: _toBool(dataset['speed_brake_active']),
+      speedBrakeLabel: _buildSpeedBrakeLabel(dataset),
+      spoilersDeployed: _toBool(dataset['spoilers_deployed']),
+      autoBrakeLabel: dataset['auto_brake_label']?.toString(),
+      flapsDeployed: _toBool(dataset['flaps_deployed']),
+      flapsLabel: _buildFlapsLabel(dataset),
+      flapsAngle: _toDouble(dataset['flaps_angle_deg']),
+      flapsDeployRatio: _toDouble(dataset['flaps_deploy_ratio']),
+      gearDown: _toBool(dataset['gear_down']),
+      noseGearDown: _toDouble(dataset['nose_gear_down']),
+      leftGearDown: _toDouble(dataset['left_gear_down']),
+      rightGearDown: _toDouble(dataset['right_gear_down']),
+      apuRunning: _toBool(dataset['apu_running']),
+      engine1Running: _toBool(dataset['engine1_running']),
+      engine2Running: _toBool(dataset['engine2_running']),
+      autopilotEngaged: _toBool(dataset['autopilot_engaged']),
+      autothrottleEngaged: _toBool(dataset['autothrottle_engaged']),
+    );
+  }
+
+  HomeAirportInfo? _airportFromNearestAirport(Map<String, dynamic> raw) {
+    final icao = raw['icao']?.toString().trim().toUpperCase() ?? '';
+    if (icao.isEmpty) {
+      return null;
+    }
+    final label = raw['label']?.toString().trim();
+    return HomeAirportInfo(
+      icaoCode: icao,
+      iataCode: '',
+      name: (label == null || label.isEmpty) ? icao : label,
+      nameChinese: '',
+      latitude: _toDouble(raw['latitude']) ?? 0,
+      longitude: _toDouble(raw['longitude']) ?? 0,
     );
   }
 
@@ -442,12 +597,46 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return double.tryParse(value?.toString() ?? '');
   }
 
+  int? _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
   bool? _toBool(dynamic value) {
     if (value is bool) return value;
     if (value is num) return value != 0;
     final text = value?.toString().toLowerCase();
     if (text == 'true') return true;
     if (text == 'false') return false;
+    return null;
+  }
+
+  Map<String, dynamic>? _toStringDynamicMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return value.map((key, val) => MapEntry(key.toString(), val));
+    }
+    return null;
+  }
+
+  String? _buildSpeedBrakeLabel(Map<String, dynamic> dataset) {
+    final ratio = _toDouble(dataset['speed_brake_ratio']);
+    if (ratio == null) return null;
+    return '${(ratio * 100).toStringAsFixed(0)}%';
+  }
+
+  String? _buildFlapsLabel(Map<String, dynamic> dataset) {
+    final angle = _toDouble(dataset['flaps_angle_deg']);
+    if (angle != null) {
+      return '${angle.toStringAsFixed(0)}°';
+    }
+    final ratio = _toDouble(dataset['flaps_deploy_ratio']);
+    if (ratio != null) {
+      return '${(ratio * 100).toStringAsFixed(0)}%';
+    }
     return null;
   }
 }
