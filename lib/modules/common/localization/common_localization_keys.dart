@@ -12,6 +12,9 @@ class CommonLocalizationKeys {
       'home.welcome.ready_subtitle_waiting';
   static const String welcomeSupportSims = 'home.welcome.support_sims';
   static const String transponderPrefix = 'home.welcome.transponder_prefix';
+  static const String transponderEmergency = 'home.welcome.transponder_7700';
+  static const String transponderHijack = 'home.welcome.transponder_7500';
+  static const String transponderRadioFailure = 'home.welcome.transponder_7600';
 
   static const String simTitle = 'home.sim.title';
   static const String simConnected = 'home.sim.connected';
@@ -25,6 +28,7 @@ class CommonLocalizationKeys {
   static const String simConnectFailedTitle = 'home.sim.connect_failed_title';
   static const String simConnectFailedContent =
       'home.sim.connect_failed_content';
+  static const String simRecording = 'home.sim.recording';
 
   static const String checklistTitle = 'home.checklist.title';
   static const String checklistEmpty = 'home.checklist.empty';

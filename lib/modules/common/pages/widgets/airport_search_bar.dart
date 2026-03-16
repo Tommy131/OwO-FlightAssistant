@@ -103,8 +103,18 @@ class _AirportSearchBarState extends State<AirportSearchBar> {
               style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
             ),
           )
-        else
-          Flexible(
+        else ...[
+          Text(
+            CommonLocalizationKeys.navRecentAirports.tr(context),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 260),
             child: ListView.separated(
               shrinkWrap: true,
               itemCount: items.length,
@@ -124,6 +134,7 @@ class _AirportSearchBarState extends State<AirportSearchBar> {
               },
             ),
           ),
+        ],
       ],
     );
   }

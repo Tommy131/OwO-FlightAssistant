@@ -354,38 +354,6 @@ class FlightDataDashboard extends StatelessWidget {
                   },
                   suggestedAirports: provider.suggestedAirports,
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  CommonLocalizationKeys.navRecentAirports.tr(context),
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 250),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: provider.suggestedAirports.length > 5
-                        ? 5
-                        : provider.suggestedAirports.length,
-                    itemBuilder: (context, index) {
-                      final airport = provider.suggestedAirports[index];
-                      return ListTile(
-                        dense: true,
-                        title: Text(airport.displayName),
-                        onTap: () async {
-                          if (isAlternate) {
-                            await provider.setAlternate(airport);
-                          } else {
-                            await provider.setDestination(airport);
-                          }
-                          if (context.mounted) Navigator.pop(context);
-                        },
-                      );
-                    },
-                  ),
-                ),
               ],
             ),
           ),

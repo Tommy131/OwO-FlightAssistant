@@ -3,10 +3,13 @@ import 'package:provider/provider.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
+import '../../checklist/providers/checklist_provider.dart';
+import '../../flight_logs/providers/flight_logs_provider.dart';
 import '../localization/common_localization_keys.dart';
 import '../models/home_models.dart';
 import '../providers/home_provider.dart';
 import 'widgets/flight_data_dashboard.dart';
+import 'widgets/transponder_status_widget.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -69,8 +72,6 @@ class WelcomeCard extends StatelessWidget {
     final showTransponder =
         isConnected &&
         (provider.transponderState != null || provider.transponderCode != null);
-    final transponderLabel = _buildTransponderLabel(context, provider);
-    final transponderColor = _getTransponderColor(provider.transponderCode);
 
     String title;
     String subtitle;
@@ -135,102 +136,65 @@ class WelcomeCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              statusIndicator ?? const SizedBox.shrink(),
-              if (showTransponder && statusIndicator != null)
-                const SizedBox(width: 8),
-              if (showTransponder && transponderLabel != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
+              const SizedBox(height: AppThemeData.spacingSmall),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: AppThemeData.spacingLarge),
+              Row(
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    color: Colors.white.withValues(alpha: 0.8),
+                    size: 16,
                   ),
-                  decoration: BoxDecoration(
-                    color: transponderColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    transponderLabel,
-                    style: const TextStyle(
-                      color: Colors.white,
+                  const SizedBox(width: 8),
+                  Text(
+                    CommonLocalizationKeys.welcomeSupportSims.tr(context),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: AppThemeData.spacingSmall),
-          Text(
-            subtitle,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: AppThemeData.spacingLarge),
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Icon(
-                Icons.check_circle_outline,
-                color: Colors.white.withValues(alpha: 0.8),
-                size: 16,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                CommonLocalizationKeys.welcomeSupportSims.tr(context),
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontSize: 12,
+              statusIndicator ?? const SizedBox.shrink(),
+              if (showTransponder && statusIndicator != null)
+                const SizedBox(height: 8),
+              if (showTransponder)
+                TransponderStatusWidget(
+                  code: provider.transponderCode,
+                  state: provider.transponderState,
                 ),
-              ),
             ],
           ),
         ],
       ),
     );
-  }
-
-  String? _buildTransponderLabel(BuildContext context, HomeProvider provider) {
-    final prefix = CommonLocalizationKeys.transponderPrefix.tr(context);
-    final code = provider.transponderCode;
-    final state = provider.transponderState;
-    if (code != null && code.isNotEmpty) {
-      return '$prefix $code';
-    }
-    if (state != null && state.isNotEmpty) {
-      return '$prefix $state';
-    }
-    return null;
-  }
-
-  Color _getTransponderColor(String? code) {
-    if (code == null) return Colors.blueAccent;
-    switch (code) {
-      case '7700':
-        return Colors.redAccent;
-      case '7600':
-        return Colors.orangeAccent;
-      case '7500':
-        return Colors.purpleAccent;
-      default:
-        return Colors.blueAccent;
-    }
   }
 }
 
@@ -241,8 +205,10 @@ class SimulatorConnectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final provider = context.watch<HomeProvider>();
+    final logsProvider = context.watch<FlightLogsProvider>();
     final isConnected = provider.isConnected;
     final simulatorType = provider.simulatorType;
+    final isRecording = isConnected && logsProvider.isRecording;
 
     return Container(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge),
@@ -288,6 +254,29 @@ class SimulatorConnectionCard extends StatelessWidget {
               color: isConnected ? Colors.green : Colors.grey,
             ),
           ),
+          if (isRecording) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  CommonLocalizationKeys.simRecording.tr(context),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const Spacer(),
           const SizedBox(height: 12),
           if (isConnected)
@@ -442,9 +431,14 @@ class ChecklistPhaseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final provider = context.watch<HomeProvider>();
-    final phase = provider.checklistPhase;
-    final progress = provider.checklistProgress;
+    final checklistProvider = context.watch<ChecklistProvider>();
+    final checklistPhase = checklistProvider.currentPhase;
+    final phase = HomeChecklistPhase(
+      labelKey: checklistPhase.labelKey,
+      icon: checklistPhase.icon,
+    );
+    final progress = checklistProvider.getPhaseProgress(checklistPhase);
+    final showEmpty = checklistProvider.selectedAircraft == null;
 
     return Container(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge),
@@ -458,11 +452,7 @@ class ChecklistPhaseCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                phase?.icon ?? Icons.checklist_outlined,
-                color: theme.colorScheme.primary,
-                size: 20,
-              ),
+              Icon(phase.icon, color: theme.colorScheme.primary, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -476,8 +466,9 @@ class ChecklistPhaseCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            phase?.labelKey.tr(context) ??
-                CommonLocalizationKeys.checklistEmpty.tr(context),
+            showEmpty
+                ? CommonLocalizationKeys.checklistEmpty.tr(context)
+                : phase.labelKey.tr(context),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.primary,
             ),
@@ -488,7 +479,7 @@ class ChecklistPhaseCard extends StatelessWidget {
             children: [
               Expanded(
                 child: LinearProgressIndicator(
-                  value: progress > 0 ? progress : null,
+                  value: showEmpty ? null : progress,
                   backgroundColor: theme.colorScheme.outline.withValues(
                     alpha: 0.1,
                   ),
@@ -499,7 +490,7 @@ class ChecklistPhaseCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                '${(progress * 100).toInt()}%',
+                showEmpty ? '--' : '${(progress * 100).toInt()}%',
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.primary,

@@ -5,6 +5,7 @@ import 'navigation/navigation_registry.dart';
 import 'settings_page/settings_page_registry.dart';
 import 'about_page/about_page_registry.dart';
 import 'sidebar/sidebar_footer_registry.dart';
+import 'sidebar/sidebar_mini_card_registry.dart';
 import 'provider/provider_registry.dart';
 
 /// 模块注册管理器
@@ -70,6 +71,9 @@ class ModuleRegistry {
   /// 获取侧边栏页脚注册表
   SidebarFooterRegistry get sidebarFooters => SidebarFooterRegistry();
 
+  /// 获取侧边栏迷你卡片注册表
+  SidebarMiniCardRegistry get sidebarMiniCards => SidebarMiniCardRegistry();
+
   /// 获取 Provider 注册表
   ProviderRegistry get providers => ProviderRegistry();
 
@@ -83,6 +87,7 @@ class ModuleRegistry {
     AppBarActionRegistry().clear();
     NavigationRegistry().clear();
     SidebarFooterRegistry().clear();
+    SidebarMiniCardRegistry().clear();
     _cleanupCallbacks.clear();
   }
 }

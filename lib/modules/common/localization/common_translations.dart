@@ -13,6 +13,9 @@ final Map<String, Map<String, String>> commonTranslations = {
     CommonLocalizationKeys.welcomeSupportSims:
         '支持 MSFS 2020/2024 & X-Plane 11/12',
     CommonLocalizationKeys.transponderPrefix: 'XPDR',
+    CommonLocalizationKeys.transponderEmergency: '紧急情况',
+    CommonLocalizationKeys.transponderHijack: '劫机',
+    CommonLocalizationKeys.transponderRadioFailure: '通信失效',
     CommonLocalizationKeys.simTitle: '模拟器连接',
     CommonLocalizationKeys.simConnected: '已连接到 {sim}',
     CommonLocalizationKeys.simDisconnected: '未连接',
@@ -24,6 +27,7 @@ final Map<String, Map<String, String>> commonTranslations = {
     CommonLocalizationKeys.simConnectingSubtitle: '请确保模拟器已启动并处于飞行状态',
     CommonLocalizationKeys.simConnectFailedTitle: '连接失败',
     CommonLocalizationKeys.simConnectFailedContent: '原因不明，请检查模拟器设置或网络连接。',
+    CommonLocalizationKeys.simRecording: '正在录制',
     CommonLocalizationKeys.checklistTitle: '当前检查阶段',
     CommonLocalizationKeys.checklistEmpty: '暂无检查阶段',
     CommonLocalizationKeys.flightNumberTitle: '航班号',
@@ -149,6 +153,9 @@ final Map<String, Map<String, String>> commonTranslations = {
     CommonLocalizationKeys.welcomeSupportSims:
         'Supports MSFS 2020/2024 & X-Plane 11/12',
     CommonLocalizationKeys.transponderPrefix: 'XPDR',
+    CommonLocalizationKeys.transponderEmergency: 'Emergency',
+    CommonLocalizationKeys.transponderHijack: 'Hijack',
+    CommonLocalizationKeys.transponderRadioFailure: 'Radio Failure',
     CommonLocalizationKeys.simTitle: 'Simulator Connection',
     CommonLocalizationKeys.simConnected: 'Connected to {sim}',
     CommonLocalizationKeys.simDisconnected: 'Disconnected',
@@ -162,6 +169,7 @@ final Map<String, Map<String, String>> commonTranslations = {
     CommonLocalizationKeys.simConnectFailedTitle: 'Connection failed',
     CommonLocalizationKeys.simConnectFailedContent:
         'Unknown error. Check simulator settings or network.',
+    CommonLocalizationKeys.simRecording: 'Recording',
     CommonLocalizationKeys.checklistTitle: 'Checklist Phase',
     CommonLocalizationKeys.checklistEmpty: 'No checklist phase',
     CommonLocalizationKeys.flightNumberTitle: 'Flight Number',

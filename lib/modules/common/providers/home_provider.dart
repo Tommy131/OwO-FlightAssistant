@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../../core/utils/logger.dart';
@@ -28,6 +29,7 @@ class HomeProvider extends ChangeNotifier {
   HomeDataSnapshot _snapshot = HomeDataSnapshot.empty();
 
   bool get isConnected => _snapshot.isConnected;
+  HomeDataSnapshot get snapshot => _snapshot;
   HomeSimulatorType get simulatorType => _snapshot.simulatorType;
   String? get errorMessage => _snapshot.errorMessage;
   String? get aircraftTitle => _snapshot.aircraftTitle;
@@ -133,6 +135,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   String? _errorMessage;
   String? _aircraftTitle;
   bool? _isPaused;
+  String? _transponderState;
+  String? _transponderCode;
   String? _flightNumber;
   bool? _isFuelSufficient;
   HomeChecklistPhase? _checklistPhase;
@@ -144,6 +148,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   List<HomeAirportInfo> _suggestedAirports = const [];
   final Map<String, HomeMetarData> _metarsByIcao = {};
   final Map<String, String> _metarErrorsByIcao = {};
+  final Set<String> _metarRefreshingIcaos = <String>{};
+  final Map<String, DateTime> _metarLastAutoFetchAt = {};
   bool _isDisposed = false;
   bool _isPolling = false;
 
@@ -213,8 +219,12 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _simulatorType = HomeSimulatorType.none;
     _aircraftTitle = null;
     _isPaused = null;
+    _transponderState = null;
+    _transponderCode = null;
     _errorMessage = null;
     _flightData = const HomeFlightData();
+    _metarRefreshingIcaos.clear();
+    _metarLastAutoFetchAt.clear();
     _emitSnapshot();
   }
 
@@ -226,21 +236,33 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
 
   @override
   Future<void> setDestination(HomeAirportInfo? airport) async {
-    _destinationAirport = airport;
-    if (airport != null) {
-      _addToSuggestions(airport);
-      await refreshMetar(airport);
+    if (airport == null) {
+      _destinationAirport = null;
+      _updateFuelSufficiency();
+      _emitSnapshot();
+      return;
     }
+    final target = _withBestCoordinates(await _resolveAirportTarget(airport));
+    _destinationAirport = target;
+    _addToSuggestions(target);
+    await refreshMetar(target);
+    _updateFuelSufficiency();
     _emitSnapshot();
   }
 
   @override
   Future<void> setAlternate(HomeAirportInfo? airport) async {
-    _alternateAirport = airport;
-    if (airport != null) {
-      _addToSuggestions(airport);
-      await refreshMetar(airport);
+    if (airport == null) {
+      _alternateAirport = null;
+      _updateFuelSufficiency();
+      _emitSnapshot();
+      return;
     }
+    final target = _withBestCoordinates(await _resolveAirportTarget(airport));
+    _alternateAirport = target;
+    _addToSuggestions(target);
+    await refreshMetar(target);
+    _updateFuelSufficiency();
     _emitSnapshot();
   }
 
@@ -272,6 +294,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   Future<void> refreshMetar(HomeAirportInfo airport) async {
     final icao = airport.icaoCode.trim().toUpperCase();
     if (icao.isEmpty) return;
+    if (_metarRefreshingIcaos.contains(icao)) return;
+    _metarRefreshingIcaos.add(icao);
     try {
       await _httpService.init();
       final response = await _httpService.getMetarByIcao(icao);
@@ -283,19 +307,37 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       }
       final raw = body['raw_metar']?.toString().trim() ?? '';
       final translated = body['translated_metar']?.toString().trim() ?? '';
+      final displayWind =
+          _pickString(body, const ['display_wind', 'wind']) ?? '--';
+      final displayVisibility =
+          _pickString(body, const ['display_visibility', 'visibility']) ?? '--';
+      final displayTemperature =
+          _pickString(body, const ['display_temperature', 'temperature']) ??
+          '--';
+      final displayAltimeter =
+          _pickString(body, const ['display_altimeter', 'altimeter']) ?? '--';
+      final metarTimestamp =
+          _toInt(body['metar_timestamp_unix']) ??
+          _toInt(body['timestamp']) ??
+          DateTime.now().millisecondsSinceEpoch ~/ 1000;
       _metarsByIcao[icao] = HomeMetarData(
         raw: raw.isEmpty ? translated : raw,
-        timestamp: DateTime.now(),
-        displayWind: translated.isEmpty ? '--' : translated,
-        displayVisibility: '--',
-        displayTemperature: '--',
-        displayAltimeter: '--',
+        timestamp: DateTime.fromMillisecondsSinceEpoch(
+          metarTimestamp * 1000,
+          isUtc: true,
+        ).toLocal(),
+        displayWind: displayWind,
+        displayVisibility: displayVisibility,
+        displayTemperature: displayTemperature,
+        displayAltimeter: displayAltimeter,
       );
       _metarErrorsByIcao.remove(icao);
       _emitSnapshot();
     } catch (e) {
       _metarErrorsByIcao[icao] = _extractErrorMessage(e);
       _emitSnapshot();
+    } finally {
+      _metarRefreshingIcaos.remove(icao);
     }
   }
 
@@ -411,15 +453,19 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   }
 
   HomeAirportInfo _airportFromSuggestion(Map<String, dynamic> raw) {
-    final icao = raw['ICAO']?.toString().trim().toUpperCase() ?? '';
-    final name = raw['Name']?.toString().trim() ?? icao;
+    final icao = _pickString(raw, const ['icao', 'ICAO'])?.toUpperCase() ?? '';
+    final iata = _pickString(raw, const ['iata', 'IATA']) ?? '';
+    final name = _pickString(raw, const ['name', 'Name']) ?? icao;
+    final latitude = _pickDouble(raw, const ['latitude', 'lat', 'Lat']) ?? 0;
+    final longitude =
+        _pickDouble(raw, const ['longitude', 'lon', 'lng', 'Lng', 'Lon']) ?? 0;
     return HomeAirportInfo(
       icaoCode: icao,
-      iataCode: '',
+      iataCode: iata,
       name: name,
       nameChinese: '',
-      latitude: 0,
-      longitude: 0,
+      latitude: latitude,
+      longitude: longitude,
     );
   }
 
@@ -434,6 +480,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _errorMessage = null;
     _isConnected = _toBool(dataset['connected']) ?? true;
     _isPaused = _toBool(dataset['is_paused']);
+    _transponderState = _pickString(dataset, const ['transponder_state']);
+    _transponderCode = _pickString(dataset, const ['transponder_code']);
     _aircraftTitle =
         dataset['aircraft_display_name']?.toString() ??
         dataset['aircraft_model']?.toString() ??
@@ -441,6 +489,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
         body['simulator_version']?.toString() ??
         _aircraftTitle;
     _flightData = _flightDataFromDataset(dataset);
+    _updateFuelSufficiency();
     final nearest = dataset['nearest_airport'];
     if (nearest is Map<String, dynamic>) {
       _nearestAirport = _airportFromNearestAirport(nearest);
@@ -448,7 +497,30 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
         _addToSuggestions(_nearestAirport!);
       }
     }
+    _ensureCurrentAirportMetar();
     _emitSnapshot();
+  }
+
+  void _ensureCurrentAirportMetar() {
+    if (!_isConnected) return;
+    final airport = _nearestAirport;
+    if (airport == null) return;
+    final icao = airport.icaoCode.trim().toUpperCase();
+    if (icao.isEmpty) return;
+    if (_metarRefreshingIcaos.contains(icao)) return;
+    final now = DateTime.now();
+    final metar = _metarsByIcao[icao];
+    if (metar != null &&
+        now.difference(metar.timestamp) <= const Duration(minutes: 15)) {
+      return;
+    }
+    final lastAutoFetch = _metarLastAutoFetchAt[icao];
+    if (lastAutoFetch != null &&
+        now.difference(lastAutoFetch) <= const Duration(minutes: 2)) {
+      return;
+    }
+    _metarLastAutoFetchAt[icao] = now;
+    unawaited(refreshMetar(airport));
   }
 
   HomeFlightData _flightDataFromDataset(Map<String, dynamic> dataset) {
@@ -463,6 +535,16 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       ),
       latitude: _toDouble(dataset['latitude']),
       longitude: _toDouble(dataset['longitude']),
+      departureAirport: _pickString(dataset, const [
+        'departure_airport',
+        'departure_airport_icao',
+        'origin_airport',
+      ]),
+      arrivalAirport: _pickString(dataset, const [
+        'arrival_airport',
+        'arrival_airport_icao',
+        'destination_airport',
+      ]),
       groundSpeed: _toDouble(dataset['ground_speed_kt']),
       com1Frequency: _toDouble(dataset['com1_frequency_mhz']),
       outsideAirTemperature: _toDouble(dataset['outside_temp_c']),
@@ -550,6 +632,168 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _suggestedAirports = next;
   }
 
+  Future<HomeAirportInfo> _resolveAirportTarget(HomeAirportInfo airport) async {
+    final normalizedIcao = airport.icaoCode.trim().toUpperCase();
+    if (normalizedIcao.isEmpty) {
+      return airport;
+    }
+    try {
+      await _httpService.init();
+      final response = await _httpService.getAirportByIcao(normalizedIcao);
+      final root = _toStringDynamicMap(response.decodedBody);
+      if (root == null) {
+        return airport;
+      }
+      final payload = _pickMap(root, const ['data']) ?? root;
+      final detail =
+          _pickMap(payload, const ['airport_detail', 'airportDetail']) ??
+          payload;
+      final airportMap = _pickMap(detail, const ['airport']) ?? detail;
+      final icao =
+          _pickString(airportMap, const ['icao', 'ICAO'])?.toUpperCase() ??
+          normalizedIcao;
+      final iata = _pickString(airportMap, const ['iata', 'IATA']) ?? '';
+      final name =
+          _pickString(airportMap, const ['name', 'Name']) ??
+          _pickString(detail, const ['name', 'Name']) ??
+          airport.name;
+      final latitude =
+          _pickDouble(airportMap, const ['latitude', 'lat', 'Lat']) ??
+          _pickDouble(detail, const ['latitude', 'lat', 'Lat']) ??
+          _pickDouble(payload, const ['latitude', 'lat', 'Lat']) ??
+          airport.latitude;
+      final longitude =
+          _pickDouble(airportMap, const ['longitude', 'lon', 'lng', 'Lon']) ??
+          _pickDouble(detail, const [
+            'longitude',
+            'lon',
+            'lng',
+            'Lng',
+            'Lon',
+          ]) ??
+          _pickDouble(payload, const [
+            'longitude',
+            'lon',
+            'lng',
+            'Lng',
+            'Lon',
+          ]) ??
+          airport.longitude;
+      return HomeAirportInfo(
+        icaoCode: icao,
+        iataCode: iata,
+        name: name,
+        nameChinese: airport.nameChinese,
+        latitude: latitude,
+        longitude: longitude,
+      );
+    } catch (_) {
+      return airport;
+    }
+  }
+
+  HomeAirportInfo _withBestCoordinates(HomeAirportInfo airport) {
+    if (airport.latitude != 0 && airport.longitude != 0) {
+      return airport;
+    }
+    final code = airport.icaoCode.trim().toUpperCase();
+    if (code.isEmpty) {
+      return airport;
+    }
+    final candidates = <HomeAirportInfo?>[
+      _nearestAirport,
+      _destinationAirport,
+      _alternateAirport,
+      ..._suggestedAirports,
+    ];
+    for (final item in candidates) {
+      if (item == null) continue;
+      if (item.icaoCode.trim().toUpperCase() != code) continue;
+      if (item.latitude == 0 || item.longitude == 0) continue;
+      return HomeAirportInfo(
+        icaoCode: airport.icaoCode,
+        iataCode: airport.iataCode,
+        name: airport.name,
+        nameChinese: airport.nameChinese,
+        latitude: item.latitude,
+        longitude: item.longitude,
+      );
+    }
+    return airport;
+  }
+
+  void _updateFuelSufficiency() {
+    final fuelQuantity = _flightData.fuelQuantity;
+    final destination = _destinationAirport == null
+        ? null
+        : _withBestCoordinates(_destinationAirport!);
+    if (fuelQuantity == null || destination == null) {
+      _isFuelSufficient = null;
+      return;
+    }
+    final currentLat = _flightData.latitude;
+    final currentLon = _flightData.longitude;
+    if (currentLat == null ||
+        currentLon == null ||
+        destination.latitude == 0 ||
+        destination.longitude == 0) {
+      _isFuelSufficient = null;
+      return;
+    }
+    final distanceNm = _calculateDistanceNm(
+      currentLat,
+      currentLon,
+      destination.latitude,
+      destination.longitude,
+    );
+    final fuelPlan = _buildFuelPlan(
+      distanceNm: distanceNm,
+      hasAlternate: _alternateAirport != null,
+    );
+    _isFuelSufficient = fuelQuantity >= fuelPlan.total;
+  }
+
+  _HomeFuelPlan _buildFuelPlan({
+    required double distanceNm,
+    required bool hasAlternate,
+  }) {
+    final trip = distanceNm * 2.5;
+    final alternate = hasAlternate ? 200 * 2.5 : 0.0;
+    const reserve = 1500.0;
+    const taxi = 200.0;
+    final extra = trip * 0.05;
+    final total = trip + alternate + reserve + taxi + extra;
+    return _HomeFuelPlan(total: total);
+  }
+
+  double _calculateDistanceNm(
+    double startLat,
+    double startLon,
+    double endLat,
+    double endLon,
+  ) {
+    const earthRadiusKm = 6371.0;
+    final lat1 = _toRadians(startLat);
+    final lon1 = _toRadians(startLon);
+    final lat2 = _toRadians(endLat);
+    final lon2 = _toRadians(endLon);
+    final deltaLat = lat2 - lat1;
+    final deltaLon = lon2 - lon1;
+    final a =
+        _pow2(_sin(deltaLat / 2)) +
+        _cos(lat1) * _cos(lat2) * _pow2(_sin(deltaLon / 2));
+    final c = 2 * _atan2(_sqrt(a), _sqrt(1 - a));
+    final km = earthRadiusKm * c;
+    return km * 0.539956803;
+  }
+
+  double _toRadians(double degree) => degree * 0.017453292519943295;
+  double _sin(double value) => math.sin(value);
+  double _cos(double value) => math.cos(value);
+  double _sqrt(double value) => math.sqrt(value);
+  double _atan2(double y, double x) => math.atan2(y, x);
+  double _pow2(double value) => value * value;
+
   void _emitSnapshot() {
     if (_isDisposed || _controller.isClosed) return;
     _controller.add(
@@ -559,6 +803,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
         errorMessage: _errorMessage,
         aircraftTitle: _aircraftTitle,
         isPaused: _isPaused,
+        transponderState: _transponderState,
+        transponderCode: _transponderCode,
         flightNumber: _flightNumber,
         isFuelSufficient: _isFuelSufficient,
         checklistPhase: _checklistPhase,
@@ -607,6 +853,60 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return double.tryParse(value?.toString() ?? '');
   }
 
+  String? _pickString(Map<String, dynamic> map, List<String> keys) {
+    for (final key in keys) {
+      if (map.containsKey(key)) {
+        final value = map[key]?.toString().trim();
+        if (value != null && value.isNotEmpty) return value;
+      }
+    }
+    for (final key in keys) {
+      for (final entry in map.entries) {
+        if (entry.key.toLowerCase() == key.toLowerCase()) {
+          final value = entry.value?.toString().trim();
+          if (value != null && value.isNotEmpty) return value;
+        }
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _pickMap(Map<String, dynamic> map, List<String> keys) {
+    for (final key in keys) {
+      if (map.containsKey(key)) {
+        final value = _toStringDynamicMap(map[key]);
+        if (value != null) return value;
+      }
+    }
+    for (final key in keys) {
+      for (final entry in map.entries) {
+        if (entry.key.toLowerCase() == key.toLowerCase()) {
+          final value = _toStringDynamicMap(entry.value);
+          if (value != null) return value;
+        }
+      }
+    }
+    return null;
+  }
+
+  double? _pickDouble(Map<String, dynamic> map, List<String> keys) {
+    for (final key in keys) {
+      if (map.containsKey(key)) {
+        final value = _toDouble(map[key]);
+        if (value != null) return value;
+      }
+    }
+    for (final key in keys) {
+      for (final entry in map.entries) {
+        if (entry.key.toLowerCase() == key.toLowerCase()) {
+          final value = _toDouble(entry.value);
+          if (value != null) return value;
+        }
+      }
+    }
+    return null;
+  }
+
   int? _toInt(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
@@ -649,4 +949,10 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     }
     return null;
   }
+}
+
+class _HomeFuelPlan {
+  final double total;
+
+  const _HomeFuelPlan({required this.total});
 }
