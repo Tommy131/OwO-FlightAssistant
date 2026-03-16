@@ -17,6 +17,11 @@ final Map<String, Map<String, String>> flightLogsTranslations = {
     FlightLogsLocalizationKeys.importSuccess: '导入飞行日志成功',
     FlightLogsLocalizationKeys.exportSuccess: '导出飞行日志成功',
     FlightLogsLocalizationKeys.deleteSuccess: '已删除飞行日志',
+    FlightLogsLocalizationKeys.startRecord: '开始录制',
+    FlightLogsLocalizationKeys.stopRecord: '停止录制',
+    FlightLogsLocalizationKeys.startRecordStarted: '已开始飞行日志录制',
+    FlightLogsLocalizationKeys.stopRecordSaved: '已停止录制并保存飞行日志',
+    FlightLogsLocalizationKeys.stopRecordDiscarded: '录制未保存：时长不足1分钟，请延长录制后再停止',
     FlightLogsLocalizationKeys.detailTitle: '飞行分析',
     FlightLogsLocalizationKeys.detailTrack: '飞行轨迹',
     FlightLogsLocalizationKeys.detailProfile: '飞行剖面',
@@ -65,6 +70,9 @@ final Map<String, Map<String, String>> flightLogsTranslations = {
     FlightLogsLocalizationKeys.chartSpeed: '地速 (kts)',
     FlightLogsLocalizationKeys.chartTooltipAlt: '高度',
     FlightLogsLocalizationKeys.chartTooltipSpeed: '速度',
+    FlightLogsLocalizationKeys.simulatorMsfs: 'MSFS',
+    FlightLogsLocalizationKeys.simulatorXplane: 'X-Plane',
+    FlightLogsLocalizationKeys.simulatorUnknown: '未知模拟器',
   },
   'en_US': {
     FlightLogsLocalizationKeys.navTitle: 'Flight Logs',
@@ -85,6 +93,14 @@ final Map<String, Map<String, String>> flightLogsTranslations = {
     FlightLogsLocalizationKeys.importSuccess: 'Flight log imported',
     FlightLogsLocalizationKeys.exportSuccess: 'Flight log exported',
     FlightLogsLocalizationKeys.deleteSuccess: 'Flight log deleted',
+    FlightLogsLocalizationKeys.startRecord: 'Start Recording',
+    FlightLogsLocalizationKeys.stopRecord: 'Stop Recording',
+    FlightLogsLocalizationKeys.startRecordStarted:
+        'Flight log recording started',
+    FlightLogsLocalizationKeys.stopRecordSaved:
+        'Recording stopped and flight log saved',
+    FlightLogsLocalizationKeys.stopRecordDiscarded:
+        'Recording not saved: duration is less than 1 minute',
     FlightLogsLocalizationKeys.detailTitle: 'Flight Analysis',
     FlightLogsLocalizationKeys.detailTrack: 'Flight Track',
     FlightLogsLocalizationKeys.detailProfile: 'Flight Profile',
@@ -133,5 +149,8 @@ final Map<String, Map<String, String>> flightLogsTranslations = {
     FlightLogsLocalizationKeys.chartSpeed: 'Ground Speed (kts)',
     FlightLogsLocalizationKeys.chartTooltipAlt: 'Altitude',
     FlightLogsLocalizationKeys.chartTooltipSpeed: 'Speed',
+    FlightLogsLocalizationKeys.simulatorMsfs: 'MSFS',
+    FlightLogsLocalizationKeys.simulatorXplane: 'X-Plane',
+    FlightLogsLocalizationKeys.simulatorUnknown: 'Unknown Simulator',
   },
 };

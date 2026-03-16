@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
+import '../../common/providers/home_provider.dart';
 import '../localization/flight_logs_localization_keys.dart';
 import '../providers/flight_logs_provider.dart';
 import 'flight_log_detail_page.dart';
@@ -16,6 +18,8 @@ class FlightLogsPage extends StatefulWidget {
 }
 
 class _FlightLogsPageState extends State<FlightLogsPage> {
+  Timer? _captureTimer;
+
   @override
   void initState() {
     super.initState();
@@ -23,12 +27,27 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
       if (!mounted) return;
       context.read<FlightLogsProvider>().refreshLogs();
     });
+    _captureTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final logsProvider = context.read<FlightLogsProvider>();
+      final homeProvider = context.read<HomeProvider>();
+      if (logsProvider.isRecording && homeProvider.isConnected) {
+        logsProvider.captureSnapshot(homeProvider.snapshot);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _captureTimer?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<FlightLogsProvider>(
-      builder: (context, provider, child) {
+    return Consumer2<FlightLogsProvider, HomeProvider>(
+      builder: (context, provider, homeProvider, child) {
+        _syncRecordingState(provider, homeProvider);
         return AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
           transitionBuilder: (Widget child, Animation<double> animation) {
@@ -48,69 +67,94 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
                   log: provider.selectedLog!,
                   onBack: provider.clearSelection,
                 )
-              : _buildMainList(context, provider),
+              : _buildMainList(context, provider, homeProvider),
         );
       },
     );
   }
 
-  Widget _buildMainList(BuildContext context, FlightLogsProvider provider) {
+  Widget _buildMainList(
+    BuildContext context,
+    FlightLogsProvider provider,
+    HomeProvider homeProvider,
+  ) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(FlightLogsLocalizationKeys.pageTitle.tr(context)),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-      ),
       body: provider.isLoading
           ? const Center(child: CircularProgressIndicator())
           : provider.logs.isEmpty
           ? _buildEmptyState(context)
           : _buildLogList(context, provider),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          showLoadingDialog(
-            context: context,
-            title: FlightLogsLocalizationKeys.importLog.tr(context),
-          );
-          try {
-            final ok = await provider.importLog();
-            if (!context.mounted) return;
-            _closeDialog(context);
-            if (ok) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    FlightLogsLocalizationKeys.importSuccess.tr(context),
-                  ),
-                ),
-              );
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    FlightLogsLocalizationKeys.notConnected.tr(context),
-                  ),
-                ),
-              );
-            }
-          } catch (e) {
-            if (context.mounted) {
-              _closeDialog(context);
-              showAdvancedConfirmDialog(
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (homeProvider.isConnected)
+            FloatingActionButton.extended(
+              heroTag: 'flight_log_record_fab',
+              onPressed: () =>
+                  _handleToggleRecording(context, provider, homeProvider),
+              backgroundColor: provider.isRecording ? Colors.red : null,
+              icon: Icon(
+                provider.isRecording
+                    ? Icons.stop_circle_outlined
+                    : Icons.fiber_manual_record,
+              ),
+              label: Text(
+                provider.isRecording
+                    ? FlightLogsLocalizationKeys.stopRecord.tr(context)
+                    : FlightLogsLocalizationKeys.startRecord.tr(context),
+              ),
+            ),
+          if (homeProvider.isConnected)
+            const SizedBox(height: AppThemeData.spacingSmall),
+          FloatingActionButton.extended(
+            heroTag: 'flight_log_import_fab',
+            onPressed: () async {
+              showLoadingDialog(
                 context: context,
                 title: FlightLogsLocalizationKeys.importLog.tr(context),
-                content: e.toString(),
-                icon: Icons.warning_amber_rounded,
-                confirmColor: Colors.orange,
-                confirmText: FlightLogsLocalizationKeys.cancel.tr(context),
-                cancelText: '',
               );
-            }
-          }
-        },
-        icon: const Icon(Icons.file_download_outlined),
-        label: Text(FlightLogsLocalizationKeys.importLog.tr(context)),
+              try {
+                final ok = await provider.importLog();
+                if (!context.mounted) return;
+                _closeDialog(context);
+                if (ok) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        FlightLogsLocalizationKeys.importSuccess.tr(context),
+                      ),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        FlightLogsLocalizationKeys.notConnected.tr(context),
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  _closeDialog(context);
+                  showAdvancedConfirmDialog(
+                    context: context,
+                    title: FlightLogsLocalizationKeys.importLog.tr(context),
+                    content: e.toString(),
+                    icon: Icons.warning_amber_rounded,
+                    confirmColor: Colors.orange,
+                    confirmText: FlightLogsLocalizationKeys.cancel.tr(context),
+                    cancelText: '',
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.file_download_outlined),
+            label: Text(FlightLogsLocalizationKeys.importLog.tr(context)),
+          ),
+        ],
       ),
       backgroundColor: theme.scaffoldBackgroundColor,
     );
@@ -228,5 +272,61 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
     if (navigator.canPop()) {
       navigator.pop();
     }
+  }
+
+  void _syncRecordingState(
+    FlightLogsProvider provider,
+    HomeProvider homeProvider,
+  ) {
+    if (!provider.isRecording || homeProvider.isConnected) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final saved = await provider.stopRecording(homeProvider.snapshot);
+      if (!mounted || saved) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            FlightLogsLocalizationKeys.stopRecordDiscarded.tr(context),
+          ),
+        ),
+      );
+    });
+  }
+
+  Future<void> _handleToggleRecording(
+    BuildContext context,
+    FlightLogsProvider provider,
+    HomeProvider homeProvider,
+  ) async {
+    if (provider.isRecording) {
+      final saved = await provider.stopRecording(homeProvider.snapshot);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            saved
+                ? FlightLogsLocalizationKeys.stopRecordSaved.tr(context)
+                : FlightLogsLocalizationKeys.stopRecordDiscarded.tr(context),
+          ),
+        ),
+      );
+      return;
+    }
+    final started = provider.startRecording(
+      snapshot: homeProvider.snapshot,
+      flightNumber: homeProvider.flightNumber,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          started
+              ? FlightLogsLocalizationKeys.startRecordStarted.tr(context)
+              : FlightLogsLocalizationKeys.notConnected.tr(context),
+        ),
+      ),
+    );
   }
 }

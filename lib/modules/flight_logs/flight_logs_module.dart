@@ -147,6 +147,11 @@ class LocalFlightLogsAdapter implements FlightLogsAdapter {
     }
   }
 
+  @override
+  Future<void> saveLog(FlightLog log) async {
+    await _saveLog(log);
+  }
+
   List<FlightLog> _parseLogs(dynamic decoded) {
     if (decoded is Map<String, dynamic>) {
       return [FlightLog.fromJson(decoded)];

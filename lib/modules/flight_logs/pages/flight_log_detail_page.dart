@@ -32,7 +32,7 @@ class FlightLogDetailPage extends StatelessWidget {
               )
             : null,
         title: Text(
-          '${log.aircraftTitle} - ${FlightLogsLocalizationKeys.detailTitle.tr(context)}',
+          '${log.aircraftTitle} - ${FlightLogsLocalizationKeys.detailTitle.tr(context)} [${_simulatorLabel(context, log.simulatorLabel)}]',
         ),
         actions: [
           IconButton(
@@ -64,7 +64,7 @@ class FlightLogDetailPage extends StatelessWidget {
               }
             },
           ),
-          const SizedBox(width: AppThemeData.spacingSmall),
+          const SizedBox(width: AppThemeData.spacingMedium),
         ],
       ),
       body: SingleChildScrollView(
@@ -277,5 +277,16 @@ class FlightLogDetailPage extends StatelessWidget {
       case LandingRating.rip:
         return FlightLogsLocalizationKeys.ratingRip.tr(context);
     }
+  }
+
+  String _simulatorLabel(BuildContext context, String? simulatorLabel) {
+    final normalized = (simulatorLabel ?? '').toUpperCase();
+    if (normalized.contains('X-PLANE')) {
+      return FlightLogsLocalizationKeys.simulatorXplane.tr(context);
+    }
+    if (normalized.contains('MSFS')) {
+      return FlightLogsLocalizationKeys.simulatorMsfs.tr(context);
+    }
+    return FlightLogsLocalizationKeys.simulatorUnknown.tr(context);
   }
 }

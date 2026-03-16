@@ -14,6 +14,13 @@ class FlightLogsLocalizationKeys {
   static const String importSuccess = 'flight_logs.message.import_success';
   static const String exportSuccess = 'flight_logs.message.export_success';
   static const String deleteSuccess = 'flight_logs.message.delete_success';
+  static const String startRecord = 'flight_logs.action.start_record';
+  static const String stopRecord = 'flight_logs.action.stop_record';
+  static const String startRecordStarted =
+      'flight_logs.message.start_record_started';
+  static const String stopRecordSaved = 'flight_logs.message.stop_record_saved';
+  static const String stopRecordDiscarded =
+      'flight_logs.message.stop_record_discarded';
   static const String detailTitle = 'flight_logs.detail.title';
   static const String detailTrack = 'flight_logs.detail.track';
   static const String detailProfile = 'flight_logs.detail.profile';
@@ -64,4 +71,7 @@ class FlightLogsLocalizationKeys {
   static const String chartSpeed = 'flight_logs.chart.speed';
   static const String chartTooltipAlt = 'flight_logs.chart.tooltip_alt';
   static const String chartTooltipSpeed = 'flight_logs.chart.tooltip_speed';
+  static const String simulatorMsfs = 'flight_logs.simulator.msfs';
+  static const String simulatorXplane = 'flight_logs.simulator.xplane';
+  static const String simulatorUnknown = 'flight_logs.simulator.unknown';
 }

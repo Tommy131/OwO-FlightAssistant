@@ -79,6 +79,8 @@ class FlightLogListItem extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  _buildSimulatorBadge(context, log.simulatorLabel),
+                  const SizedBox(width: 8),
                   if (!isCompleted) _buildIncompleteBadge(context),
                   if (isCompleted)
                     _buildLandingRatingBadge(context, landingRating),
@@ -323,6 +325,34 @@ class FlightLogListItem extends StatelessWidget {
           color: Colors.white,
           fontSize: 12,
           fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSimulatorBadge(BuildContext context, String? simulatorLabel) {
+    final theme = Theme.of(context);
+    final normalized = (simulatorLabel ?? '').toUpperCase();
+    final key = normalized.contains('X-PLANE')
+        ? FlightLogsLocalizationKeys.simulatorXplane
+        : normalized.contains('MSFS')
+        ? FlightLogsLocalizationKeys.simulatorMsfs
+        : FlightLogsLocalizationKeys.simulatorUnknown;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Text(
+        key.tr(context),
+        style: TextStyle(
+          color: theme.colorScheme.primary,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

@@ -149,6 +149,7 @@ class FlightLog {
   final String id;
   final String aircraftTitle;
   final String? aircraftType;
+  final String? simulatorLabel;
   final String? flightNumber;
   final String departureAirport;
   final String? arrivalAirport;
@@ -170,6 +171,7 @@ class FlightLog {
     required this.id,
     required this.aircraftTitle,
     this.aircraftType,
+    this.simulatorLabel,
     this.flightNumber,
     required this.departureAirport,
     this.arrivalAirport,
@@ -203,6 +205,7 @@ class FlightLog {
     'id': id,
     'aircraft': aircraftTitle,
     'ac_type': aircraftType,
+    'sim': simulatorLabel,
     'fn': flightNumber,
     'dep': departureAirport,
     'arr': arrivalAirport,
@@ -225,6 +228,7 @@ class FlightLog {
     id: json['id'] as String,
     aircraftTitle: json['aircraft'] as String,
     aircraftType: json['ac_type'] as String?,
+    simulatorLabel: json['sim'] as String?,
     flightNumber: json['fn'] as String?,
     departureAirport: json['dep'] as String,
     arrivalAirport: json['arr'] as String?,
