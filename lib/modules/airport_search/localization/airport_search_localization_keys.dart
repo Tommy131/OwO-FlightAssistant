@@ -26,10 +26,16 @@ class AirportSearchLocalizationKeys {
       'airport_search.frequency_type_label';
   static const String frequencyValueLabel =
       'airport_search.frequency_value_label';
-  static const String metarTitle = 'airport_search.metar_title';
   static const String metarRawLabel = 'airport_search.metar_raw_label';
   static const String metarDecodedLabel = 'airport_search.metar_decoded_label';
+  static const String metarWind = 'airport_search.metar_wind';
+  static const String metarVisibility = 'airport_search.metar_visibility';
+  static const String metarTemperature = 'airport_search.metar_temperature';
+  static const String metarAltimeter = 'airport_search.metar_altimeter';
   static const String metarEmpty = 'airport_search.metar_empty';
+  static const String positionSectionTitle = 'airport_search.position_section';
+  static const String weatherSectionTitle = 'airport_search.weather_section';
+  static const String runwaySectionTitle = 'airport_search.runway_section';
   static const String favoriteAdd = 'airport_search.favorite_add';
   static const String favoriteRemove = 'airport_search.favorite_remove';
   static const String favoriteRefresh = 'airport_search.favorite_refresh';

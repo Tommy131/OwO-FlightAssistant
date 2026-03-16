@@ -123,8 +123,19 @@ class AirportFrequencyData {
 class MetarData {
   final String? raw;
   final String? decoded;
+  final String? wind;
+  final String? visibility;
+  final String? temperature;
+  final String? altimeter;
 
-  const MetarData({this.raw, this.decoded});
+  const MetarData({
+    this.raw,
+    this.decoded,
+    this.wind,
+    this.visibility,
+    this.temperature,
+    this.altimeter,
+  });
 
   factory MetarData.fromApi(Map<String, dynamic> data) {
     final payloadRoot = _asMap(_pick(data, ['data'])) ?? data;
@@ -139,6 +150,16 @@ class MetarData {
           'Decoded',
           'translatedMetar',
         ]),
+      ),
+      wind: _readString(_pick(payloadRoot, ['display_wind', 'wind'])),
+      visibility: _readString(
+        _pick(payloadRoot, ['display_visibility', 'visibility']),
+      ),
+      temperature: _readString(
+        _pick(payloadRoot, ['display_temperature', 'temperature']),
+      ),
+      altimeter: _readString(
+        _pick(payloadRoot, ['display_altimeter', 'altimeter']),
       ),
     );
   }

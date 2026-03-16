@@ -109,7 +109,7 @@ class FavoriteAirportsList extends StatelessWidget {
                     TextButton(
                       onPressed: () => onOpen(entry.icao),
                       child: Text(
-                        AirportSearchLocalizationKeys.favoriteOpen.tr(context),
+                        AirportSearchLocalizationKeys.searchButton.tr(context),
                       ),
                     ),
                   ],

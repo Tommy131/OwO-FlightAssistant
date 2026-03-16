@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
+import '../../../common/pages/widgets/wind_direction_indicator.dart';
 import '../../localization/airport_search_localization_keys.dart';
 import '../../models/airport_search_models.dart';
 
@@ -46,250 +47,557 @@ class AirportResultCard extends StatelessWidget {
     final airport = query.airport;
     final metar = query.metar;
     final title = airport.name ?? airport.icao;
-    final subtitleParts = [
-      airport.icao,
-      if (airport.iata != null && airport.iata!.isNotEmpty) airport.iata!,
-      if (airport.city != null && airport.city!.isNotEmpty) airport.city!,
-      if (airport.country != null && airport.country!.isNotEmpty)
-        airport.country!,
-    ];
     final frequencyRows = _mergeFrequencyRows(airport.frequencies);
+    final wind = _extractWind(metar);
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final cardBackground = Color.alphaBlend(
+      accent.withValues(alpha: 0.1),
+      theme.colorScheme.surface,
+    );
+    final panelBackground = Color.alphaBlend(
+      accent.withValues(alpha: 0.5),
+      theme.colorScheme.surfaceContainerHighest,
+    );
+    final lineColor = accent.withValues(alpha: 0.35);
+    final locationText = _buildLocationText(airport);
+    final runwayCards = _buildRunwayCards(airport.runways);
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppThemeData.spacingMedium),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: cardBackground,
         borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
-        border: Border.all(
-          color: AppThemeData.getBorderColor(
-            Theme.of(context),
-          ).withValues(alpha: 0.5),
+        border: Border.all(color: lineColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                airport.icao,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    if (airport.iata != null && airport.iata!.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      _TagChip(text: airport.iata!),
+                    ] else if (airport.source != null &&
+                        airport.source!.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      _TagChip(text: airport.source!),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: isFavorite && !isUpdating ? onRefreshFavorite : null,
+                tooltip: AirportSearchLocalizationKeys.favoriteRefresh.tr(
+                  context,
+                ),
+                icon: isUpdating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(Icons.refresh, size: 18, color: accent),
+              ),
+              IconButton(
+                onPressed: onToggleFavorite,
+                tooltip: isFavorite
+                    ? AirportSearchLocalizationKeys.favoriteRemove.tr(context)
+                    : AirportSearchLocalizationKeys.favoriteAdd.tr(context),
+                icon: Icon(
+                  isFavorite ? Icons.star : Icons.star_outline,
+                  size: 20,
+                  color: Colors.amber,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Divider(color: lineColor),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final rightPanel = _buildRightPanel(
+                context,
+                airport,
+                metar,
+                locationText,
+                runwayCards,
+                panelBackground,
+              );
+              if (constraints.maxWidth < 860) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildWindPanel(context, wind),
+                    const SizedBox(height: 8),
+                    rightPanel,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 155, child: _buildWindPanel(context, wind)),
+                  const SizedBox(width: 10),
+                  Expanded(child: rightPanel),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Divider(color: lineColor),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.settings_input_antenna, size: 16, color: accent),
+              const SizedBox(width: 6),
+              Text(
+                AirportSearchLocalizationKeys.frequenciesTitle.tr(context),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppThemeData.spacingSmall),
+          if (frequencyRows.isEmpty)
+            Text(
+              AirportSearchLocalizationKeys.frequenciesEmpty.tr(context),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.hintColor,
+              ),
+            )
+          else
+            _FrequencyTable(rows: frequencyRows),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRightPanel(
+    BuildContext context,
+    AirportDetailData airport,
+    MetarData metar,
+    String locationText,
+    List<_RunwayCardData> runwayCards,
+    Color panelBackground,
+  ) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(
+          icon: Icons.place_outlined,
+          title: AirportSearchLocalizationKeys.positionSectionTitle.tr(context),
         ),
+        const SizedBox(height: 4),
+        Container(
+          // width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: panelBackground,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            locationText,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _SectionHeader(
+          icon: Icons.cloud_outlined,
+          title: AirportSearchLocalizationKeys.weatherSectionTitle.tr(context),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          decoration: BoxDecoration(
+            color: panelBackground,
+            borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: SelectableText(
+            (metar.raw ?? '').trim().isEmpty
+                ? AirportSearchLocalizationKeys.metarEmpty.tr(context)
+                : metar.raw!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            _MetaBadge(
+              label: AirportSearchLocalizationKeys.metarWind.tr(context),
+              value: metar.wind ?? '-',
+            ),
+            _MetaBadge(
+              label: AirportSearchLocalizationKeys.metarVisibility.tr(context),
+              value: metar.visibility ?? '-',
+            ),
+            _MetaBadge(
+              label: AirportSearchLocalizationKeys.metarTemperature.tr(context),
+              value: metar.temperature ?? '-',
+            ),
+            _MetaBadge(
+              label: AirportSearchLocalizationKeys.metarAltimeter.tr(context),
+              value: metar.altimeter ?? '-',
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _SectionHeader(
+          icon: Icons.flight_land_outlined,
+          title: AirportSearchLocalizationKeys.runwaySectionTitle.tr(context),
+        ),
+        const SizedBox(height: 4),
+        if (runwayCards.isEmpty)
+          Text(
+            AirportSearchLocalizationKeys.runwaysEmpty.tr(context),
+            style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor),
+          )
+        else
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: runwayCards
+                .map((item) => _RunwayCard(data: item))
+                .toList(),
+          ),
+      ],
+    );
+  }
+
+  String _buildLocationText(AirportDetailData airport) {
+    final lat = airport.latitude?.toStringAsFixed(5) ?? '-';
+    final lon = airport.longitude?.toStringAsFixed(5) ?? '-';
+    final elev = airport.elevationFt == null
+        ? '-'
+        : '${airport.elevationFt} ft';
+    return 'LAT: $lat   LON: $lon   ELEV: $elev';
+  }
+
+  List<_RunwayCardData> _buildRunwayCards(List<AirportRunwayData> runways) {
+    return runways
+        .map(
+          (runway) => _RunwayCardData(
+            ident: runway.ident,
+            length: runway.lengthM == null
+                ? '-'
+                : '${runway.lengthM!.toStringAsFixed(0)} m',
+            surface: runway.surface ?? '-',
+          ),
+        )
+        .toList();
+  }
+
+  Widget _buildWindPanel(BuildContext context, _WindSnapshot wind) {
+    Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          WindDirectionIndicator(
+            windDirection: wind.direction,
+            windSpeed: wind.speedKt,
+            size: 120,
+          ),
+        ],
+      ),
+    );
+  }
+
+  _WindSnapshot _extractWind(MetarData metar) {
+    final raw = metar.raw ?? '';
+    final rawMatch = RegExp(
+      r'\b(?:(\d{3})|VRB)(\d{2,3})(?:G\d{2,3})?KT\b',
+      caseSensitive: false,
+    ).firstMatch(raw);
+    if (rawMatch != null) {
+      return _WindSnapshot(
+        direction: double.tryParse(rawMatch.group(1) ?? ''),
+        speedKt: double.tryParse(rawMatch.group(2) ?? ''),
+        rawText: metar.wind,
+      );
+    }
+    final windText = metar.wind ?? metar.decoded ?? '';
+    final directionMatch = RegExp(r'(\d{1,3})\s*[°度]').firstMatch(windText);
+    final speedMatch = RegExp(
+      r'(?:/|\s)(\d{1,3})(?:\s*(?:kt|kts|m/s|米/秒))?',
+      caseSensitive: false,
+    ).firstMatch(windText);
+    return _WindSnapshot(
+      direction: double.tryParse(directionMatch?.group(1) ?? ''),
+      speedKt: double.tryParse(speedMatch?.group(1) ?? ''),
+      rawText: metar.wind,
+    );
+  }
+}
+
+class _WindSnapshot {
+  final double? direction;
+  final double? speedKt;
+  final String? rawText;
+
+  const _WindSnapshot({this.direction, this.speedKt, this.rawText});
+}
+
+class _TagChip extends StatelessWidget {
+  final String text;
+
+  const _TagChip({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: theme.textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String title;
+
+  const _SectionHeader({required this.icon, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: theme.colorScheme.primary),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RunwayCardData {
+  final String ident;
+  final String length;
+  final String surface;
+
+  const _RunwayCardData({
+    required this.ident,
+    required this.length,
+    required this.surface,
+  });
+}
+
+class _RunwayCard extends StatelessWidget {
+  final _RunwayCardData data;
+
+  const _RunwayCard({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 104,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.17),
+        borderRadius: BorderRadius.circular(7),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            AirportSearchLocalizationKeys.latestResultTitle.tr(context),
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: AppThemeData.spacingSmall),
-          Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitleParts.join(' · '),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).hintColor,
+            data.ident,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: theme.colorScheme.primary,
             ),
           ),
-          const SizedBox(height: AppThemeData.spacingSmall),
-          _InfoRow(
-            label: AirportSearchLocalizationKeys.airportNameLabel.tr(context),
-            value: airport.name ?? '-',
-          ),
-          _InfoRow(
-            label: AirportSearchLocalizationKeys.airportIcaoLabel.tr(context),
-            value: airport.icao,
-          ),
-          _InfoRow(
-            label: AirportSearchLocalizationKeys.airportLatLonLabel.tr(context),
-            value: airport.latitude != null && airport.longitude != null
-                ? '${airport.latitude!.toStringAsFixed(4)}, ${airport.longitude!.toStringAsFixed(4)}'
-                : '-',
-          ),
-          const SizedBox(height: AppThemeData.spacingMedium),
-          Row(
-            children: [
-              FilledButton.tonalIcon(
-                onPressed: onToggleFavorite,
-                icon: Icon(isFavorite ? Icons.star : Icons.star_outline),
-                label: Text(
-                  isFavorite
-                      ? AirportSearchLocalizationKeys.favoriteRemove.tr(context)
-                      : AirportSearchLocalizationKeys.favoriteAdd.tr(context),
-                ),
-              ),
-              const SizedBox(width: AppThemeData.spacingSmall),
-              if (isFavorite)
-                OutlinedButton.icon(
-                  onPressed: isUpdating ? null : onRefreshFavorite,
-                  icon: isUpdating
-                      ? const SizedBox(
-                          height: 14,
-                          width: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.refresh),
-                  label: Text(
-                    AirportSearchLocalizationKeys.favoriteRefresh.tr(context),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppThemeData.spacingMedium),
+          const SizedBox(height: 2),
           Text(
-            AirportSearchLocalizationKeys.runwaysTitle.tr(context),
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: AppThemeData.spacingSmall),
-          _CompactTable(
-            headers: [
-              AirportSearchLocalizationKeys.runwayNameLabel.tr(context),
-              AirportSearchLocalizationKeys.runwayLengthLabel.tr(context),
-              AirportSearchLocalizationKeys.runwayTypeLabel.tr(context),
-            ],
-            emptyText: AirportSearchLocalizationKeys.runwaysEmpty.tr(context),
-            maxHeight: 180,
-            rows: airport.runways
-                .map(
-                  (runway) => [
-                    runway.ident,
-                    runway.lengthM == null
-                        ? '-'
-                        : '${runway.lengthM!.toStringAsFixed(0)} m',
-                    runway.surface ?? '-',
-                  ],
-                )
-                .toList(),
-          ),
-          const SizedBox(height: AppThemeData.spacingMedium),
-          Text(
-            AirportSearchLocalizationKeys.frequenciesTitle.tr(context),
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: AppThemeData.spacingSmall),
-          _CompactTable(
-            headers: [
-              AirportSearchLocalizationKeys.frequencyTypeLabel.tr(context),
-              AirportSearchLocalizationKeys.frequencyValueLabel.tr(context),
-            ],
-            emptyText: AirportSearchLocalizationKeys.frequenciesEmpty.tr(
-              context,
+            data.length,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
             ),
-            maxHeight: null,
-            rows: frequencyRows,
           ),
-          const SizedBox(height: AppThemeData.spacingMedium),
-          Text(
-            AirportSearchLocalizationKeys.metarTitle.tr(context),
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: AppThemeData.spacingSmall),
-          _MetarRow(
-            label: AirportSearchLocalizationKeys.metarRawLabel.tr(context),
-            value: metar.raw,
-          ),
-          const SizedBox(height: 8),
-          _MetarRow(
-            label: AirportSearchLocalizationKeys.metarDecodedLabel.tr(context),
-            value: metar.decoded,
-          ),
+          Text(data.surface, style: theme.textTheme.labelSmall),
         ],
       ),
     );
   }
 }
 
-class _CompactTable extends StatelessWidget {
-  final List<String> headers;
+class _FrequencyTable extends StatelessWidget {
   final List<List<String>> rows;
-  final String emptyText;
-  final double? maxHeight;
 
-  const _CompactTable({
-    required this.headers,
-    required this.rows,
-    required this.emptyText,
-    this.maxHeight,
-  });
+  const _FrequencyTable({required this.rows});
 
   @override
   Widget build(BuildContext context) {
-    if (rows.isEmpty) {
-      return Text(
-        emptyText,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: Theme.of(context).hintColor),
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final borderColor = primary.withValues(alpha: 0.28);
+    final headerColor = primary.withValues(alpha: 0.2);
+    final rowColor = primary.withValues(alpha: 0.1);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: borderColor),
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: headers.length < 3
-                ? MediaQuery.sizeOf(context).width - AppThemeData.spacingLarge
-                : null,
-            child: maxHeight == null
-                ? _buildDataTable(context)
-                : ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: maxHeight!),
-                    child: SingleChildScrollView(
-                      child: _buildDataTable(context),
+          child: Table(
+            defaultColumnWidth: const IntrinsicColumnWidth(),
+            border: TableBorder(
+              horizontalInside: BorderSide(color: borderColor),
+              verticalInside: BorderSide(color: borderColor),
+            ),
+            children: [
+              TableRow(
+                decoration: BoxDecoration(color: headerColor),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    child: Text(
+                      AirportSearchLocalizationKeys.frequencyTypeLabel.tr(
+                        context,
+                      ),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    child: Text(
+                      AirportSearchLocalizationKeys.frequencyValueLabel.tr(
+                        context,
+                      ),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              ...rows.map(
+                (row) => TableRow(
+                  decoration: BoxDecoration(color: rowColor),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        row[0],
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        row[1],
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildDataTable(BuildContext context) {
-    return DataTable(
-      horizontalMargin: 12,
-      columnSpacing: 20,
-      headingRowHeight: 36,
-      dataRowMinHeight: 32,
-      dataRowMaxHeight: 40,
-      columns: headers
-          .map(
-            (header) => DataColumn(
-              label: Text(
-                header,
-                style: Theme.of(
-                  context,
-                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-          )
-          .toList(),
-      rows: rows
-          .map(
-            (row) => DataRow(
-              cells: row
-                  .map(
-                    (value) => DataCell(
-                      Text(value, style: Theme.of(context).textTheme.bodySmall),
-                    ),
-                  )
-                  .toList(),
-            ),
-          )
-          .toList(),
+class _MetaBadge extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MetaBadge({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '$label: $value',
+        style: theme.textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }
@@ -307,71 +615,4 @@ List<List<String>> _mergeFrequencyRows(List<AirportFrequencyData> items) {
   return grouped.entries
       .map((entry) => [entry.key, entry.value.join(' / ')])
       .toList();
-}
-
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _InfoRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: RichText(
-        text: TextSpan(
-          text: '$label: ',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-          children: [
-            TextSpan(
-              text: value,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.normal),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MetarRow extends StatelessWidget {
-  final String label;
-  final String? value;
-
-  const _MetarRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final text = (value ?? '').trim().isEmpty
-        ? AirportSearchLocalizationKeys.metarEmpty.tr(context)
-        : value!;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppThemeData.spacingSmall),
-      decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 4),
-          SelectableText(text, style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
-    );
-  }
 }
