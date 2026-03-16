@@ -216,6 +216,21 @@ class FlightDataDashboard extends StatelessWidget {
                     ? data.longitude!.toStringAsFixed(4)
                     : 'N/A',
               ),
+              if ((data.aircraftDisplayName ?? '').trim().isNotEmpty)
+                InfoChip(
+                  label: CommonLocalizationKeys.navAircraft.tr(context),
+                  value: data.aircraftDisplayName!,
+                )
+              else if ((data.aircraftModel ?? '').trim().isNotEmpty)
+                InfoChip(
+                  label: CommonLocalizationKeys.navAircraft.tr(context),
+                  value: data.aircraftModel!,
+                ),
+              if ((data.aircraftIcao ?? '').trim().isNotEmpty)
+                InfoChip(
+                  label: CommonLocalizationKeys.navAircraftIcao.tr(context),
+                  value: data.aircraftIcao!,
+                ),
               if (data.departureAirport != null)
                 InfoChip(
                   label: CommonLocalizationKeys.navDeparture.tr(context),

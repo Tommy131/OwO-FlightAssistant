@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum HomeSimulatorType { none, xp11, xp12, msfs2020, msfs2024 }
+enum HomeSimulatorType { none, xplane, msfs }
 
 class HomeAirportInfo {
   final String icaoCode;
@@ -107,6 +107,13 @@ class HomeFlightData {
   final bool? engine2Running;
   final bool? autopilotEngaged;
   final bool? autothrottleEngaged;
+  final String? aircraftProfile;
+  final String? aircraftId;
+  final String? aircraftManufacturer;
+  final String? aircraftFamily;
+  final String? aircraftModel;
+  final String? aircraftIcao;
+  final String? aircraftDisplayName;
 
   const HomeFlightData({
     this.airspeed,
@@ -168,6 +175,13 @@ class HomeFlightData {
     this.engine2Running,
     this.autopilotEngaged,
     this.autothrottleEngaged,
+    this.aircraftProfile,
+    this.aircraftId,
+    this.aircraftManufacturer,
+    this.aircraftFamily,
+    this.aircraftModel,
+    this.aircraftIcao,
+    this.aircraftDisplayName,
   });
 }
 

@@ -309,55 +309,32 @@ class SimulatorConnectionCard extends StatelessWidget {
               child: PopupMenuButton<String>(
                 onSelected: (value) {
                   final type = switch (value) {
-                    'xp11' => HomeSimulatorType.xp11,
-                    'xp12' => HomeSimulatorType.xp12,
-                    'msfs2020' => HomeSimulatorType.msfs2020,
-                    _ => HomeSimulatorType.msfs2024,
+                    'xplane' => HomeSimulatorType.xplane,
+                    'msfs' => HomeSimulatorType.msfs,
+                    _ => HomeSimulatorType.msfs,
                   };
                   _handleConnect(context, provider, type);
                 },
                 itemBuilder: (context) => [
                   PopupMenuItem(
-                    value: 'xp11',
+                    value: 'xplane',
                     child: Row(
                       children: [
                         const Icon(Icons.airplanemode_active, size: 18),
-                        const SizedBox(width: 8),
-                        Text(CommonLocalizationKeys.simConnectXp11.tr(context)),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'xp12',
-                    child: Row(
-                      children: [
-                        const Icon(Icons.airplanemode_active, size: 18),
-                        const SizedBox(width: 8),
-                        Text(CommonLocalizationKeys.simConnectXp12.tr(context)),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'msfs2020',
-                    child: Row(
-                      children: [
-                        const Icon(Icons.flight, size: 18),
                         const SizedBox(width: 8),
                         Text(
-                          CommonLocalizationKeys.simConnectMsfs2020.tr(context),
+                          CommonLocalizationKeys.simConnectXplane.tr(context),
                         ),
                       ],
                     ),
                   ),
                   PopupMenuItem(
-                    value: 'msfs2024',
+                    value: 'msfs',
                     child: Row(
                       children: [
                         const Icon(Icons.flight, size: 18),
                         const SizedBox(width: 8),
-                        Text(
-                          CommonLocalizationKeys.simConnectMsfs2024.tr(context),
-                        ),
+                        Text(CommonLocalizationKeys.simConnectMsfs.tr(context)),
                       ],
                     ),
                   ),
@@ -380,10 +357,8 @@ class SimulatorConnectionCard extends StatelessWidget {
 
   String _getSimulatorName(HomeSimulatorType type) {
     return switch (type) {
-      HomeSimulatorType.xp11 => 'X-Plane 11',
-      HomeSimulatorType.xp12 => 'X-Plane 12',
-      HomeSimulatorType.msfs2020 => 'MSFS 2020',
-      HomeSimulatorType.msfs2024 => 'MSFS 2024',
+      HomeSimulatorType.xplane => 'X-Plane 11/12',
+      HomeSimulatorType.msfs => 'MSFS 2020/2024',
       HomeSimulatorType.none => 'N/A',
     };
   }

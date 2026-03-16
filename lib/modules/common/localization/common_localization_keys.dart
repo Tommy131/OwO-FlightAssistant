@@ -18,14 +18,13 @@ class CommonLocalizationKeys {
   static const String simDisconnected = 'home.sim.disconnected';
   static const String simDisconnect = 'home.sim.disconnect';
   static const String simConnect = 'home.sim.connect';
-  static const String simConnectXp11 = 'home.sim.connect_xp11';
-  static const String simConnectXp12 = 'home.sim.connect_xp12';
-  static const String simConnectMsfs2020 = 'home.sim.connect_msfs2020';
-  static const String simConnectMsfs2024 = 'home.sim.connect_msfs2024';
+  static const String simConnectXplane = 'home.sim.connect_xplane';
+  static const String simConnectMsfs = 'home.sim.connect_msfs';
   static const String simConnectingTitle = 'home.sim.connecting_title';
   static const String simConnectingSubtitle = 'home.sim.connecting_subtitle';
   static const String simConnectFailedTitle = 'home.sim.connect_failed_title';
-  static const String simConnectFailedContent = 'home.sim.connect_failed_content';
+  static const String simConnectFailedContent =
+      'home.sim.connect_failed_content';
 
   static const String checklistTitle = 'home.checklist.title';
   static const String checklistEmpty = 'home.checklist.empty';
@@ -34,7 +33,8 @@ class CommonLocalizationKeys {
   static const String flightNumberEmpty = 'home.flight_number.empty';
   static const String flightNumberSet = 'home.flight_number.set';
   static const String flightNumberEdit = 'home.flight_number.edit';
-  static const String flightNumberDialogTitle = 'home.flight_number.dialog_title';
+  static const String flightNumberDialogTitle =
+      'home.flight_number.dialog_title';
   static const String flightNumberDialogHint = 'home.flight_number.dialog_hint';
   static const String flightNumberDialogFormat =
       'home.flight_number.dialog_format';
@@ -75,6 +75,8 @@ class CommonLocalizationKeys {
   static const String navTrueAirspeed = 'home.dashboard.nav.true_airspeed';
   static const String navLatitude = 'home.dashboard.nav.latitude';
   static const String navLongitude = 'home.dashboard.nav.longitude';
+  static const String navAircraft = 'home.dashboard.nav.aircraft';
+  static const String navAircraftIcao = 'home.dashboard.nav.aircraft_icao';
   static const String navDeparture = 'home.dashboard.nav.departure';
   static const String navArrival = 'home.dashboard.nav.arrival';
   static const String navCom1 = 'home.dashboard.nav.com1';
@@ -87,8 +89,7 @@ class CommonLocalizationKeys {
   static const String navPickAlternateTitle =
       'home.dashboard.nav.pick_alternate_title';
   static const String navRecentAirports = 'home.dashboard.nav.recent_airports';
-  static const String navClearSelection =
-      'home.dashboard.nav.clear_selection';
+  static const String navClearSelection = 'home.dashboard.nav.clear_selection';
   static const String navCancel = 'home.dashboard.nav.cancel';
 
   static const String environmentTitle = 'home.dashboard.environment.title';
@@ -116,8 +117,7 @@ class CommonLocalizationKeys {
   static const String metarErrorTitle = 'home.dashboard.metar.error_title';
   static const String metarErrorSubtitle =
       'home.dashboard.metar.error_subtitle';
-  static const String metarErrorDefault =
-      'home.dashboard.metar.error_default';
+  static const String metarErrorDefault = 'home.dashboard.metar.error_default';
 
   static const String systemTitle = 'home.dashboard.system.title';
   static const String systemSectionWarning =
@@ -135,16 +135,13 @@ class CommonLocalizationKeys {
       'home.dashboard.system.master_warning';
   static const String systemMasterCaution =
       'home.dashboard.system.master_caution';
-  static const String systemFireEngine1 =
-      'home.dashboard.system.fire_engine1';
-  static const String systemFireEngine2 =
-      'home.dashboard.system.fire_engine2';
+  static const String systemFireEngine1 = 'home.dashboard.system.fire_engine1';
+  static const String systemFireEngine2 = 'home.dashboard.system.fire_engine2';
   static const String systemFireApu = 'home.dashboard.system.fire_apu';
   static const String systemOnGround = 'home.dashboard.system.on_ground';
   static const String systemParkingBrake =
       'home.dashboard.system.parking_brake';
-  static const String systemSpeedBrake =
-      'home.dashboard.system.speed_brake';
+  static const String systemSpeedBrake = 'home.dashboard.system.speed_brake';
   static const String systemSpoilers = 'home.dashboard.system.spoilers';
   static const String systemAutoBrake = 'home.dashboard.system.auto_brake';
   static const String systemGear = 'home.dashboard.system.gear';
@@ -158,8 +155,7 @@ class CommonLocalizationKeys {
   static const String systemEngineLeft = 'home.dashboard.system.engine_left';
   static const String systemEngineRight = 'home.dashboard.system.engine_right';
   static const String systemAutopilot = 'home.dashboard.system.autopilot';
-  static const String systemAutothrottle =
-      'home.dashboard.system.autothrottle';
+  static const String systemAutothrottle = 'home.dashboard.system.autothrottle';
   static const String systemBeacon = 'home.dashboard.system.beacon';
   static const String systemStrobe = 'home.dashboard.system.strobe';
   static const String systemNavLights = 'home.dashboard.system.nav_lights';
@@ -170,8 +166,7 @@ class CommonLocalizationKeys {
   static const String systemTaxiLights = 'home.dashboard.system.taxi_lights';
   static const String systemRunwayTurnoff =
       'home.dashboard.system.runway_turnoff';
-  static const String systemWheelWell =
-      'home.dashboard.system.wheel_well';
+  static const String systemWheelWell = 'home.dashboard.system.wheel_well';
 
   static const String searchHint = 'home.search.hint';
   static const String searchEmpty = 'home.search.empty';

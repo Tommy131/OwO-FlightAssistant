@@ -434,7 +434,12 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _errorMessage = null;
     _isConnected = _toBool(dataset['connected']) ?? true;
     _isPaused = _toBool(dataset['is_paused']);
-    _aircraftTitle = body['simulator_version']?.toString() ?? _aircraftTitle;
+    _aircraftTitle =
+        dataset['aircraft_display_name']?.toString() ??
+        dataset['aircraft_model']?.toString() ??
+        dataset['aircraft_profile']?.toString() ??
+        body['simulator_version']?.toString() ??
+        _aircraftTitle;
     _flightData = _flightDataFromDataset(dataset);
     final nearest = dataset['nearest_airport'];
     if (nearest is Map<String, dynamic>) {
@@ -507,6 +512,13 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       engine2Running: _toBool(dataset['engine2_running']),
       autopilotEngaged: _toBool(dataset['autopilot_engaged']),
       autothrottleEngaged: _toBool(dataset['autothrottle_engaged']),
+      aircraftProfile: dataset['aircraft_profile']?.toString(),
+      aircraftId: dataset['aircraft_id']?.toString(),
+      aircraftManufacturer: dataset['aircraft_manufacturer']?.toString(),
+      aircraftFamily: dataset['aircraft_family']?.toString(),
+      aircraftModel: dataset['aircraft_model']?.toString(),
+      aircraftIcao: dataset['aircraft_icao']?.toString(),
+      aircraftDisplayName: dataset['aircraft_display_name']?.toString(),
     );
   }
 
@@ -564,10 +576,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
 
   String? _toSimulatorApiType(HomeSimulatorType type) {
     return switch (type) {
-      HomeSimulatorType.xp11 => 'xp11',
-      HomeSimulatorType.xp12 => 'xp12',
-      HomeSimulatorType.msfs2020 => 'msfs2020',
-      HomeSimulatorType.msfs2024 => 'msfs2024',
+      HomeSimulatorType.xplane => 'xplane',
+      HomeSimulatorType.msfs => 'msfs',
       HomeSimulatorType.none => null,
     };
   }
