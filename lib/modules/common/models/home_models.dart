@@ -199,6 +199,7 @@ class HomeFlightData {
 
 class HomeDataSnapshot {
   final bool isConnected;
+  final bool isBackendReachable;
   final HomeSimulatorType simulatorType;
   final String? errorMessage;
   final String? aircraftTitle;
@@ -219,6 +220,7 @@ class HomeDataSnapshot {
 
   const HomeDataSnapshot({
     required this.isConnected,
+    this.isBackendReachable = false,
     required this.simulatorType,
     required this.flightData,
     required this.suggestedAirports,
@@ -241,6 +243,7 @@ class HomeDataSnapshot {
   factory HomeDataSnapshot.empty() {
     return HomeDataSnapshot(
       isConnected: false,
+      isBackendReachable: false,
       simulatorType: HomeSimulatorType.none,
       flightData: const HomeFlightData(),
       suggestedAirports: const [],

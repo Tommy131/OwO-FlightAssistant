@@ -1,5 +1,9 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/module_registry/navigation/navigation_registry.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
@@ -10,31 +14,316 @@ import '../providers/home_provider.dart';
 import 'widgets/flight_data_dashboard.dart';
 import 'widgets/transponder_status_widget.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  static const Duration _backendMonitorInterval = Duration(seconds: 2);
+  static const Duration _backendDisconnectGracePeriod = Duration(seconds: 10);
+  static bool _backendDialogVisible = false;
+  static bool _showGlassMask = true;
+  static bool _showConnectionHelpCard = false;
+  static double _glassMaskOpacity = 1;
+  bool _isRetryingBackend = false;
+  bool _isMonitorChecking = false;
+  bool _isBackendDisconnectHandled = false;
+  DateTime? _lastBackendReachableAt;
+  Timer? _backendHealthMonitorTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _showGlassMask = true;
+      _showConnectionHelpCard = false;
+      _glassMaskOpacity = 1;
+      setState(() {});
+      _checkBackendAvailability(showDialogWhenUnavailable: true);
+    });
+  }
+
+  Future<void> _checkBackendAvailability({
+    required bool showDialogWhenUnavailable,
+  }) async {
+    if (_isRetryingBackend) return;
+    setState(() {
+      _isRetryingBackend = true;
+    });
+    final reachable = await context.read<HomeProvider>().refreshBackendHealth();
+    if (!mounted) {
+      return;
+    }
+    if (reachable) {
+      _showGlassMask = true;
+      _showConnectionHelpCard = false;
+      _glassMaskOpacity = 0;
+      _isBackendDisconnectHandled = false;
+      _lastBackendReachableAt = DateTime.now();
+      _startBackendHealthMonitor();
+    } else {
+      _showGlassMask = true;
+      _showConnectionHelpCard = true;
+      _glassMaskOpacity = 1;
+      _stopBackendHealthMonitor();
+    }
+    setState(() {
+      _isRetryingBackend = false;
+    });
+    if (!reachable && showDialogWhenUnavailable) {
+      await _showBackendUnavailableDialog();
+    }
+  }
+
+  void _startBackendHealthMonitor() {
+    _backendHealthMonitorTimer?.cancel();
+    _backendHealthMonitorTimer = Timer.periodic(_backendMonitorInterval, (_) {
+      unawaited(_monitorBackendHealth());
+    });
+  }
+
+  void _stopBackendHealthMonitor() {
+    _backendHealthMonitorTimer?.cancel();
+    _backendHealthMonitorTimer = null;
+    _isMonitorChecking = false;
+  }
+
+  Future<void> _monitorBackendHealth() async {
+    if (!mounted || _isBackendDisconnectHandled || _isMonitorChecking) {
+      return;
+    }
+    _isMonitorChecking = true;
+    try {
+      final reachable = await context.read<HomeProvider>().refreshBackendHealth();
+      if (!mounted) {
+        return;
+      }
+      if (reachable) {
+        _lastBackendReachableAt = DateTime.now();
+        return;
+      }
+      final lastReachableAt = _lastBackendReachableAt;
+      if (lastReachableAt == null) {
+        _lastBackendReachableAt = DateTime.now();
+        return;
+      }
+      final disconnectedDuration = DateTime.now().difference(lastReachableAt);
+      if (disconnectedDuration < _backendDisconnectGracePeriod) {
+        return;
+      }
+      _isBackendDisconnectHandled = true;
+      _stopBackendHealthMonitor();
+      _showGlassMask = true;
+      _showConnectionHelpCard = true;
+      _glassMaskOpacity = 1;
+      setState(() {});
+      await _showBackendUnavailableDialog();
+    } finally {
+      _isMonitorChecking = false;
+    }
+  }
+
+  Future<void> _showBackendUnavailableDialog() async {
+    if (_backendDialogVisible || !mounted) return;
+    _backendDialogVisible = true;
+    final shouldOpenSettings = await showAdvancedConfirmDialog(
+      context: context,
+      style: ConfirmDialogStyle.material,
+      title: CommonLocalizationKeys.backendUnavailableTitle.tr(context),
+      content: CommonLocalizationKeys.backendUnavailableContent.tr(context),
+      icon: Icons.cloud_off_rounded,
+      confirmColor: Theme.of(context).colorScheme.primary,
+      confirmText: CommonLocalizationKeys.goToSettings.tr(context),
+      cancelText: CommonLocalizationKeys.flightNumberDialogCancel.tr(context),
+    );
+    _backendDialogVisible = false;
+    if (shouldOpenSettings == true) {
+      NavigationCommandBus().goTo('settings');
+    }
+  }
+
+  @override
+  void dispose() {
+    _stopBackendHealthMonitor();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     context.watch<LocalizationService>();
     final theme = Theme.of(context);
 
-    return Container(
-      color: theme.scaffoldBackgroundColor,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppThemeData.spacingLarge),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            WelcomeCard(),
-            SizedBox(height: AppThemeData.spacingLarge),
-            FlightNumberCard(),
-            SizedBox(height: AppThemeData.spacingLarge),
-            _HomeStatusRow(),
-            SizedBox(height: AppThemeData.spacingLarge),
-            FlightDataDashboard(),
-          ],
+    return Stack(
+      children: [
+        Container(
+          color: theme.scaffoldBackgroundColor,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppThemeData.spacingLarge),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                WelcomeCard(),
+                SizedBox(height: AppThemeData.spacingLarge),
+                FlightNumberCard(),
+                SizedBox(height: AppThemeData.spacingLarge),
+                _HomeStatusRow(),
+                SizedBox(height: AppThemeData.spacingLarge),
+                FlightDataDashboard(),
+              ],
+            ),
+          ),
         ),
-      ),
+        if (_showGlassMask)
+          Positioned.fill(
+            child: Stack(
+              children: [
+                AbsorbPointer(
+                  child: AnimatedOpacity(
+                    opacity: _glassMaskOpacity,
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeOutCubic,
+                    onEnd: () {
+                      if (!mounted) {
+                        return;
+                      }
+                      if (_glassMaskOpacity == 0 && !_showConnectionHelpCard) {
+                        setState(() {
+                          _showGlassMask = false;
+                        });
+                      }
+                    },
+                    child: ClipRect(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                        child: Container(
+                          color: theme.colorScheme.surface.withValues(
+                            alpha: 0.35,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (_showConnectionHelpCard)
+                  Center(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      margin: const EdgeInsets.all(AppThemeData.spacingLarge),
+                      padding: const EdgeInsets.all(
+                        AppThemeData.spacingLarge + 4,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            theme.colorScheme.surface.withValues(alpha: 0.93),
+                            theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.9),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          AppThemeData.borderRadiusLarge,
+                        ),
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.35,
+                          ),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.28),
+                            blurRadius: 36,
+                            offset: const Offset(0, 18),
+                          ),
+                          BoxShadow(
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.2,
+                            ),
+                            blurRadius: 22,
+                            spreadRadius: 2,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.error.withValues(
+                                alpha: 0.12,
+                              ),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.cloud_off_rounded,
+                              color: theme.colorScheme.error,
+                              size: 34,
+                            ),
+                          ),
+                          const SizedBox(height: AppThemeData.spacingMedium),
+                          Text(
+                            CommonLocalizationKeys.homeMaskConnectBackendTitle
+                                .tr(context),
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: AppThemeData.spacingSmall),
+                          Text(
+                            CommonLocalizationKeys
+                                .homeMaskConnectBackendSubtitle
+                                .tr(context),
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(
+                                alpha: 0.85,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: AppThemeData.spacingMedium),
+                          FilledButton.icon(
+                            onPressed: _isRetryingBackend
+                                ? null
+                                : () => _checkBackendAvailability(
+                                    showDialogWhenUnavailable: true,
+                                  ),
+                            icon: _isRetryingBackend
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.refresh_rounded, size: 18),
+                            label: Text(
+                              _isRetryingBackend
+                                  ? CommonLocalizationKeys
+                                        .homeMaskRetryingButton
+                                        .tr(context)
+                                  : CommonLocalizationKeys.homeMaskRetryButton
+                                        .tr(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

@@ -12,6 +12,7 @@ abstract class HomeDataAdapter {
   Stream<HomeDataSnapshot> get stream;
   Future<bool> connect(HomeSimulatorType type);
   Future<void> disconnect();
+  Future<bool> refreshBackendHealth();
   Future<void> setFlightNumber(String? value);
   Future<void> setDestination(HomeAirportInfo? airport);
   Future<void> setAlternate(HomeAirportInfo? airport);
@@ -22,6 +23,7 @@ abstract class HomeDataAdapter {
 class HomeProvider extends ChangeNotifier {
   HomeProvider({HomeDataAdapter? adapter}) : _adapter = adapter {
     _subscribeAdapter();
+    unawaited(refreshBackendHealth());
   }
 
   HomeDataAdapter? _adapter;
@@ -29,6 +31,7 @@ class HomeProvider extends ChangeNotifier {
   HomeDataSnapshot _snapshot = HomeDataSnapshot.empty();
 
   bool get isConnected => _snapshot.isConnected;
+  bool get isBackendReachable => _snapshot.isBackendReachable;
   HomeDataSnapshot get snapshot => _snapshot;
   HomeSimulatorType get simulatorType => _snapshot.simulatorType;
   String? get errorMessage => _snapshot.errorMessage;
@@ -53,6 +56,7 @@ class HomeProvider extends ChangeNotifier {
   void attachAdapter(HomeDataAdapter? adapter) {
     _adapter = adapter;
     _subscribeAdapter();
+    unawaited(refreshBackendHealth());
   }
 
   Future<bool> connect(HomeSimulatorType type) async {
@@ -65,6 +69,12 @@ class HomeProvider extends ChangeNotifier {
     final adapter = _adapter;
     if (adapter == null) return;
     await adapter.disconnect();
+  }
+
+  Future<bool> refreshBackendHealth() async {
+    final adapter = _adapter;
+    if (adapter == null) return false;
+    return adapter.refreshBackendHealth();
   }
 
   Future<void> setFlightNumber(String? value) async {
@@ -152,6 +162,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   final Map<String, DateTime> _metarLastAutoFetchAt = {};
   bool _isDisposed = false;
   bool _isPolling = false;
+  bool _isBackendReachable = false;
+  Future<bool>? _checkingBackendHealthTask;
 
   @override
   Stream<HomeDataSnapshot> get stream => _controller.stream;
@@ -348,6 +360,46 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _controller.close();
   }
 
+  Future<bool> _checkBackendHealth() async {
+    if (_isDisposed) return false;
+    final inFlightTask = _checkingBackendHealthTask;
+    if (inFlightTask != null) {
+      return inFlightTask;
+    }
+    final task = _performBackendHealthCheck();
+    _checkingBackendHealthTask = task;
+    try {
+      return await task;
+    } finally {
+      if (identical(_checkingBackendHealthTask, task)) {
+        _checkingBackendHealthTask = null;
+      }
+    }
+  }
+
+  Future<bool> _performBackendHealthCheck() async {
+    try {
+      await _httpService.init();
+      await _httpService.getHealth();
+      _updateBackendHealth(true);
+      return true;
+    } catch (_) {
+      _updateBackendHealth(false);
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> refreshBackendHealth() async {
+    return _checkBackendHealth();
+  }
+
+  void _updateBackendHealth(bool reachable) {
+    if (_isBackendReachable == reachable) return;
+    _isBackendReachable = reachable;
+    _emitSnapshot();
+  }
+
   Future<void> _startRealtimeUpdates(String token) async {
     final connected = await _connectWebSocket(token);
     if (!connected) {
@@ -477,10 +529,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     if (clientMap == null && rawMap == null) {
       return;
     }
-    final dataset = <String, dynamic>{
-      ...?rawMap,
-      ...?clientMap,
-    };
+    final dataset = <String, dynamic>{...?rawMap, ...?clientMap};
     _errorMessage = null;
     _isConnected = _toBool(dataset['connected']) ?? true;
     _isPaused = _toBool(dataset['is_paused']);
@@ -827,6 +876,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _controller.add(
       HomeDataSnapshot(
         isConnected: _isConnected,
+        isBackendReachable: _isBackendReachable,
         simulatorType: _simulatorType,
         errorMessage: _errorMessage,
         aircraftTitle: _aircraftTitle,
