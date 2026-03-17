@@ -38,6 +38,12 @@ class MapAircraftState {
   final double? heading;
   final double? altitude;
   final double? groundSpeed;
+  final double? airspeed;
+  final double? pitch;
+  final double? bank;
+  final double? angleOfAttack;
+  final double? verticalSpeed;
+  final bool? stallWarning;
   final bool? onGround;
 
   const MapAircraftState({
@@ -45,8 +51,80 @@ class MapAircraftState {
     this.heading,
     this.altitude,
     this.groundSpeed,
+    this.airspeed,
+    this.pitch,
+    this.bank,
+    this.angleOfAttack,
+    this.verticalSpeed,
+    this.stallWarning,
     this.onGround,
   });
+}
+
+enum MapFlightAlertLevel { caution, warning, danger }
+
+class MapFlightAlert {
+  final String id;
+  final MapFlightAlertLevel level;
+  final String message;
+
+  const MapFlightAlert({
+    required this.id,
+    required this.level,
+    required this.message,
+  });
+}
+
+class MapSelectedAirportDetail {
+  final MapAirportMarker marker;
+  final String? source;
+  final List<String> runways;
+  final List<MapRunwayGeometry> runwayGeometries;
+  final List<MapParkingSpot> parkingSpots;
+  final List<String> frequencyBadges;
+  final String? atis;
+  final String? rawMetar;
+  final String? decodedMetar;
+  final String? approachRule;
+
+  const MapSelectedAirportDetail({
+    required this.marker,
+    this.source,
+    this.runways = const [],
+    this.runwayGeometries = const [],
+    this.parkingSpots = const [],
+    this.frequencyBadges = const [],
+    this.atis,
+    this.rawMetar,
+    this.decodedMetar,
+    this.approachRule,
+  });
+}
+
+class MapRunwayGeometry {
+  final String ident;
+  final String? leIdent;
+  final String? heIdent;
+  final MapCoordinate start;
+  final MapCoordinate end;
+  final double? lengthM;
+
+  const MapRunwayGeometry({
+    required this.ident,
+    required this.start,
+    required this.end,
+    this.leIdent,
+    this.heIdent,
+    this.lengthM,
+  });
+}
+
+class MapParkingSpot {
+  final String? name;
+  final MapCoordinate position;
+  final double? headingDeg;
+
+  const MapParkingSpot({this.name, required this.position, this.headingDeg});
 }
 
 class MapDataSnapshot {
@@ -67,12 +145,7 @@ abstract class MapDataAdapter {
   Stream<MapDataSnapshot> get stream;
 }
 
-enum MapLayerStyle {
-  dark,
-  satellite,
-  terrain,
-  taxiway,
-}
+enum MapLayerStyle { dark, satellite, terrain, taxiway }
 
 String mapTileUrl(MapLayerStyle style) {
   switch (style) {

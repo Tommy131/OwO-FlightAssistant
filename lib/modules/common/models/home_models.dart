@@ -54,6 +54,10 @@ class HomeFlightData {
   final double? heading;
   final double? verticalSpeed;
   final double? gForce;
+  final double? pitch;
+  final double? bank;
+  final double? angleOfAttack;
+  final bool? stallWarning;
   final double? groundSpeed;
   final double? trueAirspeed;
   final double? latitude;
@@ -123,6 +127,10 @@ class HomeFlightData {
     this.heading,
     this.verticalSpeed,
     this.gForce,
+    this.pitch,
+    this.bank,
+    this.angleOfAttack,
+    this.stallWarning,
     this.groundSpeed,
     this.trueAirspeed,
     this.latitude,

@@ -11,6 +11,7 @@ class AirportDetailData {
   final String? source;
   final String? airac;
   final List<AirportRunwayData> runways;
+  final List<AirportParkingData> parkings;
   final List<AirportFrequencyData> frequencies;
 
   const AirportDetailData({
@@ -26,6 +27,7 @@ class AirportDetailData {
     this.source,
     this.airac,
     this.runways = const [],
+    this.parkings = const [],
     this.frequencies = const [],
   });
 
@@ -43,6 +45,15 @@ class AirportDetailData {
     final runways = _asListOfMaps(
       _pick(detail, ['runways', 'Runways']),
     ).map(AirportRunwayData.fromApi).toList();
+    final parkings = _asListOfMaps(
+      _pick(detail, [
+        'parkings',
+        'Parkings',
+        'parking_spots',
+        'parkingSpots',
+        'parking_points',
+      ]),
+    ).map(AirportParkingData.fromApi).toList();
     final frequencies = _asListOfMaps(
       _pick(detail, ['frequencies', 'Frequencies']),
     ).map(AirportFrequencyData.fromApi).toList();
@@ -84,6 +95,7 @@ class AirportDetailData {
           _readString(_pick(payloadRoot, ['airac', 'AIRAC'])) ??
           _readString(_pick(detail, ['airac', 'AIRAC'])),
       runways: runways,
+      parkings: parkings,
       frequencies: frequencies,
     );
   }
@@ -93,8 +105,24 @@ class AirportRunwayData {
   final String ident;
   final double? lengthM;
   final String? surface;
+  final String? leIdent;
+  final String? heIdent;
+  final double? leLat;
+  final double? leLon;
+  final double? heLat;
+  final double? heLon;
 
-  const AirportRunwayData({required this.ident, this.lengthM, this.surface});
+  const AirportRunwayData({
+    required this.ident,
+    this.lengthM,
+    this.surface,
+    this.leIdent,
+    this.heIdent,
+    this.leLat,
+    this.leLon,
+    this.heLat,
+    this.heLon,
+  });
 
   factory AirportRunwayData.fromApi(Map<String, dynamic> data) {
     return AirportRunwayData(
@@ -102,6 +130,37 @@ class AirportRunwayData {
           _readString(_pick(data, ['ident', 'Ident', 'name', 'Name'])) ?? '-',
       lengthM: _readDouble(_pick(data, ['length_m', 'lengthM', 'LengthM'])),
       surface: _readString(_pick(data, ['surface', 'Surface', 'type', 'Type'])),
+      leIdent: _readString(_pick(data, ['le_ident', 'leIdent', 'LeIdent'])),
+      heIdent: _readString(_pick(data, ['he_ident', 'heIdent', 'HeIdent'])),
+      leLat: _readDouble(_pick(data, ['le_lat', 'leLat', 'LeLat'])),
+      leLon: _readDouble(_pick(data, ['le_lon', 'leLon', 'LeLon'])),
+      heLat: _readDouble(_pick(data, ['he_lat', 'heLat', 'HeLat'])),
+      heLon: _readDouble(_pick(data, ['he_lon', 'heLon', 'HeLon'])),
+    );
+  }
+}
+
+class AirportParkingData {
+  final String? name;
+  final double? latitude;
+  final double? longitude;
+  final double? headingDeg;
+
+  const AirportParkingData({
+    this.name,
+    this.latitude,
+    this.longitude,
+    this.headingDeg,
+  });
+
+  factory AirportParkingData.fromApi(Map<String, dynamic> data) {
+    return AirportParkingData(
+      name: _readString(_pick(data, ['name', 'Name', 'ident', 'Ident'])),
+      latitude: _readDouble(_pick(data, ['lat', 'latitude', 'Lat'])),
+      longitude: _readDouble(_pick(data, ['lon', 'lng', 'longitude', 'Lon'])),
+      headingDeg: _readDouble(
+        _pick(data, ['heading_deg', 'headingDeg', 'heading', 'Heading']),
+      ),
     );
   }
 }

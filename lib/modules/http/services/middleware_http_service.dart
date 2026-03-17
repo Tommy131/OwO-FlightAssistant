@@ -240,6 +240,11 @@ class MiddlewareHttpService {
     return get('/api/v1/airport/$normalizedIcao');
   }
 
+  Future<MiddlewareHttpResponse> getAirportLayoutByIcao(String icao) {
+    final normalizedIcao = _normalizeIcao(icao);
+    return get('/api/v1/airport-layout/$normalizedIcao');
+  }
+
   Future<MiddlewareHttpResponse> getMetarByIcao(String icao) {
     final normalizedIcao = _normalizeIcao(icao);
     return get('/api/v1/metar/$normalizedIcao');
@@ -256,6 +261,25 @@ class MiddlewareHttpService {
     return get(
       '/api/v1/airport-suggest',
       queryParameters: {'q': query.trim().toUpperCase(), 'limit': limit},
+    );
+  }
+
+  Future<MiddlewareHttpResponse> getAirportsByBounds({
+    required double minLat,
+    required double maxLat,
+    required double minLon,
+    required double maxLon,
+    int limit = 20,
+  }) {
+    return get(
+      '/api/v1/airports',
+      queryParameters: {
+        'min_lat': minLat,
+        'max_lat': maxLat,
+        'min_lon': minLon,
+        'max_lon': maxLon,
+        'limit': limit,
+      },
     );
   }
 
