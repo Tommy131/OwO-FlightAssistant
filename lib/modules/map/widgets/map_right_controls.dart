@@ -3,7 +3,6 @@ import 'package:flutter_map/flutter_map.dart';
 
 import '../../../core/services/localization_service.dart';
 import '../localization/map_localization_keys.dart';
-import '../models/map_models.dart';
 import 'map_button.dart';
 
 class MapRightControls extends StatelessWidget {
@@ -11,8 +10,6 @@ class MapRightControls extends StatelessWidget {
   final MapController mapController;
   final bool followAircraft;
   final ValueChanged<bool> onFollowAircraftChanged;
-  final MapOrientationMode orientationMode;
-  final ValueChanged<MapOrientationMode> onOrientationChanged;
   final VoidCallback onShowLayerPicker;
   final bool isMapReady;
   final bool isConnected;
@@ -23,8 +20,6 @@ class MapRightControls extends StatelessWidget {
     required this.mapController,
     required this.followAircraft,
     required this.onFollowAircraftChanged,
-    required this.orientationMode,
-    required this.onOrientationChanged,
     required this.onShowLayerPicker,
     required this.isMapReady,
     required this.isConnected,
@@ -54,25 +49,6 @@ class MapRightControls extends StatelessWidget {
                     onPressed: () => onFollowAircraftChanged(!followAircraft),
                     tooltip: MapLocalizationKeys.tooltipFollow.tr(context),
                     highlight: followAircraft,
-                    scale: scale,
-                  ),
-                  const SizedBox(height: 12),
-                  MapButton(
-                    icon: orientationMode == MapOrientationMode.northUp
-                        ? Icons.explore_outlined
-                        : Icons.navigation_outlined,
-                    onPressed: () {
-                      if (orientationMode == MapOrientationMode.northUp) {
-                        onOrientationChanged(MapOrientationMode.trackUp);
-                      } else {
-                        onOrientationChanged(MapOrientationMode.northUp);
-                        mapController.rotate(0);
-                      }
-                    },
-                    tooltip: orientationMode == MapOrientationMode.northUp
-                        ? MapLocalizationKeys.tooltipNorthUp.tr(context)
-                        : MapLocalizationKeys.tooltipTrackUp.tr(context),
-                    highlight: orientationMode == MapOrientationMode.trackUp,
                     scale: scale,
                   ),
                   const SizedBox(height: 12),
