@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/services/localization_service.dart';
-import '../../models/map_models.dart';
+import '../../../../../core/services/localization_service.dart';
+import '../../../models/map_models.dart';
 
 class MapInfoChip extends StatelessWidget {
   final IconData icon;

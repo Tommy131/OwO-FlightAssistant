@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/services/localization_service.dart';
-import '../../localization/map_localization_keys.dart';
-import '../../models/map_models.dart';
+import '../../../../../core/services/localization_service.dart';
+import '../../../localization/map_localization_keys.dart';
+import '../../../models/map_models.dart';
 
 class AirportMarker extends StatelessWidget {
   final MapAirportMarker airport;

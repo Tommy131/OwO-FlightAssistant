@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../../../core/services/localization_service.dart';
-import '../localization/map_localization_keys.dart';
-import '../models/map_models.dart';
+import '../../../../core/services/localization_service.dart';
+import '../../localization/map_localization_keys.dart';
+import '../../models/map_models.dart';
 import 'map_button.dart';
 import 'top_panel/airport_search_bar.dart';
 import 'top_panel/flight_status_panel.dart';

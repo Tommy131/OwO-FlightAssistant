@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 
-import '../../../core/services/localization_service.dart';
-import '../localization/map_localization_keys.dart';
+import '../../../../core/services/localization_service.dart';
+import '../../localization/map_localization_keys.dart';
 import 'map_button.dart';
 
 class MapRightControls extends StatelessWidget {

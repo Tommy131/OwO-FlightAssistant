@@ -2,9 +2,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import '../../../core/services/localization_service.dart';
-import '../localization/map_localization_keys.dart';
-import '../models/map_models.dart';
+import '../../../../core/services/localization_service.dart';
+import '../../localization/map_localization_keys.dart';
+import '../../models/map_models.dart';
 import 'selected_airport/airport_detail_primitives.dart';
 
 class SelectedAirportBottomCard extends StatefulWidget {

@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-import '../models/map_models.dart';
+import '../../models/map_models.dart';
 
 class MapLoadingOverlay extends StatelessWidget {
   const MapLoadingOverlay({super.key});

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/services/localization_service.dart';
-import '../localization/map_localization_keys.dart';
-import '../models/map_models.dart';
-import '../providers/map_provider.dart';
+import '../../../../core/services/localization_service.dart';
+import '../../localization/map_localization_keys.dart';
+import '../../models/map_models.dart';
+import '../../providers/map_provider.dart';
 
 void showMapLayerPicker(BuildContext context, MapProvider provider) {
   showModalBottomSheet(

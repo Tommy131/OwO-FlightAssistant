@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../core/services/localization_service.dart';
-import '../../../../core/theme/app_theme_data.dart';
-import '../../localization/map_localization_keys.dart';
-import '../../models/map_models.dart';
-import '../../providers/map_provider.dart';
+import '../../../../../core/services/localization_service.dart';
+import '../../../../../core/theme/app_theme_data.dart';
+import '../../../localization/map_localization_keys.dart';
+import '../../../models/map_models.dart';
+import '../../../providers/map_provider.dart';
 
 class AirportSearchBar extends StatefulWidget {
   final List<MapAirportMarker> airports;

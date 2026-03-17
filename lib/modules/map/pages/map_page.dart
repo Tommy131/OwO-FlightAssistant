@@ -7,12 +7,12 @@ import 'package:provider/provider.dart';
 import '../../../core/services/localization_service.dart';
 import '../models/map_models.dart';
 import '../providers/map_provider.dart';
-import '../widgets/map_hud.dart';
-import '../widgets/map_layer_picker.dart';
-import '../widgets/map_markers.dart';
-import '../widgets/map_right_controls.dart';
-import '../widgets/map_top_panel.dart';
-import '../widgets/selected_airport_bottom_card.dart';
+import 'widgets/map_hud.dart';
+import 'widgets/map_layer_picker.dart';
+import 'widgets/map_markers.dart';
+import 'widgets/map_right_controls.dart';
+import 'widgets/map_top_panel.dart';
+import 'widgets/selected_airport_bottom_card.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
