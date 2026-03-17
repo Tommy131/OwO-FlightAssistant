@@ -4,7 +4,6 @@ import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
 import '../../checklist/providers/checklist_provider.dart';
-import '../../flight_logs/providers/flight_logs_provider.dart';
 import '../localization/common_localization_keys.dart';
 import '../models/home_models.dart';
 import '../providers/home_provider.dart';
@@ -205,10 +204,8 @@ class SimulatorConnectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final provider = context.watch<HomeProvider>();
-    final logsProvider = context.watch<FlightLogsProvider>();
     final isConnected = provider.isConnected;
     final simulatorType = provider.simulatorType;
-    final isRecording = isConnected && logsProvider.isRecording;
 
     return Container(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge),
@@ -254,29 +251,6 @@ class SimulatorConnectionCard extends StatelessWidget {
               color: isConnected ? Colors.green : Colors.grey,
             ),
           ),
-          if (isRecording) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  CommonLocalizationKeys.simRecording.tr(context),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.red,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ],
           const Spacer(),
           const SizedBox(height: 12),
           if (isConnected)
