@@ -31,10 +31,12 @@ class PersistenceService {
   Future<void> ensureReady() async {
     if (_initialized) return;
     if (_initCompleter != null) return _initCompleter!.future;
-    // 如果还没开始初始化，记录警告
-    AppLogger.warning(
-      'PersistenceService accessed before initialization started',
-    );
+    final bootstrap = BootstrapService();
+    if (!bootstrap.isInitialized) {
+      await bootstrap.init();
+    }
+    final configuredPath = bootstrap.getDataPath();
+    await init(customPath: configuredPath);
   }
 
   static String getAppRootDir() {

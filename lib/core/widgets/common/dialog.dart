@@ -110,8 +110,8 @@ Future<bool?> showMaterialConfirmDialog({
     barrierLabel: '',
     barrierColor: Colors.black54,
     transitionDuration: const Duration(milliseconds: 250),
-    pageBuilder: (_, _, _) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
+    pageBuilder: (dialogContext, _, _) {
+      final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
 
       return Center(
         child: Material(
@@ -153,7 +153,8 @@ Future<bool?> showMaterialConfirmDialog({
                       if (hasCancel)
                         Expanded(
                           child: TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
+                            onPressed:
+                                () => Navigator.of(dialogContext).pop(false),
                             child: Text(cancelText),
                           ),
                         ),
@@ -167,7 +168,8 @@ Future<bool?> showMaterialConfirmDialog({
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            onPressed: () => Navigator.of(context).pop(true),
+                            onPressed:
+                                () => Navigator.of(dialogContext).pop(true),
                             child: Text(confirmText),
                           ),
                         ),
