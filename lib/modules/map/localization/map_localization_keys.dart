@@ -11,7 +11,11 @@ class MapLocalizationKeys {
   static const String layerTerrain = 'map.layer.terrain';
   static const String layerTaxiway = 'map.layer.taxiway';
   static const String toggleRoute = 'map.control.route';
-  static const String toggleAirports = 'map.control.airports';
+  static const String toggleAirports = 'map.control.toggle_airports';
+  static const String toggleNearbyAirports =
+      'map.control.toggle_nearby_airports';
+  static const String toggleRunways = 'map.control.runways';
+  static const String toggleParkings = 'map.control.parkings';
   static const String toggleWeather = 'map.control.weather';
   static const String toggleCompass = 'map.control.compass';
   static const String emptyState = 'map.empty_state';
@@ -20,4 +24,29 @@ class MapLocalizationKeys {
   static const String groundSpeed = 'map.label.ground_speed';
   static const String routePoints = 'map.label.route_points';
   static const String airports = 'map.label.airports';
+  static const String distance = 'map.label.distance';
+  static const String clearRoute = 'map.action.clear_route';
+  static const String clearSearch = 'map.action.clear_search';
+  static const String searchHint = 'map.search.hint';
+  static const String searchNoResult = 'map.search.no_result';
+  static const String selectedAirport = 'map.marker.selected_airport';
+  static const String tooltipLayer = 'map.tooltip.layer';
+  static const String tooltipFollow = 'map.tooltip.follow';
+  static const String tooltipNorthUp = 'map.tooltip.north_up';
+  static const String tooltipTrackUp = 'map.tooltip.track_up';
+  static const String tooltipZoomIn = 'map.tooltip.zoom_in';
+  static const String tooltipZoomOut = 'map.tooltip.zoom_out';
+  static const String weatherNoData = 'map.weather.no_data';
+  static const String loadingAirportDetail = 'map.airport.loading_detail';
+  static const String metarRawShort = 'map.weather.raw_short';
+  static const String metarDecodedShort = 'map.weather.decoded_short';
+  static const String alertPitchUpDanger = 'map.alert.pitch_up_danger';
+  static const String alertPitchUpWarning = 'map.alert.pitch_up_warning';
+  static const String alertPitchDownDanger = 'map.alert.pitch_down_danger';
+  static const String alertPitchDownWarning = 'map.alert.pitch_down_warning';
+  static const String alertBankDanger = 'map.alert.bank_danger';
+  static const String alertBankWarning = 'map.alert.bank_warning';
+  static const String alertStallWarning = 'map.alert.stall_warning';
+  static const String alertSinkRateDanger = 'map.alert.sink_rate_danger';
+  static const String alertSinkRateWarning = 'map.alert.sink_rate_warning';
 }
