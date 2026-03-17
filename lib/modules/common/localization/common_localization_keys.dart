@@ -29,6 +29,12 @@ class CommonLocalizationKeys {
   static const String simConnectFailedContent =
       'home.sim.connect_failed_content';
   static const String simRecording = 'home.sim.recording';
+  static const String backendUnavailableTitle =
+      'home.backend.unavailable_title';
+  static const String backendUnavailableContent =
+      'home.backend.unavailable_content';
+  static const String goToSettings = 'home.backend.go_to_settings';
+  static const String backendAvailableLabel = 'home.backend.available_label';
 
   static const String checklistTitle = 'home.checklist.title';
   static const String checklistEmpty = 'home.checklist.empty';
@@ -62,6 +68,12 @@ class CommonLocalizationKeys {
       'home.dashboard.no_connection_title';
   static const String dashboardNoConnectionSubtitle =
       'home.dashboard.no_connection_subtitle';
+  static const String homeMaskConnectBackendTitle =
+      'home.mask.connect_backend_title';
+  static const String homeMaskConnectBackendSubtitle =
+      'home.mask.connect_backend_subtitle';
+  static const String homeMaskRetryButton = 'home.mask.retry_button';
+  static const String homeMaskRetryingButton = 'home.mask.retrying_button';
 
   static const String primaryAirspeed = 'home.dashboard.primary.airspeed';
   static const String primaryAltitude = 'home.dashboard.primary.altitude';

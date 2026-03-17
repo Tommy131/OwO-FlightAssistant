@@ -1,4 +1,5 @@
-import '../../../modules/common/providers/home_provider.dart';
+import 'package:flutter/material.dart';
+
 import 'sidebar_mini_card.dart';
 
 class SidebarMiniCardRegistry {
@@ -15,11 +16,11 @@ class SidebarMiniCardRegistry {
 
   bool contains(String id) => _cardFactories.containsKey(id);
 
-  SidebarMiniCard? resolve(HomeProvider? home) {
+  SidebarMiniCard? resolve(BuildContext context) {
     final cards = _cardFactories.values.map((factory) => factory()).toList()
       ..sort((a, b) => a.priority.compareTo(b.priority));
     for (final card in cards) {
-      if (card.canDisplay(home)) {
+      if (card.canDisplay(context)) {
         return card;
       }
     }

@@ -28,6 +28,11 @@ final Map<String, Map<String, String>> commonTranslations = {
     CommonLocalizationKeys.simConnectFailedTitle: '连接失败',
     CommonLocalizationKeys.simConnectFailedContent: '原因不明，请检查模拟器设置或网络连接。',
     CommonLocalizationKeys.simRecording: '正在录制',
+    CommonLocalizationKeys.backendUnavailableTitle: '后端服务不可用',
+    CommonLocalizationKeys.backendUnavailableContent:
+        '当前无法与已配置的后端 HTTP 接口通信，请启动中间件服务，或检查网络代理与后端地址配置是否正确。',
+    CommonLocalizationKeys.goToSettings: '前往设置',
+    CommonLocalizationKeys.backendAvailableLabel: '已连接后端服务',
     CommonLocalizationKeys.checklistTitle: '当前检查阶段',
     CommonLocalizationKeys.checklistEmpty: '暂无检查阶段',
     CommonLocalizationKeys.flightNumberTitle: '航班号',
@@ -49,6 +54,11 @@ final Map<String, Map<String, String>> commonTranslations = {
     CommonLocalizationKeys.dashboardTitle: '实时飞行数据',
     CommonLocalizationKeys.dashboardNoConnectionTitle: '连接模拟器以查看实时飞行数据',
     CommonLocalizationKeys.dashboardNoConnectionSubtitle: '点击上方“连接”按钮开始',
+    CommonLocalizationKeys.homeMaskConnectBackendTitle: '连接中间件服务后端以建立通信连接',
+    CommonLocalizationKeys.homeMaskConnectBackendSubtitle:
+        '请先启动中间件服务并确认通讯地址、网络代理配置正确，然后重试连接。',
+    CommonLocalizationKeys.homeMaskRetryButton: '重试连接后端',
+    CommonLocalizationKeys.homeMaskRetryingButton: '正在检测后端...',
     CommonLocalizationKeys.primaryAirspeed: '指示空速',
     CommonLocalizationKeys.primaryAltitude: '高度',
     CommonLocalizationKeys.primaryHeading: '航向',
@@ -170,6 +180,12 @@ final Map<String, Map<String, String>> commonTranslations = {
     CommonLocalizationKeys.simConnectFailedContent:
         'Unknown error. Check simulator settings or network.',
     CommonLocalizationKeys.simRecording: 'Recording',
+    CommonLocalizationKeys.backendUnavailableTitle:
+        'Backend service unavailable',
+    CommonLocalizationKeys.backendUnavailableContent:
+        'Cannot communicate with the configured backend HTTP endpoint. Start the middleware service or verify proxy and endpoint settings.',
+    CommonLocalizationKeys.goToSettings: 'Open Settings',
+    CommonLocalizationKeys.backendAvailableLabel: 'Backend Connected',
     CommonLocalizationKeys.checklistTitle: 'Checklist Phase',
     CommonLocalizationKeys.checklistEmpty: 'No checklist phase',
     CommonLocalizationKeys.flightNumberTitle: 'Flight Number',
@@ -195,6 +211,12 @@ final Map<String, Map<String, String>> commonTranslations = {
         'Connect simulator to view live flight data',
     CommonLocalizationKeys.dashboardNoConnectionSubtitle:
         'Use the Connect button above to start',
+    CommonLocalizationKeys.homeMaskConnectBackendTitle:
+        'Connect to the middleware backend to establish communication',
+    CommonLocalizationKeys.homeMaskConnectBackendSubtitle:
+        'Start the middleware service first, then verify endpoint and proxy settings before retrying.',
+    CommonLocalizationKeys.homeMaskRetryButton: 'Retry backend connection',
+    CommonLocalizationKeys.homeMaskRetryingButton: 'Checking backend...',
     CommonLocalizationKeys.primaryAirspeed: 'Indicated Airspeed',
     CommonLocalizationKeys.primaryAltitude: 'Altitude',
     CommonLocalizationKeys.primaryHeading: 'Heading',

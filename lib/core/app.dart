@@ -100,6 +100,7 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
   void initState() {
     super.initState();
     windowManager.addListener(this);
+    NavigationCommandBus().targetId.addListener(_handleNavigationCommandChanged);
 
     _initializeApp();
   }
@@ -198,6 +199,9 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
           _isSetupMode = bootstrap.isFirstLaunch();
           _isInitialized = true;
         });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _consumeNavigationCommand();
+        });
 
         if (!_isSetupMode) {
           // 应用启动后自动检查更新
@@ -247,8 +251,31 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
 
   @override
   void dispose() {
+    NavigationCommandBus().targetId.removeListener(
+      _handleNavigationCommandChanged,
+    );
     windowManager.removeListener(this);
     super.dispose();
+  }
+
+  void _handleNavigationCommandChanged() {
+    _consumeNavigationCommand();
+  }
+
+  void _consumeNavigationCommand() {
+    final targetId = NavigationCommandBus().targetId.value;
+    if (targetId == null || targetId.isEmpty || !_isInitialized || !mounted) {
+      return;
+    }
+    final navigationItems = ModuleRegistry().navigation.getAllItems(context);
+    final targetIndex = navigationItems.indexWhere((item) => item.id == targetId);
+    NavigationCommandBus().clear();
+    if (targetIndex < 0 || targetIndex == _selectedIndex) {
+      return;
+    }
+    setState(() {
+      _selectedIndex = targetIndex;
+    });
   }
 
   void _onNavigationChanged(int index) {

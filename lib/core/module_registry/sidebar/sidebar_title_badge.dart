@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-abstract class SidebarMiniCard {
+abstract class SidebarTitleBadge {
   final String id;
   final int priority;
 
-  SidebarMiniCard({required this.id, this.priority = 100});
+  SidebarTitleBadge({required this.id, this.priority = 100});
 
   bool canDisplay(BuildContext context);
 
