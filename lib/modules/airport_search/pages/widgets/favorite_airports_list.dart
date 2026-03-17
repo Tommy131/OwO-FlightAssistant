@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
 import '../../localization/airport_search_localization_keys.dart';
@@ -7,16 +6,12 @@ import '../../models/airport_search_models.dart';
 
 class FavoriteAirportsList extends StatelessWidget {
   final List<FavoriteAirportEntry> favorites;
-  final bool isUpdating;
   final void Function(String icao) onOpen;
-  final void Function(String icao) onRefresh;
 
   const FavoriteAirportsList({
     super.key,
     required this.favorites,
-    required this.isUpdating,
     required this.onOpen,
-    required this.onRefresh,
   });
 
   @override
@@ -52,10 +47,6 @@ class FavoriteAirportsList extends StatelessWidget {
             )
           else
             ...favorites.map((entry) {
-              final airport = entry.airport;
-              final updated = DateFormat(
-                'yyyy-MM-dd HH:mm:ss',
-              ).format(entry.updatedAt.toLocal());
               return Container(
                 margin: const EdgeInsets.only(
                   bottom: AppThemeData.spacingSmall,
@@ -78,33 +69,20 @@ class FavoriteAirportsList extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${airport.icao} · ${airport.name ?? '-'}',
+                            '${entry.icao} · ${entry.name ?? '-'}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           Text(
-                            '${AirportSearchLocalizationKeys.updatedAtLabel.tr(context)}: $updated',
+                            '${AirportSearchLocalizationKeys.airportLatLonLabel.tr(context)}: '
+                            '${entry.latitude?.toStringAsFixed(4) ?? '-'}, '
+                            '${entry.longitude?.toStringAsFixed(4) ?? '-'}',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
                       ),
-                    ),
-                    IconButton(
-                      onPressed: isUpdating
-                          ? null
-                          : () => onRefresh(entry.icao),
-                      tooltip: AirportSearchLocalizationKeys.favoriteRefresh.tr(
-                        context,
-                      ),
-                      icon: isUpdating
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.refresh),
                     ),
                     TextButton(
                       onPressed: () => onOpen(entry.icao),

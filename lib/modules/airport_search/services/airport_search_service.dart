@@ -1,15 +1,18 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:path/path.dart' as p;
 import '../../../core/services/persistence_service.dart';
 import '../../http/http_module.dart';
 import '../models/airport_search_models.dart';
 
 class AirportSearchService {
-  static const String _moduleName = 'airport_search';
-  static const String _favoritesKey = 'favorite_airports';
+  static const String _favoritesFileName = 'airport_favorites.json';
   static final RegExp _icaoPattern = RegExp(r'^[A-Z0-9]{4}$');
   static final RegExp _icaoPartialPattern = RegExp(r'^[A-Z0-9]{1,4}$');
 
   final PersistenceService _persistence;
+  Future<void>? _activeSave;
 
   AirportSearchService({PersistenceService? persistence})
     : _persistence = persistence ?? PersistenceService();
@@ -81,11 +84,20 @@ class AirportSearchService {
 
   Future<List<FavoriteAirportEntry>> loadFavorites() async {
     await _persistence.ensureReady();
-    final raw = _persistence.getModuleData<List<dynamic>>(
-      _moduleName,
-      _favoritesKey,
-    );
-    if (raw == null || raw.isEmpty) {
+    final file = await _favoritesFile();
+    if (!await file.exists()) {
+      return [];
+    }
+    final content = await file.readAsString();
+    if (content.trim().isEmpty) {
+      return [];
+    }
+    final decoded = json.decode(content);
+    if (decoded is! List) {
+      return [];
+    }
+    final raw = decoded;
+    if (raw.isEmpty) {
       return [];
     }
 
@@ -94,14 +106,42 @@ class AirportSearchService {
         .map((item) => item.map((k, v) => MapEntry('$k', v)))
         .map(FavoriteAirportEntry.fromJson)
         .where((item) => item.icao.isNotEmpty && isValidIcao(item.icao))
-        .toList()
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        .toList();
   }
 
   Future<void> saveFavorites(List<FavoriteAirportEntry> favorites) async {
     await _persistence.ensureReady();
     final payload = favorites.map((item) => item.toJson()).toList();
-    await _persistence.setModuleData(_moduleName, _favoritesKey, payload);
+    final file = await _favoritesFile();
+    final parent = file.parent;
+    if (!await parent.exists()) {
+      await parent.create(recursive: true);
+    }
+    final currentSave = _activeSave;
+    final completer = Completer<void>();
+    _activeSave = completer.future;
+    if (currentSave != null) {
+      try {
+        await currentSave;
+      } catch (_) {}
+    }
+    try {
+      final content = const JsonEncoder.withIndent('  ').convert(payload);
+      await file.writeAsString(content, flush: true);
+    } finally {
+      completer.complete();
+      if (_activeSave == completer.future) {
+        _activeSave = null;
+      }
+    }
+  }
+
+  Future<File> _favoritesFile() async {
+    final rootPath = _persistence.rootPath;
+    if (rootPath == null || rootPath.isEmpty) {
+      throw StateError('persistence_path_not_ready');
+    }
+    return File(p.join(rootPath, _favoritesFileName));
   }
 
   Map<String, dynamic> _decodeBodyToMap(String body) {

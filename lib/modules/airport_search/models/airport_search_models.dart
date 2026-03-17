@@ -251,31 +251,41 @@ class AirportSuggestionData {
 
 class FavoriteAirportEntry {
   final String icao;
-  final Map<String, dynamic> airportPayload;
-  final DateTime updatedAt;
+  final String? name;
+  final double? latitude;
+  final double? longitude;
 
   const FavoriteAirportEntry({
     required this.icao,
-    required this.airportPayload,
-    required this.updatedAt,
+    this.name,
+    this.latitude,
+    this.longitude,
   });
 
-  AirportDetailData get airport => AirportDetailData.fromApi(airportPayload);
+  factory FavoriteAirportEntry.fromAirport(AirportDetailData airport) {
+    return FavoriteAirportEntry(
+      icao: airport.icao.toUpperCase(),
+      name: airport.name,
+      latitude: airport.latitude,
+      longitude: airport.longitude,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {
       'icao': icao,
-      'airport_payload': airportPayload,
-      'updated_at': updatedAt.toIso8601String(),
+      'name': name,
+      'latitude': latitude,
+      'longitude': longitude,
     };
   }
 
   factory FavoriteAirportEntry.fromJson(Map<String, dynamic> json) {
-    final updatedAtRaw = _readString(json['updated_at']);
     return FavoriteAirportEntry(
       icao: (_readString(json['icao']) ?? '').toUpperCase(),
-      airportPayload: _asMap(json['airport_payload']) ?? const {},
-      updatedAt: DateTime.tryParse(updatedAtRaw ?? '') ?? DateTime.now(),
+      name: _readString(json['name']),
+      latitude: _readDouble(json['latitude']),
+      longitude: _readDouble(json['longitude']),
     );
   }
 }

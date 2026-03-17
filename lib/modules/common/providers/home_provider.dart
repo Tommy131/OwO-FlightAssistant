@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../../../core/module_registry/navigation/navigation_registry.dart';
 import '../../../core/utils/logger.dart';
 import '../../http/models/http_models.dart';
 import '../../http/services/middleware_http_service.dart';
@@ -32,6 +33,7 @@ class HomeProvider extends ChangeNotifier {
 
   bool get isConnected => _snapshot.isConnected;
   bool get isBackendReachable => _snapshot.isBackendReachable;
+  int get backendOutageVersion => _snapshot.backendOutageVersion;
   HomeDataSnapshot get snapshot => _snapshot;
   HomeSimulatorType get simulatorType => _snapshot.simulatorType;
   String? get errorMessage => _snapshot.errorMessage;
@@ -125,6 +127,9 @@ class HomeProvider extends ChangeNotifier {
 }
 
 class MiddlewareHomeDataAdapter implements HomeDataAdapter {
+  static const Duration _backendMonitorInterval = Duration(seconds: 2);
+  static const Duration _backendDisconnectGracePeriod = Duration(seconds: 10);
+
   MiddlewareHomeDataAdapter({
     MiddlewareHttpService? httpService,
     Duration? pollInterval,
@@ -164,6 +169,11 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   bool _isPolling = false;
   bool _isBackendReachable = false;
   Future<bool>? _checkingBackendHealthTask;
+  Timer? _backendHealthMonitorTimer;
+  bool _isMonitorChecking = false;
+  bool _isBackendDisconnectHandled = false;
+  DateTime? _lastBackendReachableAt;
+  int _backendOutageVersion = 0;
 
   @override
   Stream<HomeDataSnapshot> get stream => _controller.stream;
@@ -237,6 +247,9 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _flightData = const HomeFlightData();
     _metarRefreshingIcaos.clear();
     _metarLastAutoFetchAt.clear();
+    _stopBackendHealthMonitor();
+    _isBackendDisconnectHandled = false;
+    _lastBackendReachableAt = null;
     _emitSnapshot();
   }
 
@@ -355,6 +368,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
 
   void dispose() {
     _isDisposed = true;
+    _stopBackendHealthMonitor();
     _closeWebSocket();
     _stopPolling();
     _controller.close();
@@ -395,9 +409,60 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   }
 
   void _updateBackendHealth(bool reachable) {
+    if (reachable) {
+      _lastBackendReachableAt = DateTime.now();
+      _isBackendDisconnectHandled = false;
+      if (_backendHealthMonitorTimer == null) {
+        _startBackendHealthMonitor();
+      }
+    }
     if (_isBackendReachable == reachable) return;
     _isBackendReachable = reachable;
     _emitSnapshot();
+  }
+
+  void _startBackendHealthMonitor() {
+    _backendHealthMonitorTimer?.cancel();
+    _backendHealthMonitorTimer = Timer.periodic(_backendMonitorInterval, (_) {
+      unawaited(_monitorBackendHealth());
+    });
+  }
+
+  void _stopBackendHealthMonitor() {
+    _backendHealthMonitorTimer?.cancel();
+    _backendHealthMonitorTimer = null;
+    _isMonitorChecking = false;
+  }
+
+  Future<void> _monitorBackendHealth() async {
+    if (_isDisposed || _isBackendDisconnectHandled || _isMonitorChecking) {
+      return;
+    }
+    if (_lastBackendReachableAt == null) {
+      return;
+    }
+    _isMonitorChecking = true;
+    try {
+      final reachable = await _performBackendHealthCheck();
+      if (reachable) {
+        return;
+      }
+      final lastReachableAt = _lastBackendReachableAt;
+      if (lastReachableAt == null) {
+        return;
+      }
+      final disconnectedDuration = DateTime.now().difference(lastReachableAt);
+      if (disconnectedDuration < _backendDisconnectGracePeriod) {
+        return;
+      }
+      _isBackendDisconnectHandled = true;
+      _stopBackendHealthMonitor();
+      _backendOutageVersion += 1;
+      _emitSnapshot();
+      NavigationCommandBus().goTo('home');
+    } finally {
+      _isMonitorChecking = false;
+    }
   }
 
   Future<void> _startRealtimeUpdates(String token) async {
@@ -877,6 +942,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       HomeDataSnapshot(
         isConnected: _isConnected,
         isBackendReachable: _isBackendReachable,
+        backendOutageVersion: _backendOutageVersion,
         simulatorType: _simulatorType,
         errorMessage: _errorMessage,
         aircraftTitle: _aircraftTitle,

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -22,17 +21,13 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const Duration _backendMonitorInterval = Duration(seconds: 2);
-  static const Duration _backendDisconnectGracePeriod = Duration(seconds: 10);
   static bool _backendDialogVisible = false;
   static bool _showGlassMask = true;
   static bool _showConnectionHelpCard = false;
   static double _glassMaskOpacity = 1;
+  static bool _stickyBackendUnavailable = false;
   bool _isRetryingBackend = false;
-  bool _isMonitorChecking = false;
-  bool _isBackendDisconnectHandled = false;
-  DateTime? _lastBackendReachableAt;
-  Timer? _backendHealthMonitorTimer;
+  int _handledBackendOutageVersion = 0;
 
   @override
   void initState() {
@@ -42,6 +37,12 @@ class _HomePageState extends State<HomePage> {
         return;
       }
       _showGlassMask = true;
+      if (_stickyBackendUnavailable) {
+        _showConnectionHelpCard = true;
+        _glassMaskOpacity = 1;
+        setState(() {});
+        return;
+      }
       _showConnectionHelpCard = false;
       _glassMaskOpacity = 1;
       setState(() {});
@@ -61,17 +62,15 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     if (reachable) {
+      _stickyBackendUnavailable = false;
       _showGlassMask = true;
       _showConnectionHelpCard = false;
       _glassMaskOpacity = 0;
-      _isBackendDisconnectHandled = false;
-      _lastBackendReachableAt = DateTime.now();
-      _startBackendHealthMonitor();
     } else {
+      _stickyBackendUnavailable = true;
       _showGlassMask = true;
       _showConnectionHelpCard = true;
       _glassMaskOpacity = 1;
-      _stopBackendHealthMonitor();
     }
     setState(() {
       _isRetryingBackend = false;
@@ -81,52 +80,23 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _startBackendHealthMonitor() {
-    _backendHealthMonitorTimer?.cancel();
-    _backendHealthMonitorTimer = Timer.periodic(_backendMonitorInterval, (_) {
-      unawaited(_monitorBackendHealth());
-    });
-  }
-
-  void _stopBackendHealthMonitor() {
-    _backendHealthMonitorTimer?.cancel();
-    _backendHealthMonitorTimer = null;
-    _isMonitorChecking = false;
-  }
-
-  Future<void> _monitorBackendHealth() async {
-    if (!mounted || _isBackendDisconnectHandled || _isMonitorChecking) {
+  void _handleGlobalBackendOutage(HomeProvider provider) {
+    final outageVersion = provider.backendOutageVersion;
+    if (outageVersion <= _handledBackendOutageVersion) {
       return;
     }
-    _isMonitorChecking = true;
-    try {
-      final reachable = await context.read<HomeProvider>().refreshBackendHealth();
+    _handledBackendOutageVersion = outageVersion;
+    _stickyBackendUnavailable = true;
+    _showGlassMask = true;
+    _showConnectionHelpCard = true;
+    _glassMaskOpacity = 1;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
       }
-      if (reachable) {
-        _lastBackendReachableAt = DateTime.now();
-        return;
-      }
-      final lastReachableAt = _lastBackendReachableAt;
-      if (lastReachableAt == null) {
-        _lastBackendReachableAt = DateTime.now();
-        return;
-      }
-      final disconnectedDuration = DateTime.now().difference(lastReachableAt);
-      if (disconnectedDuration < _backendDisconnectGracePeriod) {
-        return;
-      }
-      _isBackendDisconnectHandled = true;
-      _stopBackendHealthMonitor();
-      _showGlassMask = true;
-      _showConnectionHelpCard = true;
-      _glassMaskOpacity = 1;
       setState(() {});
-      await _showBackendUnavailableDialog();
-    } finally {
-      _isMonitorChecking = false;
-    }
+      _showBackendUnavailableDialog();
+    });
   }
 
   Future<void> _showBackendUnavailableDialog() async {
@@ -149,14 +119,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
-  void dispose() {
-    _stopBackendHealthMonitor();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     context.watch<LocalizationService>();
+    final homeProvider = context.watch<HomeProvider>();
+    _handleGlobalBackendOutage(homeProvider);
     final theme = Theme.of(context);
 
     return Stack(

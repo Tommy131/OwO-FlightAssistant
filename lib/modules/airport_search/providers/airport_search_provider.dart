@@ -10,7 +10,6 @@ class AirportSearchProvider extends ChangeNotifier {
 
   bool _isInitializing = false;
   bool _isSearching = false;
-  bool _isUpdating = false;
   bool _isSuggesting = false;
   String? _errorKey;
   AirportQueryResult? _latestResult;
@@ -19,9 +18,8 @@ class AirportSearchProvider extends ChangeNotifier {
 
   bool get isInitializing => _isInitializing;
   bool get isSearching => _isSearching;
-  bool get isUpdating => _isUpdating;
   bool get isSuggesting => _isSuggesting;
-  bool get isBusy => _isInitializing || _isSearching || _isUpdating;
+  bool get isBusy => _isInitializing || _isSearching;
   String? get errorKey => _errorKey;
   AirportQueryResult? get latestResult => _latestResult;
   List<FavoriteAirportEntry> get favorites => _favorites;
@@ -120,8 +118,9 @@ class AirportSearchProvider extends ChangeNotifier {
 
     final entry = FavoriteAirportEntry(
       icao: icao,
-      airportPayload: result.airport.payload,
-      updatedAt: DateTime.now(),
+      name: result.airport.name,
+      latitude: result.airport.latitude,
+      longitude: result.airport.longitude,
     );
     _favorites = [entry, ..._favorites];
     try {
@@ -131,38 +130,6 @@ class AirportSearchProvider extends ChangeNotifier {
       _errorKey = 'favoriteSaveFailed';
     }
     notifyListeners();
-  }
-
-  Future<void> refreshFavorite(String icao) async {
-    final normalized = _service.normalizeIcao(icao);
-    final index = _favorites.indexWhere((item) => item.icao == normalized);
-    if (index < 0) return;
-
-    _isUpdating = true;
-    _errorKey = null;
-    notifyListeners();
-
-    try {
-      final airport = await _service.fetchAirport(normalized);
-      _favorites[index] = FavoriteAirportEntry(
-        icao: normalized,
-        airportPayload: airport.payload,
-        updatedAt: DateTime.now(),
-      );
-      _favorites.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-      await _service.saveFavorites(_favorites);
-      if (_latestResult?.airport.icao == normalized) {
-        _latestResult = AirportQueryResult(
-          airport: airport,
-          metar: _latestResult!.metar,
-        );
-      }
-    } catch (_) {
-      _errorKey = 'favoriteUpdateFailed';
-    } finally {
-      _isUpdating = false;
-      notifyListeners();
-    }
   }
 
   Future<void> selectFavoriteAndQuery(String icao) async {

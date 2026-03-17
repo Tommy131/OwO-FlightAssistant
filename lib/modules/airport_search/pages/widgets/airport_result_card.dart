@@ -8,17 +8,13 @@ import '../../models/airport_search_models.dart';
 class AirportResultCard extends StatelessWidget {
   final AirportQueryResult? result;
   final bool isFavorite;
-  final bool isUpdating;
   final VoidCallback onToggleFavorite;
-  final VoidCallback onRefreshFavorite;
 
   const AirportResultCard({
     super.key,
     required this.result,
     required this.isFavorite,
-    required this.isUpdating,
     required this.onToggleFavorite,
-    required this.onRefreshFavorite,
   });
 
   @override
@@ -108,19 +104,6 @@ class AirportResultCard extends StatelessWidget {
                     ],
                   ],
                 ),
-              ),
-              IconButton(
-                onPressed: isFavorite && !isUpdating ? onRefreshFavorite : null,
-                tooltip: AirportSearchLocalizationKeys.favoriteRefresh.tr(
-                  context,
-                ),
-                icon: isUpdating
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(Icons.refresh, size: 18, color: accent),
               ),
               IconButton(
                 onPressed: onToggleFavorite,

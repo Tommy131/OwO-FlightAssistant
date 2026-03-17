@@ -98,22 +98,15 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
                       AirportResultCard(
                         result: result,
                         isFavorite: isFavorite,
-                        isUpdating: provider.isUpdating,
                         onToggleFavorite: provider.toggleFavoriteForLatest,
-                        onRefreshFavorite: () {
-                          if (result == null) return;
-                          provider.refreshFavorite(result.airport.icao);
-                        },
                       ),
                       const SizedBox(height: AppThemeData.spacingMedium),
                       FavoriteAirportsList(
                         favorites: provider.favorites,
-                        isUpdating: provider.isUpdating,
                         onOpen: (icao) {
                           _icaoController.text = icao;
                           provider.selectFavoriteAndQuery(icao);
                         },
-                        onRefresh: provider.refreshFavorite,
                       ),
                       const SizedBox(height: AppThemeData.spacingLarge),
                     ]),
@@ -147,8 +140,6 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
         return AirportSearchLocalizationKeys.favoriteSaveFailed.tr(context);
       case 'favoriteLoadFailed':
         return AirportSearchLocalizationKeys.favoriteLoadFailed.tr(context);
-      case 'favoriteUpdateFailed':
-        return AirportSearchLocalizationKeys.favoriteUpdateFailed.tr(context);
       default:
         return AirportSearchLocalizationKeys.queryFailed.tr(context);
     }
