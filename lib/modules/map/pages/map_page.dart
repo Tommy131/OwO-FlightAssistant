@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/services/localization_service.dart';
 import '../models/map_models.dart';
 import '../providers/map_provider.dart';
 import '../widgets/map_hud.dart';
@@ -41,6 +42,8 @@ class _MapPageState extends State<MapPage> {
   int _selectedAirportRequestToken = 0;
   List<MapAirportMarker> _nearbyAirports = const [];
   double _cameraZoom = 12;
+  bool _isCrashOverlayDismissed = false;
+  bool _isReconnectPromptShowing = false;
   Timer? _airportFetchTimer;
   LatLngBounds? _lastFetchBounds;
 
@@ -54,6 +57,7 @@ class _MapPageState extends State<MapPage> {
   Widget build(BuildContext context) {
     return Consumer<MapProvider>(
       builder: (context, provider, child) {
+        _handleReconnectPrompt(provider);
         final theme = Theme.of(context);
         final size = MediaQuery.sizeOf(context);
         final scale = (size.width / 1280).clamp(0.8, 1.2);
@@ -65,17 +69,27 @@ class _MapPageState extends State<MapPage> {
             provider.showAirports && zoom >= _nearbyAirportMinZoom;
         final showAirportIcaoLabel = zoom >= _airportIcaoLabelMinZoom;
         final activeAlerts = provider.activeAlerts;
-
-        if (_mapReady && provider.followAircraft && aircraft != null) {
+        final crashDetected = _isCrashDetected(aircraft, activeAlerts);
+        final showCrashOverlay = crashDetected && !_isCrashOverlayDismissed;
+        if (!crashDetected && _isCrashOverlayDismissed) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            _mapController.move(center, _mapController.camera.zoom);
-            if (provider.orientationMode == MapOrientationMode.trackUp &&
-                aircraft.heading != null) {
-              _mapController.rotate(-aircraft.heading!);
-            } else {
-              _mapController.rotate(0);
+            setState(() {
+              _isCrashOverlayDismissed = false;
+            });
+          });
+        }
+        final showDangerOverlay =
+            _shouldShowDangerOverlay(provider, aircraft, activeAlerts) &&
+            !showCrashOverlay;
+
+        if (_mapReady) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (provider.followAircraft && aircraft != null) {
+              _mapController.move(center, _mapController.camera.zoom);
             }
+            _mapController.rotate(0);
           });
         }
 
@@ -348,10 +362,11 @@ class _MapPageState extends State<MapPage> {
                               aircraft.position.latitude,
                               aircraft.position.longitude,
                             ),
-                            width: 140 * scale,
-                            height: 140 * scale,
+                            width: 190 * scale,
+                            height: 190 * scale,
                             child: AircraftCompassRing(
                               heading: aircraft.heading,
+                              headingTarget: aircraft.headingTarget,
                               mapRotation: _mapReady
                                   ? _mapController.camera.rotation
                                   : 0,
@@ -457,12 +472,14 @@ class _MapPageState extends State<MapPage> {
                   onClearRoute: provider.clearRoute,
                   searchClearToken: _airportSearchClearToken,
                   showSearchClearButton: _hasSearchInput,
+                  hudElapsed: provider.hudElapsed,
+                  isSimulatorPaused: provider.isPaused,
+                  isFlightLogRecording: provider.isFlightLogRecording,
                 ),
               ),
               Positioned(
                 right: 20 * scale,
                 top: 250 * scale,
-                bottom: 250 * scale,
                 child: MapRightControls(
                   scale: scale,
                   mapController: _mapController,
@@ -472,8 +489,6 @@ class _MapPageState extends State<MapPage> {
                       provider.toggleFollowAircraft();
                     }
                   },
-                  orientationMode: provider.orientationMode,
-                  onOrientationChanged: provider.setOrientationMode,
                   onShowLayerPicker: () {
                     _showLayerPicker(context, provider);
                   },
@@ -481,68 +496,11 @@ class _MapPageState extends State<MapPage> {
                   isConnected: provider.isConnected,
                 ),
               ),
-              if (provider.showCompass && _mapReady)
-                Positioned(
-                  right: 20 * scale,
-                  bottom: 120 * scale,
-                  child: GestureDetector(
-                    onTap: () {
-                      _mapController.rotate(0);
-                      provider.setOrientationMode(MapOrientationMode.northUp);
-                    },
-                    child: Container(
-                      width: 62 * scale,
-                      height: 62 * scale,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white24),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Transform.rotate(
-                            angle:
-                                _mapController.camera.rotation *
-                                (3.1415926 / 180),
-                            child: Icon(
-                              Icons.north,
-                              color: Colors.orangeAccent,
-                              size: 22 * scale,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${_mapController.camera.rotation.round()}°',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 9 * scale,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              if (provider.isConnected && aircraft != null)
-                Positioned(
-                  left: 20 * scale,
-                  right: 20 * scale,
-                  bottom: 20 * scale,
-                  child: VirtualHudPanel(
-                    scale: scale,
-                    aircraft: aircraft,
-                    verticalSpeed: _calculateHudVerticalSpeed(provider.route),
-                  ),
-                ),
               if (_selectedAirport != null)
                 Positioned(
                   left: 20 * scale,
                   right: 20 * scale,
-                  bottom: provider.isConnected && aircraft != null
-                      ? 124 * scale
-                      : 20 * scale,
+                  bottom: 20 * scale,
                   child: SelectedAirportBottomCard(
                     scale: scale,
                     airport: _selectedAirport!,
@@ -558,11 +516,171 @@ class _MapPageState extends State<MapPage> {
                 ),
               if (provider.isLoading)
                 const Positioned.fill(child: MapLoadingOverlay()),
+              if (showDangerOverlay)
+                Positioned.fill(
+                  child: DangerOverlay(
+                    message: 'DANGER',
+                    subMessage: _buildDangerSubMessage(
+                      context,
+                      activeAlerts,
+                      aircraft,
+                    ),
+                  ),
+                ),
+              if (showCrashOverlay)
+                Positioned.fill(
+                  child: CrashOverlay(
+                    onDismiss: () {
+                      setState(() {
+                        _isCrashOverlayDismissed = true;
+                      });
+                    },
+                  ),
+                ),
             ],
           ),
         );
       },
     );
+  }
+
+  void _handleReconnectPrompt(MapProvider provider) {
+    if (!provider.shouldShowReconnectPrompt() || _isReconnectPromptShowing) {
+      return;
+    }
+    _isReconnectPromptShowing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        _isReconnectPromptShowing = false;
+        return;
+      }
+      await _showReconnectPromptDialog(provider);
+      if (!mounted) {
+        _isReconnectPromptShowing = false;
+        return;
+      }
+      setState(() {
+        _isReconnectPromptShowing = false;
+      });
+      provider.markReconnectPromptHandled();
+    });
+  }
+
+  Future<void> _showReconnectPromptDialog(MapProvider provider) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('检测到新的飞行连接'),
+          content: const Text('当前地图存在上一次飞行轨迹，是否清除后开始本次飞行？'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('保留轨迹'),
+            ),
+            TextButton(
+              onPressed: () {
+                provider.clearRoute();
+                Navigator.of(dialogContext).pop();
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+              child: const Text('清除轨迹'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  bool _shouldShowDangerOverlay(
+    MapProvider provider,
+    MapAircraftState? aircraft,
+    List<MapFlightAlert> activeAlerts,
+  ) {
+    if (!provider.isConnected || aircraft == null) {
+      return false;
+    }
+    final pitch = aircraft.pitch ?? 0;
+    final bank = aircraft.bank?.abs() ?? 0;
+    final verticalSpeed = aircraft.verticalSpeed ?? 0;
+    final speed = aircraft.groundSpeed ?? 0;
+    final canEvaluateRisk =
+        aircraft.onGround != true ||
+        speed >= 20 ||
+        verticalSpeed.abs() >= 800 ||
+        pitch.abs() >= 12 ||
+        bank >= 30;
+    final hasAlertRisk = activeAlerts.any(
+      (alert) =>
+          alert.level == MapFlightAlertLevel.danger ||
+          alert.level == MapFlightAlertLevel.warning,
+    );
+    final pitchRisk = pitch >= 18 || pitch <= -15;
+    final bankRisk = bank >= 35;
+    final sinkRateRisk = verticalSpeed <= -1500;
+    final climbRateRisk = verticalSpeed >= 2200;
+    final stallRisk = aircraft.stallWarning == true;
+    return canEvaluateRisk &&
+        (pitchRisk ||
+            bankRisk ||
+            sinkRateRisk ||
+            climbRateRisk ||
+            stallRisk ||
+            hasAlertRisk);
+  }
+
+  bool _isCrashDetected(
+    MapAircraftState? aircraft,
+    List<MapFlightAlert> activeAlerts,
+  ) {
+    if (aircraft == null || aircraft.onGround != true) {
+      return false;
+    }
+    final verticalSpeed = aircraft.verticalSpeed ?? 0;
+    final pitch = aircraft.pitch ?? 0;
+    final hasSinkDanger =
+        activeAlerts.any((alert) => alert.id == 'sink_rate_danger') ||
+        verticalSpeed <= -1800;
+    return hasSinkDanger && pitch <= -8;
+  }
+
+  String _buildDangerSubMessage(
+    BuildContext context,
+    List<MapFlightAlert> activeAlerts,
+    MapAircraftState? aircraft,
+  ) {
+    final prioritizedAlert = activeAlerts.firstWhere(
+      (alert) =>
+          alert.level == MapFlightAlertLevel.danger ||
+          alert.level == MapFlightAlertLevel.warning,
+      orElse: () => const MapFlightAlert(
+        id: '__none__',
+        level: MapFlightAlertLevel.caution,
+        message: '',
+      ),
+    );
+    if (prioritizedAlert.id != '__none__') {
+      return prioritizedAlert.message.tr(context);
+    }
+    final pitch = aircraft?.pitch;
+    final bank = aircraft?.bank;
+    final verticalSpeed = aircraft?.verticalSpeed;
+    if (pitch != null && (pitch >= 18 || pitch <= -15)) {
+      return pitch >= 18 ? '俯仰角过大，请修正姿态' : '机头下俯过大，请抬头';
+    }
+    if (bank != null && bank.abs() >= 35) {
+      return '倾斜角过大，请尽快改平';
+    }
+    if (verticalSpeed != null && verticalSpeed <= -1500) {
+      return '下降率过大，请立即减小下沉';
+    }
+    if (verticalSpeed != null && verticalSpeed >= 2200) {
+      return '爬升率过大，请柔和抬升';
+    }
+    return '飞行参数异常，请立即修正';
   }
 
   void _onMapBoundsChanged(LatLngBounds? bounds, MapProvider provider) {
@@ -743,19 +861,5 @@ class _MapPageState extends State<MapPage> {
       default:
         return null;
     }
-  }
-
-  double? _calculateHudVerticalSpeed(List<MapRoutePoint> route) {
-    if (route.length < 2) return null;
-    final last = route[route.length - 1];
-    final previous = route[route.length - 2];
-    if (last.altitude == null || previous.altitude == null) return null;
-    if (last.timestamp == null || previous.timestamp == null) return null;
-    final seconds = last.timestamp!
-        .difference(previous.timestamp!)
-        .inSeconds
-        .toDouble();
-    if (seconds <= 0) return null;
-    return ((last.altitude! - previous.altitude!) / seconds) * 60;
   }
 }

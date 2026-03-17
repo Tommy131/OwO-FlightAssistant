@@ -472,11 +472,15 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   void _applySimulatorResponseBody(Map<String, dynamic> body) {
     final clientDataset = body['client_dataset'];
     final rawDataset = body['raw_dataset'];
-    final dataset =
-        _toStringDynamicMap(clientDataset) ?? _toStringDynamicMap(rawDataset);
-    if (dataset == null) {
+    final clientMap = _toStringDynamicMap(clientDataset);
+    final rawMap = _toStringDynamicMap(rawDataset);
+    if (clientMap == null && rawMap == null) {
       return;
     }
+    final dataset = <String, dynamic>{
+      ...?rawMap,
+      ...?clientMap,
+    };
     _errorMessage = null;
     _isConnected = _toBool(dataset['connected']) ?? true;
     _isPaused = _toBool(dataset['is_paused']);
@@ -534,12 +538,20 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
         dataset['vertical_speed_fpm'] ?? dataset['vs_fpm'],
       ),
       gForce: _toDouble(dataset['g_force_g'] ?? dataset['g_force']),
-      pitch: _toDouble(dataset['pitch_deg'] ?? dataset['pitch']),
-      bank: _toDouble(
-        dataset['bank_deg'] ?? dataset['roll_deg'] ?? dataset['bank'],
+      pitch: _readAngleDegrees(
+        dataset,
+        degreeKeys: const ['pitch_deg'],
+        fallbackKeys: const ['pitch'],
       ),
-      angleOfAttack: _toDouble(
-        dataset['aoa_deg'] ?? dataset['angle_of_attack_deg'] ?? dataset['aoa'],
+      bank: _readAngleDegrees(
+        dataset,
+        degreeKeys: const ['bank_deg', 'roll_deg'],
+        fallbackKeys: const ['bank', 'roll'],
+      ),
+      angleOfAttack: _readAngleDegrees(
+        dataset,
+        degreeKeys: const ['aoa_deg', 'angle_of_attack_deg'],
+        fallbackKeys: const ['aoa'],
       ),
       stallWarning: _toBool(
         dataset['stall_warning'] ??
@@ -607,6 +619,9 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       engine2Running: _toBool(dataset['engine2_running']),
       autopilotEngaged: _toBool(dataset['autopilot_engaged']),
       autothrottleEngaged: _toBool(dataset['autothrottle_engaged']),
+      autopilotHeadingTarget: _toDouble(
+        dataset['autopilot_heading_target_deg'] ?? dataset['heading_target'],
+      ),
       aircraftProfile: dataset['aircraft_profile']?.toString(),
       aircraftId: dataset['aircraft_id']?.toString(),
       aircraftManufacturer: dataset['aircraft_manufacturer']?.toString(),
@@ -918,6 +933,28 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       }
     }
     return null;
+  }
+
+  double? _readAngleDegrees(
+    Map<String, dynamic> map, {
+    required List<String> degreeKeys,
+    required List<String> fallbackKeys,
+  }) {
+    final degree = _pickDouble(map, degreeKeys);
+    if (degree != null) {
+      return degree;
+    }
+    final raw = _pickDouble(map, fallbackKeys);
+    return _normalizeAngleDegrees(raw);
+  }
+
+  double? _normalizeAngleDegrees(double? value) {
+    if (value == null) return null;
+    final absValue = value.abs();
+    if (absValue <= 3.2) {
+      return value * 57.29577951308232;
+    }
+    return value;
   }
 
   int? _toInt(dynamic value) {

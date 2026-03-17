@@ -3,8 +3,6 @@ class MapLocalizationKeys {
   static const String panelTitle = 'map.panel.title';
   static const String panelSubtitle = 'map.panel.subtitle';
   static const String followAircraft = 'map.control.follow';
-  static const String orientationNorth = 'map.control.orientation_north';
-  static const String orientationTrack = 'map.control.orientation_track';
   static const String layerTitle = 'map.layer.title';
   static const String layerDark = 'map.layer.dark';
   static const String layerSatellite = 'map.layer.satellite';
@@ -32,8 +30,6 @@ class MapLocalizationKeys {
   static const String selectedAirport = 'map.marker.selected_airport';
   static const String tooltipLayer = 'map.tooltip.layer';
   static const String tooltipFollow = 'map.tooltip.follow';
-  static const String tooltipNorthUp = 'map.tooltip.north_up';
-  static const String tooltipTrackUp = 'map.tooltip.track_up';
   static const String tooltipZoomIn = 'map.tooltip.zoom_in';
   static const String tooltipZoomOut = 'map.tooltip.zoom_out';
   static const String weatherNoData = 'map.weather.no_data';

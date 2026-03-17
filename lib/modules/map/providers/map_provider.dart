@@ -18,7 +18,6 @@ class MapProvider extends ChangeNotifier {
   StreamSubscription<MapDataSnapshot>? _subscription;
 
   MapLayerStyle _layerStyle = MapLayerStyle.dark;
-  MapOrientationMode _orientationMode = MapOrientationMode.northUp;
   bool _followAircraft = true;
   bool _showRoute = true;
   bool _showAirports = true;
@@ -28,6 +27,9 @@ class MapProvider extends ChangeNotifier {
   bool _showWeather = false;
   bool _isLoading = false;
   bool _isConnected = false;
+  int _connectionEpoch = 0;
+  int _lastReconnectPromptEpoch = 0;
+  bool _isPaused = false;
   int? _weatherRadarTimestamp;
   Timer? _radarRefreshTimer;
   DateTime? _lastRadarFetch;
@@ -43,9 +45,14 @@ class MapProvider extends ChangeNotifier {
   MapCoordinate? _landingPoint;
   bool? _lastOnGround;
   DateTime? _lastRouteTimestamp;
+  bool _isAircraftMoving = false;
+  Duration _hudElapsed = Duration.zero;
+  DateTime? _hudTimerLastTick;
+  MapCoordinate? _lastMovementSamplePosition;
+  DateTime? _lastMovementSampleAt;
+  bool _awaitMovementResetAfterClear = false;
 
   MapLayerStyle get layerStyle => _layerStyle;
-  MapOrientationMode get orientationMode => _orientationMode;
   bool get followAircraft => _followAircraft;
   bool get showRoute => _showRoute;
   bool get showAirports => _showAirports;
@@ -59,6 +66,9 @@ class MapProvider extends ChangeNotifier {
       DateTime.now().isBefore(_weatherRadarCooldownUntil!);
   bool get isLoading => _isLoading;
   bool get isConnected => _isConnected;
+  int get connectionEpoch => _connectionEpoch;
+  int get lastReconnectPromptEpoch => _lastReconnectPromptEpoch;
+  bool get isPaused => _isPaused;
   MapAircraftState? get aircraft => _aircraft;
   List<MapRoutePoint> get route => _route;
   List<MapAirportMarker> get airports => _airports;
@@ -66,6 +76,10 @@ class MapProvider extends ChangeNotifier {
   int get tileReloadToken => _tileReloadToken;
   MapCoordinate? get takeoffPoint => _takeoffPoint;
   MapCoordinate? get landingPoint => _landingPoint;
+  bool get isAircraftMoving => _isAircraftMoving;
+  Duration get hudElapsed => _hudElapsed;
+  bool get isFlightLogRecording =>
+      _isConnected && !_isPaused && _hudTimerLastTick != null;
 
   void attachAdapter(MapDataAdapter? adapter) {
     _adapter = adapter;
@@ -73,7 +87,12 @@ class MapProvider extends ChangeNotifier {
   }
 
   void updateFromHomeSnapshot(HomeDataSnapshot snapshot) {
+    final wasConnected = _isConnected;
     _isConnected = snapshot.isConnected;
+    if (!wasConnected && _isConnected) {
+      _connectionEpoch += 1;
+    }
+    _isPaused = snapshot.isPaused == true && _isConnected;
     _airports = _buildAirportsFromSnapshot(snapshot);
     final flightData = snapshot.flightData;
     final lat = flightData.latitude;
@@ -83,6 +102,7 @@ class MapProvider extends ChangeNotifier {
       final aircraftState = MapAircraftState(
         position: MapCoordinate(latitude: lat, longitude: lon),
         heading: flightData.heading,
+        headingTarget: flightData.autopilotHeadingTarget,
         altitude: flightData.altitude,
         groundSpeed: flightData.groundSpeed,
         airspeed: flightData.airspeed,
@@ -94,11 +114,20 @@ class MapProvider extends ChangeNotifier {
         onGround: flightData.onGround,
       );
       _aircraft = aircraftState;
+      final isMoving = _resolveIsAircraftMoving(aircraftState, now);
+      _isAircraftMoving = isMoving;
+      _updateHudTimer(now, isMoving);
       _appendRoutePoint(aircraftState, now);
       _updateTakeoffLandingMarker(flightData.onGround, aircraftState.position);
     } else if (!_isConnected) {
       _aircraft = null;
       _lastOnGround = null;
+      _isPaused = false;
+      _isAircraftMoving = false;
+      _hudTimerLastTick = null;
+      _lastMovementSamplePosition = null;
+      _lastMovementSampleAt = null;
+      _awaitMovementResetAfterClear = false;
     }
     _evaluateFlightAlerts(flightData);
     notifyListeners();
@@ -331,11 +360,6 @@ class MapProvider extends ChangeNotifier {
     }
   }
 
-  void setOrientationMode(MapOrientationMode mode) {
-    _orientationMode = mode;
-    notifyListeners();
-  }
-
   void toggleFollowAircraft() {
     _followAircraft = !_followAircraft;
     notifyListeners();
@@ -439,13 +463,26 @@ class MapProvider extends ChangeNotifier {
   }
 
   void clearRoute() {
-    if (_route.isEmpty) return;
     _route = [];
     _takeoffPoint = null;
     _landingPoint = null;
     _lastOnGround = null;
     _lastRouteTimestamp = null;
+    _hudElapsed = Duration.zero;
+    _hudTimerLastTick = null;
+    _awaitMovementResetAfterClear = true;
     notifyListeners();
+  }
+
+  bool shouldShowReconnectPrompt() {
+    return _isConnected &&
+        _connectionEpoch >= 2 &&
+        _route.isNotEmpty &&
+        _connectionEpoch != _lastReconnectPromptEpoch;
+  }
+
+  void markReconnectPromptHandled() {
+    _lastReconnectPromptEpoch = _connectionEpoch;
   }
 
   void updateAirports(List<MapAirportMarker> airports) {
@@ -532,6 +569,56 @@ class MapProvider extends ChangeNotifier {
     _lastRouteTimestamp = now;
   }
 
+  bool _resolveIsAircraftMoving(MapAircraftState aircraftState, DateTime now) {
+    if (!_isConnected || _isPaused) {
+      _lastMovementSamplePosition = aircraftState.position;
+      _lastMovementSampleAt = now;
+      return false;
+    }
+    final speed = aircraftState.groundSpeed ?? 0;
+    final movingBySpeed = speed >= 1.5;
+    var movingByDistance = false;
+    final lastPosition = _lastMovementSamplePosition;
+    final lastAt = _lastMovementSampleAt;
+    if (lastPosition != null && lastAt != null) {
+      final movedDistance = const Distance().as(
+        LengthUnit.Meter,
+        LatLng(lastPosition.latitude, lastPosition.longitude),
+        LatLng(
+          aircraftState.position.latitude,
+          aircraftState.position.longitude,
+        ),
+      );
+      final elapsedMs = now.difference(lastAt).inMilliseconds;
+      movingByDistance = elapsedMs >= 350 && movedDistance >= 2.5;
+    }
+    _lastMovementSamplePosition = aircraftState.position;
+    _lastMovementSampleAt = now;
+    return movingBySpeed || movingByDistance;
+  }
+
+  void _updateHudTimer(DateTime now, bool isMoving) {
+    var shouldRun = isMoving && !_isPaused && _isConnected;
+    if (_awaitMovementResetAfterClear) {
+      if (!shouldRun) {
+        _awaitMovementResetAfterClear = false;
+      }
+      shouldRun = false;
+    }
+    if (!shouldRun) {
+      _hudTimerLastTick = null;
+      return;
+    }
+    final lastTick = _hudTimerLastTick;
+    if (lastTick != null) {
+      final delta = now.difference(lastTick);
+      if (!delta.isNegative) {
+        _hudElapsed += delta;
+      }
+    }
+    _hudTimerLastTick = now;
+  }
+
   void _updateTakeoffLandingMarker(bool? onGround, MapCoordinate position) {
     if (onGround == null) {
       return;
@@ -559,6 +646,7 @@ class MapProvider extends ChangeNotifier {
     final bank = flightData.bank;
     final aoa = flightData.angleOfAttack;
     final airspeed = flightData.airspeed;
+    final groundSpeed = flightData.groundSpeed;
     final verticalSpeed = flightData.verticalSpeed;
     final altitude = flightData.altitude;
     final stallWarning = flightData.stallWarning == true;
@@ -621,14 +709,31 @@ class MapProvider extends ChangeNotifier {
     }
 
     if (!onGround) {
+      final referenceSpeed = airspeed ?? groundSpeed;
+      final highLiftAttitude = (pitch ?? 0) >= 10 || (aoa ?? 0) >= 10;
+      final aggressiveClimb = (verticalSpeed ?? 0) >= 1000;
       final lowSpeedStallRisk =
-          airspeed != null && airspeed < 70 && (pitch ?? 0) > 14;
+          referenceSpeed != null &&
+          referenceSpeed < 72 &&
+          ((pitch ?? 0) >= 12 || (aoa ?? 0) >= 12 || aggressiveClimb);
+      final lowSpeedStallWarning =
+          referenceSpeed != null &&
+          referenceSpeed < 95 &&
+          (highLiftAttitude || aggressiveClimb);
       final highAoaStallRisk = aoa != null && aoa >= 14;
       if (stallWarning || lowSpeedStallRisk || highAoaStallRisk) {
         next.add(
           const MapFlightAlert(
             id: 'stall_warning',
             level: MapFlightAlertLevel.danger,
+            message: MapLocalizationKeys.alertStallWarning,
+          ),
+        );
+      } else if (lowSpeedStallWarning) {
+        next.add(
+          const MapFlightAlert(
+            id: 'stall_speed_warning',
+            level: MapFlightAlertLevel.warning,
             message: MapLocalizationKeys.alertStallWarning,
           ),
         );
@@ -679,9 +784,7 @@ class MapProvider extends ChangeNotifier {
     final fallbackLat = fallbackAirport?.position.latitude;
     final fallbackLon = fallbackAirport?.position.longitude;
     final resolvedLat =
-        lat != null &&
-            lon != null &&
-            _isValidCoordinate(lat, lon)
+        lat != null && lon != null && _isValidCoordinate(lat, lon)
         ? lat
         : (fallbackLat != null &&
                   fallbackLon != null &&
@@ -689,9 +792,7 @@ class MapProvider extends ChangeNotifier {
               ? fallbackLat
               : 0.0);
     final resolvedLon =
-        lat != null &&
-            lon != null &&
-            _isValidCoordinate(lat, lon)
+        lat != null && lon != null && _isValidCoordinate(lat, lon)
         ? lon
         : (fallbackLat != null &&
                   fallbackLon != null &&
@@ -701,10 +802,7 @@ class MapProvider extends ChangeNotifier {
     return MapAirportMarker(
       code: code,
       name: name?.isEmpty ?? true ? null : name,
-      position: MapCoordinate(
-        latitude: resolvedLat,
-        longitude: resolvedLon,
-      ),
+      position: MapCoordinate(latitude: resolvedLat, longitude: resolvedLon),
       isPrimary: false,
     );
   }

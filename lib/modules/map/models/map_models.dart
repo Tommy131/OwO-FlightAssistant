@@ -36,6 +36,7 @@ class MapAirportMarker {
 class MapAircraftState {
   final MapCoordinate position;
   final double? heading;
+  final double? headingTarget;
   final double? altitude;
   final double? groundSpeed;
   final double? airspeed;
@@ -49,6 +50,7 @@ class MapAircraftState {
   const MapAircraftState({
     required this.position,
     this.heading,
+    this.headingTarget,
     this.altitude,
     this.groundSpeed,
     this.airspeed,
@@ -159,5 +161,3 @@ String mapTileUrl(MapLayerStyle style) {
       return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
   }
 }
-
-enum MapOrientationMode { northUp, trackUp }

@@ -112,6 +112,7 @@ class HomeFlightData {
   final bool? engine2Running;
   final bool? autopilotEngaged;
   final bool? autothrottleEngaged;
+  final double? autopilotHeadingTarget;
   final String? aircraftProfile;
   final String? aircraftId;
   final String? aircraftManufacturer;
@@ -185,6 +186,7 @@ class HomeFlightData {
     this.engine2Running,
     this.autopilotEngaged,
     this.autothrottleEngaged,
+    this.autopilotHeadingTarget,
     this.aircraftProfile,
     this.aircraftId,
     this.aircraftManufacturer,
