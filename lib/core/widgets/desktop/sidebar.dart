@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-import '../../constants/app_constants.dart';
-import '../../theme/app_theme_data.dart';
 import '../../module_registry/navigation/navigation_item.dart';
+import '../../module_registry/navigation/navigation_registry.dart';
+import '../../module_registry/navigation/navigation_group.dart';
 import '../../theme/theme_provider.dart';
+import '../../theme/app_theme_data.dart';
+import '../../constants/app_constants.dart';
 import '../../localization/localization_keys.dart';
 import '../../services/localization_service.dart';
 import '../../module_registry/module_registry.dart';
@@ -12,14 +13,14 @@ import '../../module_registry/module_registry.dart';
 /// 桌面端侧边栏组件（紧凑型）
 /// 支持展开/折叠，带有流畅的动画过渡
 class DesktopSidebar extends StatefulWidget {
-  final List<NavigationItem> items;
+  final List<NavigationElement> elements;
   final int selectedIndex;
   final Function(int) onItemSelected;
   final bool initiallyExpanded;
 
   const DesktopSidebar({
     super.key,
-    required this.items,
+    required this.elements,
     required this.selectedIndex,
     required this.onItemSelected,
     this.initiallyExpanded = true,
@@ -35,6 +36,7 @@ class _DesktopSidebarState extends State<DesktopSidebar>
   late AnimationController _animationController;
   late Animation<double> _widthAnimation;
   late Animation<double> _fadeAnimation;
+  final Map<String, bool> _expandedGroups = {};
 
   // 提取常量，避免硬编码
   static const double _collapsedThreshold = 100.0;
@@ -46,6 +48,7 @@ class _DesktopSidebarState extends State<DesktopSidebar>
   void initState() {
     super.initState();
     _initializeAnimations();
+    _initializeGroups();
   }
 
   void _initializeAnimations() {
@@ -73,6 +76,28 @@ class _DesktopSidebarState extends State<DesktopSidebar>
     ).animate(curvedAnimation);
   }
 
+  void _initializeGroups() {
+    for (final element in widget.elements) {
+      if (element.isGroup) {
+        _expandedGroups[element.group!.id] = element.group!.initiallyExpanded;
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(DesktopSidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.elements != widget.elements) {
+      // 保持现有的展开状态，仅添加新的分组
+      for (final element in widget.elements) {
+        if (element.isGroup &&
+            !_expandedGroups.containsKey(element.group!.id)) {
+          _expandedGroups[element.group!.id] = element.group!.initiallyExpanded;
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
@@ -85,6 +110,15 @@ class _DesktopSidebarState extends State<DesktopSidebar>
       _isExpanded
           ? _animationController.forward()
           : _animationController.reverse();
+    });
+  }
+
+  void _toggleGroup(String groupId) {
+    if (!_isExpanded) {
+      _toggleSidebar();
+    }
+    setState(() {
+      _expandedGroups[groupId] = !(_expandedGroups[groupId] ?? true);
     });
   }
 
@@ -269,26 +303,74 @@ class _DesktopSidebarState extends State<DesktopSidebar>
   }
 
   Widget _buildNavigationList() {
+    // 计算扁平化的索引
+    int flatIndexCounter = 0;
+    final List<Widget> listItems = [];
+
+    for (final element in widget.elements) {
+      if (element.isGroup) {
+        final group = element.group!;
+        final isGroupExpanded = _expandedGroups[group.id] ?? true;
+
+        listItems.add(
+          _GroupItemWidget(
+            group: group,
+            isExpanded: isGroupExpanded,
+            isCollapsed: _isCollapsed,
+            onTap: () => _toggleGroup(group.id),
+            fadeAnimation: _fadeAnimation,
+          ),
+        );
+
+        if (isGroupExpanded || _isCollapsed) {
+          for (final item in element.children) {
+            final currentIndex = flatIndexCounter++;
+            listItems.add(
+              _NavigationItemWidget(
+                item: item,
+                index: currentIndex,
+                isSelected: widget.selectedIndex == currentIndex,
+                isEnabled: ModuleRegistry().navigationAvailability.isEnabled(
+                  context,
+                  item,
+                ),
+                isCollapsed: _isCollapsed,
+                isSubItem: true,
+                fadeAnimation: _fadeAnimation,
+                onTap: () => widget.onItemSelected(currentIndex),
+              ),
+            );
+          }
+        } else {
+          // 即使分组折叠了，也要增加计数器以保持索引一致
+          flatIndexCounter += element.children.length;
+        }
+      } else if (element.item != null) {
+        final currentIndex = flatIndexCounter++;
+        listItems.add(
+          _NavigationItemWidget(
+            item: element.item!,
+            index: currentIndex,
+            isSelected: widget.selectedIndex == currentIndex,
+            isEnabled: ModuleRegistry().navigationAvailability.isEnabled(
+              context,
+              element.item!,
+            ),
+            isCollapsed: _isCollapsed,
+            isSubItem: false,
+            fadeAnimation: _fadeAnimation,
+            onTap: () => widget.onItemSelected(currentIndex),
+          ),
+        );
+      }
+    }
+
     return Expanded(
-      child: ListView.builder(
+      child: ListView(
         padding: const EdgeInsets.symmetric(
           horizontal: AppThemeData.spacingSmall,
         ),
-        itemCount: widget.items.length,
-        itemBuilder: (context, index) {
-          return _NavigationItemWidget(
-            item: widget.items[index],
-            index: index,
-            isSelected: widget.selectedIndex == index,
-            isEnabled: ModuleRegistry().navigationAvailability.isEnabled(
-              context,
-              widget.items[index],
-            ),
-            isCollapsed: _isCollapsed,
-            fadeAnimation: _fadeAnimation,
-            onTap: () => widget.onItemSelected(index),
-          );
-        },
+        children: listItems,
       ),
     );
   }
@@ -323,6 +405,84 @@ class _DesktopSidebarState extends State<DesktopSidebar>
   }
 }
 
+/// 分组标题组件
+class _GroupItemWidget extends StatelessWidget {
+  final NavigationGroup group;
+  final bool isExpanded;
+  final bool isCollapsed;
+  final VoidCallback onTap;
+  final Animation<double> fadeAnimation;
+
+  const _GroupItemWidget({
+    required this.group,
+    required this.isExpanded,
+    required this.isCollapsed,
+    required this.onTap,
+    required this.fadeAnimation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (isCollapsed) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Center(
+          child: Icon(
+            group.icon,
+            size: 16,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 4, left: 4, right: 4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+          child: Row(
+            children: [
+              Icon(
+                group.icon,
+                size: 14,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Opacity(
+                  opacity: fadeAnimation.value,
+                  child: Text(
+                    group.title.toUpperCase(),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              Opacity(
+                opacity: fadeAnimation.value,
+                child: Icon(
+                  isExpanded ? Icons.expand_more : Icons.chevron_right,
+                  size: 14,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 导航项组件（提取为独立组件以提高复用性）
 class _NavigationItemWidget extends StatelessWidget {
   final NavigationItem item;
@@ -330,6 +490,7 @@ class _NavigationItemWidget extends StatelessWidget {
   final bool isSelected;
   final bool isEnabled;
   final bool isCollapsed;
+  final bool isSubItem;
   final Animation<double> fadeAnimation;
   final VoidCallback onTap;
 
@@ -339,6 +500,7 @@ class _NavigationItemWidget extends StatelessWidget {
     required this.isSelected,
     required this.isEnabled,
     required this.isCollapsed,
+    this.isSubItem = false,
     required this.fadeAnimation,
     required this.onTap,
   });
@@ -350,7 +512,10 @@ class _NavigationItemWidget extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: EdgeInsets.only(
+        bottom: 4,
+        left: isSubItem && !isCollapsed ? 12 : 0,
+      ),
       child: Material(
         color: Colors.transparent,
         child: Semantics(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../module_registry/navigation/navigation_item.dart';
+import '../module_registry/navigation/navigation_registry.dart';
 import '../widgets/common/custom_app_bar.dart';
 import '../widgets/desktop/sidebar.dart';
 
@@ -7,20 +8,30 @@ import '../widgets/desktop/sidebar.dart';
 /// 左侧：可展开/折叠的侧边栏
 /// 右侧：AppBar + 主内容区
 class DesktopLayout extends StatelessWidget {
-  final List<NavigationItem> navigationItems;
+  final List<NavigationElement> navigationElements;
   final int selectedIndex;
   final Function(int) onNavigationChanged;
 
   const DesktopLayout({
     super.key,
-    required this.navigationItems,
+    required this.navigationElements,
     required this.selectedIndex,
     required this.onNavigationChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final currentItem = navigationItems[selectedIndex];
+    // 扁平化所有项目，用于页面切换
+    final List<NavigationItem> flatItems = [];
+    for (final element in navigationElements) {
+      if (element.isGroup) {
+        flatItems.addAll(element.children);
+      } else if (element.item != null) {
+        flatItems.add(element.item!);
+      }
+    }
+
+    final currentItem = flatItems[selectedIndex];
 
     return Scaffold(
       body: SingleChildScrollView(
@@ -38,7 +49,7 @@ class DesktopLayout extends StatelessWidget {
                 children: [
                   // 左侧边栏
                   DesktopSidebar(
-                    items: navigationItems,
+                    elements: navigationElements,
                     selectedIndex: selectedIndex,
                     onItemSelected: onNavigationChanged,
                   ),
