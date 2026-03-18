@@ -24,6 +24,7 @@ class ToolboxModule implements ModuleRegistrar {
         activeIcon: Icons.build,
         page: const ToolboxPage(),
         priority: 35,
+        groupId: 'tools',
       ),
     );
   }

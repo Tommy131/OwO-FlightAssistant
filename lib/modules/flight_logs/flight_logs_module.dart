@@ -38,6 +38,7 @@ class FlightLogsModule implements ModuleRegistrar {
         activeIcon: Icons.receipt_long,
         page: const FlightLogsPage(),
         priority: 40,
+        groupId: 'flight',
       ),
     );
   }

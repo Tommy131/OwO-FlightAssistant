@@ -30,6 +30,7 @@ class AirportSearchModule implements ModuleRegistrar {
         activeIcon: Icons.manage_search,
         page: const AirportSearchPage(),
         priority: 13,
+        groupId: 'tools',
       ),
     );
   }

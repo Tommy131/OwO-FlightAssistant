@@ -303,7 +303,6 @@ class _DesktopSidebarState extends State<DesktopSidebar>
   }
 
   Widget _buildNavigationList() {
-    // 计算扁平化的索引
     int flatIndexCounter = 0;
     final List<Widget> listItems = [];
 
@@ -311,6 +310,8 @@ class _DesktopSidebarState extends State<DesktopSidebar>
       if (element.isGroup) {
         final group = element.group!;
         final isGroupExpanded = _expandedGroups[group.id] ?? true;
+        final showGroupChildren = isGroupExpanded || _isCollapsed;
+        final List<Widget> groupChildren = [];
 
         listItems.add(
           _GroupItemWidget(
@@ -322,28 +323,32 @@ class _DesktopSidebarState extends State<DesktopSidebar>
           ),
         );
 
-        if (isGroupExpanded || _isCollapsed) {
-          for (final item in element.children) {
-            final currentIndex = flatIndexCounter++;
-            listItems.add(
-              _NavigationItemWidget(
-                item: item,
-                index: currentIndex,
-                isSelected: widget.selectedIndex == currentIndex,
-                isEnabled: ModuleRegistry().navigationAvailability.isEnabled(
-                  context,
-                  item,
-                ),
-                isCollapsed: _isCollapsed,
-                isSubItem: true,
-                fadeAnimation: _fadeAnimation,
-                onTap: () => widget.onItemSelected(currentIndex),
+        for (final item in element.children) {
+          final currentIndex = flatIndexCounter++;
+          groupChildren.add(
+            _NavigationItemWidget(
+              item: item,
+              index: currentIndex,
+              isSelected: widget.selectedIndex == currentIndex,
+              isEnabled: ModuleRegistry().navigationAvailability.isEnabled(
+                context,
+                item,
               ),
-            );
-          }
-        } else {
-          // 即使分组折叠了，也要增加计数器以保持索引一致
-          flatIndexCounter += element.children.length;
+              isCollapsed: _isCollapsed,
+              isSubItem: true,
+              fadeAnimation: _fadeAnimation,
+              onTap: () => widget.onItemSelected(currentIndex),
+            ),
+          );
+        }
+
+        if (groupChildren.isNotEmpty) {
+          listItems.add(
+            _GroupChildrenWidget(
+              isVisible: showGroupChildren,
+              children: groupChildren,
+            ),
+          );
         }
       } else if (element.item != null) {
         final currentIndex = flatIndexCounter++;
@@ -469,13 +474,52 @@ class _GroupItemWidget extends StatelessWidget {
               ),
               Opacity(
                 opacity: fadeAnimation.value,
-                child: Icon(
-                  isExpanded ? Icons.expand_more : Icons.chevron_right,
-                  size: 14,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                child: AnimatedRotation(
+                  turns: isExpanded ? 0 : -0.25,
+                  duration: AppThemeData.animationDuration,
+                  curve: Curves.easeInOut,
+                  child: Icon(
+                    Icons.expand_more,
+                    size: 14,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupChildrenWidget extends StatelessWidget {
+  final bool isVisible;
+  final List<Widget> children;
+
+  const _GroupChildrenWidget({
+    required this.isVisible,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: AnimatedSize(
+        duration: AppThemeData.animationDuration,
+        curve: Curves.easeInOut,
+        alignment: Alignment.topCenter,
+        child: Align(
+          alignment: Alignment.topCenter,
+          heightFactor: isVisible ? 1 : 0,
+          child: IgnorePointer(
+            ignoring: !isVisible,
+            child: AnimatedOpacity(
+              duration: AppThemeData.animationDuration,
+              curve: Curves.easeInOut,
+              opacity: isVisible ? 1 : 0,
+              child: Column(children: children),
+            ),
           ),
         ),
       ),

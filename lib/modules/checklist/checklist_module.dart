@@ -50,6 +50,7 @@ class ChecklistModule implements ModuleRegistrar {
         activeIcon: Icons.checklist,
         page: const ChecklistPage(),
         priority: 20,
+        groupId: 'flight',
       ),
     );
   }

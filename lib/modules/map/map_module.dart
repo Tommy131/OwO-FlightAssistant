@@ -39,6 +39,7 @@ class MapModule implements ModuleRegistrar {
         activeIcon: Icons.map,
         page: const MapPage(),
         priority: 25,
+        groupId: 'flight',
       ),
     );
 

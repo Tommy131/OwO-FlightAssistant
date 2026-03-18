@@ -46,6 +46,7 @@ class HomeModule implements ModuleRegistrar {
         activeIcon: Icons.home,
         page: const HomePage(),
         priority: 10,
+        groupId: 'general',
       ),
     );
 

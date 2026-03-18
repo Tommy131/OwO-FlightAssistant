@@ -38,6 +38,7 @@ class MonitorModule implements ModuleRegistrar {
         activeIcon: Icons.monitor_heart,
         page: const MonitorPage(),
         priority: 30,
+        groupId: 'flight',
       ),
     );
   }

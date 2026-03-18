@@ -100,7 +100,9 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
   void initState() {
     super.initState();
     windowManager.addListener(this);
-    NavigationCommandBus().targetId.addListener(_handleNavigationCommandChanged);
+    NavigationCommandBus().targetId.addListener(
+      _handleNavigationCommandChanged,
+    );
 
     _initializeApp();
   }
@@ -267,8 +269,17 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
     if (targetId == null || targetId.isEmpty || !_isInitialized || !mounted) {
       return;
     }
-    final navigationItems = ModuleRegistry().navigation.getAllItems(context);
-    final targetIndex = navigationItems.indexWhere((item) => item.id == targetId);
+    final elements = NavigationRegistry().getNavigationElements(context);
+    final List<NavigationItem> flatItems = [];
+    for (final element in elements) {
+      if (element.isGroup) {
+        flatItems.addAll(element.children);
+      } else if (element.item != null) {
+        flatItems.add(element.item!);
+      }
+    }
+
+    final targetIndex = flatItems.indexWhere((item) => item.id == targetId);
     NavigationCommandBus().clear();
     if (targetIndex < 0 || targetIndex == _selectedIndex) {
       return;
@@ -395,15 +406,27 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
     bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     // 从注册表获取所有导航项
-    final List<NavigationItem> navigationItems = ModuleRegistry().navigation
-        .getAllItems(context);
+    final elements = NavigationRegistry().getNavigationElements(context);
+
+    // 扁平化所有项目，用于索引匹配和页面切换
+    final List<NavigationItem> flatItems = [];
+    for (final element in elements) {
+      if (element.isGroup) {
+        flatItems.addAll(element.children);
+      } else if (element.item != null) {
+        flatItems.add(element.item!);
+      }
+    }
 
     final moduleProviders = ModuleRegistry().providers.getAll();
 
     Widget child = _isSetupMode
         ? SetupWizard(
             key: ValueKey(_isSetupMode),
-            onCompleted: () => setState(() => _isSetupMode = false),
+            onCompleted: () async {
+              await _initializeApp();
+              setState(() => _isSetupMode = false);
+            },
           )
         : Column(
             children: [
@@ -423,13 +446,13 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
                 child: Responsive(
                   // 移动端布局
                   mobile: MobileLayout(
-                    navigationItems: navigationItems,
+                    navigationItems: flatItems,
                     selectedIndex: _selectedIndex,
                     onNavigationChanged: _onNavigationChanged,
                   ),
                   // 桌面端布局
                   desktop: DesktopLayout(
-                    navigationItems: navigationItems,
+                    navigationElements: elements,
                     selectedIndex: _selectedIndex,
                     onNavigationChanged: _onNavigationChanged,
                   ),

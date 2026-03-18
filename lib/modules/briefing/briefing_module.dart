@@ -30,6 +30,7 @@ class BriefingModule implements ModuleRegistrar {
         activeIcon: Icons.assignment,
         page: const BriefingPage(),
         priority: 15,
+        groupId: 'flight',
       ),
     );
   }
