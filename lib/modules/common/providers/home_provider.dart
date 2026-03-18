@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import '../../../core/services/persistence_service.dart';
 import '../../../core/module_registry/navigation/navigation_registry.dart';
 import '../../../core/utils/logger.dart';
 import '../../http/models/http_models.dart';
@@ -14,6 +15,8 @@ abstract class HomeDataAdapter {
   Future<bool> connect(HomeSimulatorType type);
   Future<void> disconnect();
   Future<bool> refreshBackendHealth();
+  Future<int> getFlightDataIntervalMs();
+  Future<void> setFlightDataIntervalMs(int milliseconds);
   Future<void> setFlightNumber(String? value);
   Future<void> setDestination(HomeAirportInfo? airport);
   Future<void> setAlternate(HomeAirportInfo? airport);
@@ -79,6 +82,18 @@ class HomeProvider extends ChangeNotifier {
     return adapter.refreshBackendHealth();
   }
 
+  Future<int> getFlightDataIntervalMs() async {
+    final adapter = _adapter;
+    if (adapter == null) return MiddlewareHomeDataAdapter.defaultPollIntervalMs;
+    return adapter.getFlightDataIntervalMs();
+  }
+
+  Future<void> setFlightDataIntervalMs(int milliseconds) async {
+    final adapter = _adapter;
+    if (adapter == null) return;
+    await adapter.setFlightDataIntervalMs(milliseconds);
+  }
+
   Future<void> setFlightNumber(String? value) async {
     final adapter = _adapter;
     if (adapter == null) return;
@@ -129,15 +144,21 @@ class HomeProvider extends ChangeNotifier {
 class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   static const Duration _backendMonitorInterval = Duration(seconds: 2);
   static const Duration _backendDisconnectGracePeriod = Duration(seconds: 10);
+  static const String _pollIntervalMsKey = 'middleware_flight_data_interval_ms';
+  static const int defaultPollIntervalMs = 300;
+  static const int minPollIntervalMs = 100;
+  static const int maxPollIntervalMs = 2000;
 
   MiddlewareHomeDataAdapter({
     MiddlewareHttpService? httpService,
     Duration? pollInterval,
   }) : _httpService = httpService ?? MiddlewareHttpService(),
-       _pollInterval = pollInterval ?? const Duration(seconds: 1);
+       _pollIntervalMs = _sanitizePollIntervalMs(
+         pollInterval?.inMilliseconds ?? defaultPollIntervalMs,
+       );
 
   final MiddlewareHttpService _httpService;
-  final Duration _pollInterval;
+  int _pollIntervalMs;
   final StreamController<HomeDataSnapshot> _controller =
       StreamController<HomeDataSnapshot>.broadcast();
 
@@ -181,6 +202,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   @override
   Future<bool> connect(HomeSimulatorType type) async {
     await _httpService.init();
+    await _loadPollIntervalFromStorage();
     _errorMessage = null;
     final simType = _toSimulatorApiType(type);
     if (simType == null) {
@@ -408,6 +430,26 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return _checkBackendHealth();
   }
 
+  @override
+  Future<int> getFlightDataIntervalMs() async {
+    await _loadPollIntervalFromStorage();
+    return _pollIntervalMs;
+  }
+
+  @override
+  Future<void> setFlightDataIntervalMs(int milliseconds) async {
+    final next = _sanitizePollIntervalMs(milliseconds);
+    _pollIntervalMs = next;
+    final persistence = PersistenceService();
+    if (!persistence.isInitialized) {
+      await persistence.ensureReady();
+    }
+    await persistence.setInt(_pollIntervalMsKey, next);
+    if (_pollTimer != null) {
+      _startPolling();
+    }
+  }
+
   void _updateBackendHealth(bool reachable) {
     if (reachable) {
       _lastBackendReachableAt = DateTime.now();
@@ -533,7 +575,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
 
   void _startPolling() {
     _stopPolling();
-    _pollTimer = Timer.periodic(_pollInterval, (_) {
+    final interval = Duration(milliseconds: _pollIntervalMs);
+    _pollTimer = Timer.periodic(interval, (_) {
       _pollData();
     });
   }
@@ -962,6 +1005,29 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
         metarErrorsByIcao: Map<String, String>.from(_metarErrorsByIcao),
       ),
     );
+  }
+
+  Future<void> _loadPollIntervalFromStorage() async {
+    final persistence = PersistenceService();
+    if (!persistence.isInitialized) {
+      await persistence.ensureReady();
+    }
+    final stored = persistence.getInt(_pollIntervalMsKey);
+    if (stored == null) {
+      _pollIntervalMs = _sanitizePollIntervalMs(_pollIntervalMs);
+      return;
+    }
+    _pollIntervalMs = _sanitizePollIntervalMs(stored);
+  }
+
+  static int _sanitizePollIntervalMs(int value) {
+    if (value < minPollIntervalMs) {
+      return minPollIntervalMs;
+    }
+    if (value > maxPollIntervalMs) {
+      return maxPollIntervalMs;
+    }
+    return value;
   }
 
   String? _toSimulatorApiType(HomeSimulatorType type) {

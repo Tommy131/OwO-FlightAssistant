@@ -16,6 +16,20 @@ class HttpLocalizationKeys {
   static const String wsHostHint = 'http.settings.ws_host_hint';
   static const String wsPortLabel = 'http.settings.ws_port_label';
   static const String wsPortHint = 'http.settings.ws_port_hint';
+  static const String flightDataSectionTitle =
+      'http.settings.flight_data_section_title';
+  static const String flightDataSectionDescription =
+      'http.settings.flight_data_section_description';
+  static const String flightDataIntervalLabel =
+      'http.settings.flight_data_interval_label';
+  static const String flightDataIntervalHint =
+      'http.settings.flight_data_interval_hint';
+  static const String currentFlightDataInterval =
+      'http.settings.current_flight_data_interval';
+  static const String invalidFlightDataInterval =
+      'http.settings.invalid_flight_data_interval';
+  static const String flightDataIntervalSaved =
+      'http.settings.flight_data_interval_saved';
   static const String currentAddress = 'http.settings.current_address';
   static const String currentWsAddress = 'http.settings.current_ws_address';
   static const String saveButton = 'http.settings.save_button';
