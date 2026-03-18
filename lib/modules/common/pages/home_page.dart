@@ -21,11 +21,11 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static bool _backendDialogVisible = false;
-  static bool _showGlassMask = true;
-  static bool _showConnectionHelpCard = false;
-  static double _glassMaskOpacity = 1;
-  static bool _stickyBackendUnavailable = false;
+  bool _backendDialogVisible = false;
+  bool _showGlassMask = true;
+  bool _showConnectionHelpCard = false;
+  double _glassMaskOpacity = 1;
+  bool _stickyBackendUnavailable = false;
   bool _isRetryingBackend = false;
   int _handledBackendOutageVersion = 0;
 
@@ -99,6 +99,28 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _syncMaskWithConnection(HomeProvider provider) {
+    if (!provider.isConnected) {
+      return;
+    }
+    if (!_stickyBackendUnavailable &&
+        !_showConnectionHelpCard &&
+        !_showGlassMask) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _stickyBackendUnavailable = false;
+        _showConnectionHelpCard = false;
+        _glassMaskOpacity = 0;
+        _showGlassMask = false;
+      });
+    });
+  }
+
   Future<void> _showBackendUnavailableDialog() async {
     if (_backendDialogVisible || !mounted) return;
     _backendDialogVisible = true;
@@ -123,7 +145,10 @@ class _HomePageState extends State<HomePage> {
     context.watch<LocalizationService>();
     final homeProvider = context.watch<HomeProvider>();
     _handleGlobalBackendOutage(homeProvider);
+    _syncMaskWithConnection(homeProvider);
     final theme = Theme.of(context);
+    final shouldBlockHomeInteraction =
+        _showConnectionHelpCard || _glassMaskOpacity > 0.01;
 
     return Stack(
       children: [
@@ -150,6 +175,7 @@ class _HomePageState extends State<HomePage> {
             child: Stack(
               children: [
                 AbsorbPointer(
+                  absorbing: shouldBlockHomeInteraction,
                   child: AnimatedOpacity(
                     opacity: _glassMaskOpacity,
                     duration: const Duration(milliseconds: 240),
