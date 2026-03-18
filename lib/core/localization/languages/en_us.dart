@@ -29,7 +29,7 @@ final Map<String, String> enUS = {
   LocalizationKeys.resetAppDesc: 'Requires re-initialization after reset',
   LocalizationKeys.resetAppConfirmTitle: 'Confirm Reset App?',
   LocalizationKeys.resetAppConfirmContent:
-      'This operation will clear all configurations, cache data, and re-guide you through initialization.\n\nThis operation is irreversible!',
+      'This operation will clear all configurations, cache, and data, and re-guide you through initialization.\n\nThis operation is irreversible!',
   LocalizationKeys.resetSuccess: 'Reset complete, restarting application...',
   LocalizationKeys.success: 'Success',
   LocalizationKeys.languageStep: 'Language Settings',

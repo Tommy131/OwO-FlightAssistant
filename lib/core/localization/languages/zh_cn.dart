@@ -26,7 +26,7 @@ final Map<String, String> zhCN = {
   LocalizationKeys.resetAppDesc: '重置后需要重新完成初始化',
   LocalizationKeys.resetAppConfirmTitle: '确认重置应用？',
   LocalizationKeys.resetAppConfirmContent:
-      '此操作将清除所有配置、缓存数据，并重新引导您完成初始化。\n\n该操作不可撤销！',
+      '此操作将清除所有配置、缓存、数据，并重新引导您完成初始化。\n\n该操作不可撤销！',
   LocalizationKeys.resetSuccess: '重置完毕，正在重启应用...',
   LocalizationKeys.success: '成功',
   LocalizationKeys.languageStep: '语言设置',
