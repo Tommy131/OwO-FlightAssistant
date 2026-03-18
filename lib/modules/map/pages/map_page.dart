@@ -4,7 +4,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/localization/localization_keys.dart';
 import '../../../core/services/localization_service.dart';
+import '../../../core/widgets/common/dialog.dart';
+import '../localization/map_localization_keys.dart';
 import '../models/map_models.dart';
 import '../providers/map_provider.dart';
 import 'widgets/map_hud.dart';
@@ -469,12 +472,13 @@ class _MapPageState extends State<MapPage> {
                   showWeather: provider.showWeather,
                   isConnected: provider.isConnected,
                   activeAlerts: activeAlerts,
-                  onClearRoute: provider.clearRoute,
+                  onClearRoute: () => _confirmClearRoute(provider),
+                  onToggleHudTimer: provider.toggleHudTimer,
+                  onResetHudTimer: provider.resetHudTimer,
                   searchClearToken: _airportSearchClearToken,
                   showSearchClearButton: _hasSearchInput,
                   hudElapsed: provider.hudElapsed,
-                  isSimulatorPaused: provider.isPaused,
-                  isFlightLogRecording: provider.isFlightLogRecording,
+                  isHudTimerRunning: provider.isHudTimerRunning,
                 ),
               ),
               Positioned(
@@ -593,6 +597,22 @@ class _MapPageState extends State<MapPage> {
         );
       },
     );
+  }
+
+  Future<void> _confirmClearRoute(MapProvider provider) async {
+    final confirmed = await showAdvancedConfirmDialog(
+      context: context,
+      title: MapLocalizationKeys.clearRouteConfirmTitle.tr(context),
+      content: MapLocalizationKeys.clearRouteConfirmContent.tr(context),
+      icon: Icons.warning_amber_rounded,
+      confirmColor: Colors.redAccent,
+      confirmText: LocalizationKeys.confirm.tr(context),
+      cancelText: LocalizationKeys.cancel.tr(context),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    provider.clearRoute();
   }
 
   bool _shouldShowDangerOverlay(
@@ -764,19 +784,38 @@ class _MapPageState extends State<MapPage> {
       return;
     }
     final selectedKey = _airportDedupeKey(_selectedAirport!);
-    final existsInNearby = airports.any(
-      (airport) => _airportDedupeKey(airport) == selectedKey,
-    );
-    if (!existsInNearby) {
-      _clearSelectedAirportCard();
+    MapAirportMarker? matchedAirport;
+    for (final airport in airports) {
+      if (_airportDedupeKey(airport) == selectedKey) {
+        matchedAirport = airport;
+        break;
+      }
     }
+    if (matchedAirport == null) {
+      return;
+    }
+    final current = _selectedAirport!;
+    final isSamePosition =
+        current.position.latitude == matchedAirport.position.latitude &&
+        current.position.longitude == matchedAirport.position.longitude;
+    final isSameName = (current.name ?? '') == (matchedAirport.name ?? '');
+    final isSameCode = current.code == matchedAirport.code;
+    if (isSamePosition && isSameName && isSameCode) {
+      return;
+    }
+    if (!mounted) {
+      _selectedAirport = matchedAirport;
+      return;
+    }
+    setState(() {
+      _selectedAirport = matchedAirport;
+    });
   }
 
   void _clearSelectedAirportIfNeeded() {
     if (_selectedAirport == null || _selectedAirportFromSearch) {
       return;
     }
-    _clearSelectedAirportCard();
   }
 
   void _clearSelectedAirportCard() {

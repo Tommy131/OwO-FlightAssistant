@@ -60,6 +60,9 @@ class FilterToggleButton extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   final Color activeColor;
   final Color? inactiveColor;
+  final IconData? leadingIcon;
+  final Color? leadingIconColor;
+  final bool showActiveCheck;
   final double scale;
 
   const FilterToggleButton({
@@ -69,6 +72,9 @@ class FilterToggleButton extends StatelessWidget {
     required this.onChanged,
     this.activeColor = Colors.orangeAccent,
     this.inactiveColor,
+    this.leadingIcon,
+    this.leadingIconColor,
+    this.showActiveCheck = true,
     this.scale = 1.0,
   });
 
@@ -93,11 +99,20 @@ class FilterToggleButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (value) ...[
+            if (leadingIcon != null) ...[
+              Icon(
+                leadingIcon,
+                size: 12 * scale,
+                color: value
+                    ? activeColor
+                    : (leadingIconColor ?? inactiveColor ?? Colors.white70),
+              ),
               SizedBox(width: 4 * scale),
-              Icon(Icons.check, size: 12 * scale, color: activeColor),
             ],
-            SizedBox(width: (value || inactiveColor != null) ? 4 * scale : 0),
+            if (showActiveCheck && value) ...[
+              Icon(Icons.check, size: 12 * scale, color: activeColor),
+              SizedBox(width: 4 * scale),
+            ],
             Text(
               label,
               style: TextStyle(

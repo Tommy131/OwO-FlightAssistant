@@ -47,10 +47,10 @@ class MapProvider extends ChangeNotifier {
   DateTime? _lastRouteTimestamp;
   bool _isAircraftMoving = false;
   Duration _hudElapsed = Duration.zero;
-  DateTime? _hudTimerLastTick;
+  Timer? _hudTimer;
+  bool _isHudTimerRunning = false;
   MapCoordinate? _lastMovementSamplePosition;
   DateTime? _lastMovementSampleAt;
-  bool _awaitMovementResetAfterClear = false;
 
   MapLayerStyle get layerStyle => _layerStyle;
   bool get followAircraft => _followAircraft;
@@ -78,8 +78,7 @@ class MapProvider extends ChangeNotifier {
   MapCoordinate? get landingPoint => _landingPoint;
   bool get isAircraftMoving => _isAircraftMoving;
   Duration get hudElapsed => _hudElapsed;
-  bool get isFlightLogRecording =>
-      _isConnected && !_isPaused && _hudTimerLastTick != null;
+  bool get isHudTimerRunning => _isHudTimerRunning;
 
   void attachAdapter(MapDataAdapter? adapter) {
     _adapter = adapter;
@@ -97,7 +96,9 @@ class MapProvider extends ChangeNotifier {
     final flightData = snapshot.flightData;
     final lat = flightData.latitude;
     final lon = flightData.longitude;
-    if (lat != null && lon != null) {
+    final hasValidPosition =
+        lat != null && lon != null && _isValidCoordinate(lat, lon);
+    if (_isConnected && hasValidPosition) {
       final now = DateTime.now();
       final aircraftState = MapAircraftState(
         position: MapCoordinate(latitude: lat, longitude: lon),
@@ -116,18 +117,10 @@ class MapProvider extends ChangeNotifier {
       _aircraft = aircraftState;
       final isMoving = _resolveIsAircraftMoving(aircraftState, now);
       _isAircraftMoving = isMoving;
-      _updateHudTimer(now, isMoving);
-      _appendRoutePoint(aircraftState, now);
+      _appendRoutePoint(aircraftState, now, isMoving);
       _updateTakeoffLandingMarker(flightData.onGround, aircraftState.position);
     } else if (!_isConnected) {
-      _aircraft = null;
-      _lastOnGround = null;
-      _isPaused = false;
-      _isAircraftMoving = false;
-      _hudTimerLastTick = null;
-      _lastMovementSamplePosition = null;
-      _lastMovementSampleAt = null;
-      _awaitMovementResetAfterClear = false;
+      _clearAircraftVisualState();
     }
     _evaluateFlightAlerts(flightData);
     notifyListeners();
@@ -469,8 +462,48 @@ class MapProvider extends ChangeNotifier {
     _lastOnGround = null;
     _lastRouteTimestamp = null;
     _hudElapsed = Duration.zero;
-    _hudTimerLastTick = null;
-    _awaitMovementResetAfterClear = true;
+    _hudTimer?.cancel();
+    _hudTimer = null;
+    _isHudTimerRunning = false;
+    notifyListeners();
+  }
+
+  void toggleHudTimer() {
+    if (_isHudTimerRunning) {
+      pauseHudTimer();
+      return;
+    }
+    startHudTimer();
+  }
+
+  void startHudTimer() {
+    if (_isHudTimerRunning) {
+      return;
+    }
+    _isHudTimerRunning = true;
+    _hudTimer?.cancel();
+    _hudTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _hudElapsed += const Duration(seconds: 1);
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  void pauseHudTimer() {
+    if (!_isHudTimerRunning) {
+      return;
+    }
+    _isHudTimerRunning = false;
+    _hudTimer?.cancel();
+    _hudTimer = null;
+    notifyListeners();
+  }
+
+  void resetHudTimer() {
+    _isHudTimerRunning = false;
+    _hudTimer?.cancel();
+    _hudTimer = null;
+    _hudElapsed = Duration.zero;
     notifyListeners();
   }
 
@@ -495,12 +528,25 @@ class MapProvider extends ChangeNotifier {
     final adapter = _adapter;
     if (adapter == null) return;
     _subscription = adapter.stream.listen((snapshot) {
-      _aircraft = snapshot.aircraft;
+      _isConnected = snapshot.isConnected;
+      if (_isConnected) {
+        _aircraft = snapshot.aircraft;
+      } else {
+        _clearAircraftVisualState();
+      }
       _route = snapshot.route;
       _airports = snapshot.airports;
-      _isConnected = snapshot.isConnected;
       notifyListeners();
     });
+  }
+
+  void _clearAircraftVisualState() {
+    _aircraft = null;
+    _lastOnGround = null;
+    _isPaused = false;
+    _isAircraftMoving = false;
+    _lastMovementSamplePosition = null;
+    _lastMovementSampleAt = null;
   }
 
   List<MapAirportMarker> _buildAirportsFromSnapshot(HomeDataSnapshot snapshot) {
@@ -534,7 +580,14 @@ class MapProvider extends ChangeNotifier {
     return result;
   }
 
-  void _appendRoutePoint(MapAircraftState aircraftState, DateTime now) {
+  void _appendRoutePoint(
+    MapAircraftState aircraftState,
+    DateTime now,
+    bool isMoving,
+  ) {
+    if (!isMoving) {
+      return;
+    }
     if (_route.isNotEmpty) {
       final last = _route.last;
       final movedDistance = const Distance().as(
@@ -595,28 +648,6 @@ class MapProvider extends ChangeNotifier {
     _lastMovementSamplePosition = aircraftState.position;
     _lastMovementSampleAt = now;
     return movingBySpeed || movingByDistance;
-  }
-
-  void _updateHudTimer(DateTime now, bool isMoving) {
-    var shouldRun = isMoving && !_isPaused && _isConnected;
-    if (_awaitMovementResetAfterClear) {
-      if (!shouldRun) {
-        _awaitMovementResetAfterClear = false;
-      }
-      shouldRun = false;
-    }
-    if (!shouldRun) {
-      _hudTimerLastTick = null;
-      return;
-    }
-    final lastTick = _hudTimerLastTick;
-    if (lastTick != null) {
-      final delta = now.difference(lastTick);
-      if (!delta.isNegative) {
-        _hudElapsed += delta;
-      }
-    }
-    _hudTimerLastTick = now;
   }
 
   void _updateTakeoffLandingMarker(bool? onGround, MapCoordinate position) {
@@ -1152,6 +1183,7 @@ class MapProvider extends ChangeNotifier {
     _subscription?.cancel();
     _radarRefreshTimer?.cancel();
     _radarCooldownTimer?.cancel();
+    _hudTimer?.cancel();
     super.dispose();
   }
 }

@@ -30,8 +30,14 @@ class MapLocalizationKeys {
   static const String selectedAirport = 'map.marker.selected_airport';
   static const String tooltipLayer = 'map.tooltip.layer';
   static const String tooltipFollow = 'map.tooltip.follow';
+  static const String tooltipTimerStart = 'map.tooltip.timer_start';
+  static const String tooltipTimerPause = 'map.tooltip.timer_pause';
+  static const String tooltipTimerReset = 'map.tooltip.timer_reset';
   static const String tooltipZoomIn = 'map.tooltip.zoom_in';
   static const String tooltipZoomOut = 'map.tooltip.zoom_out';
+  static const String clearRouteConfirmTitle = 'map.clear_route.confirm_title';
+  static const String clearRouteConfirmContent =
+      'map.clear_route.confirm_content';
   static const String weatherNoData = 'map.weather.no_data';
   static const String loadingAirportDetail = 'map.airport.loading_detail';
   static const String metarRawShort = 'map.weather.raw_short';

@@ -9,7 +9,7 @@ class MapFlightStatusPanel extends StatelessWidget {
   final double? heading;
   final String duration;
   final double? verticalSpeed;
-  final bool isSimulatorPaused;
+  final bool isHudTimerRunning;
   final bool blinkOn;
 
   const MapFlightStatusPanel({
@@ -20,7 +20,7 @@ class MapFlightStatusPanel extends StatelessWidget {
     required this.heading,
     required this.duration,
     required this.verticalSpeed,
-    required this.isSimulatorPaused,
+    required this.isHudTimerRunning,
     required this.blinkOn,
   });
 
@@ -67,7 +67,7 @@ class MapFlightStatusPanel extends StatelessWidget {
                 value: duration,
                 unit: '',
                 color: Colors.cyanAccent,
-                trailWidget: isSimulatorPaused
+                trailWidget: !isHudTimerRunning
                     ? Icon(
                         Icons.pause_circle_filled,
                         color: Colors.redAccent.withValues(

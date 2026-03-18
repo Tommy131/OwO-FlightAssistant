@@ -34,13 +34,14 @@ class MapTopPanel extends StatelessWidget {
   final bool isConnected;
   final List<MapFlightAlert> activeAlerts;
   final VoidCallback onClearRoute;
+  final VoidCallback onToggleHudTimer;
+  final VoidCallback onResetHudTimer;
   final int searchClearToken;
   final bool showSearchClearButton;
   final VoidCallback onClearSearchInput;
   final ValueChanged<bool> onSearchInputChanged;
   final Duration hudElapsed;
-  final bool isSimulatorPaused;
-  final bool isFlightLogRecording;
+  final bool isHudTimerRunning;
 
   const MapTopPanel({
     super.key,
@@ -68,13 +69,14 @@ class MapTopPanel extends StatelessWidget {
     required this.isConnected,
     required this.activeAlerts,
     required this.onClearRoute,
+    required this.onToggleHudTimer,
+    required this.onResetHudTimer,
     required this.searchClearToken,
     required this.showSearchClearButton,
     required this.onClearSearchInput,
     required this.onSearchInputChanged,
     required this.hudElapsed,
-    required this.isSimulatorPaused,
-    required this.isFlightLogRecording,
+    required this.isHudTimerRunning,
   });
 
   @override
@@ -124,50 +126,21 @@ class MapTopPanel extends StatelessWidget {
                 heading: heading,
                 duration: duration,
                 verticalSpeed: vs,
-                isSimulatorPaused: isSimulatorPaused,
+                isHudTimerRunning: isHudTimerRunning,
                 blinkOn: blinkOn,
               ),
             ],
-            if (isFlightLogRecording ||
-                route.isNotEmpty ||
-                airports.isNotEmpty) ...[
+            if (route.isNotEmpty || distanceNm > 0) ...[
               SizedBox(height: 8 * scale),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    if (isFlightLogRecording)
-                      MapInfoChip(
-                        icon: Icons.fiber_manual_record_rounded,
-                        label: 'REC',
-                        scale: scale,
-                        backgroundColor: Colors.redAccent.withValues(
-                          alpha: blinkOn ? 0.35 : 0.18,
-                        ),
-                        borderColor: Colors.redAccent.withValues(
-                          alpha: blinkOn ? 1 : 0.6,
-                        ),
-                        iconColor: Colors.redAccent.withValues(
-                          alpha: blinkOn ? 1 : 0.7,
-                        ),
-                        textColor: Colors.redAccent.withValues(
-                          alpha: blinkOn ? 1 : 0.85,
-                        ),
-                      ),
-                    if (isFlightLogRecording) SizedBox(width: 8 * scale),
                     if (route.isNotEmpty)
                       MapInfoChip(
                         icon: Icons.timeline,
                         label:
                             '${MapLocalizationKeys.routePoints.tr(context)}: ${route.length}',
-                        scale: scale,
-                      ),
-                    if (route.isNotEmpty) SizedBox(width: 8 * scale),
-                    if (airports.isNotEmpty)
-                      MapInfoChip(
-                        icon: Icons.flight_takeoff,
-                        label:
-                            '${MapLocalizationKeys.airports.tr(context)}: ${airports.length}',
                         scale: scale,
                       ),
                     if (distanceNm > 0) ...[
@@ -289,32 +262,67 @@ class MapTopPanel extends StatelessWidget {
                             onChanged: (value) => onToggleWeather(),
                             scale: scale,
                           ),
-                          if (isConnected && distanceNm > 0) ...[
-                            SizedBox(width: 8 * scale),
-                            FilterToggleButton(
-                              label:
-                                  '${MapLocalizationKeys.distance.tr(context)}: ${distanceNm.round()}NM',
-                              value: showRoute,
-                              onChanged: (value) => onToggleRoute(),
-                              activeColor: Colors.purpleAccent,
-                              scale: scale,
-                            ),
-                          ],
-                          if (isConnected && route.isNotEmpty) ...[
-                            SizedBox(width: 8 * scale),
-                            FilterToggleButton(
-                              label: MapLocalizationKeys.clearRoute.tr(context),
-                              value: false,
-                              onChanged: (value) => onClearRoute(),
-                              activeColor: Colors.redAccent,
-                              inactiveColor: Colors.redAccent.withValues(
-                                alpha: 0.6,
-                              ),
-                              scale: scale,
-                            ),
-                          ],
                         ],
                       ),
+                    ),
+                  ),
+                ],
+                if (isConnected || route.isNotEmpty) ...[
+                  SizedBox(width: 8 * scale),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isConnected) ...[
+                          FilterToggleButton(
+                            label: isHudTimerRunning
+                                ? MapLocalizationKeys.tooltipTimerPause.tr(
+                                    context,
+                                  )
+                                : MapLocalizationKeys.tooltipTimerStart.tr(
+                                    context,
+                                  ),
+                            value: isHudTimerRunning,
+                            onChanged: (_) => onToggleHudTimer(),
+                            activeColor: Colors.lightGreenAccent,
+                            inactiveColor: Colors.greenAccent,
+                            leadingIcon: isHudTimerRunning
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            showActiveCheck: false,
+                            scale: scale,
+                          ),
+                          SizedBox(width: 8 * scale),
+                          FilterToggleButton(
+                            label: MapLocalizationKeys.tooltipTimerReset.tr(
+                              context,
+                            ),
+                            value: false,
+                            onChanged: (_) => onResetHudTimer(),
+                            activeColor: Colors.amberAccent,
+                            inactiveColor: Colors.amberAccent,
+                            leadingIcon: Icons.restart_alt_rounded,
+                            leadingIconColor: Colors.amberAccent,
+                            showActiveCheck: false,
+                            scale: scale,
+                          ),
+                        ],
+                        if (route.isNotEmpty) ...[
+                          if (isConnected) SizedBox(width: 8 * scale),
+                          FilterToggleButton(
+                            label: MapLocalizationKeys.clearRoute.tr(context),
+                            value: false,
+                            onChanged: (_) => onClearRoute(),
+                            activeColor: Colors.redAccent,
+                            inactiveColor: Colors.redAccent,
+                            leadingIcon: Icons.delete_outline_rounded,
+                            leadingIconColor: Colors.redAccent,
+                            showActiveCheck: false,
+                            scale: scale,
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],
