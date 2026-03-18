@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -45,22 +48,37 @@ class _MapModuleSettingsView extends StatefulWidget {
 class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
   final TextEditingController _flightDataIntervalController =
       TextEditingController();
+  final TextEditingController _homeAirportIcaoController =
+      TextEditingController();
+  Timer? _homeAirportSearchDebounce;
+  List<MapAirportMarker> _homeAirportSuggestions = const [];
   int _currentFlightDataIntervalMs =
       MiddlewareHomeDataAdapter.defaultPollIntervalMs;
   bool _isFlightDataIntervalSaving = false;
+  bool _isHomeAirportSaving = false;
+  bool _isHomeAirportSearching = false;
+  int _homeAirportSearchToken = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadFlightDataInterval();
+      unawaited(_refreshBackendHealth());
     });
   }
 
   @override
   void dispose() {
+    _homeAirportSearchDebounce?.cancel();
     _flightDataIntervalController.dispose();
+    _homeAirportIcaoController.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshBackendHealth() async {
+    final homeProvider = context.read<HomeProvider?>();
+    await homeProvider?.refreshBackendHealth();
   }
 
   Future<void> _loadFlightDataInterval() async {
@@ -118,124 +136,443 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
     }
   }
 
+  Future<void> _saveHomeAirport(BuildContext context) async {
+    final mapProvider = context.read<MapProvider?>();
+    final homeProvider = context.read<HomeProvider?>();
+    if (mapProvider == null) {
+      return;
+    }
+    if (homeProvider?.isBackendReachable != true) {
+      return;
+    }
+    final icao = _homeAirportIcaoController.text.trim().toUpperCase();
+    if (icao.isEmpty) {
+      SnackBarHelper.showError(
+        context,
+        MapLocalizationKeys.homeAirportNotFound.tr(context),
+      );
+      return;
+    }
+    setState(() {
+      _isHomeAirportSaving = true;
+    });
+    try {
+      final result = await mapProvider.searchAirports(icao);
+      MapAirportMarker? target;
+      for (final airport in result) {
+        if (airport.code.toUpperCase() == icao) {
+          target = airport;
+          break;
+        }
+      }
+      target ??= result.isNotEmpty ? result.first : null;
+      if (target == null) {
+        if (!mounted) {
+          return;
+        }
+        SnackBarHelper.showError(
+          context,
+          MapLocalizationKeys.homeAirportNotFound.tr(context),
+        );
+        return;
+      }
+      await mapProvider.setHomeAirport(target);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _homeAirportIcaoController.text = target!.code;
+      });
+      SnackBarHelper.showSuccess(
+        context,
+        MapLocalizationKeys.homeAirportSaved.tr(context),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isHomeAirportSaving = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _clearHomeAirport(BuildContext context) async {
+    final mapProvider = context.read<MapProvider?>();
+    final homeProvider = context.read<HomeProvider?>();
+    if (mapProvider == null) {
+      return;
+    }
+    if (homeProvider?.isBackendReachable != true) {
+      return;
+    }
+    await mapProvider.clearHomeAirport();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _homeAirportIcaoController.clear();
+      _homeAirportSuggestions = const [];
+      _isHomeAirportSearching = false;
+    });
+    SnackBarHelper.showSuccess(
+      context,
+      MapLocalizationKeys.homeAirportCleared.tr(context),
+    );
+  }
+
+  Future<void> _saveAutoHudTimerEnabled(BuildContext context, bool value) async {
+    final mapProvider = context.read<MapProvider?>();
+    if (mapProvider == null) {
+      return;
+    }
+    await mapProvider.setAutoHudTimerEnabled(value);
+    if (!mounted) {
+      return;
+    }
+    SnackBarHelper.showSuccess(
+      context,
+      MapLocalizationKeys.timerSettingsSaved.tr(context),
+    );
+  }
+
+  Future<void> _saveAutoTimerStartMode(
+    BuildContext context,
+    MapAutoTimerStartMode mode,
+  ) async {
+    final mapProvider = context.read<MapProvider?>();
+    if (mapProvider == null) {
+      return;
+    }
+    await mapProvider.setAutoTimerStartMode(mode);
+    if (!mounted) {
+      return;
+    }
+    SnackBarHelper.showSuccess(
+      context,
+      MapLocalizationKeys.timerSettingsSaved.tr(context),
+    );
+  }
+
+  Future<void> _saveAutoTimerStopMode(
+    BuildContext context,
+    MapAutoTimerStopMode mode,
+  ) async {
+    final mapProvider = context.read<MapProvider?>();
+    if (mapProvider == null) {
+      return;
+    }
+    await mapProvider.setAutoTimerStopMode(mode);
+    if (!mounted) {
+      return;
+    }
+    SnackBarHelper.showSuccess(
+      context,
+      MapLocalizationKeys.timerSettingsSaved.tr(context),
+    );
+  }
+
+  void _onHomeAirportInputChanged(String value) {
+    _homeAirportSearchDebounce?.cancel();
+    final query = value.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _homeAirportSuggestions = const [];
+        _isHomeAirportSearching = false;
+      });
+      return;
+    }
+    setState(() {
+      _isHomeAirportSearching = true;
+    });
+    final token = ++_homeAirportSearchToken;
+    _homeAirportSearchDebounce = Timer(const Duration(milliseconds: 260), () {
+      unawaited(_fetchHomeAirportSuggestions(query, token));
+    });
+  }
+
+  Future<void> _fetchHomeAirportSuggestions(String query, int token) async {
+    final mapProvider = context.read<MapProvider?>();
+    if (mapProvider == null) {
+      if (!mounted || token != _homeAirportSearchToken) {
+        return;
+      }
+      setState(() {
+        _homeAirportSuggestions = const [];
+        _isHomeAirportSearching = false;
+      });
+      return;
+    }
+    final results = await mapProvider.searchAirports(query);
+    if (!mounted || token != _homeAirportSearchToken) {
+      return;
+    }
+    final normalizedQuery = query.toUpperCase();
+    final deduped = <String, MapAirportMarker>{};
+    for (final airport in results) {
+      final key = airport.code.trim().toUpperCase();
+      if (key.isEmpty || deduped.containsKey(key)) {
+        continue;
+      }
+      deduped[key] = airport;
+    }
+    final suggestions = deduped.values.toList()
+      ..sort((a, b) {
+        final aCode = a.code.trim().toUpperCase();
+        final bCode = b.code.trim().toUpperCase();
+        final aPrefix = aCode.startsWith(normalizedQuery);
+        final bPrefix = bCode.startsWith(normalizedQuery);
+        if (aPrefix != bPrefix) {
+          return aPrefix ? -1 : 1;
+        }
+        return aCode.compareTo(bCode);
+      });
+    setState(() {
+      _homeAirportSuggestions = suggestions.take(8).toList();
+      _isHomeAirportSearching = false;
+    });
+  }
+
+  void _selectHomeAirportSuggestion(MapAirportMarker airport) {
+    final code = airport.code.trim().toUpperCase();
+    _homeAirportSearchDebounce?.cancel();
+    _homeAirportSearchToken += 1;
+    setState(() {
+      _homeAirportIcaoController.text = code;
+      _homeAirportIcaoController.selection = TextSelection.collapsed(
+        offset: code.length,
+      );
+      _homeAirportSuggestions = const [];
+      _isHomeAirportSearching = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Consumer<MapProvider>(
-      builder: (context, mapProvider, child) {
+    return Consumer2<MapProvider, HomeProvider>(
+      builder: (context, mapProvider, homeProvider, child) {
+        if (_homeAirportIcaoController.text.trim().isEmpty &&
+            mapProvider.homeAirport != null) {
+          _homeAirportIcaoController.text = mapProvider.homeAirport!.code;
+        }
+        final canConfigureHomeAirport = homeProvider.isBackendReachable;
+        final homeAirport = mapProvider.homeAirport;
+        final homeAirportDisplay = homeAirport == null
+            ? '-'
+            : '${homeAirport.code} (${homeAirport.position.latitude.toStringAsFixed(4)}, ${homeAirport.position.longitude.toStringAsFixed(4)})';
+        final showHomeAirportSuggestions =
+            canConfigureHomeAirport &&
+            _homeAirportIcaoController.text.trim().isNotEmpty &&
+            (_isHomeAirportSearching || _homeAirportSuggestions.isNotEmpty);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionCard(
-              icon: Icons.timer_outlined,
-              title: MapLocalizationKeys.timerSectionTitle.tr(context),
-              subtitle: MapLocalizationKeys.timerSectionDesc.tr(context),
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    value: mapProvider.autoHudTimerEnabled,
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      MapLocalizationKeys.timerAutoEnable.tr(context),
+            Stack(
+              children: [
+                _SectionCard(
+                  icon: Icons.home_work_outlined,
+                  title: MapLocalizationKeys.homeAirportSectionTitle.tr(
+                    context,
+                  ),
+                  subtitle: MapLocalizationKeys.homeAirportSectionDesc.tr(
+                    context,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: _homeAirportIcaoController,
+                        enabled:
+                            canConfigureHomeAirport && !_isHomeAirportSaving,
+                        textCapitalization: TextCapitalization.characters,
+                        maxLength: 6,
+                        decoration: InputDecoration(
+                          labelText: MapLocalizationKeys.homeAirportIcaoLabel
+                              .tr(context),
+                          hintText: MapLocalizationKeys.homeAirportIcaoHint.tr(
+                            context,
+                          ),
+                          prefixIcon: const Icon(Icons.flight_land_rounded),
+                          counterText: '',
+                        ),
+                        onChanged: _onHomeAirportInputChanged,
+                      ),
+                      if (showHomeAirportSuggestions) ...[
+                        const SizedBox(height: AppThemeData.spacingSmall),
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 220),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(
+                              AppThemeData.borderRadiusSmall,
+                            ),
+                            border: Border.all(
+                              color: theme.colorScheme.outline.withValues(
+                                alpha: 0.22,
+                              ),
+                            ),
+                          ),
+                          child: _isHomeAirportSearching
+                              ? const Padding(
+                                  padding: EdgeInsets.all(14),
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : ListView.separated(
+                                  shrinkWrap: true,
+                                  itemCount: _homeAirportSuggestions.length,
+                                  separatorBuilder: (context, index) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (context, index) {
+                                    final airport =
+                                        _homeAirportSuggestions[index];
+                                    return ListTile(
+                                      dense: true,
+                                      title: Text(
+                                        airport.code,
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      subtitle: Text(
+                                        airport.name ?? '',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      trailing: Text(
+                                        '${airport.position.latitude.toStringAsFixed(2)}, ${airport.position.longitude.toStringAsFixed(2)}',
+                                        style: theme.textTheme.labelSmall
+                                            ?.copyWith(
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                      ),
+                                      onTap: () {
+                                        _selectHomeAirportSuggestion(airport);
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                      const SizedBox(height: AppThemeData.spacingSmall),
+                      Text(
+                        MapLocalizationKeys.homeAirportCurrent
+                            .tr(context)
+                            .replaceFirst('{value}', homeAirportDisplay),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: AppThemeData.spacingMedium),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed:
+                                  !canConfigureHomeAirport ||
+                                      _isHomeAirportSaving
+                                  ? null
+                                  : () => _saveHomeAirport(context),
+                              icon: _isHomeAirportSaving
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.save_outlined, size: 18),
+                              label: Text(
+                                _isHomeAirportSaving
+                                    ? MapLocalizationKeys.saving.tr(context)
+                                    : MapLocalizationKeys.saveButton.tr(
+                                        context,
+                                      ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppThemeData.spacingSmall),
+                          OutlinedButton.icon(
+                            onPressed:
+                                !canConfigureHomeAirport ||
+                                    homeAirport == null ||
+                                    _isHomeAirportSaving
+                                ? null
+                                : () => _clearHomeAirport(context),
+                            icon: const Icon(Icons.clear_rounded, size: 18),
+                            label: Text(
+                              MapLocalizationKeys.clearButton.tr(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (!canConfigureHomeAirport)
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(
+                        AppThemeData.borderRadiusMedium,
+                      ),
+                      child: BackdropFilter(
+                        filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                        child: Container(
+                          color: theme.colorScheme.surface.withValues(
+                            alpha: 0.72,
+                          ),
+                          padding: const EdgeInsets.all(
+                            AppThemeData.spacingMedium,
+                          ),
+                          alignment: Alignment.center,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.error,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  MapLocalizationKeys
+                                      .homeAirportServiceUnavailableTag
+                                      .tr(context),
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.onError,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: AppThemeData.spacingSmall),
+                              Text(
+                                MapLocalizationKeys
+                                    .homeAirportServiceUnavailableHint
+                                    .tr(context),
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                    onChanged: mapProvider.setAutoHudTimerEnabled,
                   ),
-                  const SizedBox(height: 8),
-                  _GroupTitle(
-                    title: MapLocalizationKeys.timerStartCondition.tr(context),
-                  ),
-                  const SizedBox(height: 8),
-                  _SelectionTile(
-                    selected:
-                        mapProvider.autoTimerStartMode ==
-                        MapAutoTimerStartMode.runwayMovement,
-                    label: MapLocalizationKeys.timerStartRunwayMovement.tr(
-                      context,
-                    ),
-                    icon: Icons.flight_takeoff_rounded,
-                    onTap: () {
-                      mapProvider.setAutoTimerStartMode(
-                        MapAutoTimerStartMode.runwayMovement,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _SelectionTile(
-                    selected:
-                        mapProvider.autoTimerStartMode ==
-                        MapAutoTimerStartMode.pushback,
-                    label: MapLocalizationKeys.timerStartPushback.tr(context),
-                    icon: Icons.push_pin_outlined,
-                    onTap: () {
-                      mapProvider.setAutoTimerStartMode(
-                        MapAutoTimerStartMode.pushback,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _SelectionTile(
-                    selected:
-                        mapProvider.autoTimerStartMode ==
-                        MapAutoTimerStartMode.anyMovement,
-                    label: MapLocalizationKeys.timerStartAnyMovement.tr(
-                      context,
-                    ),
-                    icon: Icons.directions_run_rounded,
-                    onTap: () {
-                      mapProvider.setAutoTimerStartMode(
-                        MapAutoTimerStartMode.anyMovement,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _GroupTitle(
-                    title: MapLocalizationKeys.timerStopCondition.tr(context),
-                  ),
-                  const SizedBox(height: 8),
-                  _SelectionTile(
-                    selected:
-                        mapProvider.autoTimerStopMode ==
-                        MapAutoTimerStopMode.stableLanding,
-                    label: MapLocalizationKeys.timerStopStableLanding.tr(
-                      context,
-                    ),
-                    icon: Icons.flight_land_rounded,
-                    onTap: () {
-                      mapProvider.setAutoTimerStopMode(
-                        MapAutoTimerStopMode.stableLanding,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _SelectionTile(
-                    selected:
-                        mapProvider.autoTimerStopMode ==
-                        MapAutoTimerStopMode.runwayExitAfterLanding,
-                    label: MapLocalizationKeys.timerStopRunwayExit.tr(context),
-                    icon: Icons.turn_right_rounded,
-                    onTap: () {
-                      mapProvider.setAutoTimerStopMode(
-                        MapAutoTimerStopMode.runwayExitAfterLanding,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _SelectionTile(
-                    selected:
-                        mapProvider.autoTimerStopMode ==
-                        MapAutoTimerStopMode.parkingArrival,
-                    label: MapLocalizationKeys.timerStopParkingArrival.tr(
-                      context,
-                    ),
-                    icon: Icons.local_parking_rounded,
-                    onTap: () {
-                      mapProvider.setAutoTimerStopMode(
-                        MapAutoTimerStopMode.parkingArrival,
-                      );
-                    },
-                  ),
-                ],
-              ),
+              ],
             ),
             const SizedBox(height: AppThemeData.spacingMedium),
             _SectionCard(
@@ -289,6 +626,138 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
                             : MapLocalizationKeys.saveButton.tr(context),
                       ),
                     ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppThemeData.spacingMedium),
+            _SectionCard(
+              icon: Icons.timer_outlined,
+              title: MapLocalizationKeys.timerSectionTitle.tr(context),
+              subtitle: MapLocalizationKeys.timerSectionDesc.tr(context),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    value: mapProvider.autoHudTimerEnabled,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      MapLocalizationKeys.timerAutoEnable.tr(context),
+                    ),
+                    onChanged: (value) {
+                      unawaited(_saveAutoHudTimerEnabled(context, value));
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  _GroupTitle(
+                    title: MapLocalizationKeys.timerStartCondition.tr(context),
+                  ),
+                  const SizedBox(height: 8),
+                  _SelectionTile(
+                    selected:
+                        mapProvider.autoTimerStartMode ==
+                        MapAutoTimerStartMode.runwayMovement,
+                    label: MapLocalizationKeys.timerStartRunwayMovement.tr(
+                      context,
+                    ),
+                    icon: Icons.flight_takeoff_rounded,
+                    onTap: () {
+                      unawaited(
+                        _saveAutoTimerStartMode(
+                          context,
+                          MapAutoTimerStartMode.runwayMovement,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  _SelectionTile(
+                    selected:
+                        mapProvider.autoTimerStartMode ==
+                        MapAutoTimerStartMode.pushback,
+                    label: MapLocalizationKeys.timerStartPushback.tr(context),
+                    icon: Icons.push_pin_outlined,
+                    onTap: () {
+                      unawaited(
+                        _saveAutoTimerStartMode(
+                          context,
+                          MapAutoTimerStartMode.pushback,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  _SelectionTile(
+                    selected:
+                        mapProvider.autoTimerStartMode ==
+                        MapAutoTimerStartMode.anyMovement,
+                    label: MapLocalizationKeys.timerStartAnyMovement.tr(
+                      context,
+                    ),
+                    icon: Icons.directions_run_rounded,
+                    onTap: () {
+                      unawaited(
+                        _saveAutoTimerStartMode(
+                          context,
+                          MapAutoTimerStartMode.anyMovement,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _GroupTitle(
+                    title: MapLocalizationKeys.timerStopCondition.tr(context),
+                  ),
+                  const SizedBox(height: 8),
+                  _SelectionTile(
+                    selected:
+                        mapProvider.autoTimerStopMode ==
+                        MapAutoTimerStopMode.stableLanding,
+                    label: MapLocalizationKeys.timerStopStableLanding.tr(
+                      context,
+                    ),
+                    icon: Icons.flight_land_rounded,
+                    onTap: () {
+                      unawaited(
+                        _saveAutoTimerStopMode(
+                          context,
+                          MapAutoTimerStopMode.stableLanding,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  _SelectionTile(
+                    selected:
+                        mapProvider.autoTimerStopMode ==
+                        MapAutoTimerStopMode.runwayExitAfterLanding,
+                    label: MapLocalizationKeys.timerStopRunwayExit.tr(context),
+                    icon: Icons.turn_right_rounded,
+                    onTap: () {
+                      unawaited(
+                        _saveAutoTimerStopMode(
+                          context,
+                          MapAutoTimerStopMode.runwayExitAfterLanding,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  _SelectionTile(
+                    selected:
+                        mapProvider.autoTimerStopMode ==
+                        MapAutoTimerStopMode.parkingArrival,
+                    label: MapLocalizationKeys.timerStopParkingArrival.tr(
+                      context,
+                    ),
+                    icon: Icons.local_parking_rounded,
+                    onTap: () {
+                      unawaited(
+                        _saveAutoTimerStopMode(
+                          context,
+                          MapAutoTimerStopMode.parkingArrival,
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

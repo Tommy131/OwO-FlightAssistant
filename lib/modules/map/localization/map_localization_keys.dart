@@ -23,15 +23,31 @@ class MapLocalizationKeys {
   static const String timerStopRunwayExit = 'map.timer.stop.runway_exit';
   static const String timerStopParkingArrival =
       'map.timer.stop.parking_arrival';
+  static const String timerSettingsSaved = 'map.timer.settings_saved';
   static const String flightDataSectionTitle = 'map.flight_data.section_title';
   static const String flightDataSectionDesc = 'map.flight_data.section_desc';
-  static const String flightDataIntervalLabel = 'map.flight_data.interval_label';
+  static const String flightDataIntervalLabel =
+      'map.flight_data.interval_label';
   static const String flightDataIntervalHint = 'map.flight_data.interval_hint';
   static const String currentFlightDataInterval =
       'map.flight_data.current_interval';
   static const String invalidFlightDataInterval =
       'map.flight_data.invalid_interval';
   static const String flightDataIntervalSaved = 'map.flight_data.saved';
+  static const String homeAirportSectionTitle =
+      'map.home_airport.section_title';
+  static const String homeAirportSectionDesc = 'map.home_airport.section_desc';
+  static const String homeAirportIcaoLabel = 'map.home_airport.icao_label';
+  static const String homeAirportIcaoHint = 'map.home_airport.icao_hint';
+  static const String homeAirportCurrent = 'map.home_airport.current';
+  static const String homeAirportSaved = 'map.home_airport.saved';
+  static const String homeAirportNotFound = 'map.home_airport.not_found';
+  static const String homeAirportCleared = 'map.home_airport.cleared';
+  static const String homeAirportServiceUnavailableTag =
+      'map.home_airport.service_unavailable_tag';
+  static const String homeAirportServiceUnavailableHint =
+      'map.home_airport.service_unavailable_hint';
+  static const String clearButton = 'map.action.clear';
   static const String saveButton = 'map.action.save';
   static const String saving = 'map.action.saving';
   static const String toggleRoute = 'map.control.route';
@@ -57,6 +73,8 @@ class MapLocalizationKeys {
   static const String markerDepartureAirport = 'map.marker.departure_airport';
   static const String markerArrivalAirport = 'map.marker.arrival_airport';
   static const String markerAlternateAirport = 'map.marker.alternate_airport';
+  static const String markerHomeAirport = 'map.marker.home_airport';
+  static const String markerCurrentAirport = 'map.marker.current_airport';
   static const String actionSetAsDepartureAirport =
       'map.action.set_as_departure_airport';
   static const String actionSetAsArrivalAirport =

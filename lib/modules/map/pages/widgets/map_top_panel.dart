@@ -269,65 +269,62 @@ class MapTopPanel extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (isConnected || route.isNotEmpty) ...[
-                  SizedBox(width: 8 * scale),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isConnected) ...[
-                          FilterToggleButton(
-                            label: isHudTimerRunning
-                                ? MapLocalizationKeys.tooltipTimerPause.tr(
-                                    context,
-                                  )
-                                : MapLocalizationKeys.tooltipTimerStart.tr(
-                                    context,
-                                  ),
-                            value: isHudTimerRunning,
-                            onChanged: (_) => onToggleHudTimer(),
-                            activeColor: Colors.lightGreenAccent,
-                            inactiveColor: Colors.greenAccent,
-                            leadingIcon: isHudTimerRunning
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                            showActiveCheck: false,
-                            scale: scale,
+                SizedBox(width: 8 * scale),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isConnected) ...[
+                        FilterToggleButton(
+                          label: isHudTimerRunning
+                              ? MapLocalizationKeys.tooltipTimerPause.tr(
+                                  context,
+                                )
+                              : MapLocalizationKeys.tooltipTimerStart.tr(
+                                  context,
+                                ),
+                          value: isHudTimerRunning,
+                          onChanged: (_) => onToggleHudTimer(),
+                          activeColor: Colors.lightGreenAccent,
+                          inactiveColor: Colors.greenAccent,
+                          leadingIcon: isHudTimerRunning
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          showActiveCheck: false,
+                          scale: scale,
+                        ),
+                        SizedBox(width: 8 * scale),
+                        FilterToggleButton(
+                          label: MapLocalizationKeys.tooltipTimerReset.tr(
+                            context,
                           ),
-                          SizedBox(width: 8 * scale),
-                          FilterToggleButton(
-                            label: MapLocalizationKeys.tooltipTimerReset.tr(
-                              context,
-                            ),
-                            value: false,
-                            onChanged: (_) => onResetHudTimer(),
-                            activeColor: Colors.amberAccent,
-                            inactiveColor: Colors.amberAccent,
-                            leadingIcon: Icons.restart_alt_rounded,
-                            leadingIconColor: Colors.amberAccent,
-                            showActiveCheck: false,
-                            scale: scale,
-                          ),
-                        ],
-                        if (route.isNotEmpty) ...[
-                          if (isConnected) SizedBox(width: 8 * scale),
-                          FilterToggleButton(
-                            label: MapLocalizationKeys.clearRoute.tr(context),
-                            value: false,
-                            onChanged: (_) => onClearRoute(),
-                            activeColor: Colors.redAccent,
-                            inactiveColor: Colors.redAccent,
-                            leadingIcon: Icons.delete_outline_rounded,
-                            leadingIconColor: Colors.redAccent,
-                            showActiveCheck: false,
-                            scale: scale,
-                          ),
-                        ],
+                          value: false,
+                          onChanged: (_) => onResetHudTimer(),
+                          activeColor: Colors.amberAccent,
+                          inactiveColor: Colors.amberAccent,
+                          leadingIcon: Icons.restart_alt_rounded,
+                          leadingIconColor: Colors.amberAccent,
+                          showActiveCheck: false,
+                          scale: scale,
+                        ),
+                        SizedBox(width: 8 * scale),
                       ],
-                    ),
+                      if (isConnected)
+                        FilterToggleButton(
+                          label: MapLocalizationKeys.clearRoute.tr(context),
+                          value: false,
+                          onChanged: (_) => onClearRoute(),
+                          activeColor: Colors.redAccent,
+                          inactiveColor: Colors.redAccent,
+                          leadingIcon: Icons.delete_outline_rounded,
+                          leadingIconColor: Colors.redAccent,
+                          showActiveCheck: false,
+                          scale: scale,
+                        ),
+                    ],
                   ),
-                ],
+                ),
               ],
             ),
           ],

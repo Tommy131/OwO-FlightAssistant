@@ -108,6 +108,59 @@ class SelectedAirportPin extends StatelessWidget {
   }
 }
 
+class HomeAirportPin extends StatelessWidget {
+  final String code;
+  final double scale;
+
+  const HomeAirportPin({super.key, required this.code, required this.scale});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.tertiary;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: 8 * scale,
+            vertical: 4 * scale,
+          ),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(7 * scale),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.home_rounded, color: Colors.white, size: 12 * scale),
+              SizedBox(width: 4 * scale),
+              Text(
+                code,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10 * scale,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 2 * scale),
+        Icon(
+          Icons.place_rounded,
+          color: color,
+          size: 34 * scale,
+          shadows: [
+            Shadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 8),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class AirportRolePin extends StatelessWidget {
   final String code;
   final String title;
@@ -165,6 +218,118 @@ class AirportRolePin extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class CombinedAirportPin extends StatelessWidget {
+  final String code;
+  final List<AirportPinTag> tags;
+  final IconData icon;
+  final Color color;
+  final double scale;
+
+  const CombinedAirportPin({
+    super.key,
+    required this.code,
+    required this.tags,
+    required this.icon,
+    required this.color,
+    required this.scale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedTags = tags
+        .where((tag) => tag.label.trim().isNotEmpty)
+        .toList();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final tag in normalizedTags) ...[
+          _RoleTag(tag: tag, scale: scale),
+          SizedBox(height: 2 * scale),
+        ],
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: 8 * scale,
+            vertical: 4 * scale,
+          ),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(7 * scale),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: Colors.white, size: 12 * scale),
+                  SizedBox(width: 4 * scale),
+                  Text(
+                    code,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10 * scale,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 2 * scale),
+        Icon(
+          Icons.place_rounded,
+          color: color,
+          size: 34 * scale,
+          shadows: [
+            Shadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 8),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class AirportPinTag {
+  final String label;
+  final Color color;
+
+  const AirportPinTag({required this.label, required this.color});
+}
+
+class _RoleTag extends StatelessWidget {
+  final AirportPinTag tag;
+  final double scale;
+
+  const _RoleTag({
+    required this.tag,
+    required this.scale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 6 * scale, vertical: 2 * scale),
+      decoration: BoxDecoration(
+        color: tag.color.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(6 * scale),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        tag.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 8 * scale,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }

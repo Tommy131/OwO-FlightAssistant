@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import '../../../core/services/persistence_service.dart';
 import '../../airport_search/models/airport_search_models.dart';
 import '../../home/models/home_models.dart';
 import '../../http/http_module.dart';
@@ -12,7 +13,18 @@ import '../models/map_models.dart';
 class MapProvider extends ChangeNotifier {
   MapProvider({MapDataAdapter? adapter}) : _adapter = adapter {
     _subscribeAdapter();
+    unawaited(_loadHomeAirport());
+    unawaited(_loadAutoTimerSettings());
   }
+
+  static const String _moduleName = 'map';
+  static const String _homeAirportCodeKey = 'home_airport_code';
+  static const String _homeAirportNameKey = 'home_airport_name';
+  static const String _homeAirportLatKey = 'home_airport_lat';
+  static const String _homeAirportLonKey = 'home_airport_lon';
+  static const String _autoHudTimerEnabledKey = 'auto_hud_timer_enabled';
+  static const String _autoTimerStartModeKey = 'auto_timer_start_mode';
+  static const String _autoTimerStopModeKey = 'auto_timer_stop_mode';
 
   MapDataAdapter? _adapter;
   StreamSubscription<MapDataSnapshot>? _subscription;
@@ -41,6 +53,7 @@ class MapProvider extends ChangeNotifier {
   List<MapRoutePoint> _route = [];
   List<MapAirportMarker> _airports = [];
   List<MapFlightAlert> _activeAlerts = [];
+  MapAirportMarker? _homeAirport;
   MapCoordinate? _takeoffPoint;
   MapCoordinate? _landingPoint;
   bool? _lastOnGround;
@@ -81,6 +94,7 @@ class MapProvider extends ChangeNotifier {
   List<MapRoutePoint> get route => _route;
   List<MapAirportMarker> get airports => _airports;
   List<MapFlightAlert> get activeAlerts => _activeAlerts;
+  MapAirportMarker? get homeAirport => _homeAirport;
   int get tileReloadToken => _tileReloadToken;
   MapCoordinate? get takeoffPoint => _takeoffPoint;
   MapCoordinate? get landingPoint => _landingPoint;
@@ -95,6 +109,132 @@ class MapProvider extends ChangeNotifier {
   void attachAdapter(MapDataAdapter? adapter) {
     _adapter = adapter;
     _subscribeAdapter();
+  }
+
+  Future<void> setHomeAirport(MapAirportMarker airport) async {
+    final latitude = airport.position.latitude;
+    final longitude = airport.position.longitude;
+    if (!_isValidCoordinate(latitude, longitude)) {
+      return;
+    }
+    final normalizedCode = airport.code.trim().toUpperCase();
+    final normalizedAirport = MapAirportMarker(
+      code: normalizedCode.isEmpty ? 'HOME' : normalizedCode,
+      name: airport.name?.trim(),
+      position: MapCoordinate(latitude: latitude, longitude: longitude),
+      isPrimary: false,
+    );
+    _homeAirport = normalizedAirport;
+    notifyListeners();
+
+    final persistence = PersistenceService();
+    await persistence.setModuleData(
+      _moduleName,
+      _homeAirportCodeKey,
+      normalizedAirport.code,
+    );
+    await persistence.setModuleData(
+      _moduleName,
+      _homeAirportNameKey,
+      normalizedAirport.name,
+    );
+    await persistence.setModuleData(
+      _moduleName,
+      _homeAirportLatKey,
+      normalizedAirport.position.latitude,
+    );
+    await persistence.setModuleData(
+      _moduleName,
+      _homeAirportLonKey,
+      normalizedAirport.position.longitude,
+    );
+  }
+
+  Future<void> clearHomeAirport() async {
+    _homeAirport = null;
+    notifyListeners();
+    final persistence = PersistenceService();
+    await persistence.setModuleData(_moduleName, _homeAirportCodeKey, null);
+    await persistence.setModuleData(_moduleName, _homeAirportNameKey, null);
+    await persistence.setModuleData(_moduleName, _homeAirportLatKey, null);
+    await persistence.setModuleData(_moduleName, _homeAirportLonKey, null);
+  }
+
+  Future<void> _loadHomeAirport() async {
+    final persistence = PersistenceService();
+    final latitude = persistence.getModuleData<double>(
+      _moduleName,
+      _homeAirportLatKey,
+    );
+    final longitude = persistence.getModuleData<double>(
+      _moduleName,
+      _homeAirportLonKey,
+    );
+    if (latitude == null ||
+        longitude == null ||
+        !_isValidCoordinate(latitude, longitude)) {
+      return;
+    }
+    final code =
+        persistence.getModuleData<String>(
+          _moduleName,
+          _homeAirportCodeKey,
+          defaultValue: 'HOME',
+        ) ??
+        'HOME';
+    final name = persistence.getModuleData<String>(
+      _moduleName,
+      _homeAirportNameKey,
+    );
+    _homeAirport = MapAirportMarker(
+      code: code.trim().isEmpty ? 'HOME' : code.trim().toUpperCase(),
+      name: name?.trim().isEmpty ?? true ? null : name?.trim(),
+      position: MapCoordinate(latitude: latitude, longitude: longitude),
+      isPrimary: false,
+    );
+    notifyListeners();
+  }
+
+  Future<void> _loadAutoTimerSettings() async {
+    final persistence = PersistenceService();
+    final enabled = persistence.getModuleData<bool>(
+      _moduleName,
+      _autoHudTimerEnabledKey,
+    );
+    final startModeIndex = persistence.getModuleData<int>(
+      _moduleName,
+      _autoTimerStartModeKey,
+    );
+    final stopModeIndex = persistence.getModuleData<int>(
+      _moduleName,
+      _autoTimerStopModeKey,
+    );
+    var hasUpdate = false;
+    if (enabled != null && enabled != _autoHudTimerEnabled) {
+      _autoHudTimerEnabled = enabled;
+      hasUpdate = true;
+    }
+    if (startModeIndex != null &&
+        startModeIndex >= 0 &&
+        startModeIndex < MapAutoTimerStartMode.values.length) {
+      final startMode = MapAutoTimerStartMode.values[startModeIndex];
+      if (startMode != _autoTimerStartMode) {
+        _autoTimerStartMode = startMode;
+        hasUpdate = true;
+      }
+    }
+    if (stopModeIndex != null &&
+        stopModeIndex >= 0 &&
+        stopModeIndex < MapAutoTimerStopMode.values.length) {
+      final stopMode = MapAutoTimerStopMode.values[stopModeIndex];
+      if (stopMode != _autoTimerStopMode) {
+        _autoTimerStopMode = stopMode;
+        hasUpdate = true;
+      }
+    }
+    if (hasUpdate) {
+      notifyListeners();
+    }
   }
 
   void updateFromHomeSnapshot(HomeDataSnapshot snapshot) {
@@ -335,6 +475,13 @@ class MapProvider extends ChangeNotifier {
           .where((item) => (item.type ?? '').toUpperCase().contains('ATIS'))
           .map((item) => item.value?.trim() ?? '')
           .firstWhere((item) => item.isNotEmpty, orElse: () => '');
+      final normalizedAtis = _normalizeWeatherText(atis);
+      final normalizedRawMetar = _normalizeWeatherText(
+        (rawMetar ?? metar.raw)?.trim(),
+      );
+      final normalizedDecodedMetar = _normalizeWeatherText(
+        (decodedMetar ?? metar.decoded)?.trim(),
+      );
       final frequencyBadges = detail.frequencies
           .map((item) {
             final type = (item.type ?? '').trim().toUpperCase();
@@ -357,9 +504,9 @@ class MapProvider extends ChangeNotifier {
         runwayGeometries: runwayGeometries,
         parkingSpots: parkingSpots,
         frequencyBadges: frequencyBadges,
-        atis: atis.isEmpty ? null : atis,
-        rawMetar: (rawMetar ?? metar.raw)?.trim(),
-        decodedMetar: (decodedMetar ?? metar.decoded)?.trim(),
+        atis: normalizedAtis?.isEmpty ?? true ? null : normalizedAtis,
+        rawMetar: normalizedRawMetar,
+        decodedMetar: normalizedDecodedMetar,
         approachRule: _resolveApproachRule(metarRoot, rawMetar ?? metar.raw),
       );
     } catch (_) {
@@ -478,28 +625,46 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setAutoHudTimerEnabled(bool value) {
+  Future<void> setAutoHudTimerEnabled(bool value) async {
     if (_autoHudTimerEnabled == value) {
       return;
     }
     _autoHudTimerEnabled = value;
     notifyListeners();
+    final persistence = PersistenceService();
+    await persistence.setModuleData(
+      _moduleName,
+      _autoHudTimerEnabledKey,
+      value,
+    );
   }
 
-  void setAutoTimerStartMode(MapAutoTimerStartMode mode) {
+  Future<void> setAutoTimerStartMode(MapAutoTimerStartMode mode) async {
     if (_autoTimerStartMode == mode) {
       return;
     }
     _autoTimerStartMode = mode;
     notifyListeners();
+    final persistence = PersistenceService();
+    await persistence.setModuleData(
+      _moduleName,
+      _autoTimerStartModeKey,
+      mode.index,
+    );
   }
 
-  void setAutoTimerStopMode(MapAutoTimerStopMode mode) {
+  Future<void> setAutoTimerStopMode(MapAutoTimerStopMode mode) async {
     if (_autoTimerStopMode == mode) {
       return;
     }
     _autoTimerStopMode = mode;
     notifyListeners();
+    final persistence = PersistenceService();
+    await persistence.setModuleData(
+      _moduleName,
+      _autoTimerStopModeKey,
+      mode.index,
+    );
   }
 
   void clearRoute() {
@@ -813,132 +978,7 @@ class MapProvider extends ChangeNotifier {
       _activeAlerts = const [];
       return;
     }
-    final backendAlerts = _mapBackendAlerts(flightData.flightAlerts);
-    if (backendAlerts.isNotEmpty) {
-      _activeAlerts = backendAlerts;
-      return;
-    }
-    final next = <MapFlightAlert>[];
-    final onGround = flightData.onGround ?? false;
-    final pitch = flightData.pitch;
-    final bank = flightData.bank;
-    final aoa = flightData.angleOfAttack;
-    final airspeed = flightData.airspeed;
-    final groundSpeed = flightData.groundSpeed;
-    final verticalSpeed = flightData.verticalSpeed;
-    final altitude = flightData.altitude;
-    final stallWarning = flightData.stallWarning == true;
-
-    if (!onGround && pitch != null) {
-      if (pitch >= 35) {
-        next.add(
-          const MapFlightAlert(
-            id: 'pitch_up_danger',
-            level: MapFlightAlertLevel.danger,
-            message: MapLocalizationKeys.alertPitchUpDanger,
-          ),
-        );
-      } else if (pitch >= 25) {
-        next.add(
-          const MapFlightAlert(
-            id: 'pitch_up_warning',
-            level: MapFlightAlertLevel.warning,
-            message: MapLocalizationKeys.alertPitchUpWarning,
-          ),
-        );
-      } else if (pitch <= -30) {
-        next.add(
-          const MapFlightAlert(
-            id: 'pitch_down_danger',
-            level: MapFlightAlertLevel.danger,
-            message: MapLocalizationKeys.alertPitchDownDanger,
-          ),
-        );
-      } else if (pitch <= -20) {
-        next.add(
-          const MapFlightAlert(
-            id: 'pitch_down_warning',
-            level: MapFlightAlertLevel.warning,
-            message: MapLocalizationKeys.alertPitchDownWarning,
-          ),
-        );
-      }
-    }
-
-    if (!onGround && bank != null) {
-      final absBank = bank.abs();
-      if (absBank >= 60) {
-        next.add(
-          const MapFlightAlert(
-            id: 'bank_danger',
-            level: MapFlightAlertLevel.danger,
-            message: MapLocalizationKeys.alertBankDanger,
-          ),
-        );
-      } else if (absBank >= 45) {
-        next.add(
-          const MapFlightAlert(
-            id: 'bank_warning',
-            level: MapFlightAlertLevel.warning,
-            message: MapLocalizationKeys.alertBankWarning,
-          ),
-        );
-      }
-    }
-
-    if (!onGround) {
-      final referenceSpeed = airspeed ?? groundSpeed;
-      final highLiftAttitude = (pitch ?? 0) >= 10 || (aoa ?? 0) >= 10;
-      final aggressiveClimb = (verticalSpeed ?? 0) >= 1000;
-      final lowSpeedStallRisk =
-          referenceSpeed != null &&
-          referenceSpeed < 72 &&
-          ((pitch ?? 0) >= 12 || (aoa ?? 0) >= 12 || aggressiveClimb);
-      final lowSpeedStallWarning =
-          referenceSpeed != null &&
-          referenceSpeed < 95 &&
-          (highLiftAttitude || aggressiveClimb);
-      final highAoaStallRisk = aoa != null && aoa >= 14;
-      if (stallWarning || lowSpeedStallRisk || highAoaStallRisk) {
-        next.add(
-          const MapFlightAlert(
-            id: 'stall_warning',
-            level: MapFlightAlertLevel.danger,
-            message: MapLocalizationKeys.alertStallWarning,
-          ),
-        );
-      } else if (lowSpeedStallWarning) {
-        next.add(
-          const MapFlightAlert(
-            id: 'stall_speed_warning',
-            level: MapFlightAlertLevel.warning,
-            message: MapLocalizationKeys.alertStallWarning,
-          ),
-        );
-      }
-    }
-
-    if (!onGround && verticalSpeed != null && altitude != null) {
-      if (verticalSpeed <= -3000 && altitude <= 2500) {
-        next.add(
-          const MapFlightAlert(
-            id: 'sink_rate_danger',
-            level: MapFlightAlertLevel.danger,
-            message: MapLocalizationKeys.alertSinkRateDanger,
-          ),
-        );
-      } else if (verticalSpeed <= -2000 && altitude <= 3000) {
-        next.add(
-          const MapFlightAlert(
-            id: 'sink_rate_warning',
-            level: MapFlightAlertLevel.warning,
-            message: MapLocalizationKeys.alertSinkRateWarning,
-          ),
-        );
-      }
-    }
-
-    _activeAlerts = next;
+    _activeAlerts = _mapBackendAlerts(flightData.flightAlerts);
   }
 
   List<MapFlightAlert> _mapBackendAlerts(List<HomeFlightAlert> alerts) {
@@ -1255,6 +1295,18 @@ class MapProvider extends ChangeNotifier {
       return null;
     }
     return text;
+  }
+
+  String? _normalizeWeatherText(String? value) {
+    final text = (value ?? '').trim();
+    if (text.isEmpty) {
+      return null;
+    }
+    final cleaned = text
+        .replaceAll('\u0000', '')
+        .replaceAll('\uFFFD', '')
+        .replaceAll(RegExp(r'[\u0001-\u0008\u000B\u000C\u000E-\u001F]'), '');
+    return cleaned.trim();
   }
 
   String _resolveApproachRule(Map<String, dynamic> root, String? rawMetar) {

@@ -199,10 +199,11 @@ class MiddlewareHttpService {
     try {
       final streamed = await _client.send(req).timeout(effectiveTimeout);
       final response = await http.Response.fromStream(streamed);
+      final responseBody = _decodeResponseBody(response);
       final result = MiddlewareHttpResponse(
         statusCode: response.statusCode,
         headers: response.headers,
-        body: response.body,
+        body: responseBody,
         uri: uri,
       );
       if (!result.isSuccess) {
@@ -417,5 +418,16 @@ class MiddlewareHttpService {
 
   String _normalizeType(String type) {
     return type.trim().toLowerCase();
+  }
+
+  String _decodeResponseBody(http.Response response) {
+    if (response.bodyBytes.isEmpty) {
+      return '';
+    }
+    try {
+      return utf8.decode(response.bodyBytes);
+    } catch (_) {
+      return latin1.decode(response.bodyBytes, allowInvalid: true);
+    }
   }
 }
