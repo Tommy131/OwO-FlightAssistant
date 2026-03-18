@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../../core/module_registry/settings_page/settings_page_item.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/snack_bar.dart';
-import '../../common/providers/home_provider.dart';
 import '../http_module.dart';
 import '../localization/http_localization_keys.dart';
 
@@ -46,25 +44,17 @@ class _HttpBackendSettingsViewState extends State<_HttpBackendSettingsView> {
   final TextEditingController _portController = TextEditingController();
   final TextEditingController _wsHostController = TextEditingController();
   final TextEditingController _wsPortController = TextEditingController();
-  final TextEditingController _flightDataIntervalController =
-      TextEditingController();
   bool _isHttpSaving = false;
   bool _isHttpTesting = false;
   bool _isWsSaving = false;
   bool _isWsTesting = false;
-  bool _isFlightDataIntervalSaving = false;
   String _currentAddress = '';
   String _currentWsAddress = '';
-  int _currentFlightDataIntervalMs =
-      MiddlewareHomeDataAdapter.defaultPollIntervalMs;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentAddress();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadFlightDataInterval();
-    });
   }
 
   @override
@@ -73,7 +63,6 @@ class _HttpBackendSettingsViewState extends State<_HttpBackendSettingsView> {
     _portController.dispose();
     _wsHostController.dispose();
     _wsPortController.dispose();
-    _flightDataIntervalController.dispose();
     super.dispose();
   }
 
@@ -90,20 +79,6 @@ class _HttpBackendSettingsViewState extends State<_HttpBackendSettingsView> {
     _wsPortController.text = '$wsPort';
     _currentAddress = 'http://$host:$port';
     _currentWsAddress = 'ws://$wsHost:$wsPort/api/v1/simulator/ws';
-  }
-
-  Future<void> _loadFlightDataInterval() async {
-    final homeProvider = context.read<HomeProvider?>();
-    final intervalMs =
-        await homeProvider?.getFlightDataIntervalMs() ??
-        MiddlewareHomeDataAdapter.defaultPollIntervalMs;
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _currentFlightDataIntervalMs = intervalMs;
-      _flightDataIntervalController.text = '$intervalMs';
-    });
   }
 
   String? _buildBaseUrl(BuildContext context) {
@@ -298,153 +273,15 @@ class _HttpBackendSettingsViewState extends State<_HttpBackendSettingsView> {
     }
   }
 
-  Future<void> _saveFlightDataInterval(BuildContext context) async {
-    final text = _flightDataIntervalController.text.trim();
-    final intervalMs = int.tryParse(text);
-    if (intervalMs == null ||
-        intervalMs < MiddlewareHomeDataAdapter.minPollIntervalMs ||
-        intervalMs > MiddlewareHomeDataAdapter.maxPollIntervalMs) {
-      SnackBarHelper.showError(
-        context,
-        HttpLocalizationKeys.invalidFlightDataInterval.tr(context),
-      );
-      return;
-    }
-    final homeProvider = context.read<HomeProvider?>();
-    if (homeProvider == null) {
-      SnackBarHelper.showError(
-        context,
-        HttpLocalizationKeys.testFailed.tr(context),
-      );
-      return;
-    }
-    setState(() {
-      _isFlightDataIntervalSaving = true;
-    });
-    try {
-      await homeProvider.setFlightDataIntervalMs(intervalMs);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _currentFlightDataIntervalMs = intervalMs;
-        _flightDataIntervalController.text = '$intervalMs';
-      });
-      SnackBarHelper.showSuccess(
-        context,
-        HttpLocalizationKeys.flightDataIntervalSaved.tr(context),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isFlightDataIntervalSaving = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildFlightDataIntervalForm(context),
-        const SizedBox(height: AppThemeData.spacingMedium),
         _buildHttpForm(context),
         const SizedBox(height: AppThemeData.spacingMedium),
         _buildWsForm(context),
       ],
-    );
-  }
-
-  Widget _buildFlightDataIntervalForm(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(
-                      AppThemeData.borderRadiusSmall,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.speed_outlined,
-                    color: theme.colorScheme.primary,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: AppThemeData.spacingSmall),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        HttpLocalizationKeys.flightDataSectionTitle.tr(context),
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        HttpLocalizationKeys.flightDataSectionDescription.tr(
-                          context,
-                        ),
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppThemeData.spacingMedium),
-            TextField(
-              controller: _flightDataIntervalController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: HttpLocalizationKeys.flightDataIntervalLabel.tr(
-                  context,
-                ),
-                hintText: HttpLocalizationKeys.flightDataIntervalHint.tr(context),
-                prefixIcon: const Icon(Icons.timer_outlined),
-              ),
-            ),
-            const SizedBox(height: AppThemeData.spacingSmall),
-            Text(
-              HttpLocalizationKeys.currentFlightDataInterval
-                  .tr(context)
-                  .replaceFirst('{value}', '$_currentFlightDataIntervalMs'),
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: AppThemeData.spacingMedium),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isFlightDataIntervalSaving
-                    ? null
-                    : () => _saveFlightDataInterval(context),
-                icon: _isFlightDataIntervalSaving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_outlined, size: 18),
-                label: Text(
-                  _isFlightDataIntervalSaving
-                      ? HttpLocalizationKeys.saving.tr(context)
-                      : HttpLocalizationKeys.saveButton.tr(context),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

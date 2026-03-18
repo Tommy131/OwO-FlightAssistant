@@ -8,6 +8,32 @@ class MapLocalizationKeys {
   static const String layerSatellite = 'map.layer.satellite';
   static const String layerTerrain = 'map.layer.terrain';
   static const String layerTaxiway = 'map.layer.taxiway';
+  static const String moduleSettings = 'map.module.settings';
+  static const String moduleSettingsDesc = 'map.module.settings_desc';
+  static const String timerSectionTitle = 'map.timer.section_title';
+  static const String timerSectionDesc = 'map.timer.section_desc';
+  static const String timerAutoEnable = 'map.timer.auto_enable';
+  static const String timerStartCondition = 'map.timer.start_condition';
+  static const String timerStopCondition = 'map.timer.stop_condition';
+  static const String timerStartRunwayMovement =
+      'map.timer.start.runway_movement';
+  static const String timerStartPushback = 'map.timer.start.pushback';
+  static const String timerStartAnyMovement = 'map.timer.start.any_movement';
+  static const String timerStopStableLanding = 'map.timer.stop.stable_landing';
+  static const String timerStopRunwayExit = 'map.timer.stop.runway_exit';
+  static const String timerStopParkingArrival =
+      'map.timer.stop.parking_arrival';
+  static const String flightDataSectionTitle = 'map.flight_data.section_title';
+  static const String flightDataSectionDesc = 'map.flight_data.section_desc';
+  static const String flightDataIntervalLabel = 'map.flight_data.interval_label';
+  static const String flightDataIntervalHint = 'map.flight_data.interval_hint';
+  static const String currentFlightDataInterval =
+      'map.flight_data.current_interval';
+  static const String invalidFlightDataInterval =
+      'map.flight_data.invalid_interval';
+  static const String flightDataIntervalSaved = 'map.flight_data.saved';
+  static const String saveButton = 'map.action.save';
+  static const String saving = 'map.action.saving';
   static const String toggleRoute = 'map.control.route';
   static const String toggleAirports = 'map.control.toggle_airports';
   static const String toggleNearbyAirports =

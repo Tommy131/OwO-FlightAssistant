@@ -46,6 +46,7 @@ class MapAircraftState {
   final double? verticalSpeed;
   final bool? stallWarning;
   final bool? onGround;
+  final bool? parkingBrake;
 
   const MapAircraftState({
     required this.position,
@@ -60,7 +61,16 @@ class MapAircraftState {
     this.verticalSpeed,
     this.stallWarning,
     this.onGround,
+    this.parkingBrake,
   });
+}
+
+enum MapAutoTimerStartMode { runwayMovement, pushback, anyMovement }
+
+enum MapAutoTimerStopMode {
+  stableLanding,
+  runwayExitAfterLanding,
+  parkingArrival,
 }
 
 enum MapFlightAlertLevel { caution, warning, danger }

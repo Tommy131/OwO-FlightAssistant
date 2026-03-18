@@ -51,6 +51,13 @@ class MapProvider extends ChangeNotifier {
   bool _isHudTimerRunning = false;
   MapCoordinate? _lastMovementSamplePosition;
   DateTime? _lastMovementSampleAt;
+  bool _autoHudTimerEnabled = false;
+  MapAutoTimerStartMode _autoTimerStartMode =
+      MapAutoTimerStartMode.runwayMovement;
+  MapAutoTimerStopMode _autoTimerStopMode = MapAutoTimerStopMode.stableLanding;
+  bool? _lastAutoParkingBrake;
+  bool _hudTimerAirborneSinceStart = false;
+  DateTime? _groundStableSince;
 
   MapLayerStyle get layerStyle => _layerStyle;
   bool get followAircraft => _followAircraft;
@@ -79,6 +86,9 @@ class MapProvider extends ChangeNotifier {
   bool get isAircraftMoving => _isAircraftMoving;
   Duration get hudElapsed => _hudElapsed;
   bool get isHudTimerRunning => _isHudTimerRunning;
+  bool get autoHudTimerEnabled => _autoHudTimerEnabled;
+  MapAutoTimerStartMode get autoTimerStartMode => _autoTimerStartMode;
+  MapAutoTimerStopMode get autoTimerStopMode => _autoTimerStopMode;
 
   void attachAdapter(MapDataAdapter? adapter) {
     _adapter = adapter;
@@ -113,10 +123,17 @@ class MapProvider extends ChangeNotifier {
         verticalSpeed: flightData.verticalSpeed,
         stallWarning: flightData.stallWarning,
         onGround: flightData.onGround,
+        parkingBrake: flightData.parkingBrake,
       );
       _aircraft = aircraftState;
       final isMoving = _resolveIsAircraftMoving(aircraftState, now);
       _isAircraftMoving = isMoving;
+      _handleAutoHudTimer(
+        flightData: flightData,
+        aircraftState: aircraftState,
+        isMoving: isMoving,
+        now: now,
+      );
       _appendRoutePoint(aircraftState, now, isMoving);
       _updateTakeoffLandingMarker(flightData.onGround, aircraftState.position);
     } else if (!_isConnected) {
@@ -455,6 +472,30 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setAutoHudTimerEnabled(bool value) {
+    if (_autoHudTimerEnabled == value) {
+      return;
+    }
+    _autoHudTimerEnabled = value;
+    notifyListeners();
+  }
+
+  void setAutoTimerStartMode(MapAutoTimerStartMode mode) {
+    if (_autoTimerStartMode == mode) {
+      return;
+    }
+    _autoTimerStartMode = mode;
+    notifyListeners();
+  }
+
+  void setAutoTimerStopMode(MapAutoTimerStopMode mode) {
+    if (_autoTimerStopMode == mode) {
+      return;
+    }
+    _autoTimerStopMode = mode;
+    notifyListeners();
+  }
+
   void clearRoute() {
     _route = [];
     _takeoffPoint = null;
@@ -465,6 +506,7 @@ class MapProvider extends ChangeNotifier {
     _hudTimer?.cancel();
     _hudTimer = null;
     _isHudTimerRunning = false;
+    _resetAutoTimerRuntimeState();
     notifyListeners();
   }
 
@@ -480,6 +522,7 @@ class MapProvider extends ChangeNotifier {
     if (_isHudTimerRunning) {
       return;
     }
+    _resetAutoTimerFlightStateForNewRun();
     _isHudTimerRunning = true;
     _hudTimer?.cancel();
     _hudTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -504,6 +547,7 @@ class MapProvider extends ChangeNotifier {
     _hudTimer?.cancel();
     _hudTimer = null;
     _hudElapsed = Duration.zero;
+    _resetAutoTimerRuntimeState();
     notifyListeners();
   }
 
@@ -547,6 +591,95 @@ class MapProvider extends ChangeNotifier {
     _isAircraftMoving = false;
     _lastMovementSamplePosition = null;
     _lastMovementSampleAt = null;
+    _resetAutoTimerRuntimeState();
+  }
+
+  void _handleAutoHudTimer({
+    required HomeFlightData flightData,
+    required MapAircraftState aircraftState,
+    required bool isMoving,
+    required DateTime now,
+  }) {
+    final onGround = flightData.onGround ?? false;
+    final parkingBrake = flightData.parkingBrake ?? false;
+    final groundSpeed = aircraftState.groundSpeed ?? 0;
+    final verticalSpeed = (aircraftState.verticalSpeed ?? 0).abs();
+    if (_isHudTimerRunning) {
+      if (!onGround) {
+        _hudTimerAirborneSinceStart = true;
+        _groundStableSince = null;
+      }
+    }
+
+    if (_autoHudTimerEnabled) {
+      if (!_isHudTimerRunning) {
+        var shouldStart = false;
+        switch (_autoTimerStartMode) {
+          case MapAutoTimerStartMode.runwayMovement:
+            final likelyOnRunwayRoll =
+                onGround &&
+                isMoving &&
+                parkingBrake == false &&
+                groundSpeed >= 20;
+            shouldStart = likelyOnRunwayRoll;
+            break;
+          case MapAutoTimerStartMode.pushback:
+            final brakeReleasedNow =
+                _lastAutoParkingBrake == true && parkingBrake == false;
+            shouldStart = onGround && brakeReleasedNow && isMoving;
+            break;
+          case MapAutoTimerStartMode.anyMovement:
+            shouldStart = isMoving;
+            break;
+        }
+        if (shouldStart) {
+          startHudTimer();
+        }
+      } else {
+        var shouldStop = false;
+        switch (_autoTimerStopMode) {
+          case MapAutoTimerStopMode.stableLanding:
+            if (_hudTimerAirborneSinceStart && onGround) {
+              if (groundSpeed <= 30 && verticalSpeed <= 120) {
+                _groundStableSince ??= now;
+              } else {
+                _groundStableSince = null;
+              }
+              final stableForSeconds = _groundStableSince == null
+                  ? 0
+                  : now.difference(_groundStableSince!).inSeconds;
+              shouldStop = stableForSeconds >= 8;
+            }
+            break;
+          case MapAutoTimerStopMode.runwayExitAfterLanding:
+            shouldStop =
+                _hudTimerAirborneSinceStart && onGround && groundSpeed <= 18;
+            break;
+          case MapAutoTimerStopMode.parkingArrival:
+            shouldStop =
+                _hudTimerAirborneSinceStart &&
+                onGround &&
+                parkingBrake &&
+                groundSpeed <= 1.5;
+            break;
+        }
+        if (shouldStop) {
+          pauseHudTimer();
+        }
+      }
+    }
+
+    _lastAutoParkingBrake = parkingBrake;
+  }
+
+  void _resetAutoTimerFlightStateForNewRun() {
+    _hudTimerAirborneSinceStart = false;
+    _groundStableSince = null;
+  }
+
+  void _resetAutoTimerRuntimeState() {
+    _lastAutoParkingBrake = null;
+    _resetAutoTimerFlightStateForNewRun();
   }
 
   List<MapAirportMarker> _buildAirportsFromSnapshot(HomeDataSnapshot snapshot) {
