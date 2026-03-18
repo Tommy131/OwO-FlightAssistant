@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
-import '../../localization/common_localization_keys.dart';
+import '../../localization/home_localization_keys.dart';
 import '../../models/home_models.dart';
 import 'flight_data_widgets.dart';
 
@@ -11,6 +11,8 @@ class SystemStatusPanel extends StatelessWidget {
   const SystemStatusPanel({super.key, required this.data});
 
   @override
+  /// 功能：构建当前组件的界面结构并返回可渲染的控件树。
+  /// 说明：该方法属于组件生命周期关键路径，会直接影响页面稳定性与交互体验。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final showSecondEngine = (data.numEngines ?? 2) > 1;
@@ -56,7 +58,7 @@ class SystemStatusPanel extends StatelessWidget {
               Icon(Icons.dashboard, color: theme.colorScheme.primary, size: 20),
               const SizedBox(width: 8),
               Text(
-                CommonLocalizationKeys.systemTitle.tr(context),
+                HomeLocalizationKeys.systemTitle.tr(context),
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -70,55 +72,55 @@ class SystemStatusPanel extends StatelessWidget {
             children: [
               _buildStatusSection(
                 theme,
-                CommonLocalizationKeys.systemSectionWarning.tr(context),
+                HomeLocalizationKeys.systemSectionWarning.tr(context),
                 [
                   if (data.masterWarning == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemMasterWarning.tr(
+                      label: HomeLocalizationKeys.systemMasterWarning.tr(
                         context,
                       ),
                       color: warningColor,
                     ),
                   if (data.masterCaution == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemMasterCaution.tr(
+                      label: HomeLocalizationKeys.systemMasterCaution.tr(
                         context,
                       ),
                       color: cautionColor,
                     ),
                   if (data.fireWarningEngine1 == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemFireEngine1.tr(
+                      label: HomeLocalizationKeys.systemFireEngine1.tr(
                         context,
                       ),
                       color: fireColor,
                     ),
                   if (data.fireWarningEngine2 == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemFireEngine2.tr(
+                      label: HomeLocalizationKeys.systemFireEngine2.tr(
                         context,
                       ),
                       color: fireColor,
                     ),
                   if (data.fireWarningAPU == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemFireApu.tr(context),
+                      label: HomeLocalizationKeys.systemFireApu.tr(context),
                       color: fireColor,
                     ),
                 ],
               ),
               _buildStatusSection(
                 theme,
-                CommonLocalizationKeys.systemSectionFlightControl.tr(context),
+                HomeLocalizationKeys.systemSectionFlightControl.tr(context),
                 [
                   if (data.onGround == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemOnGround.tr(context),
+                      label: HomeLocalizationKeys.systemOnGround.tr(context),
                       color: onGroundColor,
                     ),
                   if (data.parkingBrake == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemParkingBrake.tr(
+                      label: HomeLocalizationKeys.systemParkingBrake.tr(
                         context,
                       ),
                       color: parkingBrakeColor,
@@ -126,20 +128,24 @@ class SystemStatusPanel extends StatelessWidget {
                   if (data.speedBrake == true &&
                       (data.speedBrakeLabel ?? '').isNotEmpty)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemSpeedBrake
+                      label: HomeLocalizationKeys.systemSpeedBrake
                           .tr(context)
+                          /// 功能：执行replaceAll的核心业务流程。
+                          /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                           .replaceAll('{value}', data.speedBrakeLabel ?? ''),
                       color: speedBrakeColor,
                     ),
                   if (data.spoilersDeployed == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemSpoilers.tr(context),
+                      label: HomeLocalizationKeys.systemSpoilers.tr(context),
                       color: speedBrakeColor,
                     ),
                   if ((data.autoBrakeLabel ?? '').isNotEmpty)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemAutoBrake
+                      label: HomeLocalizationKeys.systemAutoBrake
                           .tr(context)
+                          /// 功能：执行replaceAll的核心业务流程。
+                          /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                           .replaceAll('{value}', data.autoBrakeLabel ?? ''),
                       color: autoBrakeColor,
                     ),
@@ -147,42 +153,44 @@ class SystemStatusPanel extends StatelessWidget {
               ),
               _buildStatusSection(
                 theme,
-                CommonLocalizationKeys.systemSectionGear.tr(context),
+                HomeLocalizationKeys.systemSectionGear.tr(context),
                 [
                   if (data.gearDown == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemGear.tr(context),
+                      label: HomeLocalizationKeys.systemGear.tr(context),
                       color: gearColor,
                     ),
                   if ((data.noseGearDown ?? 0) > 0.05)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemNoseGear.tr(context),
+                      label: HomeLocalizationKeys.systemNoseGear.tr(context),
                       color: gearColor,
                     ),
                   if ((data.leftGearDown ?? 0) > 0.05)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemLeftGear.tr(context),
+                      label: HomeLocalizationKeys.systemLeftGear.tr(context),
                       color: gearColor,
                     ),
                   if ((data.rightGearDown ?? 0) > 0.05)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemRightGear.tr(context),
+                      label: HomeLocalizationKeys.systemRightGear.tr(context),
                       color: gearColor,
                     ),
                 ],
               ),
               _buildStatusSection(
                 theme,
-                CommonLocalizationKeys.systemSectionFlaps.tr(context),
+                HomeLocalizationKeys.systemSectionFlaps.tr(context),
                 [
                   if (data.flapsDeployed == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemFlaps
+                      label: HomeLocalizationKeys.systemFlaps
                           .tr(context)
                           .replaceAll(
                             '{value}',
                             data.flapsLabel ??
                                 (data.flapsAngle != null && data.flapsAngle! > 0
+                                    /// 功能：执行toInt的核心业务流程。
+                                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                                     ? '${data.flapsAngle!.toInt()}°'
                                     : '${((data.flapsDeployRatio ?? 0) * 100).toStringAsFixed(0)}%'),
                           ),
@@ -192,42 +200,42 @@ class SystemStatusPanel extends StatelessWidget {
               ),
               _buildStatusSection(
                 theme,
-                CommonLocalizationKeys.systemSectionPower.tr(context),
+                HomeLocalizationKeys.systemSectionPower.tr(context),
                 [
                   if (data.apuRunning == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemApu.tr(context),
+                      label: HomeLocalizationKeys.systemApu.tr(context),
                       color: apuColor,
                     ),
                   if (!showSecondEngine && data.engine1Running == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemEngineSingle.tr(
+                      label: HomeLocalizationKeys.systemEngineSingle.tr(
                         context,
                       ),
                       color: engineColor,
                     ),
                   if (showSecondEngine && data.engine1Running == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemEngineLeft.tr(
+                      label: HomeLocalizationKeys.systemEngineLeft.tr(
                         context,
                       ),
                       color: engineColor,
                     ),
                   if (showSecondEngine && data.engine2Running == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemEngineRight.tr(
+                      label: HomeLocalizationKeys.systemEngineRight.tr(
                         context,
                       ),
                       color: engineColor,
                     ),
                   if (data.autopilotEngaged == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemAutopilot.tr(context),
+                      label: HomeLocalizationKeys.systemAutopilot.tr(context),
                       color: autopilotColor,
                     ),
                   if (data.autothrottleEngaged == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemAutothrottle.tr(
+                      label: HomeLocalizationKeys.systemAutothrottle.tr(
                         context,
                       ),
                       color: autothrottleColor,
@@ -236,61 +244,61 @@ class SystemStatusPanel extends StatelessWidget {
               ),
               _buildStatusSection(
                 theme,
-                CommonLocalizationKeys.systemSectionLights.tr(context),
+                HomeLocalizationKeys.systemSectionLights.tr(context),
                 [
                   if (data.beacon == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemBeacon.tr(context),
+                      label: HomeLocalizationKeys.systemBeacon.tr(context),
                       color: beaconColor,
                     ),
                   if (data.strobes == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemStrobe.tr(context),
+                      label: HomeLocalizationKeys.systemStrobe.tr(context),
                       color: strobeColor,
                     ),
                   if (data.navLights == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemNavLights.tr(context),
+                      label: HomeLocalizationKeys.systemNavLights.tr(context),
                       color: navLightsColor,
                     ),
                   if (data.logoLights == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemLogoLights.tr(
+                      label: HomeLocalizationKeys.systemLogoLights.tr(
                         context,
                       ),
                       color: logoLightsColor,
                     ),
                   if (data.wingLights == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemWingLights.tr(
+                      label: HomeLocalizationKeys.systemWingLights.tr(
                         context,
                       ),
                       color: wingLightsColor,
                     ),
                   if (data.landingLights == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemLandingLights.tr(
+                      label: HomeLocalizationKeys.systemLandingLights.tr(
                         context,
                       ),
                       color: landingLightsColor,
                     ),
                   if (data.taxiLights == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemTaxiLights.tr(
+                      label: HomeLocalizationKeys.systemTaxiLights.tr(
                         context,
                       ),
                       color: taxiLightsColor,
                     ),
                   if (data.runwayTurnoffLights == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemRunwayTurnoff.tr(
+                      label: HomeLocalizationKeys.systemRunwayTurnoff.tr(
                         context,
                       ),
                       color: runwayTurnoffColor,
                     ),
                   if (data.wheelWellLights == true)
                     StatusBadge(
-                      label: CommonLocalizationKeys.systemWheelWell.tr(context),
+                      label: HomeLocalizationKeys.systemWheelWell.tr(context),
                       color: wheelWellColor,
                     ),
                 ],

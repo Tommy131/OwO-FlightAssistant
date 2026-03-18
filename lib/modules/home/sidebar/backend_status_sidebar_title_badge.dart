@@ -3,14 +3,16 @@ import 'package:provider/provider.dart';
 
 import '../../../core/module_registry/sidebar/sidebar_title_badge.dart';
 import '../../../core/services/localization_service.dart';
-import '../localization/common_localization_keys.dart';
+import '../localization/home_localization_keys.dart';
 import '../providers/home_provider.dart';
 
-class CommonBackendStatusSidebarTitleBadge extends SidebarTitleBadge {
-  CommonBackendStatusSidebarTitleBadge()
-    : super(id: 'common_backend_status_title_badge', priority: 100);
+class HomeBackendStatusSidebarTitleBadge extends SidebarTitleBadge {
+  HomeBackendStatusSidebarTitleBadge()
+    : super(id: 'home_backend_status_title_badge', priority: 100);
 
   @override
+  /// 功能：执行canDisplay的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   bool canDisplay(BuildContext context) {
     return context.watch<HomeProvider?>() != null;
   }
@@ -25,8 +27,8 @@ class CommonBackendStatusSidebarTitleBadge extends SidebarTitleBadge {
         context.watch<HomeProvider?>()?.isBackendReachable ?? false;
     final color = reachable ? const Color(0xFF2E7D32) : theme.colorScheme.error;
     final text = reachable
-        ? CommonLocalizationKeys.backendAvailableLabel.tr(context)
-        : CommonLocalizationKeys.backendUnavailableTitle.tr(context);
+        ? HomeLocalizationKeys.backendAvailableLabel.tr(context)
+        : HomeLocalizationKeys.backendUnavailableTitle.tr(context);
 
     if (isCollapsed) {
       return Tooltip(

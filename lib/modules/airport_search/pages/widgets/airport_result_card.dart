@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
-import '../../../common/pages/widgets/wind_direction_indicator.dart';
+import '../../../home/pages/widgets/wind_direction_indicator.dart';
 import '../../localization/airport_search_localization_keys.dart';
 import '../../models/airport_search_models.dart';
 

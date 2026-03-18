@@ -7,7 +7,7 @@ import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
 import '../../checklist/providers/checklist_provider.dart';
-import '../localization/common_localization_keys.dart';
+import '../localization/home_localization_keys.dart';
 import '../models/home_models.dart';
 import '../providers/home_provider.dart';
 import 'widgets/flight_data_dashboard.dart';
@@ -32,6 +32,10 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    final provider = context.read<HomeProvider>();
+    _handledBackendOutageVersion = provider.backendOutageVersion;
+    /// 功能：执行addPostFrameCallback的核心业务流程。
+    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -46,7 +50,7 @@ class _HomePageState extends State<HomePage> {
       _showConnectionHelpCard = false;
       _glassMaskOpacity = 1;
       setState(() {});
-      _checkBackendAvailability(showDialogWhenUnavailable: true);
+      _checkBackendAvailability(showDialogWhenUnavailable: false);
     });
   }
 
@@ -80,7 +84,13 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  /// 功能：执行_handleGlobalBackendOutage的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _handleGlobalBackendOutage(HomeProvider provider) {
+    if (provider.isBackendReachable) {
+      _handledBackendOutageVersion = provider.backendOutageVersion;
+      return;
+    }
     final outageVersion = provider.backendOutageVersion;
     if (outageVersion <= _handledBackendOutageVersion) {
       return;
@@ -90,6 +100,8 @@ class _HomePageState extends State<HomePage> {
     _showGlassMask = true;
     _showConnectionHelpCard = true;
     _glassMaskOpacity = 1;
+    /// 功能：执行addPostFrameCallback的核心业务流程。
+    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -99,6 +111,8 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  /// 功能：执行_syncMaskWithConnection的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _syncMaskWithConnection(HomeProvider provider) {
     if (!provider.isConnected) {
       return;
@@ -108,6 +122,8 @@ class _HomePageState extends State<HomePage> {
         !_showGlassMask) {
       return;
     }
+    /// 功能：执行addPostFrameCallback的核心业务流程。
+    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -121,18 +137,20 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  /// 功能：执行_showBackendUnavailableDialog的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> _showBackendUnavailableDialog() async {
     if (_backendDialogVisible || !mounted) return;
     _backendDialogVisible = true;
     final shouldOpenSettings = await showAdvancedConfirmDialog(
       context: context,
       style: ConfirmDialogStyle.material,
-      title: CommonLocalizationKeys.backendUnavailableTitle.tr(context),
-      content: CommonLocalizationKeys.backendUnavailableContent.tr(context),
+      title: HomeLocalizationKeys.backendUnavailableTitle.tr(context),
+      content: HomeLocalizationKeys.backendUnavailableContent.tr(context),
       icon: Icons.cloud_off_rounded,
       confirmColor: Theme.of(context).colorScheme.primary,
-      confirmText: CommonLocalizationKeys.goToSettings.tr(context),
-      cancelText: CommonLocalizationKeys.flightNumberDialogCancel.tr(context),
+      confirmText: HomeLocalizationKeys.goToSettings.tr(context),
+      cancelText: HomeLocalizationKeys.flightNumberDialogCancel.tr(context),
     );
     _backendDialogVisible = false;
     if (shouldOpenSettings == true) {
@@ -180,6 +198,8 @@ class _HomePageState extends State<HomePage> {
                     opacity: _glassMaskOpacity,
                     duration: const Duration(milliseconds: 240),
                     curve: Curves.easeOutCubic,
+                    /// 功能：执行onEnd的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     onEnd: () {
                       if (!mounted) {
                         return;
@@ -264,7 +284,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                           const SizedBox(height: AppThemeData.spacingMedium),
                           Text(
-                            CommonLocalizationKeys.homeMaskConnectBackendTitle
+                            HomeLocalizationKeys.homeMaskConnectBackendTitle
                                 .tr(context),
                             textAlign: TextAlign.center,
                             style: theme.textTheme.titleMedium?.copyWith(
@@ -273,7 +293,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                           const SizedBox(height: AppThemeData.spacingSmall),
                           Text(
-                            CommonLocalizationKeys
+                            HomeLocalizationKeys
                                 .homeMaskConnectBackendSubtitle
                                 .tr(context),
                             textAlign: TextAlign.center,
@@ -301,10 +321,10 @@ class _HomePageState extends State<HomePage> {
                                 : const Icon(Icons.refresh_rounded, size: 18),
                             label: Text(
                               _isRetryingBackend
-                                  ? CommonLocalizationKeys
+                                  ? HomeLocalizationKeys
                                         .homeMaskRetryingButton
                                         .tr(context)
-                                  : CommonLocalizationKeys.homeMaskRetryButton
+                                  : HomeLocalizationKeys.homeMaskRetryButton
                                         .tr(context),
                             ),
                           ),
@@ -358,11 +378,11 @@ class WelcomeCard extends StatelessWidget {
     Widget? statusIndicator;
 
     if (!isConnected) {
-      title = CommonLocalizationKeys.welcomeNotConnectedTitle.tr(context);
-      subtitle = CommonLocalizationKeys.welcomeNotConnectedSubtitle.tr(context);
+      title = HomeLocalizationKeys.welcomeNotConnectedTitle.tr(context);
+      subtitle = HomeLocalizationKeys.welcomeNotConnectedSubtitle.tr(context);
     } else if (isPaused) {
-      title = CommonLocalizationKeys.welcomePausedTitle.tr(context);
-      subtitle = CommonLocalizationKeys.welcomePausedSubtitle
+      title = HomeLocalizationKeys.welcomePausedTitle.tr(context);
+      subtitle = HomeLocalizationKeys.welcomePausedSubtitle
           .tr(context)
           .replaceAll('{aircraft}', aircraftTitle ?? '-');
       statusIndicator = Container(
@@ -378,12 +398,14 @@ class WelcomeCard extends StatelessWidget {
         ),
       );
     } else {
-      title = CommonLocalizationKeys.welcomeReadyTitle.tr(context);
+      title = HomeLocalizationKeys.welcomeReadyTitle.tr(context);
       subtitle = aircraftTitle != null
-          ? CommonLocalizationKeys.welcomeReadySubtitle
+          ? HomeLocalizationKeys.welcomeReadySubtitle
                 .tr(context)
+                /// 功能：执行replaceAll的核心业务流程。
+                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                 .replaceAll('{aircraft}', aircraftTitle)
-          : CommonLocalizationKeys.welcomeReadySubtitleWaiting.tr(context);
+          : HomeLocalizationKeys.welcomeReadySubtitleWaiting.tr(context);
       statusIndicator = Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
@@ -449,7 +471,7 @@ class WelcomeCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    CommonLocalizationKeys.welcomeSupportSims.tr(context),
+                    HomeLocalizationKeys.welcomeSupportSims.tr(context),
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.7),
                       fontSize: 12,
@@ -513,7 +535,7 @@ class SimulatorConnectionCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  CommonLocalizationKeys.simTitle.tr(context),
+                  HomeLocalizationKeys.simTitle.tr(context),
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -524,10 +546,12 @@ class SimulatorConnectionCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             isConnected
-                ? CommonLocalizationKeys.simConnected
+                ? HomeLocalizationKeys.simConnected
                       .tr(context)
+                      /// 功能：执行replaceAll的核心业务流程。
+                      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                       .replaceAll('{sim}', _getSimulatorName(simulatorType))
-                : CommonLocalizationKeys.simDisconnected.tr(context),
+                : HomeLocalizationKeys.simDisconnected.tr(context),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: isConnected ? Colors.green : Colors.grey,
             ),
@@ -538,9 +562,11 @@ class SimulatorConnectionCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
+                /// 功能：执行onPressed的核心业务流程。
+                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                 onPressed: () => provider.disconnect(),
                 icon: const Icon(Icons.link_off, size: 16),
-                label: Text(CommonLocalizationKeys.simDisconnect.tr(context)),
+                label: Text(HomeLocalizationKeys.simDisconnect.tr(context)),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.red,
                   side: const BorderSide(color: Colors.red),
@@ -551,6 +577,8 @@ class SimulatorConnectionCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: PopupMenuButton<String>(
+                /// 功能：执行onSelected的核心业务流程。
+                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                 onSelected: (value) {
                   final type = switch (value) {
                     'xplane' => HomeSimulatorType.xplane,
@@ -559,6 +587,8 @@ class SimulatorConnectionCard extends StatelessWidget {
                   };
                   _handleConnect(context, provider, type);
                 },
+                /// 功能：执行itemBuilder的核心业务流程。
+                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                 itemBuilder: (context) => [
                   PopupMenuItem(
                     value: 'xplane',
@@ -567,7 +597,7 @@ class SimulatorConnectionCard extends StatelessWidget {
                         const Icon(Icons.airplanemode_active, size: 18),
                         const SizedBox(width: 8),
                         Text(
-                          CommonLocalizationKeys.simConnectXplane.tr(context),
+                          HomeLocalizationKeys.simConnectXplane.tr(context),
                         ),
                       ],
                     ),
@@ -578,7 +608,7 @@ class SimulatorConnectionCard extends StatelessWidget {
                       children: [
                         const Icon(Icons.flight, size: 18),
                         const SizedBox(width: 8),
-                        Text(CommonLocalizationKeys.simConnectMsfs.tr(context)),
+                        Text(HomeLocalizationKeys.simConnectMsfs.tr(context)),
                       ],
                     ),
                   ),
@@ -586,7 +616,7 @@ class SimulatorConnectionCard extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: null,
                   icon: const Icon(Icons.link, size: 16),
-                  label: Text(CommonLocalizationKeys.simConnect.tr(context)),
+                  label: Text(HomeLocalizationKeys.simConnect.tr(context)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
                     foregroundColor: theme.colorScheme.onPrimary,
@@ -599,6 +629,8 @@ class SimulatorConnectionCard extends StatelessWidget {
     );
   }
 
+  /// 功能：执行_getSimulatorName的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   String _getSimulatorName(HomeSimulatorType type) {
     return switch (type) {
       HomeSimulatorType.xplane => 'X-Plane 11/12',
@@ -618,6 +650,8 @@ class SimulatorConnectionCard extends StatelessWidget {
     showDialog(
       context: context,
       barrierDismissible: false,
+      /// 功能：执行builder的核心业务流程。
+      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
       builder: (context) => Center(
         child: Material(
           color: Colors.transparent,
@@ -636,8 +670,10 @@ class SimulatorConnectionCard extends StatelessWidget {
                 const CircularProgressIndicator(),
                 const SizedBox(height: 20),
                 Text(
-                  CommonLocalizationKeys.simConnectingTitle
+                  HomeLocalizationKeys.simConnectingTitle
                       .tr(context)
+                      /// 功能：执行replaceAll的核心业务流程。
+                      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                       .replaceAll('{sim}', name),
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.bold,
@@ -645,7 +681,7 @@ class SimulatorConnectionCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  CommonLocalizationKeys.simConnectingSubtitle.tr(context),
+                  HomeLocalizationKeys.simConnectingSubtitle.tr(context),
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
@@ -665,13 +701,13 @@ class SimulatorConnectionCard extends StatelessWidget {
       showAdvancedConfirmDialog(
         context: context,
         style: ConfirmDialogStyle.material,
-        title: CommonLocalizationKeys.simConnectFailedTitle.tr(context),
+        title: HomeLocalizationKeys.simConnectFailedTitle.tr(context),
         content:
             provider.errorMessage ??
-            CommonLocalizationKeys.simConnectFailedContent.tr(context),
+            HomeLocalizationKeys.simConnectFailedContent.tr(context),
         icon: Icons.error_outline,
         confirmColor: Colors.red,
-        confirmText: CommonLocalizationKeys.flightNumberDialogConfirm.tr(
+        confirmText: HomeLocalizationKeys.flightNumberDialogConfirm.tr(
           context,
         ),
         cancelText: '',
@@ -711,7 +747,7 @@ class ChecklistPhaseCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  CommonLocalizationKeys.checklistTitle.tr(context),
+                  HomeLocalizationKeys.checklistTitle.tr(context),
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -722,7 +758,7 @@ class ChecklistPhaseCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             showEmpty
-                ? CommonLocalizationKeys.checklistEmpty.tr(context)
+                ? HomeLocalizationKeys.checklistEmpty.tr(context)
                 : phase.labelKey.tr(context),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.primary,
@@ -745,6 +781,8 @@ class ChecklistPhaseCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
+                /// 功能：执行showEmpty的核心业务流程。
+                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                 showEmpty ? '--' : '${(progress * 100).toInt()}%',
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.bold,
@@ -805,7 +843,7 @@ class FlightNumberCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  CommonLocalizationKeys.flightNumberTitle.tr(context),
+                  HomeLocalizationKeys.flightNumberTitle.tr(context),
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.primary,
@@ -815,7 +853,7 @@ class FlightNumberCard extends StatelessWidget {
                 Text(
                   provider.hasFlightNumber
                       ? provider.flightNumber!
-                      : CommonLocalizationKeys.flightNumberEmpty.tr(context),
+                      : HomeLocalizationKeys.flightNumberEmpty.tr(context),
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,
@@ -825,12 +863,14 @@ class FlightNumberCard extends StatelessWidget {
             ),
           ),
           ElevatedButton.icon(
+            /// 功能：执行onPressed的核心业务流程。
+            /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
             onPressed: () => _showEditDialog(context, provider),
             icon: const Icon(Icons.edit_note_rounded, size: 18),
             label: Text(
               provider.hasFlightNumber
-                  ? CommonLocalizationKeys.flightNumberEdit.tr(context)
-                  : CommonLocalizationKeys.flightNumberSet.tr(context),
+                  ? HomeLocalizationKeys.flightNumberEdit.tr(context)
+                  : HomeLocalizationKeys.flightNumberSet.tr(context),
             ),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -853,15 +893,17 @@ class FlightNumberCard extends StatelessWidget {
     if (provider.hasFlightNumber) {
       final confirm = await showAdvancedConfirmDialog(
         context: context,
-        title: CommonLocalizationKeys.flightNumberDialogEditTitle.tr(context),
-        content: CommonLocalizationKeys.flightNumberDialogEditContent
+        title: HomeLocalizationKeys.flightNumberDialogEditTitle.tr(context),
+        content: HomeLocalizationKeys.flightNumberDialogEditContent
             .tr(context)
+            /// 功能：执行replaceAll的核心业务流程。
+            /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
             .replaceAll('{number}', provider.flightNumber ?? ''),
         icon: Icons.info_outline_rounded,
-        confirmText: CommonLocalizationKeys.flightNumberDialogContinue.tr(
+        confirmText: HomeLocalizationKeys.flightNumberDialogContinue.tr(
           context,
         ),
-        cancelText: CommonLocalizationKeys.flightNumberDialogCancel.tr(context),
+        cancelText: HomeLocalizationKeys.flightNumberDialogCancel.tr(context),
       );
       if (confirm != true) return;
     }
@@ -870,11 +912,13 @@ class FlightNumberCard extends StatelessWidget {
 
     final result = await showDialog<String>(
       context: context,
+      /// 功能：执行builder的核心业务流程。
+      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
       builder: (context) {
         final formKey = GlobalKey<FormState>();
         return AlertDialog(
           title: Text(
-            CommonLocalizationKeys.flightNumberDialogTitle.tr(context),
+            HomeLocalizationKeys.flightNumberDialogTitle.tr(context),
           ),
           content: Form(
             key: formKey,
@@ -882,9 +926,9 @@ class FlightNumberCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(CommonLocalizationKeys.flightNumberDialogHint.tr(context)),
+                Text(HomeLocalizationKeys.flightNumberDialogHint.tr(context)),
                 Text(
-                  CommonLocalizationKeys.flightNumberDialogFormat.tr(context),
+                  HomeLocalizationKeys.flightNumberDialogFormat.tr(context),
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 16),
@@ -892,18 +936,22 @@ class FlightNumberCard extends StatelessWidget {
                   controller: controller,
                   autofocus: true,
                   decoration: InputDecoration(
-                    hintText: CommonLocalizationKeys.flightNumberDialogInputHint
+                    hintText: HomeLocalizationKeys.flightNumberDialogInputHint
                         .tr(context),
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.flight_outlined),
                   ),
                   textCapitalization: TextCapitalization.characters,
+                  /// 功能：执行validator的核心业务流程。
+                  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) return null;
                     if (!RegExp(
                       r'^[A-Z]{2,3}\d{1,4}[A-Z]?$',
+                    /// 功能：执行hasMatch的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ).hasMatch(value.trim().toUpperCase())) {
-                      return CommonLocalizationKeys.flightNumberDialogInvalid
+                      return HomeLocalizationKeys.flightNumberDialogInvalid
                           .tr(context);
                     }
                     return null;
@@ -914,19 +962,23 @@ class FlightNumberCard extends StatelessWidget {
           ),
           actions: [
             TextButton(
+              /// 功能：执行onPressed的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
               onPressed: () => Navigator.pop(context),
               child: Text(
-                CommonLocalizationKeys.flightNumberDialogCancel.tr(context),
+                HomeLocalizationKeys.flightNumberDialogCancel.tr(context),
               ),
             ),
             ElevatedButton(
+              /// 功能：执行onPressed的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
               onPressed: () {
                 if (formKey.currentState!.validate()) {
                   Navigator.pop(context, controller.text.trim());
                 }
               },
               child: Text(
-                CommonLocalizationKeys.flightNumberDialogConfirm.tr(context),
+                HomeLocalizationKeys.flightNumberDialogConfirm.tr(context),
               ),
             ),
           ],

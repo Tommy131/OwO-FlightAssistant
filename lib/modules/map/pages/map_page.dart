@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import '../../../core/localization/localization_keys.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/widgets/common/dialog.dart';
+import '../../home/models/home_models.dart';
+import '../../home/providers/home_provider.dart';
 import '../localization/map_localization_keys.dart';
 import '../models/map_models.dart';
 import '../providers/map_provider.dart';
@@ -60,6 +62,7 @@ class _MapPageState extends State<MapPage> {
   Widget build(BuildContext context) {
     return Consumer<MapProvider>(
       builder: (context, provider, child) {
+        final homeProvider = context.watch<HomeProvider>();
         _handleReconnectPrompt(provider);
         final theme = Theme.of(context);
         final size = MediaQuery.sizeOf(context);

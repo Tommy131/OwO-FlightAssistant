@@ -10,12 +10,11 @@ import 'http/http_module.dart';
 import 'map/map_module.dart';
 import 'monitor/monitor_module.dart';
 import 'toolbox/toolbox_module.dart';
-import 'common/common_module.dart';
+import 'home/home_module.dart';
 
 /// 模块集中注册入口
 /// 负责在应用启动时注册所有业务模块，以及处理全局清理逻辑
 class ModulesRegisterEntry {
-  /// 执行所有模块的注册操作
   static void registerAll() {
     final registry = ModuleRegistry();
 
@@ -23,7 +22,7 @@ class ModulesRegisterEntry {
     AboutPage.registerDefaults();
 
     // 1. 注册核心业务模块
-    registry.registerModule(CommonModule());
+    registry.registerModule(HomeModule());
     registry.registerModule(ChecklistModule());
     registry.registerModule(MapModule());
     registry.registerModule(AirportSearchModule());

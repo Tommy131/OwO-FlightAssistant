@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
-import '../../common/providers/home_provider.dart';
+import '../../home/providers/home_provider.dart';
 import '../localization/flight_logs_localization_keys.dart';
 import '../providers/flight_logs_provider.dart';
 import 'flight_log_detail_page.dart';

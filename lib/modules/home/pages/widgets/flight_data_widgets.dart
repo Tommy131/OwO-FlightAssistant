@@ -18,6 +18,8 @@ class DataCard extends StatelessWidget {
   });
 
   @override
+  /// 功能：构建当前组件的界面结构并返回可渲染的控件树。
+  /// 说明：该方法属于组件生命周期关键路径，会直接影响页面稳定性与交互体验。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
@@ -72,6 +74,8 @@ class InfoChip extends StatelessWidget {
   const InfoChip({super.key, required this.label, required this.value});
 
   @override
+  /// 功能：构建当前组件的界面结构并返回可渲染的控件树。
+  /// 说明：该方法属于组件生命周期关键路径，会直接影响页面稳定性与交互体验。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
@@ -109,6 +113,8 @@ class StatusBadge extends StatelessWidget {
   const StatusBadge({super.key, required this.label, required this.color});
 
   @override
+  /// 功能：构建当前组件的界面结构并返回可渲染的控件树。
+  /// 说明：该方法属于组件生命周期关键路径，会直接影响页面稳定性与交互体验。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;

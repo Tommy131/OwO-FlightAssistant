@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import '../../airport_search/models/airport_search_models.dart';
-import '../../common/models/home_models.dart';
+import '../../home/models/home_models.dart';
 import '../../http/http_module.dart';
 import '../localization/map_localization_keys.dart';
 import '../models/map_models.dart';

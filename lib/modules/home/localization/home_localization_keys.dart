@@ -1,4 +1,4 @@
-class CommonLocalizationKeys {
+class HomeLocalizationKeys {
   static const String homeTitle = 'home.nav.title';
   static const String welcomeNotConnectedTitle = 'home.welcome.not_connected';
   static const String welcomeNotConnectedSubtitle =
@@ -98,8 +98,11 @@ class CommonLocalizationKeys {
   static const String navCom1 = 'home.dashboard.nav.com1';
   static const String navDestination = 'home.dashboard.nav.destination';
   static const String navAlternate = 'home.dashboard.nav.alternate';
+  static const String navSetDeparture = 'home.dashboard.nav.set_departure';
   static const String navSetDestination = 'home.dashboard.nav.set_destination';
   static const String navSetAlternate = 'home.dashboard.nav.set_alternate';
+  static const String navPickDepartureTitle =
+      'home.dashboard.nav.pick_departure_title';
   static const String navPickDestinationTitle =
       'home.dashboard.nav.pick_destination_title';
   static const String navPickAlternateTitle =
@@ -186,4 +189,30 @@ class CommonLocalizationKeys {
 
   static const String searchHint = 'home.search.hint';
   static const String searchEmpty = 'home.search.empty';
+  static const String miniStageGround = 'home.mini.stage.ground';
+  static const String miniStageClimb = 'home.mini.stage.climb';
+  static const String miniStageCruise = 'home.mini.stage.cruise';
+  static const String miniStageDescent = 'home.mini.stage.descent';
+  static const String miniStageApproach = 'home.mini.stage.approach';
+  static const String miniWeatherUnknown = 'home.mini.weather.unknown';
+  static const String miniWeatherThunderstorm =
+      'home.mini.weather.thunderstorm';
+  static const String miniWeatherHeavyRain = 'home.mini.weather.heavy_rain';
+  static const String miniWeatherRain = 'home.mini.weather.rain';
+  static const String miniWeatherSnow = 'home.mini.weather.snow';
+  static const String miniWeatherLowVisibility =
+      'home.mini.weather.low_visibility';
+  static const String miniWeatherOvercast = 'home.mini.weather.overcast';
+  static const String miniWeatherExcellent = 'home.mini.weather.excellent';
+  static const String miniWeatherNormal = 'home.mini.weather.normal';
+  static const String miniNearbyAirport = 'home.mini.nearby_airport';
+  static const String miniLabelPhase = 'home.mini.label.phase';
+  static const String miniLabelAirport = 'home.mini.label.airport';
+  static const String miniLabelCurrentAirport = 'home.mini.label.current_airport';
+  static const String miniLabelNearbyAirport = 'home.mini.label.nearby_airport';
+  static const String miniLabelWeather = 'home.mini.label.weather';
+  static const String miniLabelVisibility = 'home.mini.label.visibility';
+  static const String miniLabelDistance = 'home.mini.label.distance';
+  static const String miniLabelEta = 'home.mini.label.eta';
+  static const String miniRecording = 'home.mini.recording';
 }

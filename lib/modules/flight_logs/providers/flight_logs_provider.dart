@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../common/models/home_models.dart';
+import '../../home/models/home_models.dart';
 import '../models/flight_log_models.dart';
 
 abstract class FlightLogsAdapter {

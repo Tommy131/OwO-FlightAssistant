@@ -18,6 +18,7 @@ abstract class HomeDataAdapter {
   Future<int> getFlightDataIntervalMs();
   Future<void> setFlightDataIntervalMs(int milliseconds);
   Future<void> setFlightNumber(String? value);
+  Future<void> setDeparture(HomeAirportInfo? airport);
   Future<void> setDestination(HomeAirportInfo? airport);
   Future<void> setAlternate(HomeAirportInfo? airport);
   Future<List<HomeAirportInfo>> searchAirports(String keyword);
@@ -25,6 +26,8 @@ abstract class HomeDataAdapter {
 }
 
 class HomeProvider extends ChangeNotifier {
+  /// 功能：执行HomeProvider的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   HomeProvider({HomeDataAdapter? adapter}) : _adapter = adapter {
     _subscribeAdapter();
     unawaited(refreshBackendHealth());
@@ -51,79 +54,113 @@ class HomeProvider extends ChangeNotifier {
   HomeChecklistPhase? get checklistPhase => _snapshot.checklistPhase;
   double get checklistProgress => _snapshot.checklistProgress ?? 0;
   HomeFlightData get flightData => _snapshot.flightData;
+  HomeAirportInfo? get departureAirport => _snapshot.departureAirport;
   HomeAirportInfo? get destinationAirport => _snapshot.destinationAirport;
   HomeAirportInfo? get alternateAirport => _snapshot.alternateAirport;
   HomeAirportInfo? get nearestAirport => _snapshot.nearestAirport;
   List<HomeAirportInfo> get suggestedAirports => _snapshot.suggestedAirports;
   Map<String, HomeMetarData> get metarsByIcao => _snapshot.metarsByIcao;
   Map<String, String> get metarErrorsByIcao => _snapshot.metarErrorsByIcao;
+  Set<String> get metarRefreshingIcaos => _snapshot.metarRefreshingIcaos;
 
+  /// 功能：执行attachAdapter的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void attachAdapter(HomeDataAdapter? adapter) {
     _adapter = adapter;
     _subscribeAdapter();
     unawaited(refreshBackendHealth());
   }
 
+  /// 功能：执行connect的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<bool> connect(HomeSimulatorType type) async {
     final adapter = _adapter;
     if (adapter == null) return false;
     return adapter.connect(type);
   }
 
+  /// 功能：执行disconnect的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> disconnect() async {
     final adapter = _adapter;
     if (adapter == null) return;
     await adapter.disconnect();
   }
 
+  /// 功能：执行refreshBackendHealth的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<bool> refreshBackendHealth() async {
     final adapter = _adapter;
     if (adapter == null) return false;
     return adapter.refreshBackendHealth();
   }
 
+  /// 功能：执行getFlightDataIntervalMs的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<int> getFlightDataIntervalMs() async {
     final adapter = _adapter;
     if (adapter == null) return MiddlewareHomeDataAdapter.defaultPollIntervalMs;
     return adapter.getFlightDataIntervalMs();
   }
 
+  /// 功能：执行setFlightDataIntervalMs的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> setFlightDataIntervalMs(int milliseconds) async {
     final adapter = _adapter;
     if (adapter == null) return;
     await adapter.setFlightDataIntervalMs(milliseconds);
   }
 
+  /// 功能：执行setFlightNumber的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> setFlightNumber(String? value) async {
     final adapter = _adapter;
     if (adapter == null) return;
     await adapter.setFlightNumber(value);
   }
 
+  /// 功能：执行setDeparture的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+  Future<void> setDeparture(HomeAirportInfo? airport) async {
+    final adapter = _adapter;
+    if (adapter == null) return;
+    await adapter.setDeparture(airport);
+  }
+
+  /// 功能：执行setDestination的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> setDestination(HomeAirportInfo? airport) async {
     final adapter = _adapter;
     if (adapter == null) return;
     await adapter.setDestination(airport);
   }
 
+  /// 功能：执行setAlternate的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> setAlternate(HomeAirportInfo? airport) async {
     final adapter = _adapter;
     if (adapter == null) return;
     await adapter.setAlternate(airport);
   }
 
+  /// 功能：执行searchAirports的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<List<HomeAirportInfo>> searchAirports(String keyword) async {
     final adapter = _adapter;
     if (adapter == null) return [];
     return adapter.searchAirports(keyword);
   }
 
+  /// 功能：执行refreshMetar的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> refreshMetar(HomeAirportInfo airport) async {
     final adapter = _adapter;
     if (adapter == null) return;
     await adapter.refreshMetar(airport);
   }
 
+  /// 功能：执行_subscribeAdapter的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _subscribeAdapter() {
     _subscription?.cancel();
     final adapter = _adapter;
@@ -178,6 +215,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   HomeChecklistPhase? _checklistPhase;
   double? _checklistProgress;
   HomeFlightData _flightData = const HomeFlightData();
+  HomeAirportInfo? _departureAirport;
   HomeAirportInfo? _destinationAirport;
   HomeAirportInfo? _alternateAirport;
   HomeAirportInfo? _nearestAirport;
@@ -282,6 +320,20 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   }
 
   @override
+  Future<void> setDeparture(HomeAirportInfo? airport) async {
+    if (airport == null) {
+      _departureAirport = null;
+      _emitSnapshot();
+      return;
+    }
+    final target = _withBestCoordinates(await _resolveAirportTarget(airport));
+    _departureAirport = target;
+    _addToSuggestions(target);
+    await refreshMetar(target);
+    _emitSnapshot();
+  }
+
+  @override
   Future<void> setDestination(HomeAirportInfo? airport) async {
     if (airport == null) {
       _destinationAirport = null;
@@ -343,6 +395,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     if (icao.isEmpty) return;
     if (_metarRefreshingIcaos.contains(icao)) return;
     _metarRefreshingIcaos.add(icao);
+    _emitSnapshot();
     try {
       await _httpService.init();
       final response = await _httpService.getMetarByIcao(icao);
@@ -385,6 +438,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       _emitSnapshot();
     } finally {
       _metarRefreshingIcaos.remove(icao);
+      _emitSnapshot();
     }
   }
 
@@ -396,6 +450,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _controller.close();
   }
 
+  /// 功能：执行_checkBackendHealth的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<bool> _checkBackendHealth() async {
     if (_isDisposed) return false;
     final inFlightTask = _checkingBackendHealthTask;
@@ -413,6 +469,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     }
   }
 
+  /// 功能：执行_performBackendHealthCheck的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<bool> _performBackendHealthCheck() async {
     try {
       await _httpService.init();
@@ -450,6 +508,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     }
   }
 
+  /// 功能：执行_updateBackendHealth的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _updateBackendHealth(bool reachable) {
     if (reachable) {
       _lastBackendReachableAt = DateTime.now();
@@ -463,6 +523,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _emitSnapshot();
   }
 
+  /// 功能：执行_startBackendHealthMonitor的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _startBackendHealthMonitor() {
     _backendHealthMonitorTimer?.cancel();
     _backendHealthMonitorTimer = Timer.periodic(_backendMonitorInterval, (_) {
@@ -470,12 +532,16 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     });
   }
 
+  /// 功能：执行_stopBackendHealthMonitor的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _stopBackendHealthMonitor() {
     _backendHealthMonitorTimer?.cancel();
     _backendHealthMonitorTimer = null;
     _isMonitorChecking = false;
   }
 
+  /// 功能：执行_monitorBackendHealth的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> _monitorBackendHealth() async {
     if (_isDisposed || _isBackendDisconnectHandled || _isMonitorChecking) {
       return;
@@ -507,6 +573,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     }
   }
 
+  /// 功能：执行_startRealtimeUpdates的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> _startRealtimeUpdates(String token) async {
     final connected = await _connectWebSocket(token);
     if (!connected) {
@@ -514,6 +582,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     }
   }
 
+  /// 功能：执行_connectWebSocket的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<bool> _connectWebSocket(String token) async {
     try {
       final wsUri = await _httpService.resolveSimulatorWebSocketUri(
@@ -527,9 +597,13 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
         (event) {
           _handleWebSocketEvent(event);
         },
+        /// 功能：执行onError的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         onError: (_) {
           _handleWebSocketClosed();
         },
+        /// 功能：执行onDone的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         onDone: () {
           _handleWebSocketClosed();
         },
@@ -542,6 +616,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     }
   }
 
+  /// 功能：执行_handleWebSocketEvent的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _handleWebSocketEvent(dynamic event) {
     if (event is! String) {
       return;
@@ -560,12 +636,16 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     } catch (_) {}
   }
 
+  /// 功能：执行_handleWebSocketClosed的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _handleWebSocketClosed() {
     if (_token != null && _token!.isNotEmpty && !_isDisposed) {
       _startPolling();
     }
   }
 
+  /// 功能：执行_closeWebSocket的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> _closeWebSocket() async {
     await _wsSubscription?.cancel();
     _wsSubscription = null;
@@ -573,6 +653,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _wsChannel = null;
   }
 
+  /// 功能：执行_startPolling的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _startPolling() {
     _stopPolling();
     final interval = Duration(milliseconds: _pollIntervalMs);
@@ -581,11 +663,15 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     });
   }
 
+  /// 功能：执行_stopPolling的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
   }
 
+  /// 功能：执行_pollData的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> _pollData() async {
     if (_isPolling) return;
     final token = _token;
@@ -612,6 +698,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     }
   }
 
+  /// 功能：执行_airportFromSuggestion的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   HomeAirportInfo _airportFromSuggestion(Map<String, dynamic> raw) {
     final icao = _pickString(raw, const ['icao', 'ICAO'])?.toUpperCase() ?? '';
     final iata = _pickString(raw, const ['iata', 'IATA']) ?? '';
@@ -629,6 +717,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     );
   }
 
+  /// 功能：执行_applySimulatorResponseBody的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _applySimulatorResponseBody(Map<String, dynamic> body) {
     final clientDataset = body['client_dataset'];
     final rawDataset = body['raw_dataset'];
@@ -662,6 +752,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _emitSnapshot();
   }
 
+  /// 功能：执行_ensureCurrentAirportMetar的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _ensureCurrentAirportMetar() {
     if (!_isConnected) return;
     final airport = _nearestAirport;
@@ -672,11 +764,15 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     final now = DateTime.now();
     final metar = _metarsByIcao[icao];
     if (metar != null &&
+        /// 功能：执行difference的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         now.difference(metar.timestamp) <= const Duration(minutes: 15)) {
       return;
     }
     final lastAutoFetch = _metarLastAutoFetchAt[icao];
     if (lastAutoFetch != null &&
+        /// 功能：执行difference的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         now.difference(lastAutoFetch) <= const Duration(minutes: 2)) {
       return;
     }
@@ -684,6 +780,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     unawaited(refreshMetar(airport));
   }
 
+  /// 功能：执行_flightDataFromDataset的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   HomeFlightData _flightDataFromDataset(Map<String, dynamic> dataset) {
     return HomeFlightData(
       airspeed: _toDouble(dataset['ias_kt'] ?? dataset['airspeed_kt']),
@@ -786,9 +884,14 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       aircraftModel: dataset['aircraft_model']?.toString(),
       aircraftIcao: dataset['aircraft_icao']?.toString(),
       aircraftDisplayName: dataset['aircraft_display_name']?.toString(),
+      flightPhase: _pickString(dataset, const ['flight_phase']),
+      flightAlertLevel: _pickString(dataset, const ['flight_alert_level']),
+      flightAlerts: _parseFlightAlerts(dataset['flight_alerts']),
     );
   }
 
+  /// 功能：执行_airportFromNearestAirport的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   HomeAirportInfo? _airportFromNearestAirport(Map<String, dynamic> raw) {
     final icao = raw['icao']?.toString().trim().toUpperCase() ?? '';
     if (icao.isEmpty) {
@@ -805,6 +908,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     );
   }
 
+  /// 功能：执行_addToSuggestions的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _addToSuggestions(HomeAirportInfo airport) {
     final next = <HomeAirportInfo>[airport];
     for (final item in _suggestedAirports) {
@@ -817,6 +922,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _suggestedAirports = next;
   }
 
+  /// 功能：执行_resolveAirportTarget的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<HomeAirportInfo> _resolveAirportTarget(HomeAirportInfo airport) async {
     final normalizedIcao = airport.icaoCode.trim().toUpperCase();
     if (normalizedIcao.isEmpty) {
@@ -877,6 +984,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     }
   }
 
+  /// 功能：执行_withBestCoordinates的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   HomeAirportInfo _withBestCoordinates(HomeAirportInfo airport) {
     if (airport.latitude != 0 && airport.longitude != 0) {
       return airport;
@@ -887,6 +996,7 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     }
     final candidates = <HomeAirportInfo?>[
       _nearestAirport,
+      _departureAirport,
       _destinationAirport,
       _alternateAirport,
       ..._suggestedAirports,
@@ -907,6 +1017,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return airport;
   }
 
+  /// 功能：执行_updateFuelSufficiency的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _updateFuelSufficiency() {
     final fuelQuantity = _flightData.fuelQuantity;
     final destination = _destinationAirport == null
@@ -979,6 +1091,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   double _atan2(double y, double x) => math.atan2(y, x);
   double _pow2(double value) => value * value;
 
+  /// 功能：执行_emitSnapshot的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _emitSnapshot() {
     if (_isDisposed || _controller.isClosed) return;
     _controller.add(
@@ -997,16 +1111,20 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
         checklistPhase: _checklistPhase,
         checklistProgress: _checklistProgress,
         flightData: _flightData,
+        departureAirport: _departureAirport,
         destinationAirport: _destinationAirport,
         alternateAirport: _alternateAirport,
         nearestAirport: _nearestAirport,
         suggestedAirports: _suggestedAirports,
         metarsByIcao: Map<String, HomeMetarData>.from(_metarsByIcao),
         metarErrorsByIcao: Map<String, String>.from(_metarErrorsByIcao),
+        metarRefreshingIcaos: Set<String>.from(_metarRefreshingIcaos),
       ),
     );
   }
 
+  /// 功能：执行_loadPollIntervalFromStorage的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Future<void> _loadPollIntervalFromStorage() async {
     final persistence = PersistenceService();
     if (!persistence.isInitialized) {
@@ -1020,6 +1138,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     _pollIntervalMs = _sanitizePollIntervalMs(stored);
   }
 
+  /// 功能：执行_sanitizePollIntervalMs的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   static int _sanitizePollIntervalMs(int value) {
     if (value < minPollIntervalMs) {
       return minPollIntervalMs;
@@ -1030,6 +1150,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return value;
   }
 
+  /// 功能：执行_toSimulatorApiType的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   String? _toSimulatorApiType(HomeSimulatorType type) {
     return switch (type) {
       HomeSimulatorType.xplane => 'xplane',
@@ -1038,12 +1160,16 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     };
   }
 
+  /// 功能：执行_isConnectionLostError的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   bool _isConnectionLostError(Object error) {
     if (error is! MiddlewareHttpException) return false;
     final status = error.statusCode;
     return status == 401 || status == 409;
   }
 
+  /// 功能：执行_extractErrorMessage的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   String _extractErrorMessage(Object error) {
     if (error is MiddlewareHttpException) {
       final data = error.data;
@@ -1058,11 +1184,15 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return error.toString();
   }
 
+  /// 功能：执行_toDouble的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   double? _toDouble(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '');
   }
 
+  /// 功能：执行_pickString的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   String? _pickString(Map<String, dynamic> map, List<String> keys) {
     for (final key in keys) {
       if (map.containsKey(key)) {
@@ -1081,6 +1211,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return null;
   }
 
+  /// 功能：执行_pickMap的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Map<String, dynamic>? _pickMap(Map<String, dynamic> map, List<String> keys) {
     for (final key in keys) {
       if (map.containsKey(key)) {
@@ -1099,6 +1231,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return null;
   }
 
+  /// 功能：执行_pickDouble的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   double? _pickDouble(Map<String, dynamic> map, List<String> keys) {
     for (final key in keys) {
       if (map.containsKey(key)) {
@@ -1130,6 +1264,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return _normalizeAngleDegrees(raw);
   }
 
+  /// 功能：执行_normalizeAngleDegrees的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   double? _normalizeAngleDegrees(double? value) {
     if (value == null) return null;
     final absValue = value.abs();
@@ -1139,12 +1275,16 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return value;
   }
 
+  /// 功能：执行_toInt的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   int? _toInt(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '');
   }
 
+  /// 功能：执行_toBool的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   bool? _toBool(dynamic value) {
     if (value is bool) return value;
     if (value is num) return value != 0;
@@ -1154,6 +1294,8 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return null;
   }
 
+  /// 功能：执行_toStringDynamicMap的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Map<String, dynamic>? _toStringDynamicMap(dynamic value) {
     if (value is Map<String, dynamic>) {
       return value;
@@ -1164,12 +1306,39 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     return null;
   }
 
+  /// 功能：执行_parseFlightAlerts的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+  List<HomeFlightAlert> _parseFlightAlerts(dynamic value) {
+    if (value is! List) {
+      return const [];
+    }
+    final alerts = <HomeFlightAlert>[];
+    for (final item in value) {
+      final map = _toStringDynamicMap(item);
+      if (map == null) {
+        continue;
+      }
+      final id = _pickString(map, const ['id']) ?? '';
+      final level = _pickString(map, const ['level']) ?? '';
+      final message = _pickString(map, const ['message']) ?? '';
+      if (id.isEmpty && message.isEmpty) {
+        continue;
+      }
+      alerts.add(HomeFlightAlert(id: id, level: level, message: message));
+    }
+    return alerts;
+  }
+
+  /// 功能：执行_buildSpeedBrakeLabel的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   String? _buildSpeedBrakeLabel(Map<String, dynamic> dataset) {
     final ratio = _toDouble(dataset['speed_brake_ratio']);
     if (ratio == null) return null;
     return '${(ratio * 100).toStringAsFixed(0)}%';
   }
 
+  /// 功能：执行_buildFlapsLabel的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   String? _buildFlapsLabel(Map<String, dynamic> dataset) {
     final angle = _toDouble(dataset['flaps_angle_deg']);
     if (angle != null) {

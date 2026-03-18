@@ -4,7 +4,7 @@ import '../../core/module_registry/module_registrar.dart';
 import '../../core/module_registry/module_registry.dart';
 import '../../core/module_registry/navigation/navigation_item.dart';
 import '../../core/services/localization_service.dart';
-import '../common/providers/home_provider.dart';
+import '../home/providers/home_provider.dart';
 import 'localization/checklist_localization_keys.dart';
 import 'localization/checklist_translations.dart';
 import 'pages/checklist_page.dart';
@@ -36,6 +36,7 @@ class ChecklistModule implements ModuleRegistrar {
             flightData.aircraftId,
           ].whereType<String>().where((e) => e.trim().isNotEmpty).join(' ');
           provider.updateAircraftByIdentifier(identifier);
+          provider.syncWithFlightData(flightData);
           return provider;
         },
       ),

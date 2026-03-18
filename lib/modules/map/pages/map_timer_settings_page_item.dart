@@ -6,7 +6,7 @@ import '../../../core/module_registry/settings_page/settings_page_item.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/snack_bar.dart';
-import '../../common/providers/home_provider.dart';
+import '../../home/providers/home_provider.dart';
 import '../localization/map_localization_keys.dart';
 import '../models/map_models.dart';
 import '../providers/map_provider.dart';

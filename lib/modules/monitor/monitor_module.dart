@@ -4,7 +4,7 @@ import '../../core/module_registry/module_registrar.dart';
 import '../../core/module_registry/module_registry.dart';
 import '../../core/module_registry/navigation/navigation_item.dart';
 import '../../core/services/localization_service.dart';
-import '../common/providers/home_provider.dart';
+import '../home/providers/home_provider.dart';
 import 'localization/monitor_localization_keys.dart';
 import 'localization/monitor_translations.dart';
 import 'pages/monitor_page.dart';

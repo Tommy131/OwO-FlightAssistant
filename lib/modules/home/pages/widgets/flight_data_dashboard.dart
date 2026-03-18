@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
-import '../../localization/common_localization_keys.dart';
+import '../../localization/home_localization_keys.dart';
 import '../../models/home_models.dart';
 import '../../providers/home_provider.dart';
 import 'airport_search_bar.dart';
@@ -18,6 +18,8 @@ class FlightDataDashboard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Consumer<HomeProvider>(
+      /// 功能：执行builder的核心业务流程。
+      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
       builder: (context, provider, _) {
         if (!provider.isConnected) {
           return _buildNoConnectionPlaceholder(context, theme);
@@ -29,7 +31,7 @@ class FlightDataDashboard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              CommonLocalizationKeys.dashboardTitle.tr(context),
+              HomeLocalizationKeys.dashboardTitle.tr(context),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -52,6 +54,8 @@ class FlightDataDashboard extends StatelessWidget {
     );
   }
 
+  /// 功能：执行_buildNoConnectionPlaceholder的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Widget _buildNoConnectionPlaceholder(BuildContext context, ThemeData theme) {
     return Container(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge * 2),
@@ -71,14 +75,14 @@ class FlightDataDashboard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              CommonLocalizationKeys.dashboardNoConnectionTitle.tr(context),
+              HomeLocalizationKeys.dashboardNoConnectionTitle.tr(context),
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.colorScheme.outline,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              CommonLocalizationKeys.dashboardNoConnectionSubtitle.tr(context),
+              HomeLocalizationKeys.dashboardNoConnectionSubtitle.tr(context),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.outline.withValues(alpha: 0.7),
               ),
@@ -97,10 +101,10 @@ class FlightDataDashboard extends StatelessWidget {
     final isFuelOk = context.watch<HomeProvider>().isFuelSufficient;
 
     final fuelStatusLabel = isFuelOk == null
-        ? CommonLocalizationKeys.primaryFuelUnknown.tr(context)
+        ? HomeLocalizationKeys.primaryFuelUnknown.tr(context)
         : isFuelOk
-        ? CommonLocalizationKeys.primaryFuelOk.tr(context)
-        : CommonLocalizationKeys.primaryFuelLow.tr(context);
+        ? HomeLocalizationKeys.primaryFuelOk.tr(context)
+        : HomeLocalizationKeys.primaryFuelLow.tr(context);
     final fuelColor = isFuelOk == null
         ? Colors.grey
         : isFuelOk
@@ -117,42 +121,52 @@ class FlightDataDashboard extends StatelessWidget {
       children: [
         DataCard(
           icon: Icons.speed,
-          label: CommonLocalizationKeys.primaryAirspeed.tr(context),
+          label: HomeLocalizationKeys.primaryAirspeed.tr(context),
           value: data.airspeed != null
+              /// 功能：执行toStringAsFixed的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
               ? '${data.airspeed!.toStringAsFixed(0)} kt'
               : 'N/A',
           subValue: data.machNumber != null && data.machNumber! > 0.1
+              /// 功能：执行toStringAsFixed的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
               ? 'M ${data.machNumber!.toStringAsFixed(3)}'
               : null,
           color: Colors.blue,
         ),
         DataCard(
           icon: Icons.height,
-          label: CommonLocalizationKeys.primaryAltitude.tr(context),
+          label: HomeLocalizationKeys.primaryAltitude.tr(context),
           value: data.altitude != null
+              /// 功能：执行toStringAsFixed的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
               ? '${data.altitude!.toStringAsFixed(0)} ft'
               : 'N/A',
           color: Colors.green,
         ),
         DataCard(
           icon: Icons.explore,
-          label: CommonLocalizationKeys.primaryHeading.tr(context),
+          label: HomeLocalizationKeys.primaryHeading.tr(context),
           value: data.heading != null
+              /// 功能：执行toStringAsFixed的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
               ? '${data.heading!.toStringAsFixed(0)}°'
               : 'N/A',
           color: Colors.purple,
         ),
         DataCard(
           icon: Icons.trending_up,
-          label: CommonLocalizationKeys.primaryVerticalSpeed.tr(context),
+          label: HomeLocalizationKeys.primaryVerticalSpeed.tr(context),
           value: data.verticalSpeed != null
+              /// 功能：执行toStringAsFixed的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
               ? '${data.verticalSpeed!.toStringAsFixed(0)} fpm'
               : 'N/A',
           color: Colors.orange,
         ),
         DataCard(
           icon: Icons.local_gas_station,
-          label: CommonLocalizationKeys.primaryFuelStatus.tr(context),
+          label: HomeLocalizationKeys.primaryFuelStatus.tr(context),
           value: fuelStatusLabel,
           color: fuelColor,
         ),
@@ -180,7 +194,7 @@ class FlightDataDashboard extends StatelessWidget {
               Icon(Icons.map, color: theme.colorScheme.primary, size: 20),
               const SizedBox(width: 8),
               Text(
-                CommonLocalizationKeys.navTitle.tr(context),
+                HomeLocalizationKeys.navTitle.tr(context),
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -193,52 +207,56 @@ class FlightDataDashboard extends StatelessWidget {
             runSpacing: 12,
             children: [
               InfoChip(
-                label: CommonLocalizationKeys.navGroundSpeed.tr(context),
+                label: HomeLocalizationKeys.navGroundSpeed.tr(context),
                 value: data.groundSpeed != null
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.groundSpeed!.toStringAsFixed(0)} kt'
                     : 'N/A',
               ),
               InfoChip(
-                label: CommonLocalizationKeys.navTrueAirspeed.tr(context),
+                label: HomeLocalizationKeys.navTrueAirspeed.tr(context),
                 value: data.trueAirspeed != null
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.trueAirspeed!.toStringAsFixed(0)} kt'
                     : 'N/A',
               ),
               InfoChip(
-                label: CommonLocalizationKeys.navLatitude.tr(context),
+                label: HomeLocalizationKeys.navLatitude.tr(context),
                 value: data.latitude != null
                     ? data.latitude!.toStringAsFixed(4)
                     : 'N/A',
               ),
               InfoChip(
-                label: CommonLocalizationKeys.navLongitude.tr(context),
+                label: HomeLocalizationKeys.navLongitude.tr(context),
                 value: data.longitude != null
                     ? data.longitude!.toStringAsFixed(4)
                     : 'N/A',
               ),
               if ((data.aircraftDisplayName ?? '').trim().isNotEmpty)
                 InfoChip(
-                  label: CommonLocalizationKeys.navAircraft.tr(context),
+                  label: HomeLocalizationKeys.navAircraft.tr(context),
                   value: data.aircraftDisplayName!,
                 )
               else if ((data.aircraftModel ?? '').trim().isNotEmpty)
                 InfoChip(
-                  label: CommonLocalizationKeys.navAircraft.tr(context),
+                  label: HomeLocalizationKeys.navAircraft.tr(context),
                   value: data.aircraftModel!,
                 ),
               if ((data.aircraftIcao ?? '').trim().isNotEmpty)
                 InfoChip(
-                  label: CommonLocalizationKeys.navAircraftIcao.tr(context),
+                  label: HomeLocalizationKeys.navAircraftIcao.tr(context),
                   value: data.aircraftIcao!,
                 ),
               if (data.departureAirport != null)
                 InfoChip(
-                  label: CommonLocalizationKeys.navDeparture.tr(context),
+                  label: HomeLocalizationKeys.navDeparture.tr(context),
                   value: data.departureAirport!,
                 ),
               if (data.arrivalAirport != null)
                 InfoChip(
-                  label: CommonLocalizationKeys.navArrival.tr(context),
+                  label: HomeLocalizationKeys.navArrival.tr(context),
                   value: data.arrivalAirport!,
                 ),
             ],
@@ -253,7 +271,9 @@ class FlightDataDashboard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                '${CommonLocalizationKeys.navCom1.tr(context)}:',
+                /// 功能：执行tr的核心业务流程。
+                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+                '${HomeLocalizationKeys.navCom1.tr(context)}:',
                 style: theme.textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -261,6 +281,8 @@ class FlightDataDashboard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 data.com1Frequency != null
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.com1Frequency!.toStringAsFixed(2)} MHz'
                     : 'N/A',
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -276,8 +298,11 @@ class FlightDataDashboard extends StatelessWidget {
     );
   }
 
+  /// 功能：执行_buildAirportPickers的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Widget _buildAirportPickers(BuildContext context) {
     final provider = context.watch<HomeProvider>();
+    final dep = provider.departureAirport;
     final dest = provider.destinationAirport;
     final alt = provider.alternateAirport;
 
@@ -286,10 +311,31 @@ class FlightDataDashboard extends StatelessWidget {
       children: [
         _buildPickerButton(
           context,
+          label: dep != null
+              /// 功能：执行tr的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+              ? '${HomeLocalizationKeys.navDeparture.tr(context)}: ${dep.icaoCode}'
+              : HomeLocalizationKeys.navSetDeparture.tr(context),
+          icon: dep != null ? Icons.flight_takeoff : Icons.add_location_alt,
+          /// 功能：执行onPressed的核心业务流程。
+          /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+          onPressed: () => _showAirportPickerDialog(
+            context,
+            isDeparture: true,
+            isAlternate: false,
+          ),
+        ),
+        const SizedBox(width: 8),
+        _buildPickerButton(
+          context,
           label: dest != null
-              ? '${CommonLocalizationKeys.navDestination.tr(context)}: ${dest.icaoCode}'
-              : CommonLocalizationKeys.navSetDestination.tr(context),
+              /// 功能：执行tr的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+              ? '${HomeLocalizationKeys.navDestination.tr(context)}: ${dest.icaoCode}'
+              : HomeLocalizationKeys.navSetDestination.tr(context),
           icon: dest != null ? Icons.location_on : Icons.add_location,
+          /// 功能：执行onPressed的核心业务流程。
+          /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
           onPressed: () =>
               _showAirportPickerDialog(context, isAlternate: false),
         ),
@@ -297,9 +343,13 @@ class FlightDataDashboard extends StatelessWidget {
         _buildPickerButton(
           context,
           label: alt != null
-              ? '${CommonLocalizationKeys.navAlternate.tr(context)}: ${alt.icaoCode}'
-              : CommonLocalizationKeys.navSetAlternate.tr(context),
+              /// 功能：执行tr的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+              ? '${HomeLocalizationKeys.navAlternate.tr(context)}: ${alt.icaoCode}'
+              : HomeLocalizationKeys.navSetAlternate.tr(context),
           icon: alt != null ? Icons.alt_route : Icons.add_road,
+          /// 功能：执行onPressed的核心业务流程。
+          /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
           onPressed: () => _showAirportPickerDialog(context, isAlternate: true),
         ),
       ],
@@ -325,17 +375,24 @@ class FlightDataDashboard extends StatelessWidget {
 
   void _showAirportPickerDialog(
     BuildContext context, {
-    required bool isAlternate,
+    bool isDeparture = false,
+    bool isAlternate = false,
   }) {
     final provider = context.read<HomeProvider>();
     showDialog(
       context: context,
+      /// 功能：执行builder的核心业务流程。
+      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
       builder: (context) {
         return AlertDialog(
           title: Text(
-            isAlternate
-                ? CommonLocalizationKeys.navPickAlternateTitle.tr(context)
-                : CommonLocalizationKeys.navPickDestinationTitle.tr(context),
+            isDeparture
+                ? HomeLocalizationKeys.navPickDepartureTitle.tr(context)
+                : (isAlternate
+                      ? HomeLocalizationKeys.navPickAlternateTitle.tr(context)
+                      : HomeLocalizationKeys.navPickDestinationTitle.tr(
+                          context,
+                        )),
           ),
           content: SizedBox(
             width: 420,
@@ -344,8 +401,12 @@ class FlightDataDashboard extends StatelessWidget {
               children: [
                 AirportSearchBar(
                   onSearch: provider.searchAirports,
+                  /// 功能：执行onSelect的核心业务流程。
+                  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                   onSelect: (airport) async {
-                    if (isAlternate) {
+                    if (isDeparture) {
+                      await provider.setDeparture(airport);
+                    } else if (isAlternate) {
                       await provider.setAlternate(airport);
                     } else {
                       await provider.setDestination(airport);
@@ -359,19 +420,25 @@ class FlightDataDashboard extends StatelessWidget {
           ),
           actions: [
             TextButton(
+              /// 功能：执行onPressed的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
               onPressed: () async {
-                if (isAlternate) {
+                if (isDeparture) {
+                  await provider.setDeparture(null);
+                } else if (isAlternate) {
                   await provider.setAlternate(null);
                 } else {
                   await provider.setDestination(null);
                 }
                 if (context.mounted) Navigator.pop(context);
               },
-              child: Text(CommonLocalizationKeys.navClearSelection.tr(context)),
+              child: Text(HomeLocalizationKeys.navClearSelection.tr(context)),
             ),
             TextButton(
+              /// 功能：执行onPressed的核心业务流程。
+              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
               onPressed: () => Navigator.pop(context),
-              child: Text(CommonLocalizationKeys.navCancel.tr(context)),
+              child: Text(HomeLocalizationKeys.navCancel.tr(context)),
             ),
           ],
         );
@@ -399,7 +466,7 @@ class FlightDataDashboard extends StatelessWidget {
               Icon(Icons.wb_sunny, color: theme.colorScheme.primary, size: 20),
               const SizedBox(width: 8),
               Text(
-                CommonLocalizationKeys.environmentTitle.tr(context),
+                HomeLocalizationKeys.environmentTitle.tr(context),
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -412,36 +479,46 @@ class FlightDataDashboard extends StatelessWidget {
             runSpacing: 12,
             children: [
               InfoChip(
-                label: CommonLocalizationKeys.environmentOat.tr(context),
+                label: HomeLocalizationKeys.environmentOat.tr(context),
                 value: data.outsideAirTemperature != null
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.outsideAirTemperature!.toStringAsFixed(1)} °C'
                     : 'N/A',
               ),
               InfoChip(
-                label: CommonLocalizationKeys.environmentTat.tr(context),
+                label: HomeLocalizationKeys.environmentTat.tr(context),
                 value: data.totalAirTemperature != null
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.totalAirTemperature!.toStringAsFixed(1)} °C'
                     : 'N/A',
               ),
               InfoChip(
-                label: CommonLocalizationKeys.environmentWind.tr(context),
+                label: HomeLocalizationKeys.environmentWind.tr(context),
                 value: (data.windSpeed != null && data.windDirection != null)
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.windDirection!.toStringAsFixed(0)}° / ${data.windSpeed!.toStringAsFixed(0)} kt'
                     : 'N/A',
               ),
               InfoChip(
-                label: CommonLocalizationKeys.environmentQnh.tr(context),
+                label: HomeLocalizationKeys.environmentQnh.tr(context),
                 value: data.baroPressure != null
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.baroPressure!.toStringAsFixed(2)} ${data.baroPressureUnit ?? "inHg"}'
                     : 'N/A',
               ),
               InfoChip(
-                label: CommonLocalizationKeys.environmentVisibility.tr(context),
+                label: HomeLocalizationKeys.environmentVisibility.tr(context),
                 value: data.visibility != null
                     ? (data.visibility! >= 9999
                           ? '> 10 km'
                           : data.visibility! >= 1000
                           ? '${(data.visibility! / 1000).toStringAsFixed(1)} km'
+                          /// 功能：执行toStringAsFixed的核心业务流程。
+                          /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                           : '${data.visibility!.toStringAsFixed(0)} m')
                     : 'N/A',
               ),
@@ -473,7 +550,7 @@ class FlightDataDashboard extends StatelessWidget {
               Icon(Icons.settings, color: theme.colorScheme.primary, size: 20),
               const SizedBox(width: 8),
               Text(
-                CommonLocalizationKeys.engineTitle.tr(context),
+                HomeLocalizationKeys.engineTitle.tr(context),
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -486,40 +563,52 @@ class FlightDataDashboard extends StatelessWidget {
             runSpacing: 12,
             children: [
               InfoChip(
-                label: CommonLocalizationKeys.engineFob.tr(context),
+                label: HomeLocalizationKeys.engineFob.tr(context),
                 value: data.fuelQuantity != null
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.fuelQuantity!.toStringAsFixed(0)} kg'
                     : 'N/A',
               ),
               InfoChip(
-                label: CommonLocalizationKeys.engineFf.tr(context),
+                label: HomeLocalizationKeys.engineFf.tr(context),
                 value: data.fuelFlow != null
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.fuelFlow!.toStringAsFixed(1)} kg/h'
                     : 'N/A',
               ),
               InfoChip(
-                label: CommonLocalizationKeys.engineEng1N1.tr(context),
+                label: HomeLocalizationKeys.engineEng1N1.tr(context),
                 value: data.engine1N1 != null
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.engine1N1!.toStringAsFixed(1)}%'
                     : 'N/A',
               ),
               if (showSecondEngine)
                 InfoChip(
-                  label: CommonLocalizationKeys.engineEng2N1.tr(context),
+                  label: HomeLocalizationKeys.engineEng2N1.tr(context),
                   value: data.engine2N1 != null
+                      /// 功能：执行toStringAsFixed的核心业务流程。
+                      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                       ? '${data.engine2N1!.toStringAsFixed(1)}%'
                       : 'N/A',
                 ),
               InfoChip(
-                label: CommonLocalizationKeys.engineEng1Egt.tr(context),
+                label: HomeLocalizationKeys.engineEng1Egt.tr(context),
                 value: data.engine1EGT != null
+                    /// 功能：执行toStringAsFixed的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                     ? '${data.engine1EGT!.toStringAsFixed(0)}°C'
                     : 'N/A',
               ),
               if (showSecondEngine)
                 InfoChip(
-                  label: CommonLocalizationKeys.engineEng2Egt.tr(context),
+                  label: HomeLocalizationKeys.engineEng2Egt.tr(context),
                   value: data.engine2EGT != null
+                      /// 功能：执行toStringAsFixed的核心业务流程。
+                      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
                       ? '${data.engine2EGT!.toStringAsFixed(0)}°C'
                       : 'N/A',
                 ),
@@ -530,54 +619,61 @@ class FlightDataDashboard extends StatelessWidget {
     );
   }
 
+  /// 功能：执行_buildWeatherSection的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Widget _buildWeatherSection(BuildContext context, HomeProvider provider) {
     final metars = <String, HomeMetarData>{};
     final errors = <String, String>{};
     final refreshCallbacks = <String, VoidCallback>{};
+    final refreshingStates = <String, bool>{};
 
     final current = provider.nearestAirport;
     if (current != null) {
       final label =
-          '${CommonLocalizationKeys.navDeparture.tr(context)} (${current.icaoCode})';
-      final icao = current.icaoCode;
+          '${HomeLocalizationKeys.navDeparture.tr(context)} (${current.icaoCode})';
+      final icao = current.icaoCode.trim().toUpperCase();
       if (provider.metarsByIcao.containsKey(icao)) {
         metars[label] = provider.metarsByIcao[icao]!;
       } else if (provider.metarErrorsByIcao.containsKey(icao)) {
         errors[label] = provider.metarErrorsByIcao[icao]!;
       }
       refreshCallbacks[label] = () => provider.refreshMetar(current);
+      refreshingStates[label] = provider.metarRefreshingIcaos.contains(icao);
     }
 
     final dest = provider.destinationAirport;
     if (dest != null) {
       final label =
-          '${CommonLocalizationKeys.navDestination.tr(context)} (${dest.icaoCode})';
-      final icao = dest.icaoCode;
+          '${HomeLocalizationKeys.navDestination.tr(context)} (${dest.icaoCode})';
+      final icao = dest.icaoCode.trim().toUpperCase();
       if (provider.metarsByIcao.containsKey(icao)) {
         metars[label] = provider.metarsByIcao[icao]!;
       } else if (provider.metarErrorsByIcao.containsKey(icao)) {
         errors[label] = provider.metarErrorsByIcao[icao]!;
       }
       refreshCallbacks[label] = () => provider.refreshMetar(dest);
+      refreshingStates[label] = provider.metarRefreshingIcaos.contains(icao);
     }
 
     final alt = provider.alternateAirport;
     if (alt != null) {
       final label =
-          '${CommonLocalizationKeys.navAlternate.tr(context)} (${alt.icaoCode})';
-      final icao = alt.icaoCode;
+          '${HomeLocalizationKeys.navAlternate.tr(context)} (${alt.icaoCode})';
+      final icao = alt.icaoCode.trim().toUpperCase();
       if (provider.metarsByIcao.containsKey(icao)) {
         metars[label] = provider.metarsByIcao[icao]!;
       } else if (provider.metarErrorsByIcao.containsKey(icao)) {
         errors[label] = provider.metarErrorsByIcao[icao]!;
       }
       refreshCallbacks[label] = () => provider.refreshMetar(alt);
+      refreshingStates[label] = provider.metarRefreshingIcaos.contains(icao);
     }
 
     return MetarSectionWidget(
       metars: metars,
       errors: errors,
       refreshCallbacks: refreshCallbacks,
+      refreshingStates: refreshingStates,
     );
   }
 }

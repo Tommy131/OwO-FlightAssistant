@@ -16,6 +16,8 @@ class WindDirectionIndicator extends StatelessWidget {
   });
 
   @override
+  /// 功能：构建当前组件的界面结构并返回可渲染的控件树。
+  /// 说明：该方法属于组件生命周期关键路径，会直接影响页面稳定性与交互体验。
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -38,6 +40,8 @@ class WindDirectionIndicator extends StatelessWidget {
         if (showLabel && windDirection != null && windSpeed != null) ...[
           const SizedBox(height: 8),
           Text(
+            /// 功能：执行toStringAsFixed的核心业务流程。
+            /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
             '${windDirection!.toStringAsFixed(0)}° / ${windSpeed!.toStringAsFixed(0)} kt',
             style: theme.textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.bold,
@@ -74,6 +78,8 @@ class _WindCompassPainter extends CustomPainter {
   });
 
   @override
+  /// 功能：执行paint的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 8;
@@ -96,6 +102,8 @@ class _WindCompassPainter extends CustomPainter {
     }
   }
 
+  /// 功能：执行drawCardinalDirections的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _drawCardinalDirections(Canvas canvas, Offset center, double radius) {
     final textPainter = TextPainter(
       textDirection: TextDirection.ltr,
@@ -131,6 +139,8 @@ class _WindCompassPainter extends CustomPainter {
     }
   }
 
+  /// 功能：执行drawWindArrow的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   void _drawWindArrow(Canvas canvas, Offset center, double radius) {
     final angleRad = (windDirection! + 180) * math.pi / 180;
     final maxLength = radius * 0.7;
@@ -170,6 +180,8 @@ class _WindCompassPainter extends CustomPainter {
   }
 
   @override
+  /// 功能：执行shouldRepaint的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   bool shouldRepaint(_WindCompassPainter oldDelegate) {
     return oldDelegate.windDirection != windDirection ||
         oldDelegate.windSpeed != windSpeed ||

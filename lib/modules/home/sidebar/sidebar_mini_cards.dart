@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/services/localization_service.dart';
 import '../../../core/module_registry/sidebar/sidebar_mini_card.dart';
 import '../../../core/theme/app_theme_data.dart';
+import '../localization/home_localization_keys.dart';
 import '../../flight_logs/providers/flight_logs_provider.dart';
 import '../models/home_models.dart';
 import '../providers/home_provider.dart';
@@ -26,8 +28,8 @@ class _MiniStageInfo {
   });
 }
 
-class CommonDefaultSidebarMiniCard extends SidebarMiniCard {
-  CommonDefaultSidebarMiniCard()
+class HomeDefaultSidebarMiniCard extends SidebarMiniCard {
+  HomeDefaultSidebarMiniCard()
     : super(id: 'default_app_mini_card', priority: 1000);
 
   @override
@@ -89,8 +91,8 @@ class CommonDefaultSidebarMiniCard extends SidebarMiniCard {
   }
 }
 
-class CommonConnectedSidebarMiniCard extends SidebarMiniCard {
-  CommonConnectedSidebarMiniCard()
+class HomeConnectedSidebarMiniCard extends SidebarMiniCard {
+  HomeConnectedSidebarMiniCard()
     : super(id: 'connected_flight_mini_card', priority: 10);
 
   @override
@@ -111,7 +113,7 @@ class CommonConnectedSidebarMiniCard extends SidebarMiniCard {
     }
 
     final isRecording = context.watch<FlightLogsProvider>().isRecording;
-    final info = _SidebarMiniStageResolver.buildStageInfo(home);
+    final info = _SidebarMiniStageResolver.buildStageInfo(context, home);
 
     if (isCollapsed) {
       return Tooltip(
@@ -135,13 +137,13 @@ class CommonConnectedSidebarMiniCard extends SidebarMiniCard {
                 color: theme.colorScheme.primary,
               ),
               if (isRecording)
-                const Positioned(
+                Positioned(
                   right: -7,
                   top: -6,
-                  child: Icon(
-                    Icons.fiber_manual_record_rounded,
-                    size: 12,
-                    color: Colors.redAccent,
+                  child: _BlinkingBuilder(
+                    /// 功能：执行builder的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+                    builder: (pulse) => _RecordingDot(pulse: pulse),
                   ),
                 ),
             ],
@@ -173,23 +175,14 @@ class CommonConnectedSidebarMiniCard extends SidebarMiniCard {
                   ),
                 ),
                 if (isRecording)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.fiber_manual_record_rounded,
-                        size: 14,
-                        color: Colors.redAccent,
-                      ),
-                      const SizedBox(width: 2),
-                      Text(
-                        'REC',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: Colors.redAccent,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
+                  _BlinkingBuilder(
+                    /// 功能：执行builder的核心业务流程。
+                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+                    builder: (pulse) => _RecordingBadge(
+                      pulse: pulse,
+                      label: HomeLocalizationKeys.miniRecording.tr(context),
+                      theme: theme,
+                    ),
                   ),
               ],
             ),
@@ -261,8 +254,108 @@ class _MiniCardContainer extends StatelessWidget {
   }
 }
 
+class _RecordingDot extends StatelessWidget {
+  final double pulse;
+
+  const _RecordingDot({required this.pulse});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.redAccent.withValues(alpha: 0.3 + 0.7 * pulse),
+      ),
+    );
+  }
+}
+
+class _RecordingBadge extends StatelessWidget {
+  final double pulse;
+  final String label;
+  final ThemeData theme;
+
+  const _RecordingBadge({
+    required this.pulse,
+    required this.label,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.redAccent.withValues(alpha: 0.1 + 0.2 * pulse),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: Colors.redAccent.withValues(alpha: 0.45 + 0.4 * pulse),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _RecordingDot(pulse: pulse),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: Colors.redAccent.withValues(alpha: 0.6 + 0.4 * pulse),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BlinkingBuilder extends StatefulWidget {
+  final Widget Function(double pulse) builder;
+
+  const _BlinkingBuilder({required this.builder});
+
+  @override
+  State<_BlinkingBuilder> createState() => _BlinkingBuilderState();
+}
+
+class _BlinkingBuilderState extends State<_BlinkingBuilder>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      /// 功能：执行builder的核心业务流程。
+      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+      builder: (context, _) => widget.builder(_controller.value),
+    );
+  }
+}
+
 class _SidebarMiniStageResolver {
-  static _MiniStageInfo buildStageInfo(HomeProvider home) {
+  static _MiniStageInfo buildStageInfo(
+    BuildContext context,
+    HomeProvider home,
+  ) {
     final data = home.flightData;
     final stage = _resolveStage(data);
     final nearest = home.nearestAirport;
@@ -276,13 +369,13 @@ class _SidebarMiniStageResolver {
         stage == _MiniFlightStage.approach) {
       final currentIcao = nearest?.icaoCode;
       if (currentIcao != null && currentIcao.isNotEmpty) {
-        weather = _weatherSummary(home.metarsByIcao[currentIcao]);
+        weather = _weatherSummary(context, home.metarsByIcao[currentIcao]);
       }
       visibility = _visibilityLabel(data.visibility);
     }
 
     double? distanceNm;
-    var distanceTarget = '附近机场';
+    var distanceTarget = HomeLocalizationKeys.miniNearbyAirport.tr(context);
     if (currentLat != null && currentLon != null) {
       final primaryTarget = destination ?? nearest;
       if (primaryTarget != null &&
@@ -294,7 +387,9 @@ class _SidebarMiniStageResolver {
           primaryTarget.latitude,
           primaryTarget.longitude,
         );
-        distanceTarget = destination != null ? '目的地' : '附近机场';
+        distanceTarget = destination != null
+            ? HomeLocalizationKeys.navDestination.tr(context)
+            : HomeLocalizationKeys.miniNearbyAirport.tr(context);
       }
     }
 
@@ -304,11 +399,21 @@ class _SidebarMiniStageResolver {
         : '${distanceNm.toStringAsFixed(0)}nm';
 
     final stageName = switch (stage) {
-      _MiniFlightStage.ground => '在地面',
-      _MiniFlightStage.climb => '爬升中',
-      _MiniFlightStage.cruise => '巡航中',
-      _MiniFlightStage.descent => '下降中',
-      _MiniFlightStage.approach => '进近中',
+      _MiniFlightStage.ground => HomeLocalizationKeys.miniStageGround.tr(
+        context,
+      ),
+      _MiniFlightStage.climb => HomeLocalizationKeys.miniStageClimb.tr(
+        context,
+      ),
+      _MiniFlightStage.cruise => HomeLocalizationKeys.miniStageCruise.tr(
+        context,
+      ),
+      _MiniFlightStage.descent => HomeLocalizationKeys.miniStageDescent.tr(
+        context,
+      ),
+      _MiniFlightStage.approach => HomeLocalizationKeys.miniStageApproach.tr(
+        context,
+      ),
     };
 
     final nearbyIcao = nearest?.icaoCode.isNotEmpty == true
@@ -317,13 +422,19 @@ class _SidebarMiniStageResolver {
     final currentIcao = nearbyIcao;
     final tooltip = switch (stage) {
       _MiniFlightStage.ground =>
-        '阶段: $stageName\n机场: $currentIcao\n天气: $weather\n能见度: $visibility',
+        /// 功能：执行tr的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+        '${HomeLocalizationKeys.miniLabelPhase.tr(context)}: $stageName\n${HomeLocalizationKeys.miniLabelAirport.tr(context)}: $currentIcao\n${HomeLocalizationKeys.miniLabelWeather.tr(context)}: $weather\n${HomeLocalizationKeys.miniLabelVisibility.tr(context)}: $visibility',
       _MiniFlightStage.approach =>
-        '阶段: $stageName\n当前机场: $currentIcao\n天气: $weather',
+        /// 功能：执行tr的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+        '${HomeLocalizationKeys.miniLabelPhase.tr(context)}: $stageName\n${HomeLocalizationKeys.miniLabelCurrentAirport.tr(context)}: $currentIcao\n${HomeLocalizationKeys.miniLabelWeather.tr(context)}: $weather',
       _MiniFlightStage.climb ||
       _MiniFlightStage.cruise ||
       _MiniFlightStage.descent =>
-        '阶段: $stageName\n附近机场: $nearbyIcao\n$distanceTarget距离: $distanceText\n预计到达: $eta',
+        /// 功能：执行tr的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+        '${HomeLocalizationKeys.miniLabelPhase.tr(context)}: $stageName\n${HomeLocalizationKeys.miniLabelNearbyAirport.tr(context)}: $nearbyIcao\n$distanceTarget ${HomeLocalizationKeys.miniLabelDistance.tr(context)}: $distanceText\n${HomeLocalizationKeys.miniLabelEta.tr(context)}: $eta',
     };
 
     final line2 = switch (stage) {
@@ -342,58 +453,86 @@ class _SidebarMiniStageResolver {
     );
   }
 
+  /// 功能：执行_resolveStage的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   static _MiniFlightStage _resolveStage(HomeFlightData data) {
-    final altitude = data.altitude;
-    final verticalSpeed = data.verticalSpeed;
-    final groundSpeed = data.groundSpeed;
-    if (data.onGround == true) return _MiniFlightStage.ground;
-    final approachLike =
-        (altitude ?? 0) <= 5000 &&
-        (verticalSpeed ?? 0) <= -300 &&
-        ((groundSpeed ?? 0) <= 220 ||
-            data.gearDown == true ||
-            data.flapsDeployed == true);
-    if (approachLike) return _MiniFlightStage.approach;
-    if ((verticalSpeed ?? 0) >= 300) return _MiniFlightStage.climb;
-    if ((verticalSpeed ?? 0) <= -300) return _MiniFlightStage.descent;
-    return _MiniFlightStage.cruise;
+    final phase = (data.flightPhase ?? '').trim().toLowerCase();
+    switch (phase) {
+      case 'ground':
+      case 'parked':
+      case 'standby':
+      case 'taxi':
+        return _MiniFlightStage.ground;
+      case 'takeoff':
+      case 'climb':
+        return _MiniFlightStage.climb;
+      case 'cruise':
+        return _MiniFlightStage.cruise;
+      case 'descent':
+        return _MiniFlightStage.descent;
+      case 'approach':
+      case 'landing':
+        return _MiniFlightStage.approach;
+      default:
+        return _MiniFlightStage.cruise;
+    }
   }
 
-  static String _weatherSummary(HomeMetarData? metar) {
-    if (metar == null) return '未知';
+  /// 功能：执行_weatherSummary的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+  static String _weatherSummary(BuildContext context, HomeMetarData? metar) {
+    if (metar == null) {
+      return HomeLocalizationKeys.miniWeatherUnknown.tr(context);
+    }
     final source = '${metar.raw} ${metar.displayWind}'.toUpperCase();
-    if (source.contains('TS') || source.contains('雷暴')) return '雷暴';
-    if (source.contains('+RA') || source.contains('暴雨')) return '暴雨';
+    if (source.contains('TS') || source.contains('雷暴')) {
+      return HomeLocalizationKeys.miniWeatherThunderstorm.tr(context);
+    }
+    if (source.contains('+RA') || source.contains('暴雨')) {
+      return HomeLocalizationKeys.miniWeatherHeavyRain.tr(context);
+    }
     if (source.contains('RA') ||
         source.contains('DZ') ||
         source.contains('SH') ||
         source.contains('阴雨') ||
+        /// 功能：执行contains的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         source.contains('小雨')) {
-      return '阴雨';
+      return HomeLocalizationKeys.miniWeatherRain.tr(context);
     }
-    if (source.contains('SN') || source.contains('雪')) return '降雪';
+    if (source.contains('SN') || source.contains('雪')) {
+      return HomeLocalizationKeys.miniWeatherSnow.tr(context);
+    }
     if (source.contains('FG') ||
         source.contains('BR') ||
         source.contains('HZ') ||
+        /// 功能：执行contains的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         source.contains('雾')) {
-      return '低能见';
+      return HomeLocalizationKeys.miniWeatherLowVisibility.tr(context);
     }
     if (source.contains('OVC') ||
         source.contains('BKN') ||
+        /// 功能：执行contains的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         source.contains('阴')) {
-      return '阴天';
+      return HomeLocalizationKeys.miniWeatherOvercast.tr(context);
     }
     if (source.contains('CAVOK') ||
         source.contains('SKC') ||
         source.contains('CLR') ||
         source.contains('FEW') ||
         source.contains('SCT') ||
+        /// 功能：执行contains的核心业务流程。
+        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         source.contains('晴')) {
-      return '天气极好';
+      return HomeLocalizationKeys.miniWeatherExcellent.tr(context);
     }
-    return '天气一般';
+    return HomeLocalizationKeys.miniWeatherNormal.tr(context);
   }
 
+  /// 功能：执行_visibilityLabel的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   static String _visibilityLabel(double? visibilityMeter) {
     if (visibilityMeter == null) return '--';
     if (visibilityMeter >= 10000) return '>10km';
@@ -403,6 +542,8 @@ class _SidebarMiniStageResolver {
     return '${visibilityMeter.toStringAsFixed(0)}m';
   }
 
+  /// 功能：执行_etaLabel的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   static String _etaLabel(double? distanceNm, double? groundSpeed) {
     if (distanceNm == null || groundSpeed == null || groundSpeed <= 30) {
       return '--';

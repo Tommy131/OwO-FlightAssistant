@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import '../../common/models/home_models.dart';
+import '../../home/models/home_models.dart';
 import '../models/monitor_models.dart';
 
 abstract class MonitorDataAdapter {

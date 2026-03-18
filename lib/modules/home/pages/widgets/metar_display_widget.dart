@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
-import '../../localization/common_localization_keys.dart';
+import '../../localization/home_localization_keys.dart';
 import '../../models/home_models.dart';
 
 class MetarDisplayWidget extends StatelessWidget {
@@ -57,10 +57,12 @@ class MetarDisplayWidget extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 1.5),
                     )
                   else
-                    InkWell(
-                      onTap: onRefresh,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Icon(
+                    IconButton(
+                      onPressed: onRefresh,
+                      splashRadius: 12,
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      icon: Icon(
                         Icons.refresh,
                         size: 14,
                         color: theme.colorScheme.primary,
@@ -102,19 +104,27 @@ class MetarDisplayWidget extends StatelessWidget {
             children: [
               _buildMetarTag(
                 theme,
-                '${CommonLocalizationKeys.metarWind.tr(context)}: ${metarData.displayWind}',
+                /// 功能：执行tr的核心业务流程。
+                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+                '${HomeLocalizationKeys.metarWind.tr(context)}: ${metarData.displayWind}',
               ),
               _buildMetarTag(
                 theme,
-                '${CommonLocalizationKeys.metarVisibility.tr(context)}: ${metarData.displayVisibility}',
+                /// 功能：执行tr的核心业务流程。
+                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+                '${HomeLocalizationKeys.metarVisibility.tr(context)}: ${metarData.displayVisibility}',
               ),
               _buildMetarTag(
                 theme,
-                '${CommonLocalizationKeys.metarTemperature.tr(context)}: ${metarData.displayTemperature}',
+                /// 功能：执行tr的核心业务流程。
+                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+                '${HomeLocalizationKeys.metarTemperature.tr(context)}: ${metarData.displayTemperature}',
               ),
               _buildMetarTag(
                 theme,
-                '${CommonLocalizationKeys.metarAltimeter.tr(context)}: ${metarData.displayAltimeter}',
+                /// 功能：执行tr的核心业务流程。
+                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+                '${HomeLocalizationKeys.metarAltimeter.tr(context)}: ${metarData.displayAltimeter}',
               ),
             ],
           ),
@@ -123,14 +133,18 @@ class MetarDisplayWidget extends StatelessWidget {
     );
   }
 
+  /// 功能：执行_buildTimeLabel的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   String _buildTimeLabel(BuildContext context, DateTime time) {
     final formatted =
         '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
-    return CommonLocalizationKeys.metarUpdatedAt
+    return HomeLocalizationKeys.metarUpdatedAt
         .tr(context)
         .replaceAll('{time}', formatted);
   }
 
+  /// 功能：执行_buildMetarTag的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   Widget _buildMetarTag(ThemeData theme, String text) {
     return Container(
       margin: EdgeInsets.zero,
@@ -151,6 +165,7 @@ class MetarSectionWidget extends StatelessWidget {
   final Map<String, HomeMetarData> metars;
   final Map<String, String> errors;
   final Map<String, VoidCallback> refreshCallbacks;
+  final Map<String, bool> refreshingStates;
   final bool compact;
 
   const MetarSectionWidget({
@@ -158,6 +173,7 @@ class MetarSectionWidget extends StatelessWidget {
     required this.metars,
     this.errors = const {},
     this.refreshCallbacks = const {},
+    this.refreshingStates = const {},
     this.compact = false,
   });
 
@@ -186,7 +202,7 @@ class MetarSectionWidget extends StatelessWidget {
               Icon(Icons.cloud, color: theme.colorScheme.primary, size: 20),
               const SizedBox(width: 8),
               Text(
-                CommonLocalizationKeys.metarTitle.tr(context),
+                HomeLocalizationKeys.metarTitle.tr(context),
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -200,6 +216,7 @@ class MetarSectionWidget extends StatelessWidget {
               metarData: e.value,
               compact: compact,
               onRefresh: refreshCallbacks[e.key],
+              isRefreshing: refreshingStates[e.key] == true,
             ),
           ),
           ...errors.entries.map((e) => _buildMetarError(context, theme, e)),
@@ -256,7 +273,7 @@ class MetarSectionWidget extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        CommonLocalizationKeys.metarErrorTitle.tr(context),
+                        HomeLocalizationKeys.metarErrorTitle.tr(context),
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Colors.red.shade800,
@@ -265,13 +282,34 @@ class MetarSectionWidget extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (refreshCallbacks[entry.key] != null) ...[
+                  const SizedBox(width: 8),
+                  if (refreshingStates[entry.key] == true)
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    IconButton(
+                      onPressed: refreshCallbacks[entry.key],
+                      icon: Icon(
+                        Icons.refresh,
+                        color: theme.colorScheme.primary,
+                        size: 18,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      splashRadius: 14,
+                    ),
+                ],
               ],
             ),
             const SizedBox(height: 8),
             Text(
               entry.value.isNotEmpty
                   ? entry.value
-                  : CommonLocalizationKeys.metarErrorDefault.tr(context),
+                  : HomeLocalizationKeys.metarErrorDefault.tr(context),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.outline,
               ),

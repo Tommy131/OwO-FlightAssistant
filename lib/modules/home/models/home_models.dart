@@ -47,6 +47,18 @@ class HomeChecklistPhase {
   const HomeChecklistPhase({required this.labelKey, required this.icon});
 }
 
+class HomeFlightAlert {
+  final String id;
+  final String level;
+  final String message;
+
+  const HomeFlightAlert({
+    required this.id,
+    required this.level,
+    required this.message,
+  });
+}
+
 class HomeFlightData {
   final double? airspeed;
   final double? machNumber;
@@ -120,6 +132,9 @@ class HomeFlightData {
   final String? aircraftModel;
   final String? aircraftIcao;
   final String? aircraftDisplayName;
+  final String? flightPhase;
+  final String? flightAlertLevel;
+  final List<HomeFlightAlert> flightAlerts;
 
   const HomeFlightData({
     this.airspeed,
@@ -194,6 +209,9 @@ class HomeFlightData {
     this.aircraftModel,
     this.aircraftIcao,
     this.aircraftDisplayName,
+    this.flightPhase,
+    this.flightAlertLevel,
+    this.flightAlerts = const [],
   });
 }
 
@@ -212,12 +230,14 @@ class HomeDataSnapshot {
   final HomeChecklistPhase? checklistPhase;
   final double? checklistProgress;
   final HomeFlightData flightData;
+  final HomeAirportInfo? departureAirport;
   final HomeAirportInfo? destinationAirport;
   final HomeAirportInfo? alternateAirport;
   final HomeAirportInfo? nearestAirport;
   final List<HomeAirportInfo> suggestedAirports;
   final Map<String, HomeMetarData> metarsByIcao;
   final Map<String, String> metarErrorsByIcao;
+  final Set<String> metarRefreshingIcaos;
 
   const HomeDataSnapshot({
     required this.isConnected,
@@ -228,6 +248,7 @@ class HomeDataSnapshot {
     required this.suggestedAirports,
     required this.metarsByIcao,
     required this.metarErrorsByIcao,
+    required this.metarRefreshingIcaos,
     this.errorMessage,
     this.aircraftTitle,
     this.isPaused,
@@ -237,11 +258,14 @@ class HomeDataSnapshot {
     this.isFuelSufficient,
     this.checklistPhase,
     this.checklistProgress,
+    this.departureAirport,
     this.destinationAirport,
     this.alternateAirport,
     this.nearestAirport,
   });
 
+  /// 功能：执行empty的核心业务流程。
+  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   factory HomeDataSnapshot.empty() {
     return HomeDataSnapshot(
       isConnected: false,
@@ -252,6 +276,7 @@ class HomeDataSnapshot {
       suggestedAirports: const [],
       metarsByIcao: const {},
       metarErrorsByIcao: const {},
+      metarRefreshingIcaos: const <String>{},
     );
   }
 }
