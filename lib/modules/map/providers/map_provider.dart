@@ -49,6 +49,7 @@ class MapProvider extends ChangeNotifier {
   Duration _hudElapsed = Duration.zero;
   Timer? _hudTimer;
   bool _isHudTimerRunning = false;
+  bool _hasHudTimerStarted = false;
   MapCoordinate? _lastMovementSamplePosition;
   DateTime? _lastMovementSampleAt;
   bool _autoHudTimerEnabled = false;
@@ -86,6 +87,7 @@ class MapProvider extends ChangeNotifier {
   bool get isAircraftMoving => _isAircraftMoving;
   Duration get hudElapsed => _hudElapsed;
   bool get isHudTimerRunning => _isHudTimerRunning;
+  bool get hasHudTimerStarted => _hasHudTimerStarted;
   bool get autoHudTimerEnabled => _autoHudTimerEnabled;
   MapAutoTimerStartMode get autoTimerStartMode => _autoTimerStartMode;
   MapAutoTimerStopMode get autoTimerStopMode => _autoTimerStopMode;
@@ -101,7 +103,11 @@ class MapProvider extends ChangeNotifier {
     if (!wasConnected && _isConnected) {
       _connectionEpoch += 1;
     }
+    final wasSimulatorPaused = _isPaused;
     _isPaused = snapshot.isPaused == true && _isConnected;
+    if (!wasSimulatorPaused && _isPaused && _isHudTimerRunning) {
+      pauseHudTimer();
+    }
     _airports = _buildAirportsFromSnapshot(snapshot);
     final flightData = snapshot.flightData;
     final lat = flightData.latitude;
@@ -506,6 +512,7 @@ class MapProvider extends ChangeNotifier {
     _hudTimer?.cancel();
     _hudTimer = null;
     _isHudTimerRunning = false;
+    _hasHudTimerStarted = false;
     _resetAutoTimerRuntimeState();
     notifyListeners();
   }
@@ -519,9 +526,10 @@ class MapProvider extends ChangeNotifier {
   }
 
   void startHudTimer() {
-    if (_isHudTimerRunning) {
+    if (_isHudTimerRunning || _isPaused) {
       return;
     }
+    _hasHudTimerStarted = true;
     _resetAutoTimerFlightStateForNewRun();
     _isHudTimerRunning = true;
     _hudTimer?.cancel();
@@ -547,6 +555,7 @@ class MapProvider extends ChangeNotifier {
     _hudTimer?.cancel();
     _hudTimer = null;
     _hudElapsed = Duration.zero;
+    _hasHudTimerStarted = false;
     _resetAutoTimerRuntimeState();
     notifyListeners();
   }
@@ -611,7 +620,7 @@ class MapProvider extends ChangeNotifier {
       }
     }
 
-    if (_autoHudTimerEnabled) {
+    if (_autoHudTimerEnabled && !_isPaused) {
       if (!_isHudTimerRunning) {
         var shouldStart = false;
         switch (_autoTimerStartMode) {
@@ -804,6 +813,11 @@ class MapProvider extends ChangeNotifier {
       _activeAlerts = const [];
       return;
     }
+    final backendAlerts = _mapBackendAlerts(flightData.flightAlerts);
+    if (backendAlerts.isNotEmpty) {
+      _activeAlerts = backendAlerts;
+      return;
+    }
     final next = <MapFlightAlert>[];
     final onGround = flightData.onGround ?? false;
     final pitch = flightData.pitch;
@@ -925,6 +939,64 @@ class MapProvider extends ChangeNotifier {
     }
 
     _activeAlerts = next;
+  }
+
+  List<MapFlightAlert> _mapBackendAlerts(List<HomeFlightAlert> alerts) {
+    if (alerts.isEmpty) {
+      return const [];
+    }
+    final next = <MapFlightAlert>[];
+    for (final alert in alerts) {
+      final message = _mapBackendAlertMessage(alert.message);
+      if (message == null) {
+        continue;
+      }
+      next.add(
+        MapFlightAlert(
+          id: alert.id.isNotEmpty ? alert.id : alert.message,
+          level: _mapBackendAlertLevel(alert.level),
+          message: message,
+        ),
+      );
+    }
+    return next;
+  }
+
+  MapFlightAlertLevel _mapBackendAlertLevel(String raw) {
+    final value = raw.trim().toLowerCase();
+    if (value == 'danger') {
+      return MapFlightAlertLevel.danger;
+    }
+    if (value == 'warning') {
+      return MapFlightAlertLevel.warning;
+    }
+    return MapFlightAlertLevel.caution;
+  }
+
+  String? _mapBackendAlertMessage(String raw) {
+    final value = raw.trim().toLowerCase();
+    switch (value) {
+      case 'pitch_up_danger':
+        return MapLocalizationKeys.alertPitchUpDanger;
+      case 'pitch_up_warning':
+        return MapLocalizationKeys.alertPitchUpWarning;
+      case 'pitch_down_danger':
+        return MapLocalizationKeys.alertPitchDownDanger;
+      case 'pitch_down_warning':
+        return MapLocalizationKeys.alertPitchDownWarning;
+      case 'bank_danger':
+        return MapLocalizationKeys.alertBankDanger;
+      case 'bank_warning':
+        return MapLocalizationKeys.alertBankWarning;
+      case 'stall_warning':
+        return MapLocalizationKeys.alertStallWarning;
+      case 'sink_rate_danger':
+        return MapLocalizationKeys.alertSinkRateDanger;
+      case 'sink_rate_warning':
+        return MapLocalizationKeys.alertSinkRateWarning;
+      default:
+        return null;
+    }
   }
 
   List<MapAirportMarker> _fallbackSearchAirports(String keyword) {

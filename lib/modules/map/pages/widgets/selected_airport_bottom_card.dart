@@ -15,6 +15,15 @@ class SelectedAirportBottomCard extends StatefulWidget {
   final bool isLoading;
   final bool isExpanded;
   final ValueChanged<bool> onExpandedChanged;
+  final VoidCallback? onSetDestination;
+  final VoidCallback? onSetAlternate;
+  final VoidCallback? onSetDeparture;
+  final String setDepartureLabel;
+  final String setDestinationLabel;
+  final String setAlternateLabel;
+  final bool isDeparture;
+  final bool isDestination;
+  final bool isAlternate;
 
   const SelectedAirportBottomCard({
     super.key,
@@ -24,6 +33,15 @@ class SelectedAirportBottomCard extends StatefulWidget {
     required this.isLoading,
     required this.isExpanded,
     required this.onExpandedChanged,
+    this.onSetDestination,
+    this.onSetAlternate,
+    this.onSetDeparture,
+    required this.setDepartureLabel,
+    required this.setDestinationLabel,
+    required this.setAlternateLabel,
+    this.isDeparture = false,
+    this.isDestination = false,
+    this.isAlternate = false,
   });
 
   @override
@@ -355,10 +373,118 @@ class _SelectedAirportBottomCardState extends State<SelectedAirportBottomCard> {
                                 ],
                               ),
                             ),
+                            SizedBox(height: 10 * widget.scale),
+                            Wrap(
+                              spacing: 8 * widget.scale,
+                              runSpacing: 8 * widget.scale,
+                              children: [
+                                _buildAirportLinkButton(
+                                  context,
+                                  isDark: isDark,
+                                  selected: widget.isDeparture,
+                                  onPressed: widget.onSetDeparture,
+                                  selectedIcon: Icons.flight_takeoff_rounded,
+                                  unselectedIcon: Icons.flight_takeoff_outlined,
+                                  label: widget.isDeparture
+                                      ? HomeLocalizationKeys.navDeparture.tr(
+                                          context,
+                                        )
+                                      : widget.setDepartureLabel,
+                                ),
+                                _buildAirportLinkButton(
+                                  context,
+                                  isDark: isDark,
+                                  selected: widget.isDestination,
+                                  onPressed: widget.onSetDestination,
+                                  selectedIcon: Icons.flag_rounded,
+                                  unselectedIcon: Icons.outlined_flag_rounded,
+                                  label: widget.isDestination
+                                      ? HomeLocalizationKeys.navDestination
+                                            .tr(context)
+                                      : widget.setDestinationLabel,
+                                ),
+                                _buildAirportLinkButton(
+                                  context,
+                                  isDark: isDark,
+                                  selected: widget.isAlternate,
+                                  onPressed: widget.onSetAlternate,
+                                  selectedIcon: Icons.alt_route_rounded,
+                                  unselectedIcon: Icons.alt_route_outlined,
+                                  label: widget.isAlternate
+                                      ? HomeLocalizationKeys.navAlternate.tr(
+                                          context,
+                                        )
+                                      : widget.setAlternateLabel,
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                 ),
                 secondChild: const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAirportLinkButton(
+    BuildContext context, {
+    required bool isDark,
+    required bool selected,
+    required VoidCallback? onPressed,
+    required IconData selectedIcon,
+    required IconData unselectedIcon,
+    required String label,
+  }) {
+    final accent = Colors.orangeAccent;
+    final foreground = selected
+        ? (isDark ? Colors.black : Colors.white)
+        : (isDark ? Colors.white : Colors.black87);
+    final background = selected
+        ? accent.withValues(alpha: isDark ? 0.9 : 0.95)
+        : (isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06));
+    final borderColor = selected
+        ? accent.withValues(alpha: 0.95)
+        : (isDark
+              ? Colors.orangeAccent.withValues(alpha: 0.35)
+              : Colors.orangeAccent.withValues(alpha: 0.45));
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10 * widget.scale),
+        onTap: onPressed,
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: 10 * widget.scale,
+            vertical: 7 * widget.scale,
+          ),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(10 * widget.scale),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                selected ? selectedIcon : unselectedIcon,
+                size: 15 * widget.scale,
+                color: foreground,
+              ),
+              SizedBox(width: 5 * widget.scale),
+              Text(
+                label,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 11 * widget.scale,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),

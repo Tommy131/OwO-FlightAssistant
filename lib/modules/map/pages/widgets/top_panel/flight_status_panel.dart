@@ -2,7 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-class MapFlightStatusPanel extends StatelessWidget {
+class MapFlightStatusPanel extends StatefulWidget {
   final double scale;
   final double? groundSpeed;
   final double? altitude;
@@ -10,7 +10,7 @@ class MapFlightStatusPanel extends StatelessWidget {
   final String duration;
   final double? verticalSpeed;
   final bool isHudTimerRunning;
-  final bool blinkOn;
+  final bool showPauseIndicator;
 
   const MapFlightStatusPanel({
     super.key,
@@ -21,74 +21,139 @@ class MapFlightStatusPanel extends StatelessWidget {
     required this.duration,
     required this.verticalSpeed,
     required this.isHudTimerRunning,
-    required this.blinkOn,
+    required this.showPauseIndicator,
   });
 
   @override
+  State<MapFlightStatusPanel> createState() => _MapFlightStatusPanelState();
+}
+
+class _MapFlightStatusPanelState extends State<MapFlightStatusPanel>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _blinkController;
+
+  @override
+  void initState() {
+    super.initState();
+    _blinkController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _syncBlinking();
+  }
+
+  @override
+  void didUpdateWidget(covariant MapFlightStatusPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.showPauseIndicator != widget.showPauseIndicator) {
+      _syncBlinking();
+    }
+  }
+
+  void _syncBlinking() {
+    if (widget.showPauseIndicator) {
+      _blinkController.repeat(reverse: true);
+      return;
+    }
+    _blinkController.stop();
+    _blinkController.value = 1;
+  }
+
+  @override
+  void dispose() {
+    _blinkController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final vs = verticalSpeed ?? 0;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16 * scale),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: 20 * scale,
-            vertical: 12 * scale,
+    final vs = widget.verticalSpeed ?? 0;
+    return AnimatedBuilder(
+      animation: _blinkController,
+      builder: (context, _) {
+        final pulse = widget.showPauseIndicator ? _blinkController.value : 1.0;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(16 * widget.scale),
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: 20 * widget.scale,
+                vertical: 12 * widget.scale,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.5),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _FlightValueTile(
+                    scale: widget.scale,
+                    label: 'GS',
+                    value: widget.groundSpeed != null
+                        ? '${widget.groundSpeed!.round()}'
+                        : '--',
+                    unit: 'kt',
+                  ),
+                  _FlightValueTile(
+                    scale: widget.scale,
+                    label: 'ALT',
+                    value: widget.altitude != null
+                        ? '${widget.altitude!.round()}'
+                        : '--',
+                    unit: 'ft',
+                  ),
+                  _FlightValueTile(
+                    scale: widget.scale,
+                    label: 'HDG',
+                    value: widget.heading != null
+                        ? '${widget.heading!.round()}°'
+                        : '--',
+                    unit: '',
+                  ),
+                  _FlightValueTile(
+                    scale: widget.scale,
+                    label: 'TIME',
+                    value: widget.duration,
+                    unit: '',
+                    color: Colors.cyanAccent,
+                    trailWidget:
+                        widget.showPauseIndicator && !widget.isHudTimerRunning
+                        ? Container(
+                            padding: EdgeInsets.all(2 * widget.scale),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(
+                                alpha: 0.28 + 0.62 * pulse,
+                              ),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Icon(
+                              Icons.pause,
+                              color: Colors.white.withValues(
+                                alpha: 0.75 + 0.25 * pulse,
+                              ),
+                              size: 10 * widget.scale,
+                            ),
+                          )
+                        : null,
+                  ),
+                  _FlightValueTile(
+                    scale: widget.scale,
+                    label: 'VS',
+                    value: widget.verticalSpeed != null
+                        ? '${widget.verticalSpeed!.round()}'
+                        : '--',
+                    unit: 'fpm',
+                    color: _getVSColor(vs),
+                    icon: _getVSIcon(vs),
+                  ),
+                ],
+              ),
+            ),
           ),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.5),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _FlightValueTile(
-                scale: scale,
-                label: 'GS',
-                value: groundSpeed != null ? '${groundSpeed!.round()}' : '--',
-                unit: 'kt',
-              ),
-              _FlightValueTile(
-                scale: scale,
-                label: 'ALT',
-                value: altitude != null ? '${altitude!.round()}' : '--',
-                unit: 'ft',
-              ),
-              _FlightValueTile(
-                scale: scale,
-                label: 'HDG',
-                value: heading != null ? '${heading!.round()}°' : '--',
-                unit: '',
-              ),
-              _FlightValueTile(
-                scale: scale,
-                label: 'TIME',
-                value: duration,
-                unit: '',
-                color: Colors.cyanAccent,
-                trailWidget: !isHudTimerRunning
-                    ? Icon(
-                        Icons.pause_circle_filled,
-                        color: Colors.redAccent.withValues(
-                          alpha: blinkOn ? 1 : 0.35,
-                        ),
-                        size: 13 * scale,
-                      )
-                    : null,
-              ),
-              _FlightValueTile(
-                scale: scale,
-                label: 'VS',
-                value: verticalSpeed != null ? '${verticalSpeed!.round()}' : '--',
-                unit: 'fpm',
-                color: _getVSColor(vs),
-                icon: _getVSIcon(vs),
-              ),
-            ],
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 

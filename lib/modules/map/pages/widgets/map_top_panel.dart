@@ -42,6 +42,7 @@ class MapTopPanel extends StatelessWidget {
   final ValueChanged<bool> onSearchInputChanged;
   final Duration hudElapsed;
   final bool isHudTimerRunning;
+  final bool hasHudTimerStarted;
 
   const MapTopPanel({
     super.key,
@@ -77,6 +78,7 @@ class MapTopPanel extends StatelessWidget {
     required this.onSearchInputChanged,
     required this.hudElapsed,
     required this.isHudTimerRunning,
+    required this.hasHudTimerStarted,
   });
 
   @override
@@ -127,7 +129,7 @@ class MapTopPanel extends StatelessWidget {
                 duration: duration,
                 verticalSpeed: vs,
                 isHudTimerRunning: isHudTimerRunning,
-                blinkOn: blinkOn,
+                showPauseIndicator: hasHudTimerStarted && !isHudTimerRunning,
               ),
             ],
             if (route.isNotEmpty || distanceNm > 0) ...[

@@ -108,6 +108,67 @@ class SelectedAirportPin extends StatelessWidget {
   }
 }
 
+class AirportRolePin extends StatelessWidget {
+  final String code;
+  final String title;
+  final IconData icon;
+  final Color color;
+  final double scale;
+
+  const AirportRolePin({
+    super.key,
+    required this.code,
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.scale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: 8 * scale,
+            vertical: 4 * scale,
+          ),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(7 * scale),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.38)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 12 * scale),
+              SizedBox(width: 4 * scale),
+              Text(
+                '$title $code',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10 * scale,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 2 * scale),
+        Icon(
+          Icons.place_rounded,
+          color: color,
+          size: 34 * scale,
+          shadows: [
+            Shadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 8),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class FlightEventMarker extends StatelessWidget {
   final IconData icon;
   final String label;

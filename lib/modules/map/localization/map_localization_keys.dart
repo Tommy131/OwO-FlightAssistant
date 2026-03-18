@@ -54,6 +54,15 @@ class MapLocalizationKeys {
   static const String searchHint = 'map.search.hint';
   static const String searchNoResult = 'map.search.no_result';
   static const String selectedAirport = 'map.marker.selected_airport';
+  static const String markerDepartureAirport = 'map.marker.departure_airport';
+  static const String markerArrivalAirport = 'map.marker.arrival_airport';
+  static const String markerAlternateAirport = 'map.marker.alternate_airport';
+  static const String actionSetAsDepartureAirport =
+      'map.action.set_as_departure_airport';
+  static const String actionSetAsArrivalAirport =
+      'map.action.set_as_arrival_airport';
+  static const String actionSetAsAlternateAirport =
+      'map.action.set_as_alternate_airport';
   static const String tooltipLayer = 'map.tooltip.layer';
   static const String tooltipFollow = 'map.tooltip.follow';
   static const String tooltipTimerStart = 'map.tooltip.timer_start';

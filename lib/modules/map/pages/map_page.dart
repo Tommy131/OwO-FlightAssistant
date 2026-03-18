@@ -74,6 +74,22 @@ class _MapPageState extends State<MapPage> {
         final showNearbyAirportMarkers =
             provider.showAirports && zoom >= _nearbyAirportMinZoom;
         final showAirportIcaoLabel = zoom >= _airportIcaoLabelMinZoom;
+        final departureCode = _normalizeAirportCode(
+          homeProvider.departureAirport?.icaoCode,
+        );
+        final destinationCode = _normalizeAirportCode(
+          homeProvider.destinationAirport?.icaoCode,
+        );
+        final alternateCode = _normalizeAirportCode(
+          homeProvider.alternateAirport?.icaoCode,
+        );
+        final selectedCode = _normalizeAirportCode(_selectedAirport?.code);
+        final isSelectedDeparture =
+            selectedCode.isNotEmpty && selectedCode == departureCode;
+        final isSelectedDestination =
+            selectedCode.isNotEmpty && selectedCode == destinationCode;
+        final isSelectedAlternate =
+            selectedCode.isNotEmpty && selectedCode == alternateCode;
         final activeAlerts = provider.activeAlerts;
         final crashDetected = _isCrashDetected(aircraft, activeAlerts);
         final showCrashOverlay = crashDetected && !_isCrashOverlayDismissed;
@@ -232,6 +248,48 @@ class _MapPageState extends State<MapPage> {
                           )
                           .toList(),
                     ),
+                  if (homeProvider.departureAirport != null)
+                    MarkerLayer(
+                      markers: [
+                        _buildRoleAirportMarker(
+                          airport: homeProvider.departureAirport!,
+                          scale: scale,
+                          title: MapLocalizationKeys.markerDepartureAirport.tr(
+                            context,
+                          ),
+                          icon: Icons.flight_takeoff_rounded,
+                          color: Colors.blueAccent,
+                        ),
+                      ],
+                    ),
+                  if (homeProvider.destinationAirport != null)
+                    MarkerLayer(
+                      markers: [
+                        _buildRoleAirportMarker(
+                          airport: homeProvider.destinationAirport!,
+                          scale: scale,
+                          title: MapLocalizationKeys.markerArrivalAirport.tr(
+                            context,
+                          ),
+                          icon: Icons.flag_rounded,
+                          color: Colors.green,
+                        ),
+                      ],
+                    ),
+                  if (homeProvider.alternateAirport != null)
+                    MarkerLayer(
+                      markers: [
+                        _buildRoleAirportMarker(
+                          airport: homeProvider.alternateAirport!,
+                          scale: scale,
+                          title: MapLocalizationKeys.markerAlternateAirport.tr(
+                            context,
+                          ),
+                          icon: Icons.alt_route_rounded,
+                          color: Colors.deepOrangeAccent,
+                        ),
+                      ],
+                    ),
                   if (_selectedAirportDetail != null &&
                       provider.showRunways &&
                       _selectedAirportDetail!.runwayGeometries.isNotEmpty)
@@ -342,7 +400,8 @@ class _MapPageState extends State<MapPage> {
                           )
                           .toList(),
                     ),
-                  if (_selectedAirport != null)
+                  if (_selectedAirport != null &&
+                      !_isSelectedAirportRolePinned(homeProvider))
                     MarkerLayer(
                       markers: [
                         Marker(
@@ -482,6 +541,7 @@ class _MapPageState extends State<MapPage> {
                   showSearchClearButton: _hasSearchInput,
                   hudElapsed: provider.hudElapsed,
                   isHudTimerRunning: provider.isHudTimerRunning,
+                  hasHudTimerStarted: provider.hasHudTimerStarted,
                 ),
               ),
               Positioned(
@@ -514,6 +574,27 @@ class _MapPageState extends State<MapPage> {
                     detail: _selectedAirportDetail,
                     isLoading: _isSelectedAirportDetailLoading,
                     isExpanded: _isAirportDetailExpanded,
+                    isDeparture: isSelectedDeparture,
+                    isDestination: isSelectedDestination,
+                    isAlternate: isSelectedAlternate,
+                    setDepartureLabel: MapLocalizationKeys
+                        .actionSetAsDepartureAirport
+                        .tr(context),
+                    setDestinationLabel: MapLocalizationKeys
+                        .actionSetAsArrivalAirport
+                        .tr(context),
+                    setAlternateLabel: MapLocalizationKeys
+                        .actionSetAsAlternateAirport
+                        .tr(context),
+                    onSetDeparture: () async {
+                      await _toggleDepartureSelection(homeProvider);
+                    },
+                    onSetDestination: () async {
+                      await _toggleDestinationSelection(homeProvider);
+                    },
+                    onSetAlternate: () async {
+                      await _toggleAlternateSelection(homeProvider);
+                    },
                     onExpandedChanged: (value) {
                       setState(() {
                         _isAirportDetailExpanded = value;
@@ -863,6 +944,107 @@ class _MapPageState extends State<MapPage> {
       return '';
     }
     return code.trim().toUpperCase();
+  }
+
+  HomeAirportInfo _toHomeAirportInfo(MapAirportMarker airport) {
+    final displayName = (airport.name ?? '').trim();
+    return HomeAirportInfo(
+      icaoCode: _normalizeAirportCode(airport.code),
+      iataCode: '',
+      name: displayName,
+      nameChinese: '',
+      latitude: airport.position.latitude,
+      longitude: airport.position.longitude,
+    );
+  }
+
+  bool _isSelectedAirportRolePinned(HomeProvider homeProvider) {
+    final selected = _selectedAirport;
+    if (selected == null) {
+      return false;
+    }
+    final selectedCode = _normalizeAirportCode(selected.code);
+    return _isAirportCodeSetAsRole(selectedCode, homeProvider);
+  }
+
+  bool _isAirportCodeSetAsRole(String code, HomeProvider homeProvider) {
+    if (code.isEmpty) {
+      return false;
+    }
+    return code ==
+            _normalizeAirportCode(homeProvider.departureAirport?.icaoCode) ||
+        code ==
+            _normalizeAirportCode(homeProvider.destinationAirport?.icaoCode) ||
+        code == _normalizeAirportCode(homeProvider.alternateAirport?.icaoCode);
+  }
+
+  Marker _buildRoleAirportMarker({
+    required HomeAirportInfo airport,
+    required double scale,
+    required String title,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Marker(
+      point: LatLng(airport.latitude, airport.longitude),
+      width: 138 * scale,
+      height: 88 * scale,
+      child: AirportRolePin(
+        code: _normalizeAirportCode(airport.icaoCode),
+        title: title,
+        icon: icon,
+        color: color,
+        scale: scale,
+      ),
+    );
+  }
+
+  Future<void> _toggleDepartureSelection(HomeProvider homeProvider) async {
+    final selected = _selectedAirport;
+    if (selected == null) {
+      return;
+    }
+    final selectedCode = _normalizeAirportCode(selected.code);
+    final currentDeparture = _normalizeAirportCode(
+      homeProvider.departureAirport?.icaoCode,
+    );
+    if (selectedCode.isNotEmpty && selectedCode == currentDeparture) {
+      await homeProvider.setDeparture(null);
+      return;
+    }
+    await homeProvider.setDeparture(_toHomeAirportInfo(selected));
+  }
+
+  Future<void> _toggleDestinationSelection(HomeProvider homeProvider) async {
+    final selected = _selectedAirport;
+    if (selected == null) {
+      return;
+    }
+    final selectedCode = _normalizeAirportCode(selected.code);
+    final currentDestination = _normalizeAirportCode(
+      homeProvider.destinationAirport?.icaoCode,
+    );
+    if (selectedCode.isNotEmpty && selectedCode == currentDestination) {
+      await homeProvider.setDestination(null);
+      return;
+    }
+    await homeProvider.setDestination(_toHomeAirportInfo(selected));
+  }
+
+  Future<void> _toggleAlternateSelection(HomeProvider homeProvider) async {
+    final selected = _selectedAirport;
+    if (selected == null) {
+      return;
+    }
+    final selectedCode = _normalizeAirportCode(selected.code);
+    final currentAlternate = _normalizeAirportCode(
+      homeProvider.alternateAirport?.icaoCode,
+    );
+    if (selectedCode.isNotEmpty && selectedCode == currentAlternate) {
+      await homeProvider.setAlternate(null);
+      return;
+    }
+    await homeProvider.setAlternate(_toHomeAirportInfo(selected));
   }
 
   double _parkingMarkerWidth(String? name, double scale) {

@@ -45,6 +45,21 @@ class ChecklistProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void syncWithFlightData(HomeFlightData flightData) {
+    if (_selectedAircraft == null) {
+      return;
+    }
+    final next = _derivePhaseFromFlightData(flightData);
+    if (next == null || next == _currentPhase) {
+      return;
+    }
+    if (!_shouldApplyAutoPhase(next)) {
+      return;
+    }
+    _currentPhase = next;
+    notifyListeners();
+  }
+
   void toggleItem(String itemId) {
     if (_selectedAircraft == null) return;
 
@@ -237,5 +252,80 @@ class ChecklistProvider with ChangeNotifier {
     }
     _selectedAircraft = _aircraftList.first;
     _currentPhase = ChecklistPhase.coldAndDark;
+  }
+
+  ChecklistPhase? _derivePhaseFromFlightData(HomeFlightData flightData) {
+    final phaseFromBackend = _mapBackendFlightPhase(flightData.flightPhase);
+    if (phaseFromBackend != null) {
+      return phaseFromBackend;
+    }
+    final onGround = flightData.onGround;
+    if (onGround == null) {
+      return null;
+    }
+    final groundSpeed = flightData.groundSpeed ?? 0;
+    final altitude = flightData.altitude ?? 0;
+    final verticalSpeed = flightData.verticalSpeed ?? 0;
+    final parkingBrake = flightData.parkingBrake ?? false;
+    final engineRunning =
+        (flightData.engine1Running ?? false) ||
+        (flightData.engine2Running ?? false);
+
+    if (!onGround) {
+      if (altitude <= 5000 && verticalSpeed <= -500) {
+        return ChecklistPhase.beforeApproach;
+      }
+      if (verticalSpeed <= -700 && altitude > 5000) {
+        return ChecklistPhase.beforeDescent;
+      }
+      return ChecklistPhase.cruise;
+    }
+
+    if (groundSpeed >= 45) {
+      return ChecklistPhase.afterLanding;
+    }
+    if (groundSpeed >= 8) {
+      return ChecklistPhase.beforeTaxi;
+    }
+    if (!parkingBrake && engineRunning) {
+      return ChecklistPhase.beforePushback;
+    }
+    if (parkingBrake && engineRunning) {
+      return ChecklistPhase.beforeTakeoff;
+    }
+    if (parkingBrake && !engineRunning) {
+      return ChecklistPhase.coldAndDark;
+    }
+    return ChecklistPhase.parking;
+  }
+
+  ChecklistPhase? _mapBackendFlightPhase(String? phase) {
+    final value = (phase ?? '').trim().toLowerCase();
+    switch (value) {
+      case 'taxi':
+        return ChecklistPhase.beforeTaxi;
+      case 'takeoff':
+        return ChecklistPhase.beforeTakeoff;
+      case 'climb':
+      case 'cruise':
+        return ChecklistPhase.cruise;
+      case 'approach':
+        return ChecklistPhase.beforeApproach;
+      case 'landing':
+        return ChecklistPhase.afterLanding;
+      default:
+        return null;
+    }
+  }
+
+  bool _shouldApplyAutoPhase(ChecklistPhase next) {
+    final currentIndex = ChecklistPhase.values.indexOf(_currentPhase);
+    final nextIndex = ChecklistPhase.values.indexOf(next);
+    if (nextIndex >= currentIndex) {
+      return true;
+    }
+    return next == ChecklistPhase.afterLanding ||
+        next == ChecklistPhase.parking ||
+        next == ChecklistPhase.coldAndDark;
   }
 }
