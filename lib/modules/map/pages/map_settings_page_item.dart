@@ -46,8 +46,6 @@ class _MapModuleSettingsView extends StatefulWidget {
 }
 
 class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
-  final TextEditingController _flightDataIntervalController =
-      TextEditingController();
   final TextEditingController _homeAirportIcaoController =
       TextEditingController();
   final TextEditingController _climbWarningThresholdController =
@@ -64,9 +62,6 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
   final FocusNode _descentDangerFocusNode = FocusNode();
   Timer? _homeAirportSearchDebounce;
   List<MapAirportMarker> _homeAirportSuggestions = const [];
-  int _currentFlightDataIntervalMs =
-      MiddlewareHomeDataAdapter.defaultPollIntervalMs;
-  bool _isFlightDataIntervalSaving = false;
   bool _isHomeAirportSaving = false;
   bool _isAlertSettingsSaving = false;
   bool _isHomeAirportSearching = false;
@@ -77,7 +72,6 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadFlightDataInterval();
       unawaited(_refreshBackendHealth());
     });
   }
@@ -85,7 +79,6 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
   @override
   void dispose() {
     _homeAirportSearchDebounce?.cancel();
-    _flightDataIntervalController.dispose();
     _homeAirportIcaoController.dispose();
     _climbWarningThresholdController.dispose();
     _climbDangerThresholdController.dispose();
@@ -101,61 +94,6 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
   Future<void> _refreshBackendHealth() async {
     final homeProvider = context.read<HomeProvider?>();
     await homeProvider?.refreshBackendHealth();
-  }
-
-  Future<void> _loadFlightDataInterval() async {
-    final homeProvider = context.read<HomeProvider?>();
-    final intervalMs =
-        await homeProvider?.getFlightDataIntervalMs() ??
-        MiddlewareHomeDataAdapter.defaultPollIntervalMs;
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _currentFlightDataIntervalMs = intervalMs;
-      _flightDataIntervalController.text = '$intervalMs';
-    });
-  }
-
-  Future<void> _saveFlightDataInterval(BuildContext context) async {
-    final text = _flightDataIntervalController.text.trim();
-    final intervalMs = int.tryParse(text);
-    if (intervalMs == null ||
-        intervalMs < MiddlewareHomeDataAdapter.minPollIntervalMs ||
-        intervalMs > MiddlewareHomeDataAdapter.maxPollIntervalMs) {
-      SnackBarHelper.showError(
-        context,
-        MapLocalizationKeys.invalidFlightDataInterval.tr(context),
-      );
-      return;
-    }
-    final homeProvider = context.read<HomeProvider?>();
-    if (homeProvider == null) {
-      return;
-    }
-    setState(() {
-      _isFlightDataIntervalSaving = true;
-    });
-    try {
-      await homeProvider.setFlightDataIntervalMs(intervalMs);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _currentFlightDataIntervalMs = intervalMs;
-        _flightDataIntervalController.text = '$intervalMs';
-      });
-      SnackBarHelper.showSuccess(
-        context,
-        MapLocalizationKeys.flightDataIntervalSaved.tr(context),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isFlightDataIntervalSaving = false;
-        });
-      }
-    }
   }
 
   Future<void> _saveHomeAirport(BuildContext context) async {
@@ -685,62 +623,6 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
             ),
             const SizedBox(height: AppThemeData.spacingMedium),
             _SectionCard(
-              icon: Icons.speed_outlined,
-              title: MapLocalizationKeys.flightDataSectionTitle.tr(context),
-              subtitle: MapLocalizationKeys.flightDataSectionDesc.tr(context),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: _flightDataIntervalController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: MapLocalizationKeys.flightDataIntervalLabel.tr(
-                        context,
-                      ),
-                      hintText: MapLocalizationKeys.flightDataIntervalHint.tr(
-                        context,
-                      ),
-                      prefixIcon: const Icon(Icons.timer_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: AppThemeData.spacingSmall),
-                  Text(
-                    MapLocalizationKeys.currentFlightDataInterval
-                        .tr(context)
-                        .replaceFirst(
-                          '{value}',
-                          '$_currentFlightDataIntervalMs',
-                        ),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: AppThemeData.spacingMedium),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isFlightDataIntervalSaving
-                          ? null
-                          : () => _saveFlightDataInterval(context),
-                      icon: _isFlightDataIntervalSaving
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.save_outlined, size: 18),
-                      label: Text(
-                        _isFlightDataIntervalSaving
-                            ? MapLocalizationKeys.saving.tr(context)
-                            : MapLocalizationKeys.saveButton.tr(context),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppThemeData.spacingMedium),
-            _SectionCard(
               icon: Icons.warning_amber_rounded,
               title: MapLocalizationKeys.alertSettingsSectionTitle.tr(context),
               subtitle: MapLocalizationKeys.alertSettingsSectionDesc.tr(
@@ -767,32 +649,24 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  SizedBox(
-                    height: 220,
-                    child: ListView.separated(
-                      itemCount: mapProvider.configurableAlertIds.length,
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final alertId = mapProvider.configurableAlertIds[index];
-                        final labelKey =
-                            mapProvider.alertMessageKeyForId(alertId) ??
-                            alertId;
-                        return SwitchListTile(
-                          value: mapProvider.isAlertEnabled(alertId),
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          title: Text(labelKey.tr(context)),
-                          onChanged: mapProvider.alertsEnabled
-                              ? (value) {
-                                  unawaited(
-                                    mapProvider.setAlertEnabled(alertId, value),
-                                  );
-                                }
-                              : null,
-                        );
-                      },
-                    ),
+                  Wrap(
+                    spacing: AppThemeData.spacingSmall,
+                    runSpacing: AppThemeData.spacingSmall,
+                    children: mapProvider.configurableAlertIds.map((alertId) {
+                      final labelKey =
+                          mapProvider.alertMessageKeyForId(alertId) ?? alertId;
+                      final selected = mapProvider.isAlertEnabled(alertId);
+                      return _AlertToggleTag(
+                        label: labelKey.tr(context),
+                        selected: selected,
+                        enabled: mapProvider.alertsEnabled,
+                        onTap: () {
+                          unawaited(
+                            mapProvider.setAlertEnabled(alertId, !selected),
+                          );
+                        },
+                      );
+                    }).toList(),
                   ),
                   const SizedBox(height: AppThemeData.spacingSmall),
                   Text(
@@ -1082,6 +956,65 @@ class _SectionCard extends StatelessWidget {
             ),
             const SizedBox(height: AppThemeData.spacingMedium),
             child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AlertToggleTag extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _AlertToggleTag({
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final activeColor = theme.colorScheme.primary;
+    final borderColor = selected
+        ? activeColor
+        : theme.colorScheme.outline.withValues(alpha: 0.5);
+    final textColor = enabled
+        ? (selected ? activeColor : theme.colorScheme.onSurface)
+        : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.65);
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: borderColor),
+          color: selected
+              ? activeColor.withValues(alpha: enabled ? 0.12 : 0.06)
+              : Colors.transparent,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              selected ? Icons.check_circle : Icons.radio_button_unchecked,
+              size: 16,
+              color: textColor,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: textColor,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ),
