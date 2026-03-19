@@ -139,13 +139,18 @@ class ChecklistProvider with ChangeNotifier {
   Future<int> importFromFilePicker() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['json'],
+      allowedExtensions: ['json', 'txt', 'csv'],
     );
     final filePath = result?.files.single.path;
     if (filePath == null) return -1;
     final loaded = await _service.loadFromFile(File(filePath));
     if (loaded.isEmpty) return 0;
-    _applyAircraftList(loaded);
+    _mergeAircraftList(loaded);
+    final sourceName = result?.files.single.name;
+    if (sourceName != null && sourceName.trim().isNotEmpty) {
+      final hint = sourceName.replaceAll(RegExp(r'\.[^.]+$'), '');
+      _selectedAircraft = _resolveAircraftByIdentifier(hint) ?? _selectedAircraft;
+    }
     notifyListeners();
     return loaded.length;
   }
@@ -252,6 +257,22 @@ class ChecklistProvider with ChangeNotifier {
     }
     _selectedAircraft = _aircraftList.first;
     _currentPhase = ChecklistPhase.coldAndDark;
+  }
+
+  void _mergeAircraftList(List<AircraftChecklist> imported) {
+    final byId = <String, AircraftChecklist>{};
+    for (final aircraft in _aircraftList) {
+      byId[aircraft.id] = aircraft;
+    }
+    for (final aircraft in imported) {
+      byId[aircraft.id] = aircraft;
+    }
+    _aircraftList = byId.values.toList();
+    _aircraftList.sort((a, b) => a.name.compareTo(b.name));
+    if (_selectedAircraft == null && _aircraftList.isNotEmpty) {
+      _selectedAircraft = _aircraftList.first;
+      _currentPhase = ChecklistPhase.coldAndDark;
+    }
   }
 
   ChecklistPhase? _derivePhaseFromFlightData(HomeFlightData flightData) {
