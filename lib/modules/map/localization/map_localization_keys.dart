@@ -95,7 +95,6 @@ class MapLocalizationKeys {
   static const String markerArrivalAirport = 'map.marker.arrival_airport';
   static const String markerAlternateAirport = 'map.marker.alternate_airport';
   static const String markerHomeAirport = 'map.marker.home_airport';
-  static const String markerCurrentAirport = 'map.marker.current_airport';
   static const String actionSetAsDepartureAirport =
       'map.action.set_as_departure_airport';
   static const String actionSetAsArrivalAirport =
