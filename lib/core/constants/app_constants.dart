@@ -22,8 +22,8 @@ class AppConstants {
   // ========== 应用信息 ==========
   static const String appName = 'OwO! FlightAssistant';
   static const String appPackageName = 'com.owoblog.owo_flight_assistant';
-  static const String appVersion = '1.0.0-beta';
-  static const String appBuildVersion = 'internal-build-20260316';
+  static const String appVersion = '1.0.1-beta';
+  static const String appBuildVersion = 'internal-build-20260319';
 
   // ========== 资源路径 ==========
   static const String assetIconPath = 'assets/icons/app_icon.png';
