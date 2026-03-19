@@ -1,3 +1,40 @@
+enum FlightLogAlertLevel { caution, warning, danger }
+
+class FlightLogAlert {
+  final String id;
+  final FlightLogAlertLevel level;
+  final String message;
+
+  const FlightLogAlert({
+    required this.id,
+    required this.level,
+    required this.message,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'lv': level.name,
+    'msg': message,
+  };
+
+  factory FlightLogAlert.fromJson(Map<String, dynamic> json) => FlightLogAlert(
+    id: (json['id'] as String? ?? '').trim(),
+    level: _flightLogAlertLevelFromRaw(json['lv'] as String?),
+    message: (json['msg'] as String? ?? '').trim(),
+  );
+}
+
+FlightLogAlertLevel _flightLogAlertLevelFromRaw(String? raw) {
+  final value = raw?.trim().toLowerCase();
+  if (value == FlightLogAlertLevel.danger.name) {
+    return FlightLogAlertLevel.danger;
+  }
+  if (value == FlightLogAlertLevel.warning.name) {
+    return FlightLogAlertLevel.warning;
+  }
+  return FlightLogAlertLevel.caution;
+}
+
 class FlightLogPoint {
   final double latitude;
   final double longitude;
@@ -33,6 +70,7 @@ class FlightLogPoint {
   final int? autoBrakeLevel;
   final double? speedBrakePosition;
   final bool? onGround;
+  final List<FlightLogAlert> anomalyAlerts;
 
   FlightLogPoint({
     required this.latitude,
@@ -69,6 +107,7 @@ class FlightLogPoint {
     this.autoBrakeLevel,
     this.speedBrakePosition,
     this.onGround,
+    this.anomalyAlerts = const <FlightLogAlert>[],
   });
 
   Map<String, dynamic> toJson() => {
@@ -106,6 +145,7 @@ class FlightLogPoint {
     'grnd': onGround,
     'ab': autoBrakeLevel,
     'sb': speedBrakePosition,
+    'alerts': anomalyAlerts.map((alert) => alert.toJson()).toList(),
   };
 
   factory FlightLogPoint.fromJson(Map<String, dynamic> json) => FlightLogPoint(
@@ -146,6 +186,11 @@ class FlightLogPoint {
     autoBrakeLevel: (json['ab'] as num?)?.toInt(),
     speedBrakePosition: (json['sb'] as num?)?.toDouble(),
     onGround: json['grnd'] as bool?,
+    anomalyAlerts: (json['alerts'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map(FlightLogAlert.fromJson)
+        .where((alert) => alert.message.isNotEmpty)
+        .toList(),
   );
 }
 
@@ -194,7 +239,40 @@ class FlightLog {
     this.landingData,
   });
 
-  Duration get duration => (endTime ?? DateTime.now()).difference(startTime);
+  Duration get duration {
+    final value = (endTime ?? DateTime.now()).difference(startTime);
+    return value.isNegative ? Duration.zero : value;
+  }
+  Duration get totalRecordedDuration => duration;
+  Duration get airborneDuration {
+    DateTime? takeoffTime = takeoffData?.timestamp;
+    DateTime? touchdownTime = landingData?.timestamp;
+    var previousOnGround = wasOnGroundAtStart;
+    for (final point in points) {
+      final currentOnGround = point.onGround ?? previousOnGround;
+      if (takeoffTime == null && previousOnGround && !currentOnGround) {
+        takeoffTime = point.timestamp;
+      }
+      if (takeoffTime == null && !currentOnGround) {
+        takeoffTime = point.timestamp;
+      }
+      if (takeoffTime != null &&
+          touchdownTime == null &&
+          !previousOnGround &&
+          currentOnGround) {
+        touchdownTime = point.timestamp;
+        break;
+      }
+      previousOnGround = currentOnGround;
+    }
+    if (takeoffTime == null) return Duration.zero;
+    final endReference =
+        touchdownTime ??
+        endTime ??
+        (points.isNotEmpty ? points.last.timestamp : takeoffTime);
+    if (endReference.isBefore(takeoffTime)) return Duration.zero;
+    return endReference.difference(takeoffTime);
+  }
   FlightLogPoint? get lastPoint => points.isEmpty ? null : points.last;
   bool get isCompleted {
     final finalPoint = lastPoint;

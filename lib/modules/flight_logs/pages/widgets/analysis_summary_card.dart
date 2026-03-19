@@ -13,10 +13,8 @@ class AnalysisSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final duration = log.duration;
-    final hrs = duration.inHours;
-    final mins = duration.inMinutes % 60;
-    final secs = duration.inSeconds % 60;
+    final totalRecordedDuration = log.totalRecordedDuration;
+    final airborneDuration = log.airborneDuration;
     final unknownAirport = FlightLogsLocalizationKeys.listUnknownAirport.tr(
       context,
     );
@@ -28,6 +26,72 @@ class AnalysisSummaryCard extends StatelessWidget {
               ? log.arrivalAirport!
               : unknownAirport)
         : '----';
+    final summaryItems = <_SummaryItemData>[
+      _SummaryItemData(
+        label: FlightLogsLocalizationKeys.summaryDuration.tr(context),
+        value: _formatDuration(totalRecordedDuration),
+        icon: Icons.timer_outlined,
+        color: Colors.blue,
+      ),
+      _SummaryItemData(
+        label: FlightLogsLocalizationKeys.summaryAirborneDuration.tr(context),
+        value: _formatDuration(airborneDuration),
+        icon: Icons.timer_outlined,
+        color: Colors.cyan,
+      ),
+      _SummaryItemData(
+        label: FlightLogsLocalizationKeys.summaryMaxAlt.tr(context),
+        value: '${log.maxAltitude.toStringAsFixed(0)} ft',
+        icon: Icons.height,
+        color: Colors.purple,
+      ),
+      _SummaryItemData(
+        label: FlightLogsLocalizationKeys.summaryMaxGs.tr(context),
+        value: '${log.maxGroundSpeed.toStringAsFixed(0)} kts',
+        icon: Icons.speed,
+        color: Colors.orange,
+      ),
+      _SummaryItemData(
+        label: FlightLogsLocalizationKeys.summaryFuel.tr(context),
+        value: log.totalFuelUsed != null
+            ? '${log.totalFuelUsed!.toStringAsFixed(1)} kg'
+            : '--',
+        icon: Icons.local_gas_station_outlined,
+        color: Colors.green,
+      ),
+      _SummaryItemData(
+        label: FlightLogsLocalizationKeys.listDeparture.tr(context),
+        value: departureAirport,
+        icon: Icons.flight_takeoff,
+        color: Colors.teal,
+      ),
+      _SummaryItemData(
+        label: FlightLogsLocalizationKeys.listArrival.tr(context),
+        value: arrivalAirport,
+        icon: Icons.flight_land,
+        color: Colors.deepOrange,
+      ),
+      _SummaryItemData(
+        label: FlightLogsLocalizationKeys.summaryMaxG.tr(context),
+        value: '${log.maxG.toStringAsFixed(2)} G',
+        icon: Icons.trending_up,
+        color: Colors.redAccent,
+      ),
+      _SummaryItemData(
+        label: FlightLogsLocalizationKeys.summaryMinG.tr(context),
+        value: '${log.minG.toStringAsFixed(2)} G',
+        icon: Icons.trending_down,
+        color: Colors.indigo,
+      ),
+      _SummaryItemData(
+        label: FlightLogsLocalizationKeys.summaryTouchdownG.tr(context),
+        value: log.landingData != null
+            ? '${log.landingData!.gForce.toStringAsFixed(2)} G'
+            : '--',
+        icon: Icons.flight_land,
+        color: Colors.green,
+      ),
+    ];
 
     return Container(
       padding: const EdgeInsets.all(AppThemeData.spacingMedium),
@@ -54,82 +118,49 @@ class AnalysisSummaryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: MediaQuery.of(context).size.width > 900 ? 4 : 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2.2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            children: [
-              _buildSummaryItem(
-                context,
-                FlightLogsLocalizationKeys.summaryDuration.tr(context),
-                '${hrs}h ${mins}m ${secs}s',
-                Icons.timer_outlined,
-                Colors.blue,
-              ),
-              _buildSummaryItem(
-                context,
-                FlightLogsLocalizationKeys.summaryMaxAlt.tr(context),
-                '${log.maxAltitude.toStringAsFixed(0)} ft',
-                Icons.height,
-                Colors.purple,
-              ),
-              _buildSummaryItem(
-                context,
-                FlightLogsLocalizationKeys.summaryMaxGs.tr(context),
-                '${log.maxGroundSpeed.toStringAsFixed(0)} kts',
-                Icons.speed,
-                Colors.orange,
-              ),
-              _buildSummaryItem(
-                context,
-                FlightLogsLocalizationKeys.summaryFuel.tr(context),
-                log.totalFuelUsed != null
-                    ? '${log.totalFuelUsed!.toStringAsFixed(1)} kg'
-                    : '--',
-                Icons.local_gas_station_outlined,
-                Colors.green,
-              ),
-              _buildSummaryItem(
-                context,
-                FlightLogsLocalizationKeys.listDeparture.tr(context),
-                departureAirport,
-                Icons.flight_takeoff,
-                Colors.teal,
-              ),
-              _buildSummaryItem(
-                context,
-                FlightLogsLocalizationKeys.listArrival.tr(context),
-                arrivalAirport,
-                Icons.flight_land,
-                Colors.deepOrange,
-              ),
-              _buildSummaryItem(
-                context,
-                FlightLogsLocalizationKeys.summaryMaxG.tr(context),
-                '${log.maxG.toStringAsFixed(2)} G',
-                Icons.trending_up,
-                Colors.redAccent,
-              ),
-              _buildSummaryItem(
-                context,
-                FlightLogsLocalizationKeys.summaryMinG.tr(context),
-                '${log.minG.toStringAsFixed(2)} G',
-                Icons.trending_down,
-                Colors.indigo,
-              ),
-              _buildSummaryItem(
-                context,
-                FlightLogsLocalizationKeys.summaryTouchdownG.tr(context),
-                log.landingData != null
-                    ? '${log.landingData!.gForce.toStringAsFixed(2)} G'
-                    : '--',
-                Icons.flight_land,
-                Colors.green,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final preferredTileWidth = width >= 1800
+                  ? 250.0
+                  : width >= 1400
+                  ? 270.0
+                  : width >= 1000
+                  ? 300.0
+                  : 220.0;
+              final crossAxisCount = (width / preferredTileWidth)
+                  .floor()
+                  .clamp(2, 6)
+                  .toInt();
+              final childAspectRatio = width >= 1800
+                  ? 4.0
+                  : width >= 1400
+                  ? 3.5
+                  : width >= 1000
+                  ? 3.0
+                  : 2.2;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: summaryItems.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  childAspectRatio: childAspectRatio,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
+                itemBuilder: (context, index) {
+                  final item = summaryItems[index];
+                  return _buildSummaryItem(
+                    context,
+                    item.label,
+                    item.value,
+                    item.icon,
+                    item.color,
+                  );
+                },
+              );
+            },
           ),
         ],
       ),
@@ -198,4 +229,25 @@ class AnalysisSummaryCard extends StatelessWidget {
       ),
     );
   }
+
+  String _formatDuration(Duration duration) {
+    final hrs = duration.inHours;
+    final mins = duration.inMinutes % 60;
+    final secs = duration.inSeconds % 60;
+    return '${hrs}h ${mins}m ${secs}s';
+  }
+}
+
+class _SummaryItemData {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _SummaryItemData({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
 }

@@ -61,8 +61,11 @@ class FlightLogsLocalizationKeys {
   static const String blackBoxSystem = 'flight_logs.black_box.system';
   static const String blackBoxBaro = 'flight_logs.black_box.baro';
   static const String blackBoxAlert = 'flight_logs.black_box.alert';
+  static const String blackBoxAnomalyAlert = 'flight_logs.black_box.anomaly';
   static const String summaryTitle = 'flight_logs.summary.title';
   static const String summaryDuration = 'flight_logs.summary.duration';
+  static const String summaryAirborneDuration =
+      'flight_logs.summary.airborne_duration';
   static const String summaryMaxAlt = 'flight_logs.summary.max_alt';
   static const String summaryMaxGs = 'flight_logs.summary.max_gs';
   static const String summaryFuel = 'flight_logs.summary.fuel';
@@ -76,6 +79,18 @@ class FlightLogsLocalizationKeys {
   static const String chartGForce = 'flight_logs.chart.g_force';
   static const String chartBaro = 'flight_logs.chart.baro';
   static const String chartAoa = 'flight_logs.chart.aoa';
+  static const String chartNoData = 'flight_logs.chart.no_data';
+  static const String chartScaleHelp = 'flight_logs.chart.scale_help';
+  static const String chartMinuteUnit = 'flight_logs.chart.minute_unit';
+  static const String chartEventTakeoff = 'flight_logs.chart.event.takeoff';
+  static const String chartEventFlaps = 'flight_logs.chart.event.flaps';
+  static const String chartEventFlapsDeploy =
+      'flight_logs.chart.event.flaps_deploy';
+  static const String chartEventFlapsRetract =
+      'flight_logs.chart.event.flaps_retract';
+  static const String chartEventTouchdown = 'flight_logs.chart.event.touchdown';
+  static const String chartEventFinalTouchdown =
+      'flight_logs.chart.event.final_touchdown';
   static const String chartTooltipAlt = 'flight_logs.chart.tooltip_alt';
   static const String chartTooltipSpeed = 'flight_logs.chart.tooltip_speed';
   static const String simulatorMsfs = 'flight_logs.simulator.msfs';

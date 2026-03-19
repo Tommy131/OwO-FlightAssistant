@@ -11,24 +11,32 @@ import 'widgets/analysis_chart.dart';
 import 'widgets/analysis_summary_card.dart';
 import 'widgets/analysis_track_map.dart';
 
-class FlightLogDetailPage extends StatelessWidget {
+class FlightLogDetailPage extends StatefulWidget {
   final FlightLog log;
   final VoidCallback? onBack;
 
   const FlightLogDetailPage({super.key, required this.log, this.onBack});
 
   @override
+  State<FlightLogDetailPage> createState() => _FlightLogDetailPageState();
+}
+
+class _FlightLogDetailPageState extends State<FlightLogDetailPage> {
+  final Set<_DetailSection> _expandedSections = {_DetailSection.track};
+  final Set<_DetailSection> _loadedSections = {_DetailSection.track};
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final log = widget.log;
 
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
         centerTitle: false,
-        leading: onBack != null
+        leading: widget.onBack != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back_rounded),
-                onPressed: onBack,
+                onPressed: widget.onBack,
               )
             : null,
         title: Text(
@@ -76,25 +84,23 @@ class FlightLogDetailPage extends StatelessWidget {
             const SizedBox(height: 24),
             _buildEventSection(context),
             const SizedBox(height: 24),
-            Text(
+            _buildLazySection(
+              _DetailSection.track,
               FlightLogsLocalizationKeys.detailTrack.tr(context),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              () => AnalysisTrackMap(log: widget.log),
             ),
             const SizedBox(height: 12),
-            AnalysisTrackMap(log: log),
-            const SizedBox(height: 24),
-            Text(
+            _buildLazySection(
+              _DetailSection.profile,
               FlightLogsLocalizationKeys.detailProfile.tr(context),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              () => AnalysisChart(log: widget.log),
             ),
             const SizedBox(height: 12),
-            AnalysisChart(log: log),
-            const SizedBox(height: 24),
-            AnalysisBlackBox(log: log),
+            _buildLazySection(
+              _DetailSection.blackBox,
+              FlightLogsLocalizationKeys.blackBoxTitle.tr(context),
+              () => AnalysisBlackBox(log: widget.log),
+            ),
             const SizedBox(height: 40),
           ],
         ),
@@ -109,27 +115,66 @@ class FlightLogDetailPage extends StatelessWidget {
     }
   }
 
+  Widget _buildLazySection(
+    _DetailSection section,
+    String title,
+    Widget Function() builder,
+  ) {
+    final theme = Theme.of(context);
+    final expanded = _expandedSections.contains(section);
+    final loaded = _loadedSections.contains(section);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.08)),
+      ),
+      child: ExpansionTile(
+        key: ValueKey<String>('flight_log_section_${section.name}'),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        initiallyExpanded: expanded,
+        title: Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        onExpansionChanged: (value) {
+          setState(() {
+            if (value) {
+              _expandedSections.add(section);
+              _loadedSections.add(section);
+              return;
+            }
+            _expandedSections.remove(section);
+          });
+        },
+        children: [if (loaded) builder() else const SizedBox.shrink()],
+      ),
+    );
+  }
+
   Widget _buildEventSection(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (log.takeoffData != null)
+        if (widget.log.takeoffData != null)
           Expanded(
             child: _buildEventCard(
               context,
               FlightLogsLocalizationKeys.eventTakeoff.tr(context),
-              log.takeoffData!,
+              widget.log.takeoffData!,
               true,
             ),
           ),
-        if (log.takeoffData != null && log.landingData != null)
+        if (widget.log.takeoffData != null && widget.log.landingData != null)
           const SizedBox(width: 16),
-        if (log.landingData != null)
+        if (widget.log.landingData != null)
           Expanded(
             child: _buildEventCard(
               context,
               FlightLogsLocalizationKeys.eventLanding.tr(context),
-              log.landingData!,
+              widget.log.landingData!,
               false,
             ),
           ),
@@ -179,7 +224,7 @@ class FlightLogDetailPage extends StatelessWidget {
           const Divider(height: 24),
           _buildDetailRow(
             FlightLogsLocalizationKeys.runway.tr(context),
-            data.runway ?? '--',
+            _runwayValue(data),
           ),
           _buildDetailRow(
             FlightLogsLocalizationKeys.airspeed.tr(context),
@@ -207,11 +252,25 @@ class FlightLogDetailPage extends StatelessWidget {
           ],
           _buildDetailRow(
             FlightLogsLocalizationKeys.remainingRunway.tr(context),
-            '${data.remainingRunwayFt?.toStringAsFixed(0) ?? "--"} ft',
+            _remainingRunwayValue(data),
           ),
         ],
       ),
     );
+  }
+
+  String _runwayValue(dynamic data) {
+    final runway = data.runway;
+    if (runway == null || runway.toString().trim().isEmpty) {
+      return '--';
+    }
+    return runway.toString().trim().toUpperCase();
+  }
+
+  String _remainingRunwayValue(dynamic data) {
+    final value = data.remainingRunwayFt;
+    if (value == null || value <= 0) return '--';
+    return '${value.toStringAsFixed(0)} ft';
   }
 
   Widget _buildDetailRow(String label, String value) {
@@ -290,3 +349,5 @@ class FlightLogDetailPage extends StatelessWidget {
     return FlightLogsLocalizationKeys.simulatorUnknown.tr(context);
   }
 }
+
+enum _DetailSection { track, profile, blackBox }

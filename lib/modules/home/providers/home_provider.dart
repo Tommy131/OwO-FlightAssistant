@@ -805,8 +805,13 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       ),
       angleOfAttack: _readAngleDegrees(
         dataset,
-        degreeKeys: const ['aoa_deg', 'angle_of_attack_deg'],
-        fallbackKeys: const ['aoa'],
+        degreeKeys: const [
+          'aoa_deg',
+          'angle_of_attack_deg',
+          'alpha_deg',
+          'angleofattack_deg',
+        ],
+        fallbackKeys: const ['aoa', 'angle_of_attack', 'alpha', 'angleofattack'],
       ),
       stallWarning: _toBool(
         dataset['stall_warning'] ??
