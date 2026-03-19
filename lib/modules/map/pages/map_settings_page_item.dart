@@ -50,14 +50,28 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
       TextEditingController();
   final TextEditingController _homeAirportIcaoController =
       TextEditingController();
+  final TextEditingController _climbWarningThresholdController =
+      TextEditingController();
+  final TextEditingController _climbDangerThresholdController =
+      TextEditingController();
+  final TextEditingController _descentWarningThresholdController =
+      TextEditingController();
+  final TextEditingController _descentDangerThresholdController =
+      TextEditingController();
+  final FocusNode _climbWarningFocusNode = FocusNode();
+  final FocusNode _climbDangerFocusNode = FocusNode();
+  final FocusNode _descentWarningFocusNode = FocusNode();
+  final FocusNode _descentDangerFocusNode = FocusNode();
   Timer? _homeAirportSearchDebounce;
   List<MapAirportMarker> _homeAirportSuggestions = const [];
   int _currentFlightDataIntervalMs =
       MiddlewareHomeDataAdapter.defaultPollIntervalMs;
   bool _isFlightDataIntervalSaving = false;
   bool _isHomeAirportSaving = false;
+  bool _isAlertSettingsSaving = false;
   bool _isHomeAirportSearching = false;
   int _homeAirportSearchToken = 0;
+  String? _alertThresholdSignature;
 
   @override
   void initState() {
@@ -73,6 +87,14 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
     _homeAirportSearchDebounce?.cancel();
     _flightDataIntervalController.dispose();
     _homeAirportIcaoController.dispose();
+    _climbWarningThresholdController.dispose();
+    _climbDangerThresholdController.dispose();
+    _descentWarningThresholdController.dispose();
+    _descentDangerThresholdController.dispose();
+    _climbWarningFocusNode.dispose();
+    _climbDangerFocusNode.dispose();
+    _descentWarningFocusNode.dispose();
+    _descentDangerFocusNode.dispose();
     super.dispose();
   }
 
@@ -220,7 +242,10 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
     );
   }
 
-  Future<void> _saveAutoHudTimerEnabled(BuildContext context, bool value) async {
+  Future<void> _saveAutoHudTimerEnabled(
+    BuildContext context,
+    bool value,
+  ) async {
     final mapProvider = context.read<MapProvider?>();
     if (mapProvider == null) {
       return;
@@ -269,6 +294,89 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
       context,
       MapLocalizationKeys.timerSettingsSaved.tr(context),
     );
+  }
+
+  void _syncAlertThresholdControllers(MapProvider mapProvider) {
+    final hasFocusedField =
+        _climbWarningFocusNode.hasFocus ||
+        _climbDangerFocusNode.hasFocus ||
+        _descentWarningFocusNode.hasFocus ||
+        _descentDangerFocusNode.hasFocus;
+    if (hasFocusedField || _isAlertSettingsSaving) {
+      return;
+    }
+    final signature =
+        '${mapProvider.climbRateWarningFpm}|${mapProvider.climbRateDangerFpm}|${mapProvider.descentRateWarningFpm}|${mapProvider.descentRateDangerFpm}';
+    if (signature == _alertThresholdSignature) {
+      return;
+    }
+    _climbWarningThresholdController.text =
+        '${mapProvider.climbRateWarningFpm}';
+    _climbDangerThresholdController.text = '${mapProvider.climbRateDangerFpm}';
+    _descentWarningThresholdController.text =
+        '${mapProvider.descentRateWarningFpm}';
+    _descentDangerThresholdController.text =
+        '${mapProvider.descentRateDangerFpm}';
+    _alertThresholdSignature = signature;
+  }
+
+  Future<void> _saveAlertThresholdSettings(
+    BuildContext context,
+    MapProvider mapProvider,
+  ) async {
+    final climbWarning = int.tryParse(
+      _climbWarningThresholdController.text.trim(),
+    );
+    final climbDanger = int.tryParse(
+      _climbDangerThresholdController.text.trim(),
+    );
+    final descentWarning = int.tryParse(
+      _descentWarningThresholdController.text.trim(),
+    );
+    final descentDanger = int.tryParse(
+      _descentDangerThresholdController.text.trim(),
+    );
+    final isValid =
+        climbWarning != null &&
+        climbDanger != null &&
+        descentWarning != null &&
+        descentDanger != null &&
+        climbWarning > 0 &&
+        climbDanger > climbWarning &&
+        descentWarning > 0 &&
+        descentDanger > descentWarning;
+    if (!isValid) {
+      SnackBarHelper.showError(
+        context,
+        MapLocalizationKeys.invalidAlertThreshold.tr(context),
+      );
+      return;
+    }
+    setState(() {
+      _isAlertSettingsSaving = true;
+    });
+    try {
+      await mapProvider.setVerticalRateThresholds(
+        climbWarningFpm: climbWarning,
+        climbDangerFpm: climbDanger,
+        descentWarningFpm: descentWarning,
+        descentDangerFpm: descentDanger,
+      );
+      if (!mounted) {
+        return;
+      }
+      _syncAlertThresholdControllers(mapProvider);
+      SnackBarHelper.showSuccess(
+        context,
+        MapLocalizationKeys.alertSettingsSaved.tr(context),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAlertSettingsSaving = false;
+        });
+      }
+    }
   }
 
   void _onHomeAirportInputChanged(String value) {
@@ -351,6 +459,7 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
     final theme = Theme.of(context);
     return Consumer2<MapProvider, HomeProvider>(
       builder: (context, mapProvider, homeProvider, child) {
+        _syncAlertThresholdControllers(mapProvider);
         if (_homeAirportIcaoController.text.trim().isEmpty &&
             mapProvider.homeAirport != null) {
           _homeAirportIcaoController.text = mapProvider.homeAirport!.code;
@@ -622,6 +731,161 @@ class _MapModuleSettingsViewState extends State<_MapModuleSettingsView> {
                           : const Icon(Icons.save_outlined, size: 18),
                       label: Text(
                         _isFlightDataIntervalSaving
+                            ? MapLocalizationKeys.saving.tr(context)
+                            : MapLocalizationKeys.saveButton.tr(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppThemeData.spacingMedium),
+            _SectionCard(
+              icon: Icons.warning_amber_rounded,
+              title: MapLocalizationKeys.alertSettingsSectionTitle.tr(context),
+              subtitle: MapLocalizationKeys.alertSettingsSectionDesc.tr(
+                context,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SwitchListTile(
+                    value: mapProvider.alertsEnabled,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      MapLocalizationKeys.alertSettingsEnableAll.tr(context),
+                    ),
+                    onChanged: (value) {
+                      unawaited(mapProvider.setAlertsEnabled(value));
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    MapLocalizationKeys.alertSettingsSelectAlerts.tr(context),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 220,
+                    child: ListView.separated(
+                      itemCount: mapProvider.configurableAlertIds.length,
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final alertId = mapProvider.configurableAlertIds[index];
+                        final labelKey =
+                            mapProvider.alertMessageKeyForId(alertId) ??
+                            alertId;
+                        return SwitchListTile(
+                          value: mapProvider.isAlertEnabled(alertId),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: Text(labelKey.tr(context)),
+                          onChanged: mapProvider.alertsEnabled
+                              ? (value) {
+                                  unawaited(
+                                    mapProvider.setAlertEnabled(alertId, value),
+                                  );
+                                }
+                              : null,
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: AppThemeData.spacingSmall),
+                  Text(
+                    MapLocalizationKeys.alertSettingsThresholdTitle.tr(context),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: AppThemeData.spacingSmall),
+                  TextField(
+                    controller: _climbWarningThresholdController,
+                    focusNode: _climbWarningFocusNode,
+                    enabled:
+                        mapProvider.alertsEnabled && !_isAlertSettingsSaving,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: MapLocalizationKeys
+                          .alertThresholdClimbWarningLabel
+                          .tr(context),
+                      prefixIcon: const Icon(Icons.trending_up_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: AppThemeData.spacingSmall),
+                  TextField(
+                    controller: _climbDangerThresholdController,
+                    focusNode: _climbDangerFocusNode,
+                    enabled:
+                        mapProvider.alertsEnabled && !_isAlertSettingsSaving,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: MapLocalizationKeys
+                          .alertThresholdClimbDangerLabel
+                          .tr(context),
+                      prefixIcon: const Icon(Icons.trending_up_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: AppThemeData.spacingSmall),
+                  TextField(
+                    controller: _descentWarningThresholdController,
+                    focusNode: _descentWarningFocusNode,
+                    enabled:
+                        mapProvider.alertsEnabled && !_isAlertSettingsSaving,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: MapLocalizationKeys
+                          .alertThresholdDescentWarningLabel
+                          .tr(context),
+                      prefixIcon: const Icon(Icons.trending_down_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: AppThemeData.spacingSmall),
+                  TextField(
+                    controller: _descentDangerThresholdController,
+                    focusNode: _descentDangerFocusNode,
+                    enabled:
+                        mapProvider.alertsEnabled && !_isAlertSettingsSaving,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: MapLocalizationKeys
+                          .alertThresholdDescentDangerLabel
+                          .tr(context),
+                      prefixIcon: const Icon(Icons.trending_down_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: AppThemeData.spacingSmall),
+                  Text(
+                    MapLocalizationKeys.alertThresholdHint.tr(context),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: AppThemeData.spacingMedium),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          mapProvider.alertsEnabled && !_isAlertSettingsSaving
+                          ? () => _saveAlertThresholdSettings(
+                              context,
+                              mapProvider,
+                            )
+                          : null,
+                      icon: _isAlertSettingsSaving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_outlined, size: 18),
+                      label: Text(
+                        _isAlertSettingsSaving
                             ? MapLocalizationKeys.saving.tr(context)
                             : MapLocalizationKeys.saveButton.tr(context),
                       ),

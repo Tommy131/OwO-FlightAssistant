@@ -8,7 +8,7 @@ import '../home/providers/home_provider.dart';
 import 'localization/map_localization_keys.dart';
 import 'localization/map_translations.dart';
 import 'pages/map_page.dart';
-import 'pages/map_timer_settings_page_item.dart';
+import 'pages/map_settings_page_item.dart';
 import 'providers/map_provider.dart';
 
 class MapModule implements ModuleRegistrar {

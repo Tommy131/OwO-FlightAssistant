@@ -15,6 +15,7 @@ class MapProvider extends ChangeNotifier {
     _subscribeAdapter();
     unawaited(_loadHomeAirport());
     unawaited(_loadAutoTimerSettings());
+    unawaited(_loadAlertSettings());
   }
 
   static const String _moduleName = 'map';
@@ -25,6 +26,58 @@ class MapProvider extends ChangeNotifier {
   static const String _autoHudTimerEnabledKey = 'auto_hud_timer_enabled';
   static const String _autoTimerStartModeKey = 'auto_timer_start_mode';
   static const String _autoTimerStopModeKey = 'auto_timer_stop_mode';
+  static const String _alertsEnabledKey = 'alerts_enabled';
+  static const String _disabledAlertIdsKey = 'disabled_alert_ids';
+  static const String _climbRateWarningFpmKey = 'climb_rate_warning_fpm';
+  static const String _climbRateDangerFpmKey = 'climb_rate_danger_fpm';
+  static const String _descentRateWarningFpmKey = 'descent_rate_warning_fpm';
+  static const String _descentRateDangerFpmKey = 'descent_rate_danger_fpm';
+  static const int _defaultClimbRateWarningFpm = 2200;
+  static const int _defaultClimbRateDangerFpm = 3200;
+  static const int _defaultDescentRateWarningFpm = 1800;
+  static const int _defaultDescentRateDangerFpm = 2800;
+
+  static const Map<String, String> _backendAlertMessageMap = {
+    'pitch_up_danger': MapLocalizationKeys.alertPitchUpDanger,
+    'pitch_up_warning': MapLocalizationKeys.alertPitchUpWarning,
+    'pitch_down_danger': MapLocalizationKeys.alertPitchDownDanger,
+    'pitch_down_warning': MapLocalizationKeys.alertPitchDownWarning,
+    'bank_danger': MapLocalizationKeys.alertBankDanger,
+    'bank_warning': MapLocalizationKeys.alertBankWarning,
+    'stall_warning': MapLocalizationKeys.alertStallWarning,
+    'sink_rate_danger': MapLocalizationKeys.alertSinkRateDanger,
+    'sink_rate_warning': MapLocalizationKeys.alertSinkRateWarning,
+    'inverted_flight_danger': MapLocalizationKeys.alertInvertedFlightDanger,
+    'knife_edge_danger': MapLocalizationKeys.alertKnifeEdgeDanger,
+    'knife_edge_warning': MapLocalizationKeys.alertKnifeEdgeWarning,
+    'pull_up_danger': MapLocalizationKeys.alertPullUpDanger,
+    'pull_up_warning': MapLocalizationKeys.alertPullUpWarning,
+    'push_over_danger': MapLocalizationKeys.alertPushOverDanger,
+    'push_over_warning': MapLocalizationKeys.alertPushOverWarning,
+    'spiral_dive_danger': MapLocalizationKeys.alertSpiralDiveDanger,
+    'spiral_dive_warning': MapLocalizationKeys.alertSpiralDiveWarning,
+    'unusual_attitude_danger': MapLocalizationKeys.alertUnusualAttitudeDanger,
+    'unusual_attitude_warning': MapLocalizationKeys.alertUnusualAttitudeWarning,
+    'climb_rate_danger': MapLocalizationKeys.alertClimbRateDanger,
+    'climb_rate_warning': MapLocalizationKeys.alertClimbRateWarning,
+    'descent_rate_danger': MapLocalizationKeys.alertDescentRateDanger,
+    'descent_rate_warning': MapLocalizationKeys.alertDescentRateWarning,
+    'high_g_danger': MapLocalizationKeys.alertHighGDanger,
+    'high_g_warning': MapLocalizationKeys.alertHighGWarning,
+    'negative_g_danger': MapLocalizationKeys.alertNegativeGDanger,
+    'negative_g_warning': MapLocalizationKeys.alertNegativeGWarning,
+    'overspeed_danger': MapLocalizationKeys.alertOverspeedDanger,
+    'overspeed_warning': MapLocalizationKeys.alertOverspeedWarning,
+    'terrain_pull_up_danger': MapLocalizationKeys.alertTerrainPullUpDanger,
+    'terrain_pull_up_warning': MapLocalizationKeys.alertTerrainPullUpWarning,
+  };
+
+  static const Set<String> _verticalRateAlertIds = {
+    'climb_rate_warning',
+    'climb_rate_danger',
+    'descent_rate_warning',
+    'descent_rate_danger',
+  };
 
   MapDataAdapter? _adapter;
   StreamSubscription<MapDataSnapshot>? _subscription;
@@ -69,6 +122,12 @@ class MapProvider extends ChangeNotifier {
   MapAutoTimerStartMode _autoTimerStartMode =
       MapAutoTimerStartMode.runwayMovement;
   MapAutoTimerStopMode _autoTimerStopMode = MapAutoTimerStopMode.stableLanding;
+  bool _alertsEnabled = true;
+  Set<String> _disabledAlertIds = const <String>{};
+  int _climbRateWarningFpm = _defaultClimbRateWarningFpm;
+  int _climbRateDangerFpm = _defaultClimbRateDangerFpm;
+  int _descentRateWarningFpm = _defaultDescentRateWarningFpm;
+  int _descentRateDangerFpm = _defaultDescentRateDangerFpm;
   bool? _lastAutoParkingBrake;
   bool _hudTimerAirborneSinceStart = false;
   DateTime? _groundStableSince;
@@ -105,6 +164,21 @@ class MapProvider extends ChangeNotifier {
   bool get autoHudTimerEnabled => _autoHudTimerEnabled;
   MapAutoTimerStartMode get autoTimerStartMode => _autoTimerStartMode;
   MapAutoTimerStopMode get autoTimerStopMode => _autoTimerStopMode;
+  bool get alertsEnabled => _alertsEnabled;
+  int get climbRateWarningFpm => _climbRateWarningFpm;
+  int get climbRateDangerFpm => _climbRateDangerFpm;
+  int get descentRateWarningFpm => _descentRateWarningFpm;
+  int get descentRateDangerFpm => _descentRateDangerFpm;
+  List<String> get configurableAlertIds =>
+      _backendAlertMessageMap.keys.toList(growable: false);
+
+  bool isAlertEnabled(String alertId) {
+    return !_disabledAlertIds.contains(alertId.trim().toLowerCase());
+  }
+
+  String? alertMessageKeyForId(String alertId) {
+    return _backendAlertMessageMap[alertId.trim().toLowerCase()];
+  }
 
   void attachAdapter(MapDataAdapter? adapter) {
     _adapter = adapter;
@@ -231,6 +305,69 @@ class MapProvider extends ChangeNotifier {
         _autoTimerStopMode = stopMode;
         hasUpdate = true;
       }
+    }
+    if (hasUpdate) {
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadAlertSettings() async {
+    final persistence = PersistenceService();
+    final alertsEnabled = persistence.getModuleData<bool>(
+      _moduleName,
+      _alertsEnabledKey,
+    );
+    final disabledIdsRaw = persistence.getModuleData<List<dynamic>>(
+      _moduleName,
+      _disabledAlertIdsKey,
+    );
+    final climbWarning = persistence.getModuleData<int>(
+      _moduleName,
+      _climbRateWarningFpmKey,
+    );
+    final climbDanger = persistence.getModuleData<int>(
+      _moduleName,
+      _climbRateDangerFpmKey,
+    );
+    final descentWarning = persistence.getModuleData<int>(
+      _moduleName,
+      _descentRateWarningFpmKey,
+    );
+    final descentDanger = persistence.getModuleData<int>(
+      _moduleName,
+      _descentRateDangerFpmKey,
+    );
+    var hasUpdate = false;
+    if (alertsEnabled != null && alertsEnabled != _alertsEnabled) {
+      _alertsEnabled = alertsEnabled;
+      hasUpdate = true;
+    }
+    if (disabledIdsRaw != null) {
+      final disabledIds = disabledIdsRaw
+          .map((value) => value.toString().trim().toLowerCase())
+          .where((value) => value.isNotEmpty)
+          .toSet();
+      if (disabledIds.length != _disabledAlertIds.length ||
+          !disabledIds.containsAll(_disabledAlertIds)) {
+        _disabledAlertIds = disabledIds;
+        hasUpdate = true;
+      }
+    }
+    if (climbWarning != null && climbWarning > 0) {
+      _climbRateWarningFpm = climbWarning;
+      hasUpdate = true;
+    }
+    if (climbDanger != null && climbDanger > _climbRateWarningFpm) {
+      _climbRateDangerFpm = climbDanger;
+      hasUpdate = true;
+    }
+    if (descentWarning != null && descentWarning > 0) {
+      _descentRateWarningFpm = descentWarning;
+      hasUpdate = true;
+    }
+    if (descentDanger != null && descentDanger > _descentRateWarningFpm) {
+      _descentRateDangerFpm = descentDanger;
+      hasUpdate = true;
     }
     if (hasUpdate) {
       notifyListeners();
@@ -667,6 +804,87 @@ class MapProvider extends ChangeNotifier {
     );
   }
 
+  Future<void> setAlertsEnabled(bool value) async {
+    if (_alertsEnabled == value) {
+      return;
+    }
+    _alertsEnabled = value;
+    notifyListeners();
+    final persistence = PersistenceService();
+    await persistence.setModuleData(_moduleName, _alertsEnabledKey, value);
+  }
+
+  Future<void> setAlertEnabled(String alertId, bool enabled) async {
+    final normalizedId = alertId.trim().toLowerCase();
+    if (normalizedId.isEmpty) {
+      return;
+    }
+    final next = {..._disabledAlertIds};
+    if (enabled) {
+      next.remove(normalizedId);
+    } else {
+      next.add(normalizedId);
+    }
+    if (next.length == _disabledAlertIds.length &&
+        next.containsAll(_disabledAlertIds)) {
+      return;
+    }
+    _disabledAlertIds = next;
+    notifyListeners();
+    final persistence = PersistenceService();
+    await persistence.setModuleData(
+      _moduleName,
+      _disabledAlertIdsKey,
+      _disabledAlertIds.toList(),
+    );
+  }
+
+  Future<void> setVerticalRateThresholds({
+    required int climbWarningFpm,
+    required int climbDangerFpm,
+    required int descentWarningFpm,
+    required int descentDangerFpm,
+  }) async {
+    if (climbWarningFpm <= 0 ||
+        climbDangerFpm <= climbWarningFpm ||
+        descentWarningFpm <= 0 ||
+        descentDangerFpm <= descentWarningFpm) {
+      return;
+    }
+    if (_climbRateWarningFpm == climbWarningFpm &&
+        _climbRateDangerFpm == climbDangerFpm &&
+        _descentRateWarningFpm == descentWarningFpm &&
+        _descentRateDangerFpm == descentDangerFpm) {
+      return;
+    }
+    _climbRateWarningFpm = climbWarningFpm;
+    _climbRateDangerFpm = climbDangerFpm;
+    _descentRateWarningFpm = descentWarningFpm;
+    _descentRateDangerFpm = descentDangerFpm;
+    notifyListeners();
+    final persistence = PersistenceService();
+    await persistence.setModuleData(
+      _moduleName,
+      _climbRateWarningFpmKey,
+      _climbRateWarningFpm,
+    );
+    await persistence.setModuleData(
+      _moduleName,
+      _climbRateDangerFpmKey,
+      _climbRateDangerFpm,
+    );
+    await persistence.setModuleData(
+      _moduleName,
+      _descentRateWarningFpmKey,
+      _descentRateWarningFpm,
+    );
+    await persistence.setModuleData(
+      _moduleName,
+      _descentRateDangerFpmKey,
+      _descentRateDangerFpm,
+    );
+  }
+
   void clearRoute() {
     _route = [];
     _takeoffPoint = null;
@@ -978,7 +1196,8 @@ class MapProvider extends ChangeNotifier {
       _activeAlerts = const [];
       return;
     }
-    _activeAlerts = _mapBackendAlerts(flightData.flightAlerts);
+    final backendAlerts = _mapBackendAlerts(flightData.flightAlerts);
+    _activeAlerts = _applyAlertSettings(backendAlerts, flightData);
   }
 
   List<MapFlightAlert> _mapBackendAlerts(List<HomeFlightAlert> alerts) {
@@ -986,9 +1205,13 @@ class MapProvider extends ChangeNotifier {
       return const [];
     }
     final next = <MapFlightAlert>[];
+    final shownMessages = <String>{};
     for (final alert in alerts) {
       final message = _mapBackendAlertMessage(alert.message);
       if (message == null) {
+        continue;
+      }
+      if (!shownMessages.add(message)) {
         continue;
       }
       next.add(
@@ -1015,28 +1238,74 @@ class MapProvider extends ChangeNotifier {
 
   String? _mapBackendAlertMessage(String raw) {
     final value = raw.trim().toLowerCase();
-    switch (value) {
-      case 'pitch_up_danger':
-        return MapLocalizationKeys.alertPitchUpDanger;
-      case 'pitch_up_warning':
-        return MapLocalizationKeys.alertPitchUpWarning;
-      case 'pitch_down_danger':
-        return MapLocalizationKeys.alertPitchDownDanger;
-      case 'pitch_down_warning':
-        return MapLocalizationKeys.alertPitchDownWarning;
-      case 'bank_danger':
-        return MapLocalizationKeys.alertBankDanger;
-      case 'bank_warning':
-        return MapLocalizationKeys.alertBankWarning;
-      case 'stall_warning':
-        return MapLocalizationKeys.alertStallWarning;
-      case 'sink_rate_danger':
-        return MapLocalizationKeys.alertSinkRateDanger;
-      case 'sink_rate_warning':
-        return MapLocalizationKeys.alertSinkRateWarning;
-      default:
-        return null;
+    return _backendAlertMessageMap[value];
+  }
+
+  List<MapFlightAlert> _applyAlertSettings(
+    List<MapFlightAlert> backendAlerts,
+    HomeFlightData flightData,
+  ) {
+    if (!_alertsEnabled) {
+      return const [];
     }
+    final next = <MapFlightAlert>[];
+    final shownMessages = <String>{};
+    for (final alert in backendAlerts) {
+      final normalizedId = alert.id.trim().toLowerCase();
+      if (_verticalRateAlertIds.contains(normalizedId)) {
+        continue;
+      }
+      if (!isAlertEnabled(normalizedId)) {
+        continue;
+      }
+      if (!shownMessages.add(alert.message)) {
+        continue;
+      }
+      next.add(alert);
+    }
+    final verticalRateAlert = _buildVerticalRateAlert(flightData.verticalSpeed);
+    if (verticalRateAlert != null &&
+        isAlertEnabled(verticalRateAlert.id) &&
+        shownMessages.add(verticalRateAlert.message)) {
+      next.add(verticalRateAlert);
+    }
+    return next;
+  }
+
+  MapFlightAlert? _buildVerticalRateAlert(double? verticalSpeedFpm) {
+    if (verticalSpeedFpm == null) {
+      return null;
+    }
+    if (verticalSpeedFpm >= _climbRateDangerFpm) {
+      return const MapFlightAlert(
+        id: 'climb_rate_danger',
+        level: MapFlightAlertLevel.danger,
+        message: MapLocalizationKeys.alertClimbRateDanger,
+      );
+    }
+    if (verticalSpeedFpm >= _climbRateWarningFpm) {
+      return const MapFlightAlert(
+        id: 'climb_rate_warning',
+        level: MapFlightAlertLevel.warning,
+        message: MapLocalizationKeys.alertClimbRateWarning,
+      );
+    }
+    final descentRate = -verticalSpeedFpm;
+    if (descentRate >= _descentRateDangerFpm) {
+      return const MapFlightAlert(
+        id: 'descent_rate_danger',
+        level: MapFlightAlertLevel.danger,
+        message: MapLocalizationKeys.alertDescentRateDanger,
+      );
+    }
+    if (descentRate >= _descentRateWarningFpm) {
+      return const MapFlightAlert(
+        id: 'descent_rate_warning',
+        level: MapFlightAlertLevel.warning,
+        message: MapLocalizationKeys.alertDescentRateWarning,
+      );
+    }
+    return null;
   }
 
   List<MapAirportMarker> _fallbackSearchAirports(String keyword) {

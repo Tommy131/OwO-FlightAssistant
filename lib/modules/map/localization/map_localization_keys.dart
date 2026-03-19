@@ -24,6 +24,27 @@ class MapLocalizationKeys {
   static const String timerStopParkingArrival =
       'map.timer.stop.parking_arrival';
   static const String timerSettingsSaved = 'map.timer.settings_saved';
+  static const String alertSettingsSectionTitle =
+      'map.alert_settings.section_title';
+  static const String alertSettingsSectionDesc =
+      'map.alert_settings.section_desc';
+  static const String alertSettingsEnableAll = 'map.alert_settings.enable_all';
+  static const String alertSettingsSelectAlerts =
+      'map.alert_settings.select_alerts';
+  static const String alertSettingsThresholdTitle =
+      'map.alert_settings.threshold_title';
+  static const String alertThresholdClimbWarningLabel =
+      'map.alert_settings.threshold.climb_warning';
+  static const String alertThresholdClimbDangerLabel =
+      'map.alert_settings.threshold.climb_danger';
+  static const String alertThresholdDescentWarningLabel =
+      'map.alert_settings.threshold.descent_warning';
+  static const String alertThresholdDescentDangerLabel =
+      'map.alert_settings.threshold.descent_danger';
+  static const String alertThresholdHint = 'map.alert_settings.threshold_hint';
+  static const String alertSettingsSaved = 'map.alert_settings.saved';
+  static const String invalidAlertThreshold =
+      'map.alert_settings.invalid_threshold';
   static const String flightDataSectionTitle = 'map.flight_data.section_title';
   static const String flightDataSectionDesc = 'map.flight_data.section_desc';
   static const String flightDataIntervalLabel =
@@ -104,4 +125,33 @@ class MapLocalizationKeys {
   static const String alertStallWarning = 'map.alert.stall_warning';
   static const String alertSinkRateDanger = 'map.alert.sink_rate_danger';
   static const String alertSinkRateWarning = 'map.alert.sink_rate_warning';
+  static const String alertInvertedFlightDanger =
+      'map.alert.inverted_flight_danger';
+  static const String alertKnifeEdgeDanger = 'map.alert.knife_edge_danger';
+  static const String alertKnifeEdgeWarning = 'map.alert.knife_edge_warning';
+  static const String alertPullUpDanger = 'map.alert.pull_up_danger';
+  static const String alertPullUpWarning = 'map.alert.pull_up_warning';
+  static const String alertPushOverDanger = 'map.alert.push_over_danger';
+  static const String alertPushOverWarning = 'map.alert.push_over_warning';
+  static const String alertSpiralDiveDanger = 'map.alert.spiral_dive_danger';
+  static const String alertSpiralDiveWarning = 'map.alert.spiral_dive_warning';
+  static const String alertUnusualAttitudeDanger =
+      'map.alert.unusual_attitude_danger';
+  static const String alertUnusualAttitudeWarning =
+      'map.alert.unusual_attitude_warning';
+  static const String alertClimbRateDanger = 'map.alert.climb_rate_danger';
+  static const String alertClimbRateWarning = 'map.alert.climb_rate_warning';
+  static const String alertDescentRateDanger = 'map.alert.descent_rate_danger';
+  static const String alertDescentRateWarning =
+      'map.alert.descent_rate_warning';
+  static const String alertHighGDanger = 'map.alert.high_g_danger';
+  static const String alertHighGWarning = 'map.alert.high_g_warning';
+  static const String alertNegativeGDanger = 'map.alert.negative_g_danger';
+  static const String alertNegativeGWarning = 'map.alert.negative_g_warning';
+  static const String alertOverspeedDanger = 'map.alert.overspeed_danger';
+  static const String alertOverspeedWarning = 'map.alert.overspeed_warning';
+  static const String alertTerrainPullUpDanger =
+      'map.alert.terrain_pull_up_danger';
+  static const String alertTerrainPullUpWarning =
+      'map.alert.terrain_pull_up_warning';
 }
