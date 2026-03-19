@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/module_registry/settings_page/settings_page_item.dart';
 import '../../../core/services/localization_service.dart';
+import '../../../core/services/persistence_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/snack_bar.dart';
+import '../../flight_logs/providers/flight_logs_provider.dart';
+import '../../home/models/home_models.dart';
+import '../../home/providers/home_provider.dart';
+import '../../map/providers/map_provider.dart';
+import '../../monitor/providers/monitor_provider.dart';
 import '../http_module.dart';
 import '../localization/http_localization_keys.dart';
 
@@ -44,12 +51,30 @@ class _HttpBackendSettingsViewState extends State<_HttpBackendSettingsView> {
   final TextEditingController _portController = TextEditingController();
   final TextEditingController _wsHostController = TextEditingController();
   final TextEditingController _wsPortController = TextEditingController();
+  final TextEditingController _flightDataIntervalController =
+      TextEditingController();
+  final TextEditingController _flightLogIntervalController =
+      TextEditingController();
+  final TextEditingController _uiRefreshIntervalController =
+      TextEditingController();
   bool _isHttpSaving = false;
   bool _isHttpTesting = false;
   bool _isWsSaving = false;
   bool _isWsTesting = false;
+  bool _isDiagnosing = false;
+  bool _isSavingSettings = false;
+  bool _lowPerformanceMode = false;
   String _currentAddress = '';
   String _currentWsAddress = '';
+  int _currentFlightDataInterval = 300;
+  int _currentFlightLogInterval = FlightLogsProvider.defaultSampleIntervalMs;
+  int _currentUiRefreshInterval = 120;
+  List<String> _diagnosisMessages = const [];
+
+  static const String _performanceModuleName = 'performance';
+  static const String _lowPerformanceModeKey = 'low_performance_mode';
+  static const String _uiRefreshIntervalMsKey = 'ui_refresh_interval_ms';
+  static const int _lowPerformanceIntervalMs = 500;
 
   @override
   void initState() {
@@ -63,6 +88,9 @@ class _HttpBackendSettingsViewState extends State<_HttpBackendSettingsView> {
     _portController.dispose();
     _wsHostController.dispose();
     _wsPortController.dispose();
+    _flightDataIntervalController.dispose();
+    _flightLogIntervalController.dispose();
+    _uiRefreshIntervalController.dispose();
     super.dispose();
   }
 
@@ -79,6 +107,10 @@ class _HttpBackendSettingsViewState extends State<_HttpBackendSettingsView> {
     _wsPortController.text = '$wsPort';
     _currentAddress = 'http://$host:$port';
     _currentWsAddress = 'ws://$wsHost:$wsPort/api/v1/simulator/ws';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadRuntimeSettings();
+    });
   }
 
   String? _buildBaseUrl(BuildContext context) {
@@ -273,6 +305,209 @@ class _HttpBackendSettingsViewState extends State<_HttpBackendSettingsView> {
     }
   }
 
+  Future<void> _loadRuntimeSettings() async {
+    final homeProvider = context.read<HomeProvider>();
+    final logsProvider = context.read<FlightLogsProvider>();
+    final persistence = PersistenceService();
+    await persistence.ensureReady();
+    final flightDataInterval = await homeProvider.getFlightDataIntervalMs();
+    final uiRefreshInterval =
+        persistence.getModuleData<int>(
+          _performanceModuleName,
+          _uiRefreshIntervalMsKey,
+        ) ??
+        120;
+    final lowPerformance =
+        persistence.getModuleData<bool>(
+          _performanceModuleName,
+          _lowPerformanceModeKey,
+        ) ??
+        false;
+    if (!mounted) return;
+    setState(() {
+      _currentFlightDataInterval = flightDataInterval;
+      _currentFlightLogInterval = logsProvider.sampleIntervalMs;
+      _currentUiRefreshInterval = uiRefreshInterval.clamp(60, 2000).toInt();
+      _lowPerformanceMode = lowPerformance;
+      _flightDataIntervalController.text = '$flightDataInterval';
+      _flightLogIntervalController.text = '${logsProvider.sampleIntervalMs}';
+      _uiRefreshIntervalController.text = '$_currentUiRefreshInterval';
+    });
+  }
+
+  Future<void> _saveRuntimeSettings(BuildContext context) async {
+    final flightDataInterval = int.tryParse(
+      _flightDataIntervalController.text.trim(),
+    );
+    final flightLogInterval = int.tryParse(
+      _flightLogIntervalController.text.trim(),
+    );
+    final uiRefreshInterval = int.tryParse(
+      _uiRefreshIntervalController.text.trim(),
+    );
+    if (flightDataInterval == null ||
+        flightDataInterval < 100 ||
+        flightDataInterval > 2000) {
+      SnackBarHelper.showError(
+        context,
+        HttpLocalizationKeys.invalidFlightDataInterval.tr(context),
+      );
+      return;
+    }
+    if (flightLogInterval == null ||
+        flightLogInterval < FlightLogsProvider.minSampleIntervalMs ||
+        flightLogInterval > FlightLogsProvider.maxSampleIntervalMs) {
+      SnackBarHelper.showError(
+        context,
+        HttpLocalizationKeys.invalidFlightLogInterval.tr(context),
+      );
+      return;
+    }
+    if (uiRefreshInterval == null ||
+        uiRefreshInterval < 60 ||
+        uiRefreshInterval > 2000) {
+      SnackBarHelper.showError(
+        context,
+        HttpLocalizationKeys.invalidUiRefreshInterval.tr(context),
+      );
+      return;
+    }
+    setState(() {
+      _isSavingSettings = true;
+    });
+    try {
+      final homeProvider = context.read<HomeProvider>();
+      final logsProvider = context.read<FlightLogsProvider>();
+      final monitorProvider = context.read<MonitorProvider>();
+      final mapProvider = context.read<MapProvider>();
+      final persistence = PersistenceService();
+      await persistence.ensureReady();
+      await homeProvider.setFlightDataIntervalMs(flightDataInterval);
+      await logsProvider.setSampleIntervalMs(flightLogInterval);
+      await persistence.setModuleData(
+        _performanceModuleName,
+        _lowPerformanceModeKey,
+        _lowPerformanceMode,
+      );
+      await persistence.setModuleData(
+        _performanceModuleName,
+        _uiRefreshIntervalMsKey,
+        uiRefreshInterval,
+      );
+      await monitorProvider.refreshPerformanceSettings();
+      await mapProvider.refreshPerformanceSettings();
+      if (!mounted) return;
+      setState(() {
+        _currentFlightDataInterval = flightDataInterval;
+        _currentFlightLogInterval = flightLogInterval;
+        _currentUiRefreshInterval = uiRefreshInterval;
+      });
+      SnackBarHelper.showSuccess(
+        context,
+        HttpLocalizationKeys.flightDataIntervalSaved.tr(context),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingSettings = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _runDiagnosis(BuildContext context) async {
+    setState(() {
+      _isDiagnosing = true;
+      _diagnosisMessages = const [];
+    });
+    final homeProvider = context.read<HomeProvider>();
+    final checks = <String>[];
+    try {
+      await HttpModule.client.init();
+      try {
+        await HttpModule.client.getHealth();
+        checks.add('✅ ${HttpLocalizationKeys.diagnoseBackendOk.tr(context)}');
+      } catch (e) {
+        checks.add(
+          '❌ ${HttpLocalizationKeys.diagnoseBackendFail.tr(context)}: $e',
+        );
+      }
+      try {
+        await HttpModule.client.getSimulatorWebSocketInfo();
+        checks.add('✅ ${HttpLocalizationKeys.diagnoseWsOk.tr(context)}');
+      } catch (e) {
+        checks.add('❌ ${HttpLocalizationKeys.diagnoseWsFail.tr(context)}: $e');
+      }
+      if (homeProvider.isConnected) {
+        checks.add('✅ ${HttpLocalizationKeys.diagnoseTokenOk.tr(context)}');
+      } else {
+        checks.add('❌ ${HttpLocalizationKeys.diagnoseTokenFail.tr(context)}');
+      }
+      final simulatorType = _diagnosisSimulatorType(homeProvider);
+      try {
+        await HttpModule.client.getSimulatorState(type: simulatorType);
+        checks.add('✅ ${HttpLocalizationKeys.diagnoseSimulatorOk.tr(context)}');
+      } catch (e) {
+        checks.add(
+          '❌ ${HttpLocalizationKeys.diagnoseSimulatorFail.tr(context)}: $e',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDiagnosing = false;
+          _diagnosisMessages = checks;
+        });
+      }
+    }
+  }
+
+  String _diagnosisSimulatorType(HomeProvider provider) {
+    return switch (provider.simulatorType) {
+      HomeSimulatorType.msfs => 'msfs',
+      HomeSimulatorType.xplane => 'xplane',
+      HomeSimulatorType.none => 'xplane',
+    };
+  }
+
+  int _effectiveIntervalMs(int value) {
+    if (!_lowPerformanceMode) {
+      return value;
+    }
+    return value < _lowPerformanceIntervalMs ? _lowPerformanceIntervalMs : value;
+  }
+
+  Widget _buildCurrentIntervalLine(
+    BuildContext context, {
+    required String labelText,
+    required int value,
+  }) {
+    final theme = Theme.of(context);
+    final normalStyle = theme.textTheme.bodySmall;
+    if (!_lowPerformanceMode) {
+      return Text(
+        labelText.replaceFirst('{value}', '$value'),
+        style: normalStyle,
+      );
+    }
+    final effective = _effectiveIntervalMs(value);
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: labelText.replaceFirst('{value}', '$value')),
+          TextSpan(
+            text: ' -> $effective ms',
+            style: normalStyle?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ],
+      ),
+      style: normalStyle,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -281,6 +516,10 @@ class _HttpBackendSettingsViewState extends State<_HttpBackendSettingsView> {
         _buildHttpForm(context),
         const SizedBox(height: AppThemeData.spacingMedium),
         _buildWsForm(context),
+        const SizedBox(height: AppThemeData.spacingMedium),
+        _buildRuntimeForm(context),
+        const SizedBox(height: AppThemeData.spacingMedium),
+        _buildDiagnosisForm(context),
       ],
     );
   }
@@ -522,6 +761,183 @@ class _HttpBackendSettingsViewState extends State<_HttpBackendSettingsView> {
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRuntimeForm(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              HttpLocalizationKeys.flightDataSectionTitle.tr(context),
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              HttpLocalizationKeys.flightDataSectionDescription.tr(context),
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: AppThemeData.spacingMedium),
+            TextField(
+              controller: _flightDataIntervalController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: HttpLocalizationKeys.flightDataIntervalLabel.tr(
+                  context,
+                ),
+                hintText: HttpLocalizationKeys.flightDataIntervalHint.tr(
+                  context,
+                ),
+                prefixIcon: const Icon(Icons.sync_outlined),
+              ),
+            ),
+            const SizedBox(height: AppThemeData.spacingSmall),
+            TextField(
+              controller: _flightLogIntervalController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: HttpLocalizationKeys.flightLogIntervalLabel.tr(
+                  context,
+                ),
+                hintText: HttpLocalizationKeys.flightLogIntervalHint.tr(
+                  context,
+                ),
+                prefixIcon: const Icon(Icons.timelapse_outlined),
+              ),
+            ),
+            const SizedBox(height: AppThemeData.spacingSmall),
+            TextField(
+              controller: _uiRefreshIntervalController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: HttpLocalizationKeys.uiRefreshIntervalLabel.tr(
+                  context,
+                ),
+                hintText: HttpLocalizationKeys.uiRefreshIntervalHint.tr(
+                  context,
+                ),
+                prefixIcon: const Icon(Icons.monitor_outlined),
+              ),
+            ),
+            const SizedBox(height: AppThemeData.spacingSmall),
+            SwitchListTile(
+              value: _lowPerformanceMode,
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                HttpLocalizationKeys.lowPerformanceModeLabel.tr(context),
+              ),
+              subtitle: Text(
+                HttpLocalizationKeys.lowPerformanceModeHint.tr(context),
+                style: theme.textTheme.bodySmall,
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _lowPerformanceMode = value;
+                });
+              },
+            ),
+            _buildCurrentIntervalLine(
+              context,
+              labelText: HttpLocalizationKeys.currentFlightDataInterval.tr(
+                context,
+              ),
+              value: _currentFlightDataInterval,
+            ),
+            const SizedBox(height: 2),
+            _buildCurrentIntervalLine(
+              context,
+              labelText: HttpLocalizationKeys.currentFlightLogInterval.tr(
+                context,
+              ),
+              value: _currentFlightLogInterval,
+            ),
+            const SizedBox(height: 2),
+            _buildCurrentIntervalLine(
+              context,
+              labelText: HttpLocalizationKeys.currentUiRefreshInterval.tr(
+                context,
+              ),
+              value: _currentUiRefreshInterval,
+            ),
+            const SizedBox(height: AppThemeData.spacingMedium),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isSavingSettings
+                    ? null
+                    : () => _saveRuntimeSettings(context),
+                icon: _isSavingSettings
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_as_outlined, size: 18),
+                label: Text(
+                  _isSavingSettings
+                      ? HttpLocalizationKeys.saving.tr(context)
+                      : HttpLocalizationKeys.saveButton.tr(context),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiagnosisForm(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              HttpLocalizationKeys.diagnoseSectionTitle.tr(context),
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              HttpLocalizationKeys.diagnoseSectionDescription.tr(context),
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: AppThemeData.spacingMedium),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isDiagnosing ? null : () => _runDiagnosis(context),
+                icon: _isDiagnosing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.medical_information_outlined, size: 18),
+                label: Text(
+                  _isDiagnosing
+                      ? HttpLocalizationKeys.testing.tr(context)
+                      : HttpLocalizationKeys.runDiagnosis.tr(context),
+                ),
+              ),
+            ),
+            if (_diagnosisMessages.isNotEmpty) ...[
+              const SizedBox(height: AppThemeData.spacingMedium),
+              ..._diagnosisMessages.map(
+                (message) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(message, style: theme.textTheme.bodySmall),
+                ),
+              ),
+            ],
           ],
         ),
       ),

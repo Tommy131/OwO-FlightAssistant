@@ -16,6 +16,7 @@ class MapProvider extends ChangeNotifier {
     unawaited(_loadHomeAirport());
     unawaited(_loadAutoTimerSettings());
     unawaited(_loadAlertSettings());
+    unawaited(_loadPerformanceSettings());
   }
 
   static const String _moduleName = 'map';
@@ -36,6 +37,11 @@ class MapProvider extends ChangeNotifier {
   static const int _defaultClimbRateDangerFpm = 3200;
   static const int _defaultDescentRateWarningFpm = 1800;
   static const int _defaultDescentRateDangerFpm = 2800;
+  static const String _performanceModuleName = 'performance';
+  static const String _lowPerformanceModeKey = 'low_performance_mode';
+  static const String _uiRefreshIntervalMsKey = 'ui_refresh_interval_ms';
+  static const int _defaultUiRefreshIntervalMs = 120;
+  static const int _lowPerformanceRefreshIntervalMs = 500;
 
   static const Map<String, String> _backendAlertMessageMap = {
     'pitch_up_danger': MapLocalizationKeys.alertPitchUpDanger,
@@ -131,6 +137,9 @@ class MapProvider extends ChangeNotifier {
   bool? _lastAutoParkingBrake;
   bool _hudTimerAirborneSinceStart = false;
   DateTime? _groundStableSince;
+  bool _lowPerformanceMode = false;
+  int _uiRefreshIntervalMs = _defaultUiRefreshIntervalMs;
+  DateTime? _lastUiNotifyAt;
 
   MapLayerStyle get layerStyle => _layerStyle;
   bool get followAircraft => _followAircraft;
@@ -423,6 +432,46 @@ class MapProvider extends ChangeNotifier {
       _clearAircraftVisualState();
     }
     _evaluateFlightAlerts(flightData);
+    if (_shouldNotifyUi()) {
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadPerformanceSettings() async {
+    final persistence = PersistenceService();
+    await persistence.ensureReady();
+    _lowPerformanceMode =
+        persistence.getModuleData<bool>(
+          _performanceModuleName,
+          _lowPerformanceModeKey,
+        ) ??
+        false;
+    final storedInterval =
+        persistence.getModuleData<int>(
+          _performanceModuleName,
+          _uiRefreshIntervalMsKey,
+        ) ??
+        _defaultUiRefreshIntervalMs;
+    _uiRefreshIntervalMs = storedInterval.clamp(60, 2000).toInt();
+  }
+
+  bool _shouldNotifyUi() {
+    final now = DateTime.now();
+    final minInterval = _lowPerformanceMode
+        ? (_uiRefreshIntervalMs > _lowPerformanceRefreshIntervalMs
+              ? _uiRefreshIntervalMs
+              : _lowPerformanceRefreshIntervalMs)
+        : _uiRefreshIntervalMs;
+    if (_lastUiNotifyAt == null ||
+        now.difference(_lastUiNotifyAt!).inMilliseconds >= minInterval) {
+      _lastUiNotifyAt = now;
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> refreshPerformanceSettings() async {
+    await _loadPerformanceSettings();
     notifyListeners();
   }
 
