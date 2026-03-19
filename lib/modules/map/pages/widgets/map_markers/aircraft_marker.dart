@@ -5,49 +5,71 @@ import 'package:flutter/material.dart';
 class AircraftMarker extends StatelessWidget {
   final double? heading;
   final bool isDark;
+  final bool highContrastOnBrightBackground;
 
-  const AircraftMarker({super.key, this.heading, required this.isDark});
+  const AircraftMarker({
+    super.key,
+    this.heading,
+    required this.isDark,
+    this.highContrastOnBrightBackground = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final angle = (heading ?? 0) * (math.pi / 180);
+    final markerColor = highContrastOnBrightBackground
+        ? Colors.black
+        : (isDark ? Colors.black : Colors.white);
+    final borderColor = highContrastOnBrightBackground
+        ? Colors.white70
+        : (isDark ? Colors.white24 : Colors.black12);
+    final glyphColor = highContrastOnBrightBackground
+        ? Colors.lightBlueAccent
+        : Colors.blue;
     return Transform.rotate(
       angle: angle,
       child: Container(
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isDark ? Colors.black : Colors.white,
+          color: markerColor,
           shape: BoxShape.circle,
+          border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 6,
+              color: Colors.black.withValues(alpha: 0.24),
+              blurRadius: 7,
             ),
           ],
         ),
-        child: const _AircraftGlyph(),
+        child: _AircraftGlyph(color: glyphColor),
       ),
     );
   }
 }
 
 class _AircraftGlyph extends StatelessWidget {
-  const _AircraftGlyph();
+  final Color color;
+
+  const _AircraftGlyph({required this.color});
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
       size: const Size(20, 20),
-      painter: _AircraftGlyphPainter(),
+      painter: _AircraftGlyphPainter(color: color),
     );
   }
 }
 
 class _AircraftGlyphPainter extends CustomPainter {
+  final Color color;
+
+  const _AircraftGlyphPainter({required this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.blue
+      ..color = color
       ..style = PaintingStyle.fill;
     final w = size.width;
     final h = size.height;
@@ -66,5 +88,7 @@ class _AircraftGlyphPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _AircraftGlyphPainter oldDelegate) {
+    return oldDelegate.color != color;
+  }
 }

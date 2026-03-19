@@ -7,6 +7,7 @@ class AircraftCompassRing extends StatelessWidget {
   final double? headingTarget;
   final double mapRotation;
   final double scale;
+  final bool highContrastOnBrightBackground;
 
   const AircraftCompassRing({
     super.key,
@@ -14,6 +15,7 @@ class AircraftCompassRing extends StatelessWidget {
     required this.headingTarget,
     required this.mapRotation,
     required this.scale,
+    this.highContrastOnBrightBackground = false,
   });
 
   @override
@@ -27,6 +29,24 @@ class AircraftCompassRing extends StatelessWidget {
     final headingText = indicatorHeading == null
         ? '--'
         : indicatorHeading.round().toString();
+    final headingLineColor = highContrastOnBrightBackground
+        ? const Color(0xFF8B2C00)
+        : Colors.deepOrange;
+    final headingLineGlow = highContrastOnBrightBackground
+        ? Colors.black.withValues(alpha: 0.45)
+        : Colors.deepOrange.withValues(alpha: 0.8);
+    final targetArrowColor = highContrastOnBrightBackground
+        ? const Color(0xFF174E8C)
+        : Colors.cyanAccent;
+    final headingBadgeBackground = highContrastOnBrightBackground
+        ? Colors.white.withValues(alpha: 0.86)
+        : Colors.black.withValues(alpha: 0.55);
+    final headingBadgeBorder = highContrastOnBrightBackground
+        ? Colors.black26
+        : Colors.white24;
+    final headingTextColor = highContrastOnBrightBackground
+        ? const Color(0xFF8B2C00)
+        : Colors.orangeAccent;
 
     return IgnorePointer(
       child: SizedBox(
@@ -41,7 +61,11 @@ class AircraftCompassRing extends StatelessWidget {
                 children: [
                   CustomPaint(
                     size: Size(ringSize, ringSize),
-                    painter: _AircraftCompassRingPainter(scale: scale),
+                    painter: _AircraftCompassRingPainter(
+                      scale: scale,
+                      highContrastOnBrightBackground:
+                          highContrastOnBrightBackground,
+                    ),
                   ),
                   Transform.rotate(
                     angle: currentHeadingAngle,
@@ -54,11 +78,11 @@ class AircraftCompassRing extends StatelessWidget {
                           width: 2.2 * scale,
                           height: ringSize * 0.36,
                           decoration: BoxDecoration(
-                            color: Colors.deepOrange,
+                            color: headingLineColor,
                             borderRadius: BorderRadius.circular(2 * scale),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.deepOrange.withValues(alpha: 0.8),
+                                color: headingLineGlow,
                                 blurRadius: 12 * scale,
                                 spreadRadius: 2 * scale,
                                 offset: const Offset(0, 0),
@@ -83,7 +107,7 @@ class AircraftCompassRing extends StatelessWidget {
                     offset: Offset(0, -10 * scale),
                     child: Icon(
                       Icons.arrow_drop_down,
-                      color: Colors.cyanAccent,
+                      color: targetArrowColor,
                       size: 22 * scale,
                     ),
                   ),
@@ -96,14 +120,14 @@ class AircraftCompassRing extends StatelessWidget {
                 vertical: 3 * scale,
               ),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
+                color: headingBadgeBackground,
                 borderRadius: BorderRadius.circular(8 * scale),
-                border: Border.all(color: Colors.white24),
+                border: Border.all(color: headingBadgeBorder),
               ),
               child: Text(
                 '$headingText°',
                 style: TextStyle(
-                  color: Colors.orangeAccent,
+                  color: headingTextColor,
                   fontWeight: FontWeight.w800,
                   fontSize: 11 * scale,
                 ),
@@ -118,17 +142,33 @@ class AircraftCompassRing extends StatelessWidget {
 
 class _AircraftCompassRingPainter extends CustomPainter {
   final double scale;
+  final bool highContrastOnBrightBackground;
 
-  const _AircraftCompassRingPainter({required this.scale});
+  const _AircraftCompassRingPainter({
+    required this.scale,
+    required this.highContrastOnBrightBackground,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
+    final ringColor = highContrastOnBrightBackground
+        ? Colors.black45
+        : Colors.white24;
+    final cardinalColor = highContrastOnBrightBackground
+        ? const Color(0xFF8B2C00)
+        : Colors.orangeAccent;
+    final majorTickColor = highContrastOnBrightBackground
+        ? Colors.black87
+        : Colors.white70;
+    final minorTickColor = highContrastOnBrightBackground
+        ? Colors.black54
+        : Colors.white38;
     final ringPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2 * scale
-      ..color = Colors.white24;
+      ..color = ringColor;
     canvas.drawCircle(center, radius - 1.5 * scale, ringPaint);
 
     for (var deg = 0; deg < 360; deg += 5) {
@@ -151,8 +191,8 @@ class _AircraftCompassRingPainter extends CustomPainter {
       );
       final tickPaint = Paint()
         ..color = isCardinal
-            ? Colors.orangeAccent
-            : (isMajor ? Colors.white70 : Colors.white38)
+            ? cardinalColor
+            : (isMajor ? majorTickColor : minorTickColor)
         ..strokeWidth = isMajor ? 1.8 * scale : 1.1 * scale
         ..strokeCap = StrokeCap.round;
       canvas.drawLine(start, end, tickPaint);
@@ -166,7 +206,7 @@ class _AircraftCompassRingPainter extends CustomPainter {
           _ => deg.toString().padLeft(3, '0'),
         };
         final textStyle = TextStyle(
-          color: isCardinal ? Colors.orangeAccent : Colors.white70,
+          color: isCardinal ? cardinalColor : majorTickColor,
           fontSize: isCardinal ? 11 * scale : 8 * scale,
           fontWeight: isCardinal ? FontWeight.w800 : FontWeight.w600,
         );
@@ -186,6 +226,8 @@ class _AircraftCompassRingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _AircraftCompassRingPainter oldDelegate) {
-    return oldDelegate.scale != scale;
+    return oldDelegate.scale != scale ||
+        oldDelegate.highContrastOnBrightBackground !=
+            highContrastOnBrightBackground;
   }
 }

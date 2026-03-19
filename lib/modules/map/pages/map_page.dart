@@ -49,6 +49,7 @@ class _MapPageState extends State<MapPage> {
   double _cameraZoom = 12;
   bool _isCrashOverlayDismissed = false;
   bool _isReconnectPromptShowing = false;
+  bool _showAircraftInfoPanel = false;
   Timer? _airportFetchTimer;
   LatLngBounds? _lastFetchBounds;
 
@@ -100,6 +101,14 @@ class _MapPageState extends State<MapPage> {
           provider,
           aircraft,
         );
+        final brightMapBackground = _isBrightMapBackground(provider.layerStyle);
+        final homeSnapshot = homeProvider.snapshot;
+        final aircraftScreenOffset = _mapReady && aircraft != null
+            ? _mapController.camera.latLngToScreenOffset(
+                LatLng(aircraft.position.latitude, aircraft.position.longitude),
+              )
+            : null;
+        final aircraftRegistration = _resolveAircraftRegistration(homeSnapshot);
         final crashDetected = _isCrashDetected(provider, activeAlerts);
         final showCrashOverlay = crashDetected && !_isCrashOverlayDismissed;
         if (!crashDetected && _isCrashOverlayDismissed) {
@@ -244,38 +253,6 @@ class _MapPageState extends State<MapPage> {
                         ),
                       ],
                     ),
-                  if (showNearbyAirportMarkers && _nearbyAirports.isNotEmpty)
-                    MarkerLayer(
-                      markers: _nearbyAirports
-                          .where(
-                            (airport) => _shouldRenderNearbyAirport(
-                              airport,
-                              provider,
-                              homeProvider,
-                            ),
-                          )
-                          .map(
-                            (airport) => Marker(
-                              point: LatLng(
-                                airport.position.latitude,
-                                airport.position.longitude,
-                              ),
-                              width: showAirportIcaoLabel ? 108 : 28,
-                              height: showAirportIcaoLabel ? 56 : 28,
-                              child: GestureDetector(
-                                onTap: () =>
-                                    _handleSelectAirport(provider, airport),
-                                child: AirportMarker(
-                                  airport: airport,
-                                  showLabel: showAirportIcaoLabel,
-                                ),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  if (prioritizedPinnedMarkers.isNotEmpty)
-                    MarkerLayer(markers: prioritizedPinnedMarkers),
                   if (_selectedAirportDetail != null &&
                       provider.showRunways &&
                       _selectedAirportDetail!.runwayGeometries.isNotEmpty)
@@ -386,6 +363,38 @@ class _MapPageState extends State<MapPage> {
                           )
                           .toList(),
                     ),
+                  if (showNearbyAirportMarkers && _nearbyAirports.isNotEmpty)
+                    MarkerLayer(
+                      markers: _nearbyAirports
+                          .where(
+                            (airport) => _shouldRenderNearbyAirport(
+                              airport,
+                              provider,
+                              homeProvider,
+                            ),
+                          )
+                          .map(
+                            (airport) => Marker(
+                              point: LatLng(
+                                airport.position.latitude,
+                                airport.position.longitude,
+                              ),
+                              width: showAirportIcaoLabel ? 108 : 28,
+                              height: showAirportIcaoLabel ? 56 : 28,
+                              child: GestureDetector(
+                                onTap: () =>
+                                    _handleSelectAirport(provider, airport),
+                                child: AirportMarker(
+                                  airport: airport,
+                                  showLabel: showAirportIcaoLabel,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  if (prioritizedPinnedMarkers.isNotEmpty)
+                    MarkerLayer(markers: prioritizedPinnedMarkers),
                   if (_selectedAirport != null &&
                       !_isSelectedAirportShownInPinnedLayer(
                         provider,
@@ -426,6 +435,8 @@ class _MapPageState extends State<MapPage> {
                                   ? _mapController.camera.rotation
                                   : 0,
                               scale: scale,
+                              highContrastOnBrightBackground:
+                                  brightMapBackground,
                             ),
                           ),
                         Marker(
@@ -435,9 +446,25 @@ class _MapPageState extends State<MapPage> {
                           ),
                           width: 40,
                           height: 40,
-                          child: AircraftMarker(
-                            heading: aircraft.heading,
-                            isDark: theme.brightness == Brightness.dark,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _showAircraftInfoPanel =
+                                    !_showAircraftInfoPanel;
+                              });
+                            },
+                            child: Tooltip(
+                              message: _showAircraftInfoPanel
+                                  ? '点击隐藏详情'
+                                  : '点击显示详情',
+                              waitDuration: const Duration(milliseconds: 500),
+                              child: AircraftMarker(
+                                heading: aircraft.heading,
+                                isDark: theme.brightness == Brightness.dark,
+                                highContrastOnBrightBackground:
+                                    brightMapBackground,
+                              ),
+                            ),
                           ),
                         ),
                         if (provider.takeoffPoint != null)
@@ -472,6 +499,26 @@ class _MapPageState extends State<MapPage> {
                     ),
                 ],
               ),
+              if (aircraft != null &&
+                  aircraftScreenOffset != null &&
+                  _showAircraftInfoPanel)
+                Positioned.fill(
+                  child: AircraftInfoMiniPanel(
+                    aircraftScreenOffset: aircraftScreenOffset,
+                    viewportSize: size,
+                    scale: scale,
+                    brightBackground: brightMapBackground,
+                    flightNumber: homeSnapshot.flightNumber,
+                    registration: aircraftRegistration,
+                    altitude:
+                        aircraft.altitude ?? homeSnapshot.flightData.altitude,
+                    groundSpeed:
+                        aircraft.groundSpeed ??
+                        homeSnapshot.flightData.groundSpeed,
+                    transponderCode: homeSnapshot.transponderCode,
+                    transponderState: homeSnapshot.transponderState,
+                  ),
+                ),
               Positioned(
                 top: 20 * scale,
                 left: 20 * scale,
@@ -868,6 +915,11 @@ class _MapPageState extends State<MapPage> {
     MapProvider provider,
     HomeProvider homeProvider,
   ) {
+    final selected = _selectedAirport;
+    if (selected != null &&
+        _airportDedupeKey(selected) == _airportDedupeKey(airport)) {
+      return false;
+    }
     final pinnedKeys = _collectDisplayedPinnedKeys(provider, homeProvider);
     return !pinnedKeys.contains(_airportDedupeKey(airport));
   }
@@ -878,10 +930,6 @@ class _MapPageState extends State<MapPage> {
   ) {
     final keys = <String>{}
       ..addAll(_collectRolePinnedAirportKeys(provider, homeProvider));
-    final currentAirport = _resolveCurrentAirportMarker(provider);
-    if (currentAirport != null) {
-      keys.add(_airportDedupeKey(currentAirport));
-    }
     return keys;
   }
 
@@ -934,6 +982,26 @@ class _MapPageState extends State<MapPage> {
       return '';
     }
     return code.trim().toUpperCase();
+  }
+
+  bool _isBrightMapBackground(MapLayerStyle style) {
+    return style != MapLayerStyle.dark;
+  }
+
+  String? _resolveAircraftRegistration(HomeDataSnapshot snapshot) {
+    final candidates = <String?>[
+      snapshot.flightData.aircraftId,
+      snapshot.flightData.aircraftIcao,
+      snapshot.flightData.aircraftModel,
+      snapshot.aircraftTitle,
+    ];
+    for (final candidate in candidates) {
+      final text = candidate?.trim();
+      if (text != null && text.isNotEmpty) {
+        return text;
+      }
+    }
+    return null;
   }
 
   HomeAirportInfo _toHomeAirportInfo(MapAirportMarker airport) {
@@ -1058,18 +1126,6 @@ class _MapPageState extends State<MapPage> {
       bundles[key]!.isAlternate = true;
     }
 
-    final currentAirport = _resolveCurrentAirportMarker(provider);
-    if (currentAirport != null) {
-      final key = _airportDedupeKey(currentAirport);
-      ensureBundle(
-        dedupeKey: key,
-        code: _normalizeAirportCode(currentAirport.code),
-        latitude: currentAirport.position.latitude,
-        longitude: currentAirport.position.longitude,
-      );
-      bundles[key]!.isCurrent = true;
-    }
-
     final markers = <Marker>[];
     final homeColor = Theme.of(context).colorScheme.tertiary;
     for (final bundle in bundles.values) {
@@ -1106,15 +1162,6 @@ class _MapPageState extends State<MapPage> {
           ),
         );
       }
-      if (bundle.isCurrent) {
-        tags.add(
-          AirportPinTag(
-            label: MapLocalizationKeys.markerCurrentAirport.tr(context),
-            color: Colors.blueGrey,
-          ),
-        );
-      }
-
       final displayCode = bundle.code.isEmpty ? 'AIRPORT' : bundle.code;
       if (tags.length <= 1 && bundle.isHome) {
         markers.add(
@@ -1169,52 +1216,6 @@ class _MapPageState extends State<MapPage> {
       );
     }
     return markers;
-  }
-
-  MapAirportMarker? _resolveCurrentAirportMarker(MapProvider provider) {
-    final selected = _selectedAirport;
-    if (selected != null) {
-      return selected;
-    }
-    final aircraft = provider.aircraft;
-    if (!provider.isConnected || aircraft == null) {
-      return null;
-    }
-    final candidates = <String, MapAirportMarker>{};
-    for (final airport in provider.airports) {
-      candidates[_airportDedupeKey(airport)] = airport;
-    }
-    for (final airport in _nearbyAirports) {
-      candidates[_airportDedupeKey(airport)] = airport;
-    }
-    if (candidates.isEmpty) {
-      return null;
-    }
-    const distance = Distance();
-    final aircraftPoint = LatLng(
-      aircraft.position.latitude,
-      aircraft.position.longitude,
-    );
-    MapAirportMarker? nearest;
-    var nearestMeters = double.infinity;
-    for (final airport in candidates.values) {
-      final meters = distance(
-        aircraftPoint,
-        LatLng(airport.position.latitude, airport.position.longitude),
-      );
-      if (meters < nearestMeters) {
-        nearestMeters = meters;
-        nearest = airport;
-      }
-    }
-    if (nearest == null) {
-      return null;
-    }
-    const maxCurrentAirportDistanceMeters = 25000.0;
-    if (nearestMeters > maxCurrentAirportDistanceMeters) {
-      return null;
-    }
-    return nearest;
   }
 
   _RolePinData? _resolveSingleRolePinData(_PinnedAirportBundle bundle) {
@@ -1373,7 +1374,6 @@ class _PinnedAirportBundle {
   bool isDeparture = false;
   bool isDestination = false;
   bool isAlternate = false;
-  bool isCurrent = false;
 
   _PinnedAirportBundle({
     required this.dedupeKey,
