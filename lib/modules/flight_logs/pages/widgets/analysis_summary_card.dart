@@ -120,6 +120,15 @@ class AnalysisSummaryCard extends StatelessWidget {
                 Icons.trending_down,
                 Colors.indigo,
               ),
+              _buildSummaryItem(
+                context,
+                FlightLogsLocalizationKeys.summaryTouchdownG.tr(context),
+                log.landingData != null
+                    ? '${log.landingData!.gForce.toStringAsFixed(2)} G'
+                    : '--',
+                Icons.flight_land,
+                Colors.green,
+              ),
             ],
           ),
         ],

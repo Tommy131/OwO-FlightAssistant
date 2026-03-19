@@ -8,6 +8,7 @@ class FlightLogPoint {
   final double heading;
   final double pitch;
   final double roll;
+  final double? angleOfAttack;
   final double gForce;
   final double fuelQuantity;
   final double? fuelFlow;
@@ -43,6 +44,7 @@ class FlightLogPoint {
     required this.heading,
     required this.pitch,
     required this.roll,
+    this.angleOfAttack,
     required this.gForce,
     required this.fuelQuantity,
     this.fuelFlow,
@@ -79,6 +81,7 @@ class FlightLogPoint {
     'hdg': heading,
     'pit': pitch,
     'rol': roll,
+    'aoa': angleOfAttack,
     'g': gForce,
     'fuel': fuelQuantity,
     'ff': fuelFlow,
@@ -116,6 +119,7 @@ class FlightLogPoint {
     heading: (json['hdg'] as num? ?? 0.0).toDouble(),
     pitch: (json['pit'] as num? ?? 0.0).toDouble(),
     roll: (json['rol'] as num? ?? 0.0).toDouble(),
+    angleOfAttack: (json['aoa'] as num?)?.toDouble(),
     gForce: (json['g'] as num? ?? 1.0).toDouble(),
     fuelQuantity: (json['fuel'] as num? ?? 0.0).toDouble(),
     fuelFlow: (json['ff'] as num?)?.toDouble(),

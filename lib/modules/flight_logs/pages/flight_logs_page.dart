@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/localization_service.dart';
@@ -18,8 +17,6 @@ class FlightLogsPage extends StatefulWidget {
 }
 
 class _FlightLogsPageState extends State<FlightLogsPage> {
-  Timer? _captureTimer;
-
   @override
   void initState() {
     super.initState();
@@ -27,27 +24,12 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
       if (!mounted) return;
       context.read<FlightLogsProvider>().refreshLogs();
     });
-    _captureTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      final logsProvider = context.read<FlightLogsProvider>();
-      final homeProvider = context.read<HomeProvider>();
-      if (logsProvider.isRecording && homeProvider.isConnected) {
-        logsProvider.captureSnapshot(homeProvider.snapshot);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _captureTimer?.cancel();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer2<FlightLogsProvider, HomeProvider>(
       builder: (context, provider, homeProvider, child) {
-        _syncRecordingState(provider, homeProvider);
         return AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
           transitionBuilder: (Widget child, Animation<double> animation) {
@@ -102,7 +84,9 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
               ),
               label: Text(
                 provider.isRecording
-                    ? FlightLogsLocalizationKeys.stopRecord.tr(context)
+                    ? provider.isRecordingPaused
+                          ? '${FlightLogsLocalizationKeys.stopRecord.tr(context)} · PAUSE'
+                          : FlightLogsLocalizationKeys.stopRecord.tr(context)
                     : FlightLogsLocalizationKeys.startRecord.tr(context),
               ),
             ),
@@ -272,27 +256,6 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
     if (navigator.canPop()) {
       navigator.pop();
     }
-  }
-
-  void _syncRecordingState(
-    FlightLogsProvider provider,
-    HomeProvider homeProvider,
-  ) {
-    if (!provider.isRecording || homeProvider.isConnected) {
-      return;
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      final saved = await provider.stopRecording(homeProvider.snapshot);
-      if (!mounted || saved) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            FlightLogsLocalizationKeys.stopRecordDiscarded.tr(context),
-          ),
-        ),
-      );
-    });
   }
 
   Future<void> _handleToggleRecording(

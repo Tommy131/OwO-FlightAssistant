@@ -54,6 +54,7 @@ class FlightLogsLocalizationKeys {
   static const String blackBoxVerticalSpeed =
       'flight_logs.black_box.vertical_speed';
   static const String blackBoxGForce = 'flight_logs.black_box.g_force';
+  static const String blackBoxAoa = 'flight_logs.black_box.aoa';
   static const String blackBoxApAt = 'flight_logs.black_box.ap_at';
   static const String blackBoxFlapsGear = 'flight_logs.black_box.flaps_gear';
   static const String blackBoxWind = 'flight_logs.black_box.wind';
@@ -67,8 +68,14 @@ class FlightLogsLocalizationKeys {
   static const String summaryFuel = 'flight_logs.summary.fuel';
   static const String summaryMaxG = 'flight_logs.summary.max_g';
   static const String summaryMinG = 'flight_logs.summary.min_g';
+  static const String summaryTouchdownG = 'flight_logs.summary.touchdown_g';
   static const String chartAltitude = 'flight_logs.chart.altitude';
   static const String chartSpeed = 'flight_logs.chart.speed';
+  static const String chartPitch = 'flight_logs.chart.pitch';
+  static const String chartVerticalSpeed = 'flight_logs.chart.vertical_speed';
+  static const String chartGForce = 'flight_logs.chart.g_force';
+  static const String chartBaro = 'flight_logs.chart.baro';
+  static const String chartAoa = 'flight_logs.chart.aoa';
   static const String chartTooltipAlt = 'flight_logs.chart.tooltip_alt';
   static const String chartTooltipSpeed = 'flight_logs.chart.tooltip_speed';
   static const String simulatorMsfs = 'flight_logs.simulator.msfs';

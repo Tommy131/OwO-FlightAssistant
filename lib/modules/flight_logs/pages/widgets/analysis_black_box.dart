@@ -101,6 +101,9 @@ class AnalysisBlackBox extends StatelessWidget {
                   ),
                 ),
                 DataColumn(
+                  label: Text(FlightLogsLocalizationKeys.blackBoxAoa.tr(context)),
+                ),
+                DataColumn(
                   label: Text(
                     FlightLogsLocalizationKeys.blackBoxApAt.tr(context),
                   ),
@@ -147,6 +150,7 @@ class AnalysisBlackBox extends StatelessWidget {
                         ),
                         DataCell(Text(p.verticalSpeed.toStringAsFixed(0))),
                         DataCell(Text(p.gForce.toStringAsFixed(2))),
+                        DataCell(Text((p.angleOfAttack ?? 0).toStringAsFixed(1))),
                         DataCell(
                           Text(
                             '${p.autopilotEngaged == true ? "ON" : "OFF"}/${p.autothrottleEngaged == true ? "ON" : "OFF"}',
