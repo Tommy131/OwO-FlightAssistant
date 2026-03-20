@@ -179,6 +179,9 @@ class LocalizationKeys {
   static const String updateContent = 'update_content';
   static const String downloadUpdate = 'download_update';
   static const String alreadyLatestVersion = 'already_latest_version';
+  static const String community = 'community';
+  static const String discordCommunityDesc = 'discord_community_desc';
+  static const String joinDiscord = 'join_discord';
   static const String dataPathMissingTitle = 'data_path_missing_title';
   static const String dataPathMissingContent = 'data_path_missing_content';
 }

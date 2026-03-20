@@ -160,6 +160,9 @@ final Map<String, String> enUS = {
   LocalizationKeys.downloadUpdate: 'Download Update',
   LocalizationKeys.alreadyLatestVersion:
       'You are already using the latest version',
+  LocalizationKeys.community: 'Community',
+  LocalizationKeys.discordCommunityDesc: 'Join our Discord community',
+  LocalizationKeys.joinDiscord: 'Join Discord',
   LocalizationKeys.dataPathMissingTitle: 'Storage Path Missing',
   LocalizationKeys.dataPathMissingContent:
       'The configured storage path could not be found or accessed. To ensure data safety, the application initialization has been reset. Please re-configure your storage path.',

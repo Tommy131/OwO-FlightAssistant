@@ -22,8 +22,8 @@ class AppConstants {
   // ========== 应用信息 ==========
   static const String appName = 'OwO! FlightAssistant';
   static const String appPackageName = 'com.owoblog.owo_flight_assistant';
-  static const String appVersion = '1.0.1-beta';
-  static const String appBuildVersion = 'internal-build-20260319';
+  static const String appVersion = '1.0.2-beta';
+  static const String appBuildVersion = 'internal-build-20260320';
 
   // ========== 资源路径 ==========
   static const String assetIconPath = 'assets/icons/app_icon.png';
@@ -41,6 +41,7 @@ class AppConstants {
       'https://github.com/Tommy131/OwO-FlightAssistant';
   static const String instagramUrl = 'https://instagram.com/$instagramName';
   static const String owoServiceUrl = 'https://owoblog.com/service';
+  static const String discordInviteUrl = 'https://discord.gg/SjPaKwWW6P';
 
   // ========== API 配置 ==========
   static const String apiBaseUrl = 'https://owoserver.com/api/v1';
