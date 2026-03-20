@@ -1,176 +1,243 @@
-# OwO! FlightAssistant - 你的全能模拟飞行助手
+# OwO! FlightAssistant
 
-![Flutter](https://img.shields.io/badge/Flutter-v3.9+-02569B?logo=flutter)
-![Platform](https://img.shields.io/badge/Platform-Windows%20|%20Mobile-blue)
+[中文说明 (Chinese)](README.zh-CN.md)
 
-**OwO! FlightAssistant** 是一款专为 **Microsoft Flight Simulator (MSFS) 2020/2024** 和 **X-Plane 11/12** 设计的高级飞行辅助工具。它不仅提供基于真实 SOP 的检查单，还集成了强大的机场数据库查询、实时气象监控和飞行仪表显示功能。
+![Flutter](https://img.shields.io/badge/Flutter-v3.9.2+-02569B?logo=flutter)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Android%20%7C%20iOS%20%7C%20Web-blue)
+![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey)
 
----
+OwO! FlightAssistant is a modular flight-companion app for desktop and mobile simulator workflows.
+The current frontend integrates flight monitoring, checklist execution, map visualization, airport/METAR search, flight log analysis, and middleware health diagnostics for both **MSFS 2020/2024** and **X-Plane 11/12**.
 
-## 📸 功能预览
+## Feature Overview
 
-| 🏠 首页仪表盘 | 🛫 飞行检查单 |
-| :---: | :---: |
-| ![首页](assets/images/home_page-1.png) | ![检查单](assets/images/flight_checklist.png) |
-| *实时监控飞行状态与目的地信息* | *覆盖 9 大阶段的专业 SOP* |
+### 1) Home Dashboard & Simulator Session
 
-| 🗺️ 实时动态地图 | 🛠️ 停机位与几何 |
-| :---: | :---: |
-| ![地图模式](assets/images/flight_map-1.png) | ![停机位高亮](assets/images/flight_map-4.png) |
-| *多层级矢量地图与地形渲染* | *精准匹配本地数据库的滑行道与机位* |
+| General Info | Aircraft Info | Airport Info |
+| --- | --- | --- |
+| ![Home General](assets/images/home_page-general-info.png) | ![Home Aircraft](assets/images/home_page-aircraft-info.png) | ![Home Airport](assets/images/home_page-airport-info.png) |
 
----
+- Connect/disconnect simulator sessions from the home workflow.
+- Track key airborne and ground data in a compact status dashboard.
+- Display airport and aircraft context in one unified entry page.
 
-## ✨ 核心特性
+### 2) Airport Search & Operational Briefing
 
-### 🎨 现代化界面 (UI/UX)
-- **多主题支持**：内置多种预设主题（默认紫、圣诞红、海洋蓝、自然绿等），支持 Material 3 设计规范。
-- **UI 自适应缩放**：专为不同 DPI 设计的响应式布局，确保在手机、平板及 4K 屏幕上均有完美表现。
-- **毛玻璃设计**：基于现代审美风格，提供流畅的交互动画与视觉反馈。
+| Airport Search | Briefing Generator | Briefing Details |
+| --- | --- | --- |
+| ![Airport Search](assets/images/airport_search_page.png) | ![Briefing Generator](assets/images/briefing_page-generator.png) | ![Briefing Details](assets/images/briefing_page-details.png) |
 
-### 🗺️ 智能交互航图 (Interactive Map)
-- **多数据源集成**：支持从 X-Plane (`apt.dat`) 或 Little Navmap 直接提取机场几何数据，包括滑行道与停机位。
-- **四种地图模式**：集成 Carto 暗色、Esri 卫星、街道图及专业地形图。
-- **停机位高亮**：一键开启机位编号显示，配备发光光晕效果，辅助地面滑行。
-- **自适应缩放标签**：跑道编号与机位信息根据缩放级别智能显隐，保持图面整洁。
+- Search ICAO airports with suggestion support and favorites persistence.
+- Load airport details + METAR through the middleware API.
+- Generate and review operation briefing cards and history records.
 
-### 📊 实时飞行监控 (Monitor)
-- **多维仪表盘**：集成磁航向罗盘、起落架状态监控及 Master Warning/Caution 智能告警。
-- **趋势分析图表**：实时高度趋势、G-Force 重力曲线及大气压强监测。
-- **状态同步**：自动识别模拟器暂停状态，确保飞行数据实时准确。
+### 3) Checklist, Monitor, and Toolbox
 
-### 🌍 全球机场与气象 (Airport Info)
-- **多源数据源**：支持 AirportDB.io 在线 API 及本地 X-Plane (`apt.dat`) / Little Navmap (`navdata.sqlite`) 数据库。
-- **AIRAC 周期管理**：自动检测导航数据版本，提供 AIRAC 过期预警。
-- **实时气象解析**：直连 NOAA 获取最新 METAR 报文，智能解析风向、能见度、温度及修正海压。
+| Checklist | Monitor (Charts) | Monitor (Landing Gear) | Toolbox |
+| --- | --- | --- | --- |
+| ![Checklist](assets/images/checklist_page.png) | ![Monitor Charts](assets/images/monitor_page-charts.png) | ![Monitor Landing Gear](assets/images/monitor_page-landing-gear.png) | ![Toolbox](assets/images/tool_box_page.png) |
 
-### 🔌 模拟器连接 ✨
-- **MSFS (2020/2024)**：通过 WebSocket 桥接 SimConnect，实时同步飞行状态。
-- **X-Plane (11/12)**：通过 UDP 协议直连 DataRef，无需安装额外插件。
-- **完整 SOP 检查单**：覆盖 A320 系列与 B737 系列从冷舱到关车的 9 大飞行阶段。
+- Execute multi-phase SOP checklists (A320/B737/Generic).
+- Observe live monitor panels (charts, heading, systems, landing gear).
+- Use utility tools and aviation reference cards from Toolbox.
 
----
+### 4) Map Module (Layers, Weather, Airports)
 
-## 🛠️ 技术栈
+| Layer Panel | Airport Types | Airport Info | Weather Radar |
+| --- | --- | --- | --- |
+| ![Map Layers](assets/images/map_page-layers.png) | ![Map Airport Types](assets/images/map_page-airport-types.png) | ![Map Airport Info](assets/images/map_page-airport-info.png) | ![Map Radar](assets/images/map_page-weather-radar.png) |
 
-- **框架**：[Flutter](https://flutter.dev/) (Dart)
-- **状态管理**：[Provider](https://pub.dev/packages/provider)
-- **本地数据库**：[sqlite3](https://pub.dev/packages/sqlite3) (用于解析 LNM/XP 导航数据)
-- **网络通信**：WebSocket (MSFS) / UDP (X-Plane) / HTTP (METAR API)
-- **持久化**：Shared Preferences
+- Multi-provider map backgrounds (OpenStreetMap, Esri, Carto variants).
+- Airport rendering by category and airport detail panels.
+- RainViewer weather radar overlay timeline support.
 
-## 📦 主要开源库
+### 5) Flight Logs & Analysis
 
-- `window_manager`：精细的桌面窗口控制。
-- `fl_chart`：飞行参数实时图表显示。
-- `flex_color_picker`：高度自定义的主题色选器。
-- `sqlite3_flutter_libs`：跨平台 SQLite 运行时支持。
-- `url_launcher`：快速访问航图与外部链接。
+| Logs List | Track View | Quality Report | Danger Test |
+| --- | --- | --- | --- |
+| ![Flight Logs](assets/images/flight_logs_page.png) | ![Flight Track](assets/images/flight_logs_page-flight-track.png) | ![Flight Quality](assets/images/flight_logs_page-flight-quality-report.png) | ![Danger Test](assets/images/flight_logs_page-danger-test-flight.png) |
 
----
+| Black Box | Black Box (Danger Alert) |
+| --- | --- |
+| ![Black Box](assets/images/flight_logs_page_black-box-data-1.png) | ![Black Box Danger](assets/images/flight_logs_page_black-box-data-with-danger-alert.png) |
 
-## 🔌 数据与 API 来源
+- Store and replay flight sessions with timeline and track analysis.
+- Provide quality scoring and safety-oriented danger testing.
+- Inspect black-box style event data for post-flight review.
 
-- **导航数据**：支持 Little Navmap (LNM) 导出的 SQLite 数据库及 X-Plane `apt.dat` 格式。
-- **气象 API**：[AviationAPI](https://www.aviationapi.com/) 提供实时 METAR 数据。
-- **机型预设**：内置参考多家主流航空公司 (SOP) 的标准检查单。
+### 6) Settings & Middleware Diagnostics
 
----
+| Middleware Settings | Map Module Settings | Global Settings |
+| --- | --- | --- |
+| ![Middleware Settings](assets/images/middleware_settings_page.png) | ![Map Module Settings](assets/images/map_module_settings_page.png) | ![Settings](assets/images/settings_page.png) |
 
-## 🏗️ 代码架构
+- Configure HTTP and WebSocket middleware endpoints.
+- Run integrated connectivity diagnosis (backend / websocket / simulator state).
+- Tune map module data behaviors and app-level preferences.
 
-项目遵循清晰的分层架构，便于扩展与维护：
+## Supported Devices, Platforms, and Simulators
+
+### Device Layout Support
+
+- **Mobile layout**: width `< 650`
+- **Tablet layout**: width `650 - 1241`
+- **Desktop layout**: width `>= 1242`
+
+### Flutter Targets in This Repository
+
+- **Windows desktop**: first-class experience and recommended for simulator operations
+- **Android / iOS**: available targets for mobile companion usage
+- **Web**: scaffolded and buildable for browser usage
+
+### Simulators
+
+- **Microsoft Flight Simulator (2020 / 2024)**
+- **X-Plane (11 / 12)**
+
+## Project Architecture (Frontend)
 
 ```text
 lib/
-├── apps/               # 业务逻辑层
-│   ├── data/           # 数据库操作与持久化
-│   ├── models/         # 数据模型 (Airport, Metar, Checklist)
-│   ├── providers/      # 状态管理 (Simulator, Theme, Checklist)
-│   └── services/       # 外部服务 (WeatherService, AirportDetailService)
-├── core/               # 核心层
-│   ├── theme/          # 主题与配色定义
-│   ├── utils/          # 工具类 (Logger, Validators)
-│   └── widgets/        # 通用 UI 组件
-└── pages/              # UI 页面层
-    ├── home/           # 仪表盘首页
-    ├── airport_info/   # 机场详情与搜索
-    ├── checklist/      # 交互式检查单
-    └── settings/       # 系统与数据路径配置
+├── core/                    # App shell, localization, theme, module registry
+├── modules/
+│   ├── home/                # Home dashboard + simulator controls
+│   ├── checklist/           # SOP checklist module
+│   ├── map/                 # Interactive map + layers + weather
+│   ├── airport_search/      # ICAO search, airport details, METAR
+│   ├── monitor/             # Live monitor widgets and charts
+│   ├── briefing/            # Flight briefing generation and history
+│   ├── flight_logs/         # Flight logs and analysis views
+│   ├── toolbox/             # Utility toolbox
+│   └── http/                # Middleware endpoint settings + diagnostics
+└── main.dart
 ```
 
----
+Module registration entry: `lib/modules/modules_register_entry.dart`.
 
-## 📥 快速开始
+## Installation & Usage
 
-### 1. 安装 Flutter 应用
+### Prerequisites
 
-1. 确保已安装 Flutter 环境（推荐 3.9+）
-2. 克隆项目：
-   ```bash
-   git clone https://github.com/your-repo/owo_flight_assistant.git
-   cd owo_flight_assistant
-   ```
-3. 安装依赖：
-   ```bash
-   flutter pub get
-   ```
-4. 运行应用：
-   ```bash
-   flutter run
-   ```
-   （建议在 Windows 桌面端运行以获得最佳体验）
+- Flutter SDK `^3.9.2`
+- A running middleware backend instance (default: `http://127.0.0.1:18080`)
+- Optional simulator runtime:
+  - MSFS 2020/2024
+  - X-Plane 11/12
 
-### 2. 连接 MSFS（可选）
+### Install
 
-如果你想使用 MSFS 实时数据连接功能：
+```bash
+git clone <your-fork-or-repo-url>
+cd owo_flight_assistant
+flutter pub get
+```
 
-**快速开始（3 步）：**
-1. 进入 `msfs_bridge` 目录
-2. 双击 `setup_simconnect.bat` 安装 SimConnect.dll（首次使用必需）
-3. 双击 `start.bat` 启动服务器
+### Run (Recommended: Windows Desktop)
 
-**在应用中连接：**
-- 启动 MSFS 并加载飞机
-- 在应用的飞行检查单页面点击连接按钮
-- 选择"连接 MSFS"
+```bash
+flutter run -d windows
+```
 
-**详细文档：**
-- 📖 [快速开始指南](msfs_bridge/docs/快速开始.md) - 5 分钟快速上手
-- 🔧 [SimConnect 安装指南](msfs_bridge/docs/SIMCONNECT_SETUP.md) - 解决 DLL 问题
-- 📚 [完整文档](msfs_bridge/README.md) - 技术细节和故障排除
-- 🗺️ [安装流程图](msfs_bridge/docs/安装流程图.txt) - 可视化安装步骤
-- 🔄 [连接问题修复](msfs_bridge/docs/连接问题修复说明.md) - 解决断开/重连问题
+Alternative targets:
 
-**常见问题：**
-- 如果遇到 "SimConnect.dll not found" 错误，运行 `setup_simconnect.bat`
-- 如果连接后立即断开，查看 [连接问题修复说明](msfs_bridge/docs/连接问题修复说明.md)
-- 详细说明请参考 [解决方案总结](msfs_bridge/docs/解决方案总结.md)
+```bash
+flutter run -d android
+flutter run -d ios
+flutter run -d chrome
+```
 
-### 3. 连接 X-Plane（可选）
+### Basic Usage Flow
 
-X-Plane 无需额外软件，只需配置 UDP 输出：
+1. Open **Settings → Middleware Settings**, set backend host/port if not default.
+2. Go to **Home**, connect simulator session.
+3. Use **Checklist**, **Map**, **Monitor**, and **Airport Search** modules during flight.
+4. Review post-flight insights in **Flight Logs**.
 
-1. 在 X-Plane 中进入 Settings → Data Output
-2. 启用 Network via UDP
-3. 设置输出地址：`127.0.0.1:49001`
-4. 在应用中选择"连接 X-Plane"
+## Open-Source Repositories / Packages Used
 
----
+Core framework and state:
 
-## 📄 许可证 (License)
+- [Flutter](https://flutter.dev/)
+- [provider](https://pub.dev/packages/provider)
 
-本项目采用 **[Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)](LICENSE)** 许可协议。
+Networking and simulator channels:
 
-### 📌 协议要点说明：
-- **署名 (Attribution)**：他人分发或修改代码时，必须标注原作者及源代码来源。
-- **非商业性使用 (Non-Commercial)**：他人**不得**将本项目代码（及其衍生版本）用于任何形式的付费或商业用途。
-- **相同方式共享 (ShareAlike)**：如果他人对代码进行了二次修改，其修改后的代码也**必须**以相同的开源协议（CC BY-NC-SA 4.0）公开，不得闭源。
-- **允许二次开发**：欢迎 Fork 并根据个人需求进行修改和使用。
+- [http](https://pub.dev/packages/http)
+- [web_socket_channel](https://pub.dev/packages/web_socket_channel)
 
-### ⚠️ 免责声明
-本项目仅供学习和模拟飞行研究使用，严禁用于真实飞行。
+Mapping and geo:
 
----
+- [flutter_map](https://pub.dev/packages/flutter_map)
+- [latlong2](https://pub.dev/packages/latlong2)
 
-**OwO! FlightAssistant** - 让每一次起降都充满仪式感。
+Storage, files, and desktop runtime:
+
+- [shared_preferences](https://pub.dev/packages/shared_preferences)
+- [sqlite3](https://pub.dev/packages/sqlite3)
+- [sqlite3_flutter_libs](https://pub.dev/packages/sqlite3_flutter_libs)
+- [file_picker](https://pub.dev/packages/file_picker)
+- [window_manager](https://pub.dev/packages/window_manager)
+
+UI and utilities:
+
+- [fl_chart](https://pub.dev/packages/fl_chart)
+- [flex_color_picker](https://pub.dev/packages/flex_color_picker)
+- [google_fonts](https://pub.dev/packages/google_fonts)
+- [flutter_local_notifications](https://pub.dev/packages/flutter_local_notifications)
+- [share_plus](https://pub.dev/packages/share_plus)
+- [url_launcher](https://pub.dev/packages/url_launcher)
+- [logger](https://pub.dev/packages/logger)
+- [intl](https://pub.dev/packages/intl)
+- [confetti](https://pub.dev/packages/confetti)
+
+## API Interfaces Used by Frontend
+
+Default middleware endpoints:
+
+- HTTP base URL: `http://127.0.0.1:18080`
+- WebSocket base URL: `ws://127.0.0.1:18081/api/v1/simulator/ws`
+
+Main API routes consumed:
+
+- `GET /health`
+- `GET /api/v1/version`
+- `GET /api/v1/airport/{icao}`
+- `GET /api/v1/airport-layout/{icao}`
+- `GET /api/v1/metar/{icao}`
+- `GET /api/v1/airport-list`
+- `GET /api/v1/airport-suggest?q={query}&limit={n}`
+- `GET /api/v1/airports?min_lat=&max_lat=&min_lon=&max_lon=&limit=`
+- `POST /api/v1/simulator/state`
+- `POST /api/v1/simulator/connect`
+- `POST /api/v1/simulator/data`
+- `POST /api/v1/simulator/disconnect`
+- `GET /api/v1/simulator/ws`
+
+Third-party map/weather data services:
+
+- [OpenStreetMap Tile](https://tile.openstreetmap.org/)
+- [Esri World Imagery](https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer)
+- [Esri World Topo](https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer)
+- [Carto Basemaps](https://carto.com/basemaps)
+- [RainViewer Weather Maps](https://www.rainviewer.com/api.html)
+
+## Open-Source License
+
+This project is licensed under:
+
+- **Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International**
+- See [LICENSE](LICENSE) for full terms.
+
+## Developer Information
+
+- Team: **OwOTeam-DGMT (OwOBlog)**
+- Primary developer: **HanskiJay**
+- Contact: **<support@owoblog.com>**
+- GitHub: [Tommy131](https://github.com/Tommy131)
+- Repository: [OwO-FlightAssistant](https://github.com/Tommy131/OwO-FlightAssistant)
+- Telegram: [@HanskiJay](https://t.me/HanskiJay)
+
+## Disclaimer
+
+This software is for simulator training, learning, and research purposes only.
+Do not use it for real-world flight operations.
