@@ -42,6 +42,21 @@ class _AnalysisChartState extends State<AnalysisChart> {
       _ChartMetric.gForce: <FlSpot>[],
       _ChartMetric.baro: <FlSpot>[],
       _ChartMetric.aoa: <FlSpot>[],
+      _ChartMetric.engine1N1: <FlSpot>[],
+      _ChartMetric.engine2N1: <FlSpot>[],
+      _ChartMetric.engine1N2: <FlSpot>[],
+      _ChartMetric.engine2N2: <FlSpot>[],
+      _ChartMetric.engine1Egt: <FlSpot>[],
+      _ChartMetric.engine2Egt: <FlSpot>[],
+      _ChartMetric.aileronInput: <FlSpot>[],
+      _ChartMetric.elevatorInput: <FlSpot>[],
+      _ChartMetric.rudderInput: <FlSpot>[],
+      _ChartMetric.aileronTrim: <FlSpot>[],
+      _ChartMetric.elevatorTrim: <FlSpot>[],
+      _ChartMetric.rudderTrim: <FlSpot>[],
+      _ChartMetric.crosswind: <FlSpot>[],
+      _ChartMetric.radioAltitude: <FlSpot>[],
+      _ChartMetric.gustDelta: <FlSpot>[],
     };
 
     for (int i = 0; i < sampledPoints.length; i++) {
@@ -66,6 +81,74 @@ class _AnalysisChartState extends State<AnalysisChart> {
       if (aoa != null) {
         spotsByMetric[_ChartMetric.aoa]!.add(FlSpot(time, aoa));
       }
+      final engine1N1 = point.engine1N1;
+      if (engine1N1 != null) {
+        spotsByMetric[_ChartMetric.engine1N1]!.add(FlSpot(time, engine1N1));
+      }
+      final engine2N1 = point.engine2N1;
+      if (engine2N1 != null) {
+        spotsByMetric[_ChartMetric.engine2N1]!.add(FlSpot(time, engine2N1));
+      }
+      final engine1N2 = point.engine1N2;
+      if (engine1N2 != null) {
+        spotsByMetric[_ChartMetric.engine1N2]!.add(FlSpot(time, engine1N2));
+      }
+      final engine2N2 = point.engine2N2;
+      if (engine2N2 != null) {
+        spotsByMetric[_ChartMetric.engine2N2]!.add(FlSpot(time, engine2N2));
+      }
+      final engine1Egt = point.engine1Egt;
+      if (engine1Egt != null) {
+        spotsByMetric[_ChartMetric.engine1Egt]!.add(FlSpot(time, engine1Egt));
+      }
+      final engine2Egt = point.engine2Egt;
+      if (engine2Egt != null) {
+        spotsByMetric[_ChartMetric.engine2Egt]!.add(FlSpot(time, engine2Egt));
+      }
+      final aileronInput = point.aileronInput;
+      if (aileronInput != null) {
+        spotsByMetric[_ChartMetric.aileronInput]!.add(
+          FlSpot(time, aileronInput),
+        );
+      }
+      final elevatorInput = point.elevatorInput;
+      if (elevatorInput != null) {
+        spotsByMetric[_ChartMetric.elevatorInput]!.add(
+          FlSpot(time, elevatorInput),
+        );
+      }
+      final rudderInput = point.rudderInput;
+      if (rudderInput != null) {
+        spotsByMetric[_ChartMetric.rudderInput]!.add(FlSpot(time, rudderInput));
+      }
+      final aileronTrim = point.aileronTrim;
+      if (aileronTrim != null) {
+        spotsByMetric[_ChartMetric.aileronTrim]!.add(FlSpot(time, aileronTrim));
+      }
+      final elevatorTrim = point.elevatorTrim;
+      if (elevatorTrim != null) {
+        spotsByMetric[_ChartMetric.elevatorTrim]!.add(
+          FlSpot(time, elevatorTrim),
+        );
+      }
+      final rudderTrim = point.rudderTrim;
+      if (rudderTrim != null) {
+        spotsByMetric[_ChartMetric.rudderTrim]!.add(FlSpot(time, rudderTrim));
+      }
+      final crosswind = point.crosswindComponent;
+      if (crosswind != null) {
+        spotsByMetric[_ChartMetric.crosswind]!.add(FlSpot(time, crosswind));
+      }
+      final radioAltitude = point.radioAltitude;
+      if (radioAltitude != null) {
+        spotsByMetric[_ChartMetric.radioAltitude]!.add(
+          FlSpot(time, radioAltitude),
+        );
+      }
+      final gustDelta = point.gustDelta;
+      if (gustDelta != null) {
+        spotsByMetric[_ChartMetric.gustDelta]!.add(FlSpot(time, gustDelta));
+      }
     }
     final activeMetrics = _ChartMetric.values
         .where(
@@ -78,7 +161,13 @@ class _AnalysisChartState extends State<AnalysisChart> {
         _selectedMetrics.length == 1 && activeMetrics.isEmpty;
     final allEventMarkers = _buildEventMarkers(context, widget.log.points);
     final availableEventTypes = _ChartEventType.values
-        .where((type) => allEventMarkers.any((marker) => marker.type == type))
+        .where(
+          (type) =>
+              allEventMarkers.any((marker) => marker.type == type) ||
+              type == _ChartEventType.flapsRetract ||
+              type == _ChartEventType.gearDown ||
+              type == _ChartEventType.gearUp,
+        )
         .toList();
     final eventMarkers = allEventMarkers
         .where((marker) => _selectedEvents.contains(marker.type))
@@ -379,6 +468,12 @@ class _AnalysisChartState extends State<AnalysisChart> {
     double? previousFlapsLevel;
     var flapsInitialized = false;
     var touchdownCount = 0;
+    var previousLateralMode = '';
+    var previousVerticalMode = '';
+    var lateralInitialized = false;
+    var verticalInitialized = false;
+    bool? previousGearDown;
+    var gearInitialized = false;
     for (final point in points) {
       final time = _timeInMinutes(point.timestamp);
       final currentOnGround = point.onGround ?? previousOnGround;
@@ -424,6 +519,88 @@ class _AnalysisChartState extends State<AnalysisChart> {
           );
         }
       }
+      final currentLateralMode = _normalizeAutopilotMode(
+        point.autopilotLateralMode,
+      );
+      if (!lateralInitialized) {
+        previousLateralMode = currentLateralMode;
+        lateralInitialized = true;
+        if (currentLateralMode.isNotEmpty && currentLateralMode != 'OFF') {
+          markers.add(
+            _ChartEventMarker(
+              type: _ChartEventType.autopilotLateral,
+              label:
+                  '${_eventTypeLabel(context, _ChartEventType.autopilotLateral)} $currentLateralMode',
+              color: _eventColor(_ChartEventType.autopilotLateral),
+              point: point,
+              timeInMinutes: time,
+            ),
+          );
+        }
+      } else if (currentLateralMode.isNotEmpty &&
+          currentLateralMode != previousLateralMode) {
+        markers.add(
+          _ChartEventMarker(
+            type: _ChartEventType.autopilotLateral,
+            label:
+                '${_eventTypeLabel(context, _ChartEventType.autopilotLateral)} $currentLateralMode',
+            color: _eventColor(_ChartEventType.autopilotLateral),
+            point: point,
+            timeInMinutes: time,
+          ),
+        );
+      }
+      final currentVerticalMode = _normalizeAutopilotMode(
+        point.autopilotVerticalMode,
+      );
+      if (!verticalInitialized) {
+        previousVerticalMode = currentVerticalMode;
+        verticalInitialized = true;
+        if (currentVerticalMode.isNotEmpty && currentVerticalMode != 'OFF') {
+          markers.add(
+            _ChartEventMarker(
+              type: _ChartEventType.autopilotVertical,
+              label:
+                  '${_eventTypeLabel(context, _ChartEventType.autopilotVertical)} $currentVerticalMode',
+              color: _eventColor(_ChartEventType.autopilotVertical),
+              point: point,
+              timeInMinutes: time,
+            ),
+          );
+        }
+      } else if (currentVerticalMode.isNotEmpty &&
+          currentVerticalMode != previousVerticalMode) {
+        markers.add(
+          _ChartEventMarker(
+            type: _ChartEventType.autopilotVertical,
+            label:
+                '${_eventTypeLabel(context, _ChartEventType.autopilotVertical)} $currentVerticalMode',
+            color: _eventColor(_ChartEventType.autopilotVertical),
+            point: point,
+            timeInMinutes: time,
+          ),
+        );
+      }
+      final currentGearDown = point.gearDown;
+      if (!gearInitialized) {
+        previousGearDown = currentGearDown;
+        gearInitialized = true;
+      } else if (currentGearDown != null &&
+          previousGearDown != null &&
+          currentGearDown != previousGearDown) {
+        final eventType = currentGearDown
+            ? _ChartEventType.gearDown
+            : _ChartEventType.gearUp;
+        markers.add(
+          _ChartEventMarker(
+            type: eventType,
+            label: _eventTypeLabel(context, eventType),
+            color: _eventColor(eventType),
+            point: point,
+            timeInMinutes: time,
+          ),
+        );
+      }
       if (!previousOnGround && currentOnGround) {
         touchdownCount += 1;
         touchdownMarkers.add(
@@ -440,6 +617,9 @@ class _AnalysisChartState extends State<AnalysisChart> {
       previousOnGround = currentOnGround;
       previousFlapsLevel = currentFlapsLevel ?? previousFlapsLevel;
       previousFlapsToken = currentFlapsToken;
+      previousLateralMode = currentLateralMode;
+      previousVerticalMode = currentVerticalMode;
+      previousGearDown = currentGearDown ?? previousGearDown;
     }
     if (touchdownMarkers.length == 1) {
       final firstTouchdown = touchdownMarkers.first;
@@ -587,6 +767,21 @@ class _AnalysisChartState extends State<AnalysisChart> {
       _ChartMetric.gForce => point.gForce,
       _ChartMetric.baro => point.baroPressure ?? 29.92,
       _ChartMetric.aoa => point.angleOfAttack,
+      _ChartMetric.engine1N1 => point.engine1N1,
+      _ChartMetric.engine2N1 => point.engine2N1,
+      _ChartMetric.engine1N2 => point.engine1N2,
+      _ChartMetric.engine2N2 => point.engine2N2,
+      _ChartMetric.engine1Egt => point.engine1Egt,
+      _ChartMetric.engine2Egt => point.engine2Egt,
+      _ChartMetric.aileronInput => point.aileronInput,
+      _ChartMetric.elevatorInput => point.elevatorInput,
+      _ChartMetric.rudderInput => point.rudderInput,
+      _ChartMetric.aileronTrim => point.aileronTrim,
+      _ChartMetric.elevatorTrim => point.elevatorTrim,
+      _ChartMetric.rudderTrim => point.rudderTrim,
+      _ChartMetric.crosswind => point.crosswindComponent,
+      _ChartMetric.radioAltitude => point.radioAltitude,
+      _ChartMetric.gustDelta => point.gustDelta,
     };
   }
 
@@ -646,6 +841,15 @@ class _AnalysisChartState extends State<AnalysisChart> {
         FlightLogsLocalizationKeys.chartEventFlapsDeploy.tr(context),
       _ChartEventType.flapsRetract =>
         FlightLogsLocalizationKeys.chartEventFlapsRetract.tr(context),
+      _ChartEventType.autopilotLateral =>
+        FlightLogsLocalizationKeys.chartEventAutopilotLateral.tr(context),
+      _ChartEventType.autopilotVertical =>
+        FlightLogsLocalizationKeys.chartEventAutopilotVertical.tr(context),
+      _ChartEventType.gearDown =>
+        FlightLogsLocalizationKeys.chartEventGearDown.tr(context),
+      _ChartEventType.gearUp => FlightLogsLocalizationKeys.chartEventGearUp.tr(
+        context,
+      ),
       _ChartEventType.touchdown =>
         FlightLogsLocalizationKeys.chartEventTouchdown.tr(context),
       _ChartEventType.finalTouchdown =>
@@ -658,9 +862,21 @@ class _AnalysisChartState extends State<AnalysisChart> {
       _ChartEventType.takeoff => Colors.lightBlue,
       _ChartEventType.flapsDeploy => Colors.deepPurple,
       _ChartEventType.flapsRetract => Colors.purpleAccent,
+      _ChartEventType.autopilotLateral => Colors.cyan,
+      _ChartEventType.autopilotVertical => Colors.lightGreen,
+      _ChartEventType.gearDown => Colors.green,
+      _ChartEventType.gearUp => Colors.orangeAccent,
       _ChartEventType.touchdown => Colors.deepOrange,
       _ChartEventType.finalTouchdown => Colors.redAccent,
     };
+  }
+
+  String _normalizeAutopilotMode(String? raw) {
+    final mode = raw?.trim().toUpperCase() ?? '';
+    if (mode == '--' || mode == 'N/A') {
+      return '';
+    }
+    return mode;
   }
 
   String _metricLabel(BuildContext context, _ChartMetric metric) {
@@ -675,6 +891,45 @@ class _AnalysisChartState extends State<AnalysisChart> {
       _ChartMetric.gForce => FlightLogsLocalizationKeys.chartGForce.tr(context),
       _ChartMetric.baro => FlightLogsLocalizationKeys.chartBaro.tr(context),
       _ChartMetric.aoa => FlightLogsLocalizationKeys.chartAoa.tr(context),
+      _ChartMetric.engine1N1 => FlightLogsLocalizationKeys.chartEngine1N1.tr(
+        context,
+      ),
+      _ChartMetric.engine2N1 => FlightLogsLocalizationKeys.chartEngine2N1.tr(
+        context,
+      ),
+      _ChartMetric.engine1N2 => FlightLogsLocalizationKeys.chartEngine1N2.tr(
+        context,
+      ),
+      _ChartMetric.engine2N2 => FlightLogsLocalizationKeys.chartEngine2N2.tr(
+        context,
+      ),
+      _ChartMetric.engine1Egt => FlightLogsLocalizationKeys.chartEngine1Egt.tr(
+        context,
+      ),
+      _ChartMetric.engine2Egt => FlightLogsLocalizationKeys.chartEngine2Egt.tr(
+        context,
+      ),
+      _ChartMetric.aileronInput =>
+        FlightLogsLocalizationKeys.chartAileronInput.tr(context),
+      _ChartMetric.elevatorInput =>
+        FlightLogsLocalizationKeys.chartElevatorInput.tr(context),
+      _ChartMetric.rudderInput =>
+        FlightLogsLocalizationKeys.chartRudderInput.tr(context),
+      _ChartMetric.aileronTrim =>
+        FlightLogsLocalizationKeys.chartAileronTrim.tr(context),
+      _ChartMetric.elevatorTrim =>
+        FlightLogsLocalizationKeys.chartElevatorTrim.tr(context),
+      _ChartMetric.rudderTrim => FlightLogsLocalizationKeys.chartRudderTrim.tr(
+        context,
+      ),
+      _ChartMetric.crosswind => FlightLogsLocalizationKeys.chartCrosswind.tr(
+        context,
+      ),
+      _ChartMetric.radioAltitude =>
+        FlightLogsLocalizationKeys.chartRadioAltitude.tr(context),
+      _ChartMetric.gustDelta => FlightLogsLocalizationKeys.chartGustDelta.tr(
+        context,
+      ),
     };
   }
 
@@ -687,12 +942,37 @@ class _AnalysisChartState extends State<AnalysisChart> {
       _ChartMetric.gForce => 'G',
       _ChartMetric.baro => 'inHg',
       _ChartMetric.aoa => '°',
+      _ChartMetric.engine1N1 => '%',
+      _ChartMetric.engine2N1 => '%',
+      _ChartMetric.engine1N2 => '%',
+      _ChartMetric.engine2N2 => '%',
+      _ChartMetric.engine1Egt => '°C',
+      _ChartMetric.engine2Egt => '°C',
+      _ChartMetric.aileronInput => '',
+      _ChartMetric.elevatorInput => '',
+      _ChartMetric.rudderInput => '',
+      _ChartMetric.aileronTrim => '',
+      _ChartMetric.elevatorTrim => '',
+      _ChartMetric.rudderTrim => '',
+      _ChartMetric.crosswind => 'kts',
+      _ChartMetric.radioAltitude => 'ft',
+      _ChartMetric.gustDelta => 'kts',
     };
   }
 
   int _metricPrecision(_ChartMetric metric) {
     return switch (metric) {
       _ChartMetric.gForce || _ChartMetric.baro || _ChartMetric.aoa => 2,
+      _ChartMetric.engine1N1 ||
+      _ChartMetric.engine2N1 ||
+      _ChartMetric.engine1N2 ||
+      _ChartMetric.engine2N2 => 1,
+      _ChartMetric.aileronInput ||
+      _ChartMetric.elevatorInput ||
+      _ChartMetric.rudderInput ||
+      _ChartMetric.aileronTrim ||
+      _ChartMetric.elevatorTrim ||
+      _ChartMetric.rudderTrim => 3,
       _ChartMetric.pitch => 1,
       _ => 0,
     };
@@ -707,16 +987,58 @@ class _AnalysisChartState extends State<AnalysisChart> {
       _ChartMetric.gForce => Colors.red,
       _ChartMetric.baro => Colors.indigo,
       _ChartMetric.aoa => Colors.green,
+      _ChartMetric.engine1N1 => Colors.amber,
+      _ChartMetric.engine2N1 => Colors.orangeAccent,
+      _ChartMetric.engine1N2 => Colors.brown,
+      _ChartMetric.engine2N2 => Colors.deepOrangeAccent,
+      _ChartMetric.engine1Egt => Colors.pinkAccent,
+      _ChartMetric.engine2Egt => Colors.pink,
+      _ChartMetric.aileronInput => Colors.cyan,
+      _ChartMetric.elevatorInput => Colors.lightBlueAccent,
+      _ChartMetric.rudderInput => Colors.tealAccent,
+      _ChartMetric.aileronTrim => Colors.lime,
+      _ChartMetric.elevatorTrim => Colors.lightGreen,
+      _ChartMetric.rudderTrim => Colors.greenAccent,
+      _ChartMetric.crosswind => Colors.indigoAccent,
+      _ChartMetric.radioAltitude => Colors.deepPurpleAccent,
+      _ChartMetric.gustDelta => Colors.amberAccent,
     };
   }
 }
 
-enum _ChartMetric { altitude, speed, pitch, verticalSpeed, gForce, baro, aoa }
+enum _ChartMetric {
+  altitude,
+  speed,
+  pitch,
+  verticalSpeed,
+  gForce,
+  baro,
+  aoa,
+  engine1N1,
+  engine2N1,
+  engine1N2,
+  engine2N2,
+  engine1Egt,
+  engine2Egt,
+  aileronInput,
+  elevatorInput,
+  rudderInput,
+  aileronTrim,
+  elevatorTrim,
+  rudderTrim,
+  crosswind,
+  radioAltitude,
+  gustDelta,
+}
 
 enum _ChartEventType {
   takeoff,
   flapsDeploy,
   flapsRetract,
+  autopilotLateral,
+  autopilotVertical,
+  gearDown,
+  gearUp,
   touchdown,
   finalTouchdown,
 }

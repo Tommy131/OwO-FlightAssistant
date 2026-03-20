@@ -239,8 +239,48 @@ class _FlightLogDetailPageState extends State<FlightLogDetailPage> {
               FlightLogsLocalizationKeys.gForce.tr(context),
               '${data.gForce.toStringAsFixed(2)} G',
             ),
+            _buildDetailRow(
+              FlightLogsLocalizationKeys.approachStability.tr(context),
+              _stabilityValue(data),
+            ),
+            _buildDetailRow(
+              FlightLogsLocalizationKeys.flareHeight.tr(context),
+              _feetValue(data.flareHeightFt),
+            ),
+            _buildDetailRow(
+              FlightLogsLocalizationKeys.sinkRateAt50.tr(context),
+              _sinkRateValue(data.sinkRateAt50FtFpm),
+            ),
+            _buildDetailRow(
+              FlightLogsLocalizationKeys.crosswindTouchdown.tr(context),
+              _crosswindValue(data.crosswindAtTouchdownKt),
+            ),
+            _buildDetailRow(
+              FlightLogsLocalizationKeys.bounceCount.tr(context),
+              data.bounceCount?.toString() ?? '--',
+            ),
           ],
           if (data is TakeoffData) ...[
+            _buildDetailRow(
+              FlightLogsLocalizationKeys.takeoffStability.tr(context),
+              _stabilityValueFromScore(data.takeoffStabilityScore),
+            ),
+            _buildDetailRow(
+              FlightLogsLocalizationKeys.rotationSpeed.tr(context),
+              _airspeedValue(data.rotationSpeedKt),
+            ),
+            _buildDetailRow(
+              FlightLogsLocalizationKeys.rotationToLiftoff.tr(context),
+              _secondsValue(data.rotationToLiftoffSec),
+            ),
+            _buildDetailRow(
+              FlightLogsLocalizationKeys.crosswindLiftoff.tr(context),
+              _crosswindValue(data.crosswindAtLiftoffKt),
+            ),
+            _buildDetailRow(
+              FlightLogsLocalizationKeys.pitchAt35Ft.tr(context),
+              _pitchValue(data.pitchAt35FtDeg),
+            ),
             _buildDetailRow(
               FlightLogsLocalizationKeys.pitch.tr(context),
               '${data.pitch.toStringAsFixed(1)}°',
@@ -271,6 +311,45 @@ class _FlightLogDetailPageState extends State<FlightLogDetailPage> {
     final value = data.remainingRunwayFt;
     if (value == null || value <= 0) return '--';
     return '${value.toStringAsFixed(0)} ft';
+  }
+
+  String _stabilityValue(LandingData data) {
+    return _stabilityValueFromScore(data.approachStabilityScore);
+  }
+
+  String _stabilityValueFromScore(double? score) {
+    if (score == null) return '--';
+    return '${score.toStringAsFixed(0)} / 100';
+  }
+
+  String _airspeedValue(double? value) {
+    if (value == null || value <= 0) return '--';
+    return '${value.toStringAsFixed(1)} kts';
+  }
+
+  String _secondsValue(int? value) {
+    if (value == null || value < 0) return '--';
+    return '${value}s';
+  }
+
+  String _pitchValue(double? value) {
+    if (value == null) return '--';
+    return '${value.toStringAsFixed(1)}°';
+  }
+
+  String _feetValue(double? value) {
+    if (value == null || value <= 0) return '--';
+    return '${value.toStringAsFixed(0)} ft';
+  }
+
+  String _sinkRateValue(double? value) {
+    if (value == null) return '--';
+    return '${value.toStringAsFixed(0)} fpm';
+  }
+
+  String _crosswindValue(double? value) {
+    if (value == null) return '--';
+    return '${value.toStringAsFixed(1)} kts';
   }
 
   Widget _buildDetailRow(String label, String value) {

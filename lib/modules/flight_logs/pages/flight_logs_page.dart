@@ -85,7 +85,7 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
               label: Text(
                 provider.isRecording
                     ? provider.isRecordingPaused
-                          ? '${FlightLogsLocalizationKeys.stopRecord.tr(context)} · PAUSE'
+                          ? '${FlightLogsLocalizationKeys.stopRecord.tr(context)} (PAUSED)'
                           : FlightLogsLocalizationKeys.stopRecord.tr(context)
                     : FlightLogsLocalizationKeys.startRecord.tr(context),
               ),

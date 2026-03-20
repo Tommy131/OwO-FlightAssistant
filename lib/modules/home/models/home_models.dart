@@ -66,6 +66,10 @@ class HomeFlightData {
   final double? heading;
   final double? verticalSpeed;
   final double? gForce;
+  final double? touchdownGearG;
+  final double? noseGearG;
+  final double? leftGearG;
+  final double? rightGearG;
   final double? pitch;
   final double? bank;
   final double? angleOfAttack;
@@ -81,6 +85,11 @@ class HomeFlightData {
   final double? totalAirTemperature;
   final double? windSpeed;
   final double? windDirection;
+  final double? windGust;
+  final double? gustDelta;
+  final double? gustFactorRate;
+  final double? crosswindComponent;
+  final double? radioAltitude;
   final double? baroPressure;
   final String? baroPressureUnit;
   final double? visibility;
@@ -89,8 +98,16 @@ class HomeFlightData {
   final double? fuelFlow;
   final double? engine1N1;
   final double? engine2N1;
+  final double? engine1N2;
+  final double? engine2N2;
   final double? engine1EGT;
   final double? engine2EGT;
+  final double? aileronInput;
+  final double? elevatorInput;
+  final double? rudderInput;
+  final double? aileronTrim;
+  final double? elevatorTrim;
+  final double? rudderTrim;
   final bool? masterWarning;
   final bool? masterCaution;
   final bool? fireWarningEngine1;
@@ -125,6 +142,8 @@ class HomeFlightData {
   final bool? autopilotEngaged;
   final bool? autothrottleEngaged;
   final double? autopilotHeadingTarget;
+  final String? autopilotLateralMode;
+  final String? autopilotVerticalMode;
   final String? aircraftProfile;
   final String? aircraftId;
   final String? aircraftManufacturer;
@@ -143,6 +162,10 @@ class HomeFlightData {
     this.heading,
     this.verticalSpeed,
     this.gForce,
+    this.touchdownGearG,
+    this.noseGearG,
+    this.leftGearG,
+    this.rightGearG,
     this.pitch,
     this.bank,
     this.angleOfAttack,
@@ -158,6 +181,11 @@ class HomeFlightData {
     this.totalAirTemperature,
     this.windSpeed,
     this.windDirection,
+    this.windGust,
+    this.gustDelta,
+    this.gustFactorRate,
+    this.crosswindComponent,
+    this.radioAltitude,
     this.baroPressure,
     this.baroPressureUnit,
     this.visibility,
@@ -166,8 +194,16 @@ class HomeFlightData {
     this.fuelFlow,
     this.engine1N1,
     this.engine2N1,
+    this.engine1N2,
+    this.engine2N2,
     this.engine1EGT,
     this.engine2EGT,
+    this.aileronInput,
+    this.elevatorInput,
+    this.rudderInput,
+    this.aileronTrim,
+    this.elevatorTrim,
+    this.rudderTrim,
     this.masterWarning,
     this.masterCaution,
     this.fireWarningEngine1,
@@ -202,6 +238,8 @@ class HomeFlightData {
     this.autopilotEngaged,
     this.autothrottleEngaged,
     this.autopilotHeadingTarget,
+    this.autopilotLateralMode,
+    this.autopilotVerticalMode,
     this.aircraftProfile,
     this.aircraftId,
     this.aircraftManufacturer,

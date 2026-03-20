@@ -11,11 +11,7 @@ class FlightLogAlert {
     required this.message,
   });
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'lv': level.name,
-    'msg': message,
-  };
+  Map<String, dynamic> toJson() => {'id': id, 'lv': level.name, 'msg': message};
 
   factory FlightLogAlert.fromJson(Map<String, dynamic> json) => FlightLogAlert(
     id: (json['id'] as String? ?? '').trim(),
@@ -35,6 +31,36 @@ FlightLogAlertLevel _flightLogAlertLevelFromRaw(String? raw) {
   return FlightLogAlertLevel.caution;
 }
 
+bool? _boolFromRaw(dynamic value) {
+  if (value is bool) {
+    return value;
+  }
+  if (value is num) {
+    if (value == 1) return true;
+    if (value == 0) return false;
+    return null;
+  }
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    if (normalized == 'true' ||
+        normalized == '1' ||
+        normalized == 'on' ||
+        normalized == 'yes') {
+      return true;
+    }
+    if (normalized == 'false' ||
+        normalized == '0' ||
+        normalized == 'off' ||
+        normalized == 'no') {
+      return false;
+    }
+  }
+  return null;
+}
+
 class FlightLogPoint {
   final double latitude;
   final double longitude;
@@ -52,23 +78,47 @@ class FlightLogPoint {
   final DateTime timestamp;
   final bool? autopilotEngaged;
   final bool? autothrottleEngaged;
+  final String? flightPhase;
+  final double? autopilotHeadingTarget;
+  final String? autopilotLateralMode;
+  final String? autopilotVerticalMode;
   final bool? gearDown;
+  final double? noseGearG;
+  final double? leftGearG;
+  final double? rightGearG;
   final int? flapsPosition;
   final String? flapsLabel;
   final double? windSpeed;
   final double? windDirection;
+  final double? windGust;
+  final double? gustDelta;
+  final double? gustFactorRate;
+  final double? crosswindComponent;
+  final double? radioAltitude;
   final double? outsideAirTemperature;
   final double? baroPressure;
   final bool? masterWarning;
   final bool? masterCaution;
   final bool? engine1Running;
   final bool? engine2Running;
+  final double? engine1N1;
+  final double? engine2N1;
+  final double? engine1N2;
+  final double? engine2N2;
+  final double? engine1Egt;
+  final double? engine2Egt;
   final String? transponderCode;
   final bool? landingLights;
   final bool? beacon;
   final bool? strobes;
   final int? autoBrakeLevel;
   final double? speedBrakePosition;
+  final double? aileronInput;
+  final double? elevatorInput;
+  final double? rudderInput;
+  final double? aileronTrim;
+  final double? elevatorTrim;
+  final double? rudderTrim;
   final bool? onGround;
   final List<FlightLogAlert> anomalyAlerts;
 
@@ -89,23 +139,47 @@ class FlightLogPoint {
     required this.timestamp,
     this.autopilotEngaged,
     this.autothrottleEngaged,
+    this.flightPhase,
+    this.autopilotHeadingTarget,
+    this.autopilotLateralMode,
+    this.autopilotVerticalMode,
     this.gearDown,
+    this.noseGearG,
+    this.leftGearG,
+    this.rightGearG,
     this.flapsPosition,
     this.flapsLabel,
     this.windSpeed,
     this.windDirection,
+    this.windGust,
+    this.gustDelta,
+    this.gustFactorRate,
+    this.crosswindComponent,
+    this.radioAltitude,
     this.outsideAirTemperature,
     this.baroPressure,
     this.masterWarning,
     this.masterCaution,
     this.engine1Running,
     this.engine2Running,
+    this.engine1N1,
+    this.engine2N1,
+    this.engine1N2,
+    this.engine2N2,
+    this.engine1Egt,
+    this.engine2Egt,
     this.transponderCode,
     this.landingLights,
     this.beacon,
     this.strobes,
     this.autoBrakeLevel,
     this.speedBrakePosition,
+    this.aileronInput,
+    this.elevatorInput,
+    this.rudderInput,
+    this.aileronTrim,
+    this.elevatorTrim,
+    this.rudderTrim,
     this.onGround,
     this.anomalyAlerts = const <FlightLogAlert>[],
   });
@@ -127,17 +201,35 @@ class FlightLogPoint {
     'ts': timestamp.toIso8601String(),
     'ap': autopilotEngaged,
     'at': autothrottleEngaged,
+    'phase': flightPhase,
+    'ap_hdg': autopilotHeadingTarget,
+    'ap_lat': autopilotLateralMode,
+    'ap_ver': autopilotVerticalMode,
     'gear': gearDown,
+    'ngg': noseGearG,
+    'lgg': leftGearG,
+    'rgg': rightGearG,
     'flaps': flapsPosition,
     'flap_lbl': flapsLabel,
     'ws': windSpeed,
     'wd': windDirection,
+    'wg': windGust,
+    'gust': gustDelta,
+    'gust_rate': gustFactorRate,
+    'xw': crosswindComponent,
+    'ra': radioAltitude,
     'oat': outsideAirTemperature,
     'baro': baroPressure,
     'mw': masterWarning,
     'mc': masterCaution,
     'e1r': engine1Running,
     'e2r': engine2Running,
+    'e1n1': engine1N1,
+    'e2n1': engine2N1,
+    'e1n2': engine1N2,
+    'e2n2': engine2N2,
+    'e1egt': engine1Egt,
+    'e2egt': engine2Egt,
     'xpdr': transponderCode,
     'll': landingLights,
     'beac': beacon,
@@ -145,6 +237,12 @@ class FlightLogPoint {
     'grnd': onGround,
     'ab': autoBrakeLevel,
     'sb': speedBrakePosition,
+    'ail': aileronInput,
+    'ele': elevatorInput,
+    'rud': rudderInput,
+    'atr': aileronTrim,
+    'etr': elevatorTrim,
+    'rtr': rudderTrim,
     'alerts': anomalyAlerts.map((alert) => alert.toJson()).toList(),
   };
 
@@ -168,24 +266,48 @@ class FlightLogPoint {
         : DateTime.now(),
     autopilotEngaged: json['ap'] as bool?,
     autothrottleEngaged: json['at'] as bool?,
-    gearDown: json['gear'] as bool?,
+    flightPhase: json['phase'] as String?,
+    autopilotHeadingTarget: (json['ap_hdg'] as num?)?.toDouble(),
+    autopilotLateralMode: json['ap_lat'] as String?,
+    autopilotVerticalMode: json['ap_ver'] as String?,
+    gearDown: _boolFromRaw(json['gear']),
+    noseGearG: (json['ngg'] as num?)?.toDouble(),
+    leftGearG: (json['lgg'] as num?)?.toDouble(),
+    rightGearG: (json['rgg'] as num?)?.toDouble(),
     flapsPosition: (json['flaps'] as num?)?.toInt(),
     flapsLabel: json['flap_lbl'] as String?,
     windSpeed: (json['ws'] as num?)?.toDouble(),
     windDirection: (json['wd'] as num?)?.toDouble(),
+    windGust: (json['wg'] as num?)?.toDouble(),
+    gustDelta: (json['gust'] as num?)?.toDouble(),
+    gustFactorRate: (json['gust_rate'] as num?)?.toDouble(),
+    crosswindComponent: (json['xw'] as num?)?.toDouble(),
+    radioAltitude: (json['ra'] as num?)?.toDouble(),
     outsideAirTemperature: (json['oat'] as num?)?.toDouble(),
     baroPressure: (json['baro'] as num?)?.toDouble(),
     masterWarning: json['mw'] as bool?,
     masterCaution: json['mc'] as bool?,
     engine1Running: json['e1r'] as bool?,
     engine2Running: json['e2r'] as bool?,
+    engine1N1: (json['e1n1'] as num?)?.toDouble(),
+    engine2N1: (json['e2n1'] as num?)?.toDouble(),
+    engine1N2: (json['e1n2'] as num?)?.toDouble(),
+    engine2N2: (json['e2n2'] as num?)?.toDouble(),
+    engine1Egt: (json['e1egt'] as num?)?.toDouble(),
+    engine2Egt: (json['e2egt'] as num?)?.toDouble(),
     transponderCode: json['xpdr'] as String?,
     landingLights: json['ll'] as bool?,
     beacon: json['beac'] as bool?,
     strobes: json['strob'] as bool?,
     autoBrakeLevel: (json['ab'] as num?)?.toInt(),
     speedBrakePosition: (json['sb'] as num?)?.toDouble(),
-    onGround: json['grnd'] as bool?,
+    aileronInput: (json['ail'] as num?)?.toDouble(),
+    elevatorInput: (json['ele'] as num?)?.toDouble(),
+    rudderInput: (json['rud'] as num?)?.toDouble(),
+    aileronTrim: (json['atr'] as num?)?.toDouble(),
+    elevatorTrim: (json['etr'] as num?)?.toDouble(),
+    rudderTrim: (json['rtr'] as num?)?.toDouble(),
+    onGround: _boolFromRaw(json['grnd']),
     anomalyAlerts: (json['alerts'] as List<dynamic>? ?? const <dynamic>[])
         .whereType<Map<String, dynamic>>()
         .map(FlightLogAlert.fromJson)
@@ -243,6 +365,7 @@ class FlightLog {
     final value = (endTime ?? DateTime.now()).difference(startTime);
     return value.isNegative ? Duration.zero : value;
   }
+
   Duration get totalRecordedDuration => duration;
   Duration get airborneDuration {
     DateTime? takeoffTime = takeoffData?.timestamp;
@@ -273,6 +396,7 @@ class FlightLog {
     if (endReference.isBefore(takeoffTime)) return Duration.zero;
     return endReference.difference(takeoffTime);
   }
+
   FlightLogPoint? get lastPoint => points.isEmpty ? null : points.last;
   bool get isCompleted {
     final finalPoint = lastPoint;
@@ -325,8 +449,8 @@ class FlightLog {
     maxAirspeed: (json['maxSpd'] as num).toDouble(),
     maxGroundSpeed: (json['maxGs'] as num? ?? 0.0).toDouble(),
     totalFuelUsed: (json['fuelUsed'] as num?)?.toDouble(),
-    wasOnGroundAtStart: json['groundStart'] as bool? ?? false,
-    wasOnGroundAtEnd: json['groundEnd'] as bool? ?? false,
+    wasOnGroundAtStart: _boolFromRaw(json['groundStart']) ?? false,
+    wasOnGroundAtEnd: _boolFromRaw(json['groundEnd']) ?? false,
     takeoffData: json['takeoff'] != null
         ? TakeoffData.fromJson(json['takeoff'] as Map<String, dynamic>)
         : null,
@@ -374,6 +498,11 @@ class LandingData {
   final List<FlightLogPoint> touchdownSequence;
   final double? remainingRunwayFt;
   final String? runway;
+  final double? approachStabilityScore;
+  final double? flareHeightFt;
+  final double? sinkRateAt50FtFpm;
+  final double? crosswindAtTouchdownKt;
+  final int? bounceCount;
 
   LandingData({
     required this.latitude,
@@ -389,6 +518,11 @@ class LandingData {
     required this.touchdownSequence,
     this.remainingRunwayFt,
     this.runway,
+    this.approachStabilityScore,
+    this.flareHeightFt,
+    this.sinkRateAt50FtFpm,
+    this.crosswindAtTouchdownKt,
+    this.bounceCount,
   });
 
   Map<String, dynamic> toJson() => {
@@ -405,6 +539,11 @@ class LandingData {
     'seq': touchdownSequence.map((p) => p.toJson()).toList(),
     'rem_rwy': remainingRunwayFt,
     'rwy': runway,
+    'stability': approachStabilityScore,
+    'flare_h': flareHeightFt,
+    'sink_50': sinkRateAt50FtFpm,
+    'xw_td': crosswindAtTouchdownKt,
+    'bounce': bounceCount,
   };
 
   factory LandingData.fromJson(Map<String, dynamic> json) => LandingData(
@@ -425,6 +564,11 @@ class LandingData {
         .toList(),
     remainingRunwayFt: (json['rem_rwy'] as num?)?.toDouble(),
     runway: json['rwy'] as String?,
+    approachStabilityScore: (json['stability'] as num?)?.toDouble(),
+    flareHeightFt: (json['flare_h'] as num?)?.toDouble(),
+    sinkRateAt50FtFpm: (json['sink_50'] as num?)?.toDouble(),
+    crosswindAtTouchdownKt: (json['xw_td'] as num?)?.toDouble(),
+    bounceCount: (json['bounce'] as num?)?.toInt(),
   );
 }
 
@@ -439,6 +583,11 @@ class TakeoffData {
   final DateTime timestamp;
   final double? remainingRunwayFt;
   final String? runway;
+  final double? takeoffStabilityScore;
+  final double? rotationSpeedKt;
+  final int? rotationToLiftoffSec;
+  final double? crosswindAtLiftoffKt;
+  final double? pitchAt35FtDeg;
 
   TakeoffData({
     required this.latitude,
@@ -451,6 +600,11 @@ class TakeoffData {
     required this.timestamp,
     this.remainingRunwayFt,
     this.runway,
+    this.takeoffStabilityScore,
+    this.rotationSpeedKt,
+    this.rotationToLiftoffSec,
+    this.crosswindAtLiftoffKt,
+    this.pitchAt35FtDeg,
   });
 
   Map<String, dynamic> toJson() => {
@@ -464,6 +618,11 @@ class TakeoffData {
     'ts': timestamp.toIso8601String(),
     'rem_rwy': remainingRunwayFt,
     'rwy': runway,
+    'to_stab': takeoffStabilityScore,
+    'rot_spd': rotationSpeedKt,
+    'rot_to': rotationToLiftoffSec,
+    'xw_to': crosswindAtLiftoffKt,
+    'pit_35': pitchAt35FtDeg,
   };
 
   factory TakeoffData.fromJson(Map<String, dynamic> json) => TakeoffData(
@@ -479,5 +638,10 @@ class TakeoffData {
         : DateTime.now(),
     remainingRunwayFt: (json['rem_rwy'] as num?)?.toDouble(),
     runway: json['rwy'] as String?,
+    takeoffStabilityScore: (json['to_stab'] as num?)?.toDouble(),
+    rotationSpeedKt: (json['rot_spd'] as num?)?.toDouble(),
+    rotationToLiftoffSec: (json['rot_to'] as num?)?.toInt(),
+    crosswindAtLiftoffKt: (json['xw_to'] as num?)?.toDouble(),
+    pitchAt35FtDeg: (json['pit_35'] as num?)?.toDouble(),
   );
 }

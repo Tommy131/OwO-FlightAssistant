@@ -18,16 +18,19 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
   int _rowsPerPage = _pageSizes.first;
   int _currentPage = 0;
   late final ScrollController _horizontalController;
+  late final TextEditingController _pageJumpController;
 
   @override
   void initState() {
     super.initState();
     _horizontalController = ScrollController(keepScrollOffset: false);
+    _pageJumpController = TextEditingController(text: '1');
   }
 
   @override
   void dispose() {
     _horizontalController.dispose();
+    _pageJumpController.dispose();
     super.dispose();
   }
 
@@ -56,6 +59,14 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
         .clamp(0, widget.log.points.length)
         .toInt();
     final pagePoints = widget.log.points.sublist(start, end);
+    final pointEvents = _buildPointEvents(context, widget.log);
+    final displayedPageText = '${currentPage + 1}';
+    if (_pageJumpController.text != displayedPageText) {
+      _pageJumpController.value = TextEditingValue(
+        text: displayedPageText,
+        selection: TextSelection.collapsed(offset: displayedPageText.length),
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -95,7 +106,7 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
             scrollDirection: Axis.horizontal,
             controller: _horizontalController,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 1500),
+              constraints: const BoxConstraints(minWidth: 2080),
               child: DataTable(
                 columnSpacing: 24,
                 horizontalMargin: 16,
@@ -154,6 +165,20 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                   ),
                   DataColumn(
                     label: Text(
+                      FlightLogsLocalizationKeys.blackBoxFlightPhase.tr(
+                        context,
+                      ),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      FlightLogsLocalizationKeys.blackBoxApHeadingTarget.tr(
+                        context,
+                      ),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
                       FlightLogsLocalizationKeys.blackBoxFlapsGear.tr(context),
                     ),
                   ),
@@ -164,12 +189,22 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                   ),
                   DataColumn(
                     label: Text(
+                      FlightLogsLocalizationKeys.blackBoxEngine.tr(context),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
                       FlightLogsLocalizationKeys.blackBoxSystem.tr(context),
                     ),
                   ),
                   DataColumn(
                     label: Text(
                       FlightLogsLocalizationKeys.blackBoxBaro.tr(context),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      FlightLogsLocalizationKeys.blackBoxEvent.tr(context),
                     ),
                   ),
                   DataColumn(
@@ -185,7 +220,11 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                     ),
                   ),
                 ],
-                rows: pagePoints.map((p) {
+                rows: pagePoints.asMap().entries.map((entry) {
+                  final localIndex = entry.key;
+                  final p = entry.value;
+                  final globalIndex = start + localIndex;
+                  final eventText = pointEvents[globalIndex];
                   final anomalyText = p.anomalyAlerts.isEmpty
                       ? '-'
                       : p.anomalyAlerts
@@ -231,9 +270,17 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                           '${p.autopilotEngaged == true ? "ON" : "OFF"}/${p.autothrottleEngaged == true ? "ON" : "OFF"}',
                         ),
                       ),
+                      DataCell(Text(_formatFlightPhase(p.flightPhase))),
                       DataCell(
                         Text(
-                          '${p.flapsLabel ?? p.flapsPosition?.toString() ?? "-"}/${p.gearDown == true ? "DN" : "UP"}',
+                          p.autopilotHeadingTarget != null
+                              ? p.autopilotHeadingTarget!.toStringAsFixed(0)
+                              : '-',
+                        ),
+                      ),
+                      DataCell(
+                        Text(
+                          '${p.flapsLabel ?? p.flapsPosition?.toString() ?? "-"}/${_formatGearState(p.gearDown)}',
                         ),
                       ),
                       DataCell(
@@ -243,11 +290,30 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                       ),
                       DataCell(
                         Text(
+                          '${_formatPercent(p.engine1N1)}/${_formatPercent(p.engine2N1)} | ${_formatPercent(p.engine1N2)}/${_formatPercent(p.engine2N2)} | ${_formatEgt(p.engine1Egt)}/${_formatEgt(p.engine2Egt)}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ),
+                      DataCell(
+                        Text(
                           '${p.onGround == true ? "GND" : "AIR"} / AB:${p.autoBrakeLevel ?? 0} / SB:${((p.speedBrakePosition ?? 0) * 100).toStringAsFixed(0)}%',
                           style: const TextStyle(fontSize: 10),
                         ),
                       ),
                       DataCell(Text(p.baroPressure?.toStringAsFixed(2) ?? "-")),
+                      DataCell(
+                        Text(
+                          eventText,
+                          style: TextStyle(
+                            color: eventText == '-'
+                                ? null
+                                : theme.colorScheme.primary,
+                            fontWeight: eventText == '-'
+                                ? FontWeight.normal
+                                : FontWeight.w600,
+                          ),
+                        ),
+                      ),
                       DataCell(
                         Text(
                           '${p.masterWarning == true ? "⚠" : "-"}/${p.masterCaution == true ? "!" : "-"}',
@@ -315,6 +381,36 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                       : null,
                   icon: const Icon(Icons.chevron_right_rounded),
                 ),
+                SizedBox(
+                  width: 96,
+                  child: TextField(
+                    controller: _pageJumpController,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.go,
+                    onSubmitted: (value) =>
+                        _jumpToPage(totalPages: totalPages, rawPage: value),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: FlightLogsLocalizationKeys.blackBoxJumpToPage
+                          .tr(context),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                TextButton(
+                  onPressed: () => _jumpToPage(
+                    totalPages: totalPages,
+                    rawPage: _pageJumpController.text,
+                  ),
+                  child: Text(
+                    FlightLogsLocalizationKeys.blackBoxJumpAction.tr(context),
+                  ),
+                ),
                 const Spacer(),
                 DropdownButton<int>(
                   value: rowsPerPage,
@@ -340,5 +436,115 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
         ],
       ),
     );
+  }
+
+  String _formatFlightPhase(String? phase) {
+    final value = phase?.trim();
+    if (value == null || value.isEmpty) {
+      return '-';
+    }
+    return value.toUpperCase();
+  }
+
+  String _formatPercent(double? value) {
+    if (value == null) {
+      return '-';
+    }
+    return '${value.toStringAsFixed(1)}%';
+  }
+
+  String _formatEgt(double? value) {
+    if (value == null) {
+      return '-';
+    }
+    return '${value.toStringAsFixed(0)}°C';
+  }
+
+  String _formatGearState(bool? gearDown) {
+    if (gearDown == true) {
+      return 'DN';
+    }
+    if (gearDown == false) {
+      return 'UP';
+    }
+    return '-';
+  }
+
+  void _jumpToPage({required int totalPages, required String rawPage}) {
+    final target = int.tryParse(rawPage.trim());
+    if (target == null) {
+      return;
+    }
+    final normalized = target.clamp(1, totalPages) - 1;
+    setState(() {
+      _currentPage = normalized;
+    });
+  }
+
+  List<String> _buildPointEvents(BuildContext context, FlightLog log) {
+    final labels = List<String>.filled(log.points.length, '-');
+    if (log.points.isEmpty) {
+      return labels;
+    }
+    final takeoffLabel = FlightLogsLocalizationKeys.chartEventTakeoff.tr(
+      context,
+    );
+    final touchdownLabel = FlightLogsLocalizationKeys.chartEventTouchdown.tr(
+      context,
+    );
+    final finalTouchdownLabel = FlightLogsLocalizationKeys
+        .chartEventFinalTouchdown
+        .tr(context);
+    final gearDownLabel = FlightLogsLocalizationKeys.chartEventGearDown.tr(
+      context,
+    );
+    final gearUpLabel = FlightLogsLocalizationKeys.chartEventGearUp.tr(context);
+    final startLabel = FlightLogsLocalizationKeys.startRecord.tr(context);
+    final stopLabel = FlightLogsLocalizationKeys.stopRecord.tr(context);
+    labels[0] = startLabel;
+    labels[labels.length - 1] = labels.length == 1
+        ? '$startLabel / $stopLabel'
+        : stopLabel;
+    bool? previousGearDown = log.points.first.gearDown;
+    var previousOnGround = log.wasOnGroundAtStart;
+    var takeoffCaptured = false;
+    for (var i = 0; i < log.points.length; i++) {
+      final point = log.points[i];
+      final pointLabels = <String>[];
+      final currentOnGround = point.onGround ?? previousOnGround;
+      if (!takeoffCaptured && !currentOnGround) {
+        pointLabels.add(takeoffLabel);
+        takeoffCaptured = true;
+      }
+      if (!previousOnGround && currentOnGround) {
+        pointLabels.add(touchdownLabel);
+      }
+      if (point.gearDown != null &&
+          previousGearDown != null &&
+          point.gearDown != previousGearDown) {
+        pointLabels.add(point.gearDown == true ? gearDownLabel : gearUpLabel);
+      }
+      if (pointLabels.isNotEmpty) {
+        labels[i] = labels[i] == '-'
+            ? pointLabels.join(' / ')
+            : '${labels[i]} / ${pointLabels.join(' / ')}';
+      }
+      previousOnGround = currentOnGround;
+      previousGearDown = point.gearDown ?? previousGearDown;
+    }
+    final touchdownSeq = log.landingData?.touchdownSequence ?? const [];
+    if (touchdownSeq.isNotEmpty) {
+      final finalTouchdown = touchdownSeq.last;
+      for (var i = labels.length - 1; i >= 0; i--) {
+        final point = log.points[i];
+        if (point.timestamp.isAtSameMomentAs(finalTouchdown.timestamp)) {
+          labels[i] = labels[i] == '-'
+              ? finalTouchdownLabel
+              : '${labels[i]} / $finalTouchdownLabel';
+          break;
+        }
+      }
+    }
+    return labels;
   }
 }

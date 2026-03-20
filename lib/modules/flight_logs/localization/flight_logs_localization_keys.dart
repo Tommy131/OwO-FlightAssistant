@@ -37,6 +37,19 @@ class FlightLogsLocalizationKeys {
   static const String pitch = 'flight_logs.detail.pitch';
   static const String heading = 'flight_logs.detail.heading';
   static const String remainingRunway = 'flight_logs.detail.remaining_runway';
+  static const String takeoffStability = 'flight_logs.detail.takeoff_stability';
+  static const String rotationSpeed = 'flight_logs.detail.rotation_speed';
+  static const String rotationToLiftoff =
+      'flight_logs.detail.rotation_to_liftoff';
+  static const String crosswindLiftoff = 'flight_logs.detail.crosswind_liftoff';
+  static const String pitchAt35Ft = 'flight_logs.detail.pitch_35ft';
+  static const String approachStability =
+      'flight_logs.detail.approach_stability';
+  static const String flareHeight = 'flight_logs.detail.flare_height';
+  static const String sinkRateAt50 = 'flight_logs.detail.sink_rate_50';
+  static const String crosswindTouchdown =
+      'flight_logs.detail.crosswind_touchdown';
+  static const String bounceCount = 'flight_logs.detail.bounce_count';
   static const String ratingPerfect = 'flight_logs.rating.perfect';
   static const String ratingSoft = 'flight_logs.rating.soft';
   static const String ratingAcceptable = 'flight_logs.rating.acceptable';
@@ -56,12 +69,20 @@ class FlightLogsLocalizationKeys {
   static const String blackBoxGForce = 'flight_logs.black_box.g_force';
   static const String blackBoxAoa = 'flight_logs.black_box.aoa';
   static const String blackBoxApAt = 'flight_logs.black_box.ap_at';
+  static const String blackBoxFlightPhase =
+      'flight_logs.black_box.flight_phase';
+  static const String blackBoxApHeadingTarget =
+      'flight_logs.black_box.ap_heading_target';
   static const String blackBoxFlapsGear = 'flight_logs.black_box.flaps_gear';
   static const String blackBoxWind = 'flight_logs.black_box.wind';
+  static const String blackBoxEngine = 'flight_logs.black_box.engine';
   static const String blackBoxSystem = 'flight_logs.black_box.system';
   static const String blackBoxBaro = 'flight_logs.black_box.baro';
+  static const String blackBoxEvent = 'flight_logs.black_box.event';
   static const String blackBoxAlert = 'flight_logs.black_box.alert';
   static const String blackBoxAnomalyAlert = 'flight_logs.black_box.anomaly';
+  static const String blackBoxJumpToPage = 'flight_logs.black_box.jump_to_page';
+  static const String blackBoxJumpAction = 'flight_logs.black_box.jump_action';
   static const String summaryTitle = 'flight_logs.summary.title';
   static const String summaryDuration = 'flight_logs.summary.duration';
   static const String summaryAirborneDuration =
@@ -79,6 +100,21 @@ class FlightLogsLocalizationKeys {
   static const String chartGForce = 'flight_logs.chart.g_force';
   static const String chartBaro = 'flight_logs.chart.baro';
   static const String chartAoa = 'flight_logs.chart.aoa';
+  static const String chartEngine1N1 = 'flight_logs.chart.engine1_n1';
+  static const String chartEngine2N1 = 'flight_logs.chart.engine2_n1';
+  static const String chartEngine1N2 = 'flight_logs.chart.engine1_n2';
+  static const String chartEngine2N2 = 'flight_logs.chart.engine2_n2';
+  static const String chartEngine1Egt = 'flight_logs.chart.engine1_egt';
+  static const String chartEngine2Egt = 'flight_logs.chart.engine2_egt';
+  static const String chartAileronInput = 'flight_logs.chart.aileron_input';
+  static const String chartElevatorInput = 'flight_logs.chart.elevator_input';
+  static const String chartRudderInput = 'flight_logs.chart.rudder_input';
+  static const String chartAileronTrim = 'flight_logs.chart.aileron_trim';
+  static const String chartElevatorTrim = 'flight_logs.chart.elevator_trim';
+  static const String chartRudderTrim = 'flight_logs.chart.rudder_trim';
+  static const String chartCrosswind = 'flight_logs.chart.crosswind';
+  static const String chartRadioAltitude = 'flight_logs.chart.radio_altitude';
+  static const String chartGustDelta = 'flight_logs.chart.gust_delta';
   static const String chartNoData = 'flight_logs.chart.no_data';
   static const String chartScaleHelp = 'flight_logs.chart.scale_help';
   static const String chartMinuteUnit = 'flight_logs.chart.minute_unit';
@@ -88,6 +124,12 @@ class FlightLogsLocalizationKeys {
       'flight_logs.chart.event.flaps_deploy';
   static const String chartEventFlapsRetract =
       'flight_logs.chart.event.flaps_retract';
+  static const String chartEventAutopilotLateral =
+      'flight_logs.chart.event.autopilot_lateral';
+  static const String chartEventAutopilotVertical =
+      'flight_logs.chart.event.autopilot_vertical';
+  static const String chartEventGearDown = 'flight_logs.chart.event.gear_down';
+  static const String chartEventGearUp = 'flight_logs.chart.event.gear_up';
   static const String chartEventTouchdown = 'flight_logs.chart.event.touchdown';
   static const String chartEventFinalTouchdown =
       'flight_logs.chart.event.final_touchdown';

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -118,6 +119,10 @@ class MapProvider extends ChangeNotifier {
   bool? _lastOnGround;
   DateTime? _lastRouteTimestamp;
   bool _isAircraftMoving = false;
+  String? _currentNearestAirportIcao;
+  final Map<String, List<MapRunwayGeometry>> _runwayGeometryCache = {};
+  final Set<String> _runwayGeometryLoadingIcaos = <String>{};
+  final Map<String, DateTime> _runwayGeometryLastAttemptAt = {};
   Duration _hudElapsed = Duration.zero;
   Timer? _hudTimer;
   bool _isHudTimerRunning = false;
@@ -136,6 +141,9 @@ class MapProvider extends ChangeNotifier {
   int _descentRateDangerFpm = _defaultDescentRateDangerFpm;
   bool? _lastAutoParkingBrake;
   bool _hudTimerAirborneSinceStart = false;
+  bool _hudTimerLandedSinceStart = false;
+  bool _pushbackStartArmed = false;
+  bool _autoFlightCycleEnded = false;
   DateTime? _groundStableSince;
   bool _lowPerformanceMode = false;
   int _uiRefreshIntervalMs = _defaultUiRefreshIntervalMs;
@@ -395,6 +403,13 @@ class MapProvider extends ChangeNotifier {
       pauseHudTimer();
     }
     _airports = _buildAirportsFromSnapshot(snapshot);
+    final nearestIcao = snapshot.nearestAirport?.icaoCode.trim().toUpperCase();
+    _currentNearestAirportIcao = (nearestIcao == null || nearestIcao.isEmpty)
+        ? null
+        : nearestIcao;
+    if (_currentNearestAirportIcao != null) {
+      unawaited(_ensureRunwayGeometryLoaded(_currentNearestAirportIcao!));
+    }
     final flightData = snapshot.flightData;
     final lat = flightData.latitude;
     final lon = flightData.longitude;
@@ -421,7 +436,6 @@ class MapProvider extends ChangeNotifier {
       final isMoving = _resolveIsAircraftMoving(aircraftState, now);
       _isAircraftMoving = isMoving;
       _handleAutoHudTimer(
-        flightData: flightData,
         aircraftState: aircraftState,
         isMoving: isMoving,
         now: now,
@@ -816,6 +830,11 @@ class MapProvider extends ChangeNotifier {
       return;
     }
     _autoHudTimerEnabled = value;
+    if (!value && _isHudTimerRunning) {
+      pauseHudTimer();
+    } else {
+      _reconcileAutoHudTimerWithCurrentState();
+    }
     notifyListeners();
     final persistence = PersistenceService();
     await persistence.setModuleData(
@@ -830,6 +849,7 @@ class MapProvider extends ChangeNotifier {
       return;
     }
     _autoTimerStartMode = mode;
+    _reconcileAutoHudTimerWithCurrentState();
     notifyListeners();
     final persistence = PersistenceService();
     await persistence.setModuleData(
@@ -844,6 +864,7 @@ class MapProvider extends ChangeNotifier {
       return;
     }
     _autoTimerStopMode = mode;
+    _reconcileAutoHudTimerWithCurrentState();
     notifyListeners();
     final persistence = PersistenceService();
     await persistence.setModuleData(
@@ -961,6 +982,7 @@ class MapProvider extends ChangeNotifier {
     if (_isHudTimerRunning || _isPaused) {
       return;
     }
+    _autoFlightCycleEnded = false;
     _hasHudTimerStarted = true;
     _resetAutoTimerFlightStateForNewRun();
     _isHudTimerRunning = true;
@@ -1027,6 +1049,7 @@ class MapProvider extends ChangeNotifier {
 
   void _clearAircraftVisualState() {
     _aircraft = null;
+    _currentNearestAirportIcao = null;
     _lastOnGround = null;
     _isPaused = false;
     _isAircraftMoving = false;
@@ -1036,24 +1059,39 @@ class MapProvider extends ChangeNotifier {
   }
 
   void _handleAutoHudTimer({
-    required HomeFlightData flightData,
     required MapAircraftState aircraftState,
     required bool isMoving,
     required DateTime now,
   }) {
-    final onGround = flightData.onGround ?? false;
-    final parkingBrake = flightData.parkingBrake ?? false;
+    final onGround = aircraftState.onGround ?? false;
+    final parkingBrake = aircraftState.parkingBrake ?? false;
     final groundSpeed = aircraftState.groundSpeed ?? 0;
     final verticalSpeed = (aircraftState.verticalSpeed ?? 0).abs();
+    final touchedDownNow =
+        _isHudTimerRunning &&
+        _hudTimerAirborneSinceStart &&
+        _lastOnGround == false &&
+        onGround;
     if (_isHudTimerRunning) {
       if (!onGround) {
         _hudTimerAirborneSinceStart = true;
         _groundStableSince = null;
       }
+      if (touchedDownNow) {
+        _hudTimerLandedSinceStart = true;
+        _groundStableSince = null;
+      }
+    }
+    if (onGround && parkingBrake) {
+      _pushbackStartArmed = true;
     }
 
     if (_autoHudTimerEnabled && !_isPaused) {
       if (!_isHudTimerRunning) {
+        if (_autoFlightCycleEnded) {
+          _lastAutoParkingBrake = parkingBrake;
+          return;
+        }
         var shouldStart = false;
         switch (_autoTimerStartMode) {
           case MapAutoTimerStartMode.runwayMovement:
@@ -1061,13 +1099,19 @@ class MapProvider extends ChangeNotifier {
                 onGround &&
                 isMoving &&
                 parkingBrake == false &&
-                groundSpeed >= 20;
+                groundSpeed >= 8 &&
+                _isNearRunwayOrEndpoint(aircraftState);
             shouldStart = likelyOnRunwayRoll;
             break;
           case MapAutoTimerStartMode.pushback:
             final brakeReleasedNow =
                 _lastAutoParkingBrake == true && parkingBrake == false;
-            shouldStart = onGround && brakeReleasedNow && isMoving;
+            shouldStart =
+                onGround &&
+                isMoving &&
+                groundSpeed >= 2 &&
+                parkingBrake == false &&
+                (brakeReleasedNow || _pushbackStartArmed);
             break;
           case MapAutoTimerStartMode.anyMovement:
             shouldStart = isMoving;
@@ -1075,36 +1119,48 @@ class MapProvider extends ChangeNotifier {
         }
         if (shouldStart) {
           startHudTimer();
+          _pushbackStartArmed = false;
         }
       } else {
         var shouldStop = false;
         switch (_autoTimerStopMode) {
           case MapAutoTimerStopMode.stableLanding:
-            if (_hudTimerAirborneSinceStart && onGround) {
-              if (groundSpeed <= 30 && verticalSpeed <= 120) {
-                _groundStableSince ??= now;
-              } else {
-                _groundStableSince = null;
-              }
-              final stableForSeconds = _groundStableSince == null
-                  ? 0
-                  : now.difference(_groundStableSince!).inSeconds;
-              shouldStop = stableForSeconds >= 8;
+            if ((_hudTimerLandedSinceStart || _hudTimerAirborneSinceStart) &&
+                onGround) {
+              final stableForSeconds = _stableForSeconds(
+                condition: groundSpeed <= 35 && verticalSpeed <= 220,
+                now: now,
+              );
+              shouldStop = stableForSeconds >= 6;
+            } else {
+              _groundStableSince = null;
             }
             break;
           case MapAutoTimerStopMode.runwayExitAfterLanding:
-            shouldStop =
-                _hudTimerAirborneSinceStart && onGround && groundSpeed <= 18;
+            if ((_hudTimerLandedSinceStart || _hudTimerAirborneSinceStart) &&
+                onGround) {
+              final stableForSeconds = _stableForSeconds(
+                condition: groundSpeed <= 22 && verticalSpeed <= 300,
+                now: now,
+              );
+              shouldStop = stableForSeconds >= 5;
+            } else {
+              _groundStableSince = null;
+            }
             break;
           case MapAutoTimerStopMode.parkingArrival:
-            shouldStop =
-                _hudTimerAirborneSinceStart &&
-                onGround &&
-                parkingBrake &&
-                groundSpeed <= 1.5;
+            if (onGround) {
+              final brakeReleasedNow =
+                  _lastAutoParkingBrake == true && parkingBrake == false;
+              final isGroundSpeedZero = groundSpeed <= 0.1;
+              shouldStop = brakeReleasedNow && isGroundSpeedZero;
+            } else {
+              _groundStableSince = null;
+            }
             break;
         }
         if (shouldStop) {
+          _autoFlightCycleEnded = true;
           pauseHudTimer();
         }
       }
@@ -1113,14 +1169,192 @@ class MapProvider extends ChangeNotifier {
     _lastAutoParkingBrake = parkingBrake;
   }
 
+  void _reconcileAutoHudTimerWithCurrentState() {
+    final aircraftState = _aircraft;
+    if (aircraftState == null) {
+      return;
+    }
+    _handleAutoHudTimer(
+      aircraftState: aircraftState,
+      isMoving: _isAircraftMoving,
+      now: DateTime.now(),
+    );
+  }
+
   void _resetAutoTimerFlightStateForNewRun() {
     _hudTimerAirborneSinceStart = false;
+    _hudTimerLandedSinceStart = false;
     _groundStableSince = null;
   }
 
   void _resetAutoTimerRuntimeState() {
     _lastAutoParkingBrake = null;
+    _pushbackStartArmed = false;
+    _autoFlightCycleEnded = false;
     _resetAutoTimerFlightStateForNewRun();
+  }
+
+  int _stableForSeconds({required bool condition, required DateTime now}) {
+    if (!condition) {
+      _groundStableSince = null;
+      return 0;
+    }
+    _groundStableSince ??= now;
+    return now.difference(_groundStableSince!).inSeconds;
+  }
+
+  Future<void> _ensureRunwayGeometryLoaded(String icaoCode) async {
+    final normalized = icaoCode.trim().toUpperCase();
+    if (normalized.isEmpty) {
+      return;
+    }
+    if (_runwayGeometryCache.containsKey(normalized)) {
+      return;
+    }
+    if (_runwayGeometryLoadingIcaos.contains(normalized)) {
+      return;
+    }
+    final lastAttemptAt = _runwayGeometryLastAttemptAt[normalized];
+    if (lastAttemptAt != null &&
+        DateTime.now().difference(lastAttemptAt) <
+            const Duration(seconds: 20)) {
+      return;
+    }
+    _runwayGeometryLastAttemptAt[normalized] = DateTime.now();
+    _runwayGeometryLoadingIcaos.add(normalized);
+    try {
+      final airport = _findAirportByCode(normalized);
+      if (airport == null) {
+        return;
+      }
+      final detail = await fetchSelectedAirportDetail(airport);
+      if (detail.runwayGeometries.isNotEmpty) {
+        _runwayGeometryCache[normalized] = detail.runwayGeometries;
+      }
+    } catch (_) {
+    } finally {
+      _runwayGeometryLoadingIcaos.remove(normalized);
+    }
+  }
+
+  bool _isNearRunwayOrEndpoint(MapAircraftState aircraftState) {
+    final icao = _currentNearestAirportIcao;
+    if (icao == null || icao.isEmpty) {
+      return false;
+    }
+    final runways = _runwayGeometryCache[icao];
+    if (runways == null || runways.isEmpty) {
+      return false;
+    }
+    for (final runway in runways) {
+      final lengthM =
+          runway.lengthM ??
+          _distanceMeters(
+            runway.start.latitude,
+            runway.start.longitude,
+            runway.end.latitude,
+            runway.end.longitude,
+          );
+      if (lengthM <= 0) {
+        continue;
+      }
+      final projection = _projectPointToRunway(
+        point: aircraftState.position,
+        runwayStart: runway.start,
+        runwayEnd: runway.end,
+      );
+      final lateralDistance = projection.crossTrackDistanceM.abs();
+      final nearCenterLine =
+          projection.alongTrackRatio >= -0.1 &&
+          projection.alongTrackRatio <= 1.1 &&
+          lateralDistance <= 95;
+      final distanceToStart = _distanceMeters(
+        aircraftState.position.latitude,
+        aircraftState.position.longitude,
+        runway.start.latitude,
+        runway.start.longitude,
+      );
+      final distanceToEnd = _distanceMeters(
+        aircraftState.position.latitude,
+        aircraftState.position.longitude,
+        runway.end.latitude,
+        runway.end.longitude,
+      );
+      final nearEndpoint = distanceToStart <= 220 || distanceToEnd <= 220;
+      if (nearCenterLine || nearEndpoint) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  _RunwayProjection _projectPointToRunway({
+    required MapCoordinate point,
+    required MapCoordinate runwayStart,
+    required MapCoordinate runwayEnd,
+  }) {
+    final start = _projectToMeters(
+      latitude: runwayStart.latitude,
+      longitude: runwayStart.longitude,
+      refLatitude: runwayStart.latitude,
+      refLongitude: runwayStart.longitude,
+    );
+    final end = _projectToMeters(
+      latitude: runwayEnd.latitude,
+      longitude: runwayEnd.longitude,
+      refLatitude: runwayStart.latitude,
+      refLongitude: runwayStart.longitude,
+    );
+    final target = _projectToMeters(
+      latitude: point.latitude,
+      longitude: point.longitude,
+      refLatitude: runwayStart.latitude,
+      refLongitude: runwayStart.longitude,
+    );
+    final dx = end.dx - start.dx;
+    final dy = end.dy - start.dy;
+    final lenSq = dx * dx + dy * dy;
+    if (lenSq <= 0) {
+      return const _RunwayProjection(
+        alongTrackRatio: 0,
+        crossTrackDistanceM: 999999,
+      );
+    }
+    final ratio =
+        ((target.dx - start.dx) * dx + (target.dy - start.dy) * dy) / lenSq;
+    final closestX = start.dx + ratio * dx;
+    final closestY = start.dy + ratio * dy;
+    final crossTrack = math.sqrt(
+      (target.dx - closestX) * (target.dx - closestX) +
+          (target.dy - closestY) * (target.dy - closestY),
+    );
+    return _RunwayProjection(
+      alongTrackRatio: ratio,
+      crossTrackDistanceM: crossTrack,
+    );
+  }
+
+  _ProjectedPoint _projectToMeters({
+    required double latitude,
+    required double longitude,
+    required double refLatitude,
+    required double refLongitude,
+  }) {
+    const meterPerDegLat = 111320.0;
+    final meterPerDegLon =
+        meterPerDegLat * math.cos(refLatitude * math.pi / 180);
+    return _ProjectedPoint(
+      dx: (longitude - refLongitude) * meterPerDegLon,
+      dy: (latitude - refLatitude) * meterPerDegLat,
+    );
+  }
+
+  double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
+    return const Distance().as(
+      LengthUnit.Meter,
+      LatLng(lat1, lon1),
+      LatLng(lat2, lon2),
+    );
   }
 
   List<MapAirportMarker> _buildAirportsFromSnapshot(HomeDataSnapshot snapshot) {
@@ -1761,4 +1995,21 @@ class MapProvider extends ChangeNotifier {
     _hudTimer?.cancel();
     super.dispose();
   }
+}
+
+class _ProjectedPoint {
+  final double dx;
+  final double dy;
+
+  const _ProjectedPoint({required this.dx, required this.dy});
+}
+
+class _RunwayProjection {
+  final double alongTrackRatio;
+  final double crossTrackDistanceM;
+
+  const _RunwayProjection({
+    required this.alongTrackRatio,
+    required this.crossTrackDistanceM,
+  });
 }

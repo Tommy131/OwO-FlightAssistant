@@ -597,11 +597,13 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
         (event) {
           _handleWebSocketEvent(event);
         },
+
         /// 功能：执行onError的核心业务流程。
         /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         onError: (_) {
           _handleWebSocketClosed();
         },
+
         /// 功能：执行onDone的核心业务流程。
         /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         onDone: () {
@@ -783,6 +785,15 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
   /// 功能：执行_flightDataFromDataset的核心业务流程。
   /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
   HomeFlightData _flightDataFromDataset(Map<String, dynamic> dataset) {
+    final noseGearDown = _toDouble(dataset['nose_gear_down']);
+    final leftGearDown = _toDouble(dataset['left_gear_down']);
+    final rightGearDown = _toDouble(dataset['right_gear_down']);
+    final gearDown = _resolveGearDownState(
+      directState: _toBool(dataset['gear_down']),
+      noseGearDown: noseGearDown,
+      leftGearDown: leftGearDown,
+      rightGearDown: rightGearDown,
+    );
     return HomeFlightData(
       airspeed: _toDouble(dataset['ias_kt'] ?? dataset['airspeed_kt']),
       machNumber: _toDouble(dataset['mach_number']),
@@ -793,6 +804,10 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
         dataset['vertical_speed_fpm'] ?? dataset['vs_fpm'],
       ),
       gForce: _toDouble(dataset['g_force_g'] ?? dataset['g_force']),
+      touchdownGearG: _toDouble(dataset['touchdown_gear_g']),
+      noseGearG: _toDouble(dataset['nose_gear_g']),
+      leftGearG: _toDouble(dataset['left_gear_g']),
+      rightGearG: _toDouble(dataset['right_gear_g']),
       pitch: _readAngleDegrees(
         dataset,
         degreeKeys: const ['pitch_deg'],
@@ -811,7 +826,12 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
           'alpha_deg',
           'angleofattack_deg',
         ],
-        fallbackKeys: const ['aoa', 'angle_of_attack', 'alpha', 'angleofattack'],
+        fallbackKeys: const [
+          'aoa',
+          'angle_of_attack',
+          'alpha',
+          'angleofattack',
+        ],
       ),
       stallWarning: _toBool(
         dataset['stall_warning'] ??
@@ -836,6 +856,11 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       totalAirTemperature: _toDouble(dataset['total_temp_c']),
       windSpeed: _toDouble(dataset['wind_speed_kt']),
       windDirection: _toDouble(dataset['wind_direction_deg']),
+      windGust: _toDouble(dataset['wind_gust_kt']),
+      gustDelta: _toDouble(dataset['gust_delta_kt']),
+      gustFactorRate: _toDouble(dataset['gust_factor_rate']),
+      crosswindComponent: _toDouble(dataset['crosswind_component_kt']),
+      radioAltitude: _toDouble(dataset['radio_altitude_ft']),
       baroPressure: _toDouble(dataset['baro_pressure_inhg']),
       baroPressureUnit: dataset['baro_pressure_unit']?.toString(),
       visibility: _toDouble(dataset['visibility_m']),
@@ -844,8 +869,16 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       fuelFlow: _toDouble(dataset['fuel_flow_kg_h']),
       engine1N1: _toDouble(dataset['engine1_n1']),
       engine2N1: _toDouble(dataset['engine2_n1']),
+      engine1N2: _toDouble(dataset['engine1_n2']),
+      engine2N2: _toDouble(dataset['engine2_n2']),
       engine1EGT: _toDouble(dataset['engine1_egt_c']),
       engine2EGT: _toDouble(dataset['engine2_egt_c']),
+      aileronInput: _toDouble(dataset['aileron_input']),
+      elevatorInput: _toDouble(dataset['elevator_input']),
+      rudderInput: _toDouble(dataset['rudder_input']),
+      aileronTrim: _toDouble(dataset['aileron_trim']),
+      elevatorTrim: _toDouble(dataset['elevator_trim']),
+      rudderTrim: _toDouble(dataset['rudder_trim']),
       masterWarning: _toBool(dataset['master_warning']),
       masterCaution: _toBool(dataset['master_caution']),
       fireWarningEngine1: _toBool(dataset['fire_warning_engine1']),
@@ -870,10 +903,10 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       flapsLabel: _buildFlapsLabel(dataset),
       flapsAngle: _toDouble(dataset['flaps_angle_deg']),
       flapsDeployRatio: _toDouble(dataset['flaps_deploy_ratio']),
-      gearDown: _toBool(dataset['gear_down']),
-      noseGearDown: _toDouble(dataset['nose_gear_down']),
-      leftGearDown: _toDouble(dataset['left_gear_down']),
-      rightGearDown: _toDouble(dataset['right_gear_down']),
+      gearDown: gearDown,
+      noseGearDown: noseGearDown,
+      leftGearDown: leftGearDown,
+      rightGearDown: rightGearDown,
       apuRunning: _toBool(dataset['apu_running']),
       engine1Running: _toBool(dataset['engine1_running']),
       engine2Running: _toBool(dataset['engine2_running']),
@@ -882,6 +915,12 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
       autopilotHeadingTarget: _toDouble(
         dataset['autopilot_heading_target_deg'] ?? dataset['heading_target'],
       ),
+      autopilotLateralMode: _pickString(dataset, const [
+        'autopilot_lateral_mode',
+      ]),
+      autopilotVerticalMode: _pickString(dataset, const [
+        'autopilot_vertical_mode',
+      ]),
       aircraftProfile: dataset['aircraft_profile']?.toString(),
       aircraftId: dataset['aircraft_id']?.toString(),
       aircraftManufacturer: dataset['aircraft_manufacturer']?.toString(),
@@ -1352,6 +1391,55 @@ class MiddlewareHomeDataAdapter implements HomeDataAdapter {
     final ratio = _toDouble(dataset['flaps_deploy_ratio']);
     if (ratio != null) {
       return '${(ratio * 100).toStringAsFixed(0)}%';
+    }
+    return null;
+  }
+
+  bool? _resolveGearDownState({
+    required bool? directState,
+    required double? noseGearDown,
+    required double? leftGearDown,
+    required double? rightGearDown,
+  }) {
+    final inferred = _inferGearDownStateFromRatio(
+      noseGearDown: noseGearDown,
+      leftGearDown: leftGearDown,
+      rightGearDown: rightGearDown,
+    );
+    if (inferred != null) {
+      return inferred;
+    }
+    return directState;
+  }
+
+  bool? _inferGearDownStateFromRatio({
+    required double? noseGearDown,
+    required double? leftGearDown,
+    required double? rightGearDown,
+  }) {
+    final ratios = <double>[];
+    for (final raw in [noseGearDown, leftGearDown, rightGearDown]) {
+      final normalized = _normalizeGearRatio(raw);
+      if (normalized != null) {
+        ratios.add(normalized);
+      }
+    }
+    if (ratios.isEmpty) {
+      return null;
+    }
+    final average = ratios.reduce((a, b) => a + b) / ratios.length;
+    return average >= 0.5;
+  }
+
+  double? _normalizeGearRatio(double? value) {
+    if (value == null || value.isNaN || !value.isFinite) {
+      return null;
+    }
+    if (value >= 0 && value <= 1) {
+      return value;
+    }
+    if (value > 1 && value <= 100) {
+      return value / 100;
     }
     return null;
   }

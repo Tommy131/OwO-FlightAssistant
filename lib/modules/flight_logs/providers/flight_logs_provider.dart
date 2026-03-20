@@ -196,7 +196,8 @@ class FlightLogsProvider extends ChangeNotifier {
       departureAirport: departure,
       arrivalAirport:
           _normalizeText(data.arrivalAirport) ??
-          _normalizeText(snapshot.destinationAirport?.icaoCode),
+          _normalizeText(snapshot.destinationAirport?.icaoCode) ??
+          departure,
       startTime: now,
       points: [],
       wasOnGroundAtStart: data.onGround ?? false,
@@ -240,20 +241,44 @@ class FlightLogsProvider extends ChangeNotifier {
       timestamp: now,
       autopilotEngaged: data.autopilotEngaged,
       autothrottleEngaged: data.autothrottleEngaged,
+      flightPhase: data.flightPhase,
+      autopilotHeadingTarget: data.autopilotHeadingTarget,
+      autopilotLateralMode: data.autopilotLateralMode,
+      autopilotVerticalMode: data.autopilotVerticalMode,
       gearDown: data.gearDown,
+      noseGearG: data.noseGearG,
+      leftGearG: data.leftGearG,
+      rightGearG: data.rightGearG,
       flapsLabel: data.flapsLabel,
       windSpeed: data.windSpeed,
       windDirection: data.windDirection,
+      windGust: data.windGust,
+      gustDelta: data.gustDelta,
+      gustFactorRate: data.gustFactorRate,
+      crosswindComponent: data.crosswindComponent,
+      radioAltitude: data.radioAltitude,
       outsideAirTemperature: data.outsideAirTemperature,
       baroPressure: data.baroPressure,
       masterWarning: data.masterWarning,
       masterCaution: data.masterCaution,
       engine1Running: data.engine1Running,
       engine2Running: data.engine2Running,
+      engine1N1: data.engine1N1,
+      engine2N1: data.engine2N1,
+      engine1N2: data.engine1N2,
+      engine2N2: data.engine2N2,
+      engine1Egt: data.engine1EGT,
+      engine2Egt: data.engine2EGT,
       transponderCode: snapshot.transponderCode,
       landingLights: data.landingLights,
       beacon: data.beacon,
       strobes: data.strobes,
+      aileronInput: data.aileronInput,
+      elevatorInput: data.elevatorInput,
+      rudderInput: data.rudderInput,
+      aileronTrim: data.aileronTrim,
+      elevatorTrim: data.elevatorTrim,
+      rudderTrim: data.rudderTrim,
       onGround: data.onGround,
       anomalyAlerts: anomalyAlerts,
     );
@@ -274,6 +299,11 @@ class FlightLogsProvider extends ChangeNotifier {
     _updateFuelUsed(log);
     final onGround = point.onGround ?? false;
     if (_lastOnGround == true && !onGround && log.takeoffData == null) {
+      final liftoffIndex = log.points.length - 1;
+      final takeoffMetrics = _buildTakeoffMetrics(
+        points: log.points,
+        liftoffIndex: liftoffIndex,
+      );
       log.takeoffData = TakeoffData(
         latitude: point.latitude,
         longitude: point.longitude,
@@ -284,6 +314,11 @@ class FlightLogsProvider extends ChangeNotifier {
         heading: point.heading,
         timestamp: point.timestamp,
         runway: _runwayIdentFromHeading(point.heading),
+        takeoffStabilityScore: takeoffMetrics.takeoffStabilityScore,
+        rotationSpeedKt: takeoffMetrics.rotationSpeedKt,
+        rotationToLiftoffSec: takeoffMetrics.rotationToLiftoffSec,
+        crosswindAtLiftoffKt: takeoffMetrics.crosswindAtLiftoffKt,
+        pitchAt35FtDeg: takeoffMetrics.pitchAt35FtDeg,
       );
     }
     _trackLandingState(log: log, point: point);
@@ -391,11 +426,19 @@ class FlightLogsProvider extends ChangeNotifier {
     if (!force && (touchPoint.onGround ?? false) == false) {
       return;
     }
-    final rating = _ratingByG(touchPoint.gForce);
+    final touchdownG = _touchdownStableGearAverageG(
+      points: log.points,
+      touchdownIndex: startIndex,
+    );
+    final rating = _ratingByG(touchdownG);
+    final approachMetrics = _buildApproachLandingMetrics(
+      points: log.points,
+      touchPointIndex: startIndex,
+    );
     log.landingData = LandingData(
       latitude: touchPoint.latitude,
       longitude: touchPoint.longitude,
-      gForce: touchPoint.gForce,
+      gForce: touchdownG,
       verticalSpeed: touchPoint.verticalSpeed,
       airspeed: touchPoint.airspeed,
       groundSpeed: touchPoint.groundSpeed,
@@ -405,6 +448,11 @@ class FlightLogsProvider extends ChangeNotifier {
       timestamp: touchPoint.timestamp,
       touchdownSequence: sequence,
       runway: _runwayIdentFromHeading(touchPoint.heading),
+      approachStabilityScore: approachMetrics.stabilityScore,
+      flareHeightFt: approachMetrics.flareHeightFt,
+      sinkRateAt50FtFpm: approachMetrics.sinkRateAt50FtFpm,
+      crosswindAtTouchdownKt: approachMetrics.crosswindAtTouchdownKt,
+      bounceCount: approachMetrics.bounceCount,
     );
     _pendingLandingStartAt = null;
     _pendingLandingStartIndex = null;
@@ -435,7 +483,8 @@ class FlightLogsProvider extends ChangeNotifier {
       if (rawMessage.isEmpty) {
         continue;
       }
-      final message = _backendAlertMessageMap[rawMessage.toLowerCase()] ?? rawMessage;
+      final message =
+          _backendAlertMessageMap[rawMessage.toLowerCase()] ?? rawMessage;
       if (!seen.add(message)) {
         continue;
       }
@@ -472,6 +521,58 @@ class FlightLogsProvider extends ChangeNotifier {
     return LandingRating.rip;
   }
 
+  double _touchdownStableGearAverageG({
+    required List<FlightLogPoint> points,
+    required int touchdownIndex,
+  }) {
+    if (points.isEmpty ||
+        touchdownIndex < 0 ||
+        touchdownIndex >= points.length) {
+      return 1.0;
+    }
+    final touchdownPoint = points[touchdownIndex];
+    final touchdownAt = touchdownPoint.timestamp;
+    final windowEnd = touchdownAt.add(const Duration(seconds: 3));
+    final noseSamples = <double>[];
+    final leftSamples = <double>[];
+    final rightSamples = <double>[];
+    for (var i = touchdownIndex; i < points.length; i++) {
+      final point = points[i];
+      if (point.timestamp.isAfter(windowEnd)) {
+        break;
+      }
+      if ((point.onGround ?? false) == false) {
+        continue;
+      }
+      if (point.noseGearG != null && point.noseGearG != 0) {
+        noseSamples.add(point.noseGearG!);
+      }
+      if (point.leftGearG != null && point.leftGearG != 0) {
+        leftSamples.add(point.leftGearG!);
+      }
+      if (point.rightGearG != null && point.rightGearG != 0) {
+        rightSamples.add(point.rightGearG!);
+      }
+    }
+    final perGearStableValues = <double>[
+      if (noseSamples.isNotEmpty) _average(noseSamples),
+      if (leftSamples.isNotEmpty) _average(leftSamples),
+      if (rightSamples.isNotEmpty) _average(rightSamples),
+    ];
+    if (perGearStableValues.isEmpty) {
+      return touchdownPoint.gForce;
+    }
+    return _average(perGearStableValues);
+  }
+
+  double _average(List<double> values) {
+    if (values.isEmpty) {
+      return 0;
+    }
+    final sum = values.reduce((a, b) => a + b);
+    return sum / values.length;
+  }
+
   void _updateFuelUsed(FlightLog log) {
     if (log.points.length < 2) return;
     double? startFuel;
@@ -495,9 +596,8 @@ class FlightLogsProvider extends ChangeNotifier {
       final current = log.points[i];
       final flow = previous.fuelFlow;
       if (flow == null || flow <= 0) continue;
-      final deltaSeconds = current.timestamp
-          .difference(previous.timestamp)
-          .inMilliseconds /
+      final deltaSeconds =
+          current.timestamp.difference(previous.timestamp).inMilliseconds /
           1000;
       if (deltaSeconds <= 0) continue;
       integratedFuel += flow * deltaSeconds / 3600;
@@ -509,30 +609,51 @@ class FlightLogsProvider extends ChangeNotifier {
 
   Future<void> _enrichRunwayInfo(FlightLog log) async {
     final takeoff = log.takeoffData;
-    if (takeoff != null && (takeoff.runway == null || takeoff.remainingRunwayFt == null)) {
-      final estimate = await _estimateRunwayAtAirport(
-        airportIcao: log.departureAirport,
-        latitude: takeoff.latitude,
-        longitude: takeoff.longitude,
-        heading: takeoff.heading,
-      );
-      if (estimate != null) {
-        log.takeoffData = TakeoffData(
+    if (takeoff != null) {
+      _RunwayEstimate? estimate;
+      if (takeoff.runway == null || takeoff.remainingRunwayFt == null) {
+        estimate = await _estimateRunwayAtAirport(
+          airportIcao: log.departureAirport,
           latitude: takeoff.latitude,
           longitude: takeoff.longitude,
-          airspeed: takeoff.airspeed,
-          groundSpeed: takeoff.groundSpeed,
-          verticalSpeed: takeoff.verticalSpeed,
-          pitch: takeoff.pitch,
           heading: takeoff.heading,
-          timestamp: takeoff.timestamp,
-          runway: takeoff.runway ?? estimate.ident,
-          remainingRunwayFt: takeoff.remainingRunwayFt ?? estimate.remainingFt,
         );
       }
+      final liftoffIndex = _findPointIndexByTimestamp(
+        points: log.points,
+        timestamp: takeoff.timestamp,
+      );
+      final takeoffMetrics = _buildTakeoffMetrics(
+        points: log.points,
+        liftoffIndex: liftoffIndex,
+      );
+      log.takeoffData = TakeoffData(
+        latitude: takeoff.latitude,
+        longitude: takeoff.longitude,
+        airspeed: takeoff.airspeed,
+        groundSpeed: takeoff.groundSpeed,
+        verticalSpeed: takeoff.verticalSpeed,
+        pitch: takeoff.pitch,
+        heading: takeoff.heading,
+        timestamp: takeoff.timestamp,
+        runway: takeoff.runway ?? estimate?.ident,
+        remainingRunwayFt: takeoff.remainingRunwayFt ?? estimate?.remainingFt,
+        takeoffStabilityScore:
+            takeoff.takeoffStabilityScore ??
+            takeoffMetrics.takeoffStabilityScore,
+        rotationSpeedKt:
+            takeoff.rotationSpeedKt ?? takeoffMetrics.rotationSpeedKt,
+        rotationToLiftoffSec:
+            takeoff.rotationToLiftoffSec ?? takeoffMetrics.rotationToLiftoffSec,
+        crosswindAtLiftoffKt:
+            takeoff.crosswindAtLiftoffKt ?? takeoffMetrics.crosswindAtLiftoffKt,
+        pitchAt35FtDeg: takeoff.pitchAt35FtDeg ?? takeoffMetrics.pitchAt35FtDeg,
+      );
     }
     final landing = log.landingData;
-    final arrivalIcao = _normalizeText(log.arrivalAirport) ?? _normalizeText(log.departureAirport);
+    final arrivalIcao =
+        _normalizeText(log.arrivalAirport) ??
+        _normalizeText(log.departureAirport);
     if (landing != null &&
         arrivalIcao != null &&
         (landing.runway == null || landing.remainingRunwayFt == null)) {
@@ -559,9 +680,249 @@ class FlightLogsProvider extends ChangeNotifier {
           touchdownSequence: landing.touchdownSequence,
           runway: landing.runway ?? estimate.ident,
           remainingRunwayFt: landing.remainingRunwayFt ?? estimate.remainingFt,
+          approachStabilityScore: landing.approachStabilityScore,
+          flareHeightFt: landing.flareHeightFt,
+          sinkRateAt50FtFpm: landing.sinkRateAt50FtFpm,
+          crosswindAtTouchdownKt: landing.crosswindAtTouchdownKt,
+          bounceCount: landing.bounceCount,
         );
       }
     }
+  }
+
+  int _findPointIndexByTimestamp({
+    required List<FlightLogPoint> points,
+    required DateTime timestamp,
+  }) {
+    if (points.isEmpty) return -1;
+    var bestIndex = 0;
+    var bestDelta = points.first.timestamp.difference(timestamp).abs();
+    for (int i = 1; i < points.length; i++) {
+      final delta = points[i].timestamp.difference(timestamp).abs();
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }
+
+  _TakeoffMetrics _buildTakeoffMetrics({
+    required List<FlightLogPoint> points,
+    required int liftoffIndex,
+  }) {
+    if (points.isEmpty || liftoffIndex < 0 || liftoffIndex >= points.length) {
+      return const _TakeoffMetrics();
+    }
+    final preStart = liftoffIndex > 180 ? liftoffIndex - 180 : 0;
+    final preWindow = points.sublist(preStart, liftoffIndex + 1);
+    final postEnd = (liftoffIndex + 200).clamp(0, points.length - 1);
+    final postWindow = points.sublist(liftoffIndex, postEnd + 1);
+    final liftoffPoint = points[liftoffIndex];
+
+    FlightLogPoint? rotationPoint;
+    for (int i = 1; i < preWindow.length; i++) {
+      final previous = preWindow[i - 1];
+      final current = preWindow[i];
+      final currentOnGround = current.onGround ?? false;
+      if (!currentOnGround) {
+        continue;
+      }
+      final pitchRaising = current.pitch - previous.pitch >= 0.35;
+      final liftingIntent =
+          current.pitch >= 2.2 || (current.elevatorInput ?? 0) >= 0.2;
+      final speedReady = current.groundSpeed >= 45 || current.airspeed >= 45;
+      if (pitchRaising && liftingIntent && speedReady) {
+        rotationPoint = current;
+        break;
+      }
+    }
+
+    final liftoffTime = liftoffPoint.timestamp;
+    final climbWindow = postWindow.where((point) {
+      final delta = point.timestamp.difference(liftoffTime).inSeconds;
+      return delta >= 0 && delta <= 20 && ((point.onGround ?? false) == false);
+    }).toList();
+    final verticalScore = _stabilityScoreFromStdDev(
+      climbWindow.map((point) => point.verticalSpeed).toList(),
+      threshold: 260,
+    );
+    final pitchScore = _stabilityScoreFromStdDev(
+      climbWindow.map((point) => point.pitch).toList(),
+      threshold: 2.5,
+    );
+    final rollScore = _stabilityScoreFromStdDev(
+      climbWindow.map((point) => point.roll).toList(),
+      threshold: 4.2,
+    );
+    final stabilityScore =
+        ((verticalScore * 0.45) + (pitchScore * 0.3) + (rollScore * 0.25))
+            .clamp(0.0, 100.0);
+
+    FlightLogPoint? at35FtPoint;
+    double? nearestDistance;
+    for (final point in postWindow) {
+      final radioAltitude = point.radioAltitude;
+      if (radioAltitude == null || radioAltitude <= 0) {
+        continue;
+      }
+      final distance = (radioAltitude - 35).abs();
+      if (nearestDistance == null || distance < nearestDistance) {
+        nearestDistance = distance;
+        at35FtPoint = point;
+      }
+    }
+
+    return _TakeoffMetrics(
+      takeoffStabilityScore: climbWindow.length >= 2 ? stabilityScore : null,
+      rotationSpeedKt: rotationPoint?.airspeed ?? rotationPoint?.groundSpeed,
+      rotationToLiftoffSec: rotationPoint == null
+          ? null
+          : liftoffPoint.timestamp
+                .difference(rotationPoint.timestamp)
+                .inSeconds
+                .clamp(0, 120),
+      crosswindAtLiftoffKt: liftoffPoint.crosswindComponent?.abs(),
+      pitchAt35FtDeg: at35FtPoint?.pitch,
+    );
+  }
+
+  _ApproachLandingMetrics _buildApproachLandingMetrics({
+    required List<FlightLogPoint> points,
+    required int touchPointIndex,
+  }) {
+    if (points.isEmpty ||
+        touchPointIndex < 0 ||
+        touchPointIndex >= points.length) {
+      return const _ApproachLandingMetrics();
+    }
+    final start = touchPointIndex > 120 ? touchPointIndex - 120 : 0;
+    final window = points.sublist(start, touchPointIndex + 1);
+    final approachWindow = window
+        .where((point) => (point.onGround ?? false) == false)
+        .toList();
+    final stabilityWindow = approachWindow.isNotEmpty ? approachWindow : window;
+    final verticalScore = _stabilityScoreFromStdDev(
+      stabilityWindow.map((point) => point.verticalSpeed).toList(),
+      threshold: 280,
+    );
+    final pitchScore = _stabilityScoreFromStdDev(
+      stabilityWindow.map((point) => point.pitch).toList(),
+      threshold: 2.8,
+    );
+    final rollScore = _stabilityScoreFromStdDev(
+      stabilityWindow.map((point) => point.roll).toList(),
+      threshold: 4.5,
+    );
+    final speedScore = _stabilityScoreFromStdDev(
+      stabilityWindow.map((point) => point.airspeed).toList(),
+      threshold: 7,
+    );
+    final score =
+        ((verticalScore * 0.35) +
+                (pitchScore * 0.2) +
+                (rollScore * 0.25) +
+                (speedScore * 0.2))
+            .clamp(0.0, 100.0);
+    final touchPoint = points[touchPointIndex];
+    final flareHeightFt = _estimateFlareHeightFt(stabilityWindow);
+    final sinkRateAt50FtFpm = _estimateSinkRateAtRadioAltitude(
+      points: stabilityWindow,
+      targetAltitude: 50,
+    );
+    final bounceCount = _estimateBounceCount(
+      points: points,
+      touchdownIndex: touchPointIndex,
+    );
+    return _ApproachLandingMetrics(
+      stabilityScore: score,
+      flareHeightFt: flareHeightFt,
+      sinkRateAt50FtFpm: sinkRateAt50FtFpm,
+      crosswindAtTouchdownKt: touchPoint.crosswindComponent?.abs(),
+      bounceCount: bounceCount,
+    );
+  }
+
+  double _stabilityScoreFromStdDev(
+    List<double> values, {
+    required double threshold,
+  }) {
+    if (values.length < 2 || threshold <= 0) {
+      return 100;
+    }
+    final mean = values.reduce((a, b) => a + b) / values.length;
+    final variance =
+        values
+            .map((value) => (value - mean) * (value - mean))
+            .reduce((a, b) => a + b) /
+        values.length;
+    final stdDev = math.sqrt(variance);
+    final normalized = (stdDev / threshold).clamp(0.0, 1.4);
+    return (100 - normalized * 100).clamp(0.0, 100.0);
+  }
+
+  double? _estimateFlareHeightFt(List<FlightLogPoint> points) {
+    FlightLogPoint? best;
+    for (final point in points) {
+      final radioAltitude = point.radioAltitude;
+      if (radioAltitude == null || radioAltitude <= 0 || radioAltitude > 80) {
+        continue;
+      }
+      if (point.pitch <= 2 || point.verticalSpeed >= -200) {
+        continue;
+      }
+      if (best == null || radioAltitude > (best.radioAltitude ?? 0)) {
+        best = point;
+      }
+    }
+    return best?.radioAltitude;
+  }
+
+  double? _estimateSinkRateAtRadioAltitude({
+    required List<FlightLogPoint> points,
+    required double targetAltitude,
+  }) {
+    FlightLogPoint? selected;
+    double? bestDistance;
+    for (final point in points) {
+      final radioAltitude = point.radioAltitude;
+      if (radioAltitude == null || radioAltitude <= 0) {
+        continue;
+      }
+      final distance = (radioAltitude - targetAltitude).abs();
+      if (bestDistance == null || distance < bestDistance) {
+        selected = point;
+        bestDistance = distance;
+      }
+    }
+    return selected?.verticalSpeed;
+  }
+
+  int _estimateBounceCount({
+    required List<FlightLogPoint> points,
+    required int touchdownIndex,
+  }) {
+    if (points.isEmpty ||
+        touchdownIndex < 0 ||
+        touchdownIndex >= points.length) {
+      return 0;
+    }
+    final end = (touchdownIndex + 80).clamp(0, points.length - 1);
+    final sequence = points.sublist(touchdownIndex, end + 1);
+    var bounceCount = 0;
+    var seenAirborneAfterTouchdown = false;
+    for (int i = 1; i < sequence.length; i++) {
+      final previousGround = sequence[i - 1].onGround ?? false;
+      final currentGround = sequence[i].onGround ?? false;
+      if (previousGround && !currentGround) {
+        seenAirborneAfterTouchdown = true;
+      }
+      if (seenAirborneAfterTouchdown && !previousGround && currentGround) {
+        bounceCount++;
+        seenAirborneAfterTouchdown = false;
+      }
+    }
+    return bounceCount;
   }
 
   Future<_RunwayEstimate?> _estimateRunwayAtAirport({
@@ -607,7 +968,8 @@ class FlightLogsProvider extends ChangeNotifier {
       if (leLat == null || leLon == null || heLat == null || heLon == null) {
         continue;
       }
-      final lengthM = runway.lengthM ?? _distanceMeters(leLat, leLon, heLat, heLon);
+      final lengthM =
+          runway.lengthM ?? _distanceMeters(leLat, leLon, heLat, heLon);
       final leHeading = _bearingDegrees(leLat, leLon, heLat, heLon);
       final heHeading = _bearingDegrees(heLat, heLon, leLat, leLon);
       final leEstimate = _buildRunwayEstimate(
@@ -635,13 +997,15 @@ class FlightLogsProvider extends ChangeNotifier {
         eventLon: eventLon,
       );
       final leScore =
-          _angleDelta(eventHeading, leHeading) * 120 + leEstimate.distanceToThresholdM;
+          _angleDelta(eventHeading, leHeading) * 120 +
+          leEstimate.distanceToThresholdM;
       if (leScore < bestScore) {
         bestScore = leScore;
         best = leEstimate;
       }
       final heScore =
-          _angleDelta(eventHeading, heHeading) * 120 + heEstimate.distanceToThresholdM;
+          _angleDelta(eventHeading, heHeading) * 120 +
+          heEstimate.distanceToThresholdM;
       if (heScore < bestScore) {
         bestScore = heScore;
         best = heEstimate;
@@ -670,8 +1034,8 @@ class FlightLogsProvider extends ChangeNotifier {
     if (runwayLenSq > 0) {
       ratio =
           ((eventXY.dx - startXY.dx) * runwayDx +
-                  (eventXY.dy - startXY.dy) * runwayDy) /
-              runwayLenSq;
+              (eventXY.dy - startXY.dy) * runwayDy) /
+          runwayLenSq;
     }
     ratio = ratio.clamp(0, 1).toDouble();
     final remainingM = (1 - ratio) * lengthM;
@@ -682,7 +1046,11 @@ class FlightLogsProvider extends ChangeNotifier {
       startLon,
     );
     return _RunwayEstimate(
-      ident: ident.isNotEmpty ? ident : _runwayIdentFromHeading(_bearingDegrees(startLat, startLon, endLat, endLon)),
+      ident: ident.isNotEmpty
+          ? ident
+          : _runwayIdentFromHeading(
+              _bearingDegrees(startLat, startLon, endLat, endLon),
+            ),
       remainingFt: remainingM * 3.28084,
       distanceToThresholdM: distanceToThresholdM,
     );
@@ -699,7 +1067,8 @@ class FlightLogsProvider extends ChangeNotifier {
     final lonRad = lon * math.pi / 180;
     final refLatRad = refLat * math.pi / 180;
     final refLonRad = refLon * math.pi / 180;
-    final x = (lonRad - refLonRad) * math.cos((latRad + refLatRad) / 2) * earthRadius;
+    final x =
+        (lonRad - refLonRad) * math.cos((latRad + refLatRad) / 2) * earthRadius;
     final y = (latRad - refLatRad) * earthRadius;
     return _ProjectedPoint(dx: x, dy: y);
   }
@@ -762,5 +1131,37 @@ class _RunwayEstimate {
     required this.ident,
     required this.remainingFt,
     required this.distanceToThresholdM,
+  });
+}
+
+class _ApproachLandingMetrics {
+  final double? stabilityScore;
+  final double? flareHeightFt;
+  final double? sinkRateAt50FtFpm;
+  final double? crosswindAtTouchdownKt;
+  final int? bounceCount;
+
+  const _ApproachLandingMetrics({
+    this.stabilityScore,
+    this.flareHeightFt,
+    this.sinkRateAt50FtFpm,
+    this.crosswindAtTouchdownKt,
+    this.bounceCount,
+  });
+}
+
+class _TakeoffMetrics {
+  final double? takeoffStabilityScore;
+  final double? rotationSpeedKt;
+  final int? rotationToLiftoffSec;
+  final double? crosswindAtLiftoffKt;
+  final double? pitchAt35FtDeg;
+
+  const _TakeoffMetrics({
+    this.takeoffStabilityScore,
+    this.rotationSpeedKt,
+    this.rotationToLiftoffSec,
+    this.crosswindAtLiftoffKt,
+    this.pitchAt35FtDeg,
   });
 }
