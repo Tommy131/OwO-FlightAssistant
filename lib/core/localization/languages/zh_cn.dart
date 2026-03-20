@@ -150,6 +150,12 @@ final Map<String, String> zhCN = {
   LocalizationKeys.community: '社区',
   LocalizationKeys.discordCommunityDesc: '加入 Discord 社区与大家交流',
   LocalizationKeys.joinDiscord: '加入 Discord',
+  LocalizationKeys.contributors: '贡献者名单',
+  LocalizationKeys.contributorsDesc: '感谢以下贡献者对项目的支持',
+  LocalizationKeys.contributorsLoading: '正在加载贡献者名单...',
+  LocalizationKeys.contributorsEmpty: '暂无贡献者数据',
+  LocalizationKeys.contributorsRetry: '重试',
+  LocalizationKeys.contributorsUnknown: '未知贡献者',
   LocalizationKeys.dataPathMissingTitle: '存储路径丢失',
   LocalizationKeys.dataPathMissingContent:
       '无法找到或访问配置的存储路径。为了确保数据安全，应用初始化已重置。请重新配置您的存储路径。',

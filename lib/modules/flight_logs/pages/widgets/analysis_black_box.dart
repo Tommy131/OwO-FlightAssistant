@@ -19,18 +19,21 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
   int _currentPage = 0;
   late final ScrollController _horizontalController;
   late final TextEditingController _pageJumpController;
+  late final FocusNode _pageJumpFocusNode;
 
   @override
   void initState() {
     super.initState();
     _horizontalController = ScrollController(keepScrollOffset: false);
     _pageJumpController = TextEditingController(text: '1');
+    _pageJumpFocusNode = FocusNode();
   }
 
   @override
   void dispose() {
     _horizontalController.dispose();
     _pageJumpController.dispose();
+    _pageJumpFocusNode.dispose();
     super.dispose();
   }
 
@@ -61,7 +64,8 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
     final pagePoints = widget.log.points.sublist(start, end);
     final pointEvents = _buildPointEvents(context, widget.log);
     final displayedPageText = '${currentPage + 1}';
-    if (_pageJumpController.text != displayedPageText) {
+    if (!_pageJumpFocusNode.hasFocus &&
+        _pageJumpController.text != displayedPageText) {
       _pageJumpController.value = TextEditingValue(
         text: displayedPageText,
         selection: TextSelection.collapsed(offset: displayedPageText.length),
@@ -385,6 +389,7 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                   width: 96,
                   child: TextField(
                     controller: _pageJumpController,
+                    focusNode: _pageJumpFocusNode,
                     keyboardType: TextInputType.number,
                     textInputAction: TextInputAction.go,
                     onSubmitted: (value) =>
@@ -418,7 +423,9 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                       .map(
                         (size) => DropdownMenuItem<int>(
                           value: size,
-                          child: Text('$size / 页'),
+                          child: Text(
+                            '$size/${FlightLogsLocalizationKeys.blackBoxPageUnit.tr(context)}',
+                          ),
                         ),
                       )
                       .toList(),
@@ -476,9 +483,15 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
       return;
     }
     final normalized = target.clamp(1, totalPages) - 1;
+    final displayedPageText = '${normalized + 1}';
     setState(() {
       _currentPage = normalized;
+      _pageJumpController.value = TextEditingValue(
+        text: displayedPageText,
+        selection: TextSelection.collapsed(offset: displayedPageText.length),
+      );
     });
+    _pageJumpFocusNode.unfocus();
   }
 
   List<String> _buildPointEvents(BuildContext context, FlightLog log) {

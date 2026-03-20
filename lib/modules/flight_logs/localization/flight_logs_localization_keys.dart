@@ -83,6 +83,7 @@ class FlightLogsLocalizationKeys {
   static const String blackBoxAnomalyAlert = 'flight_logs.black_box.anomaly';
   static const String blackBoxJumpToPage = 'flight_logs.black_box.jump_to_page';
   static const String blackBoxJumpAction = 'flight_logs.black_box.jump_action';
+  static const String blackBoxPageUnit = 'flight_logs.black_box.page_unit';
   static const String summaryTitle = 'flight_logs.summary.title';
   static const String summaryDuration = 'flight_logs.summary.duration';
   static const String summaryAirborneDuration =

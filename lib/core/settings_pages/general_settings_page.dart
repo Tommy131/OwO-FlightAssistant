@@ -7,11 +7,9 @@ import '../services/persistence_service.dart';
 import '../services/bootstrap_service.dart';
 import '../services/localization_service.dart';
 import '../localization/localization_keys.dart';
-import '../constants/app_constants.dart';
 import '../theme/app_theme_data.dart';
 import '../utils/logger.dart';
 import '../utils/update_checker.dart';
-import '../utils/url_launcher_helper.dart';
 import '../widgets/common/snack_bar.dart';
 import '../widgets/common/storage_path_tile.dart';
 import '../widgets/common/dialog.dart';
@@ -120,9 +118,6 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
           const SizedBox(height: AppThemeData.spacingSmall),
 
           _buildUpdateCheckSection(theme),
-          const SizedBox(height: AppThemeData.spacingSmall),
-
-          _buildCommunitySection(theme),
           const SizedBox(height: AppThemeData.spacingSmall),
 
           _buildDangerSection(context, theme),
@@ -330,64 +325,6 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
               contentPadding: EdgeInsets.zero,
               enableTap: false,
               showChangeButton: true,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCommunitySection(ThemeData theme) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF5865F2).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(
-                      AppThemeData.borderRadiusSmall,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.forum_outlined,
-                    color: Color(0xFF5865F2),
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: AppThemeData.spacingSmall),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        LocalizationKeys.community.tr(context),
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        LocalizationKeys.discordCommunityDesc.tr(context),
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppThemeData.spacingMedium),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () =>
-                    UrlLauncherHelper.launchURL(AppConstants.discordInviteUrl),
-                icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                label: Text(LocalizationKeys.joinDiscord.tr(context)),
-              ),
             ),
           ],
         ),

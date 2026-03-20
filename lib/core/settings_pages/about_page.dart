@@ -45,6 +45,22 @@ class AboutPage extends StatelessWidget {
 
     registry.register(
       AboutPageItem(
+        id: 'discord_community',
+        priority: 35,
+        builder: (_) => const _DiscordCommunityCard(),
+      ),
+    );
+
+    registry.register(
+      AboutPageItem(
+        id: 'contributors',
+        priority: 38,
+        builder: (_) => const _ContributorsCard(),
+      ),
+    );
+
+    registry.register(
+      AboutPageItem(
         id: 'open_source',
         priority: 40,
         builder: (_) => const _OpenSourceCard(),
@@ -282,6 +298,70 @@ class _OpenSourceCard extends StatelessWidget {
   }
 }
 
+class _DiscordCommunityCard extends StatelessWidget {
+  const _DiscordCommunityCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5865F2).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(
+                      AppThemeData.borderRadiusSmall,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.forum_outlined,
+                    color: Color(0xFF5865F2),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: AppThemeData.spacingSmall),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        LocalizationKeys.community.tr(context),
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        LocalizationKeys.discordCommunityDesc.tr(context),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppThemeData.spacingMedium),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () =>
+                    UrlLauncherHelper.launchURL(AppConstants.discordInviteUrl),
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                label: Text(LocalizationKeys.joinDiscord.tr(context)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CopyrightCard extends StatelessWidget {
   const _CopyrightCard();
 
@@ -303,6 +383,110 @@ class _CopyrightCard extends StatelessWidget {
       ],
     );
   }
+}
+
+class _ContributorsCard extends StatelessWidget {
+  const _ContributorsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final contributors = <_ContributorEntry>[
+      const _ContributorEntry(
+        name: 'HanskiJay (Tommy131)',
+        contribution: '最肝的开发者',
+      ),
+      const _ContributorEntry(name: 'Flynn Zhang', contribution: '功能提议&测试反馈'),
+      const _ContributorEntry(name: '狗狗星星', contribution: '测试反馈'),
+      const _ContributorEntry(name: '小哈朋友', contribution: '功能提议&测试反馈'),
+    ];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _CardHeader(
+              icon: Icons.groups_rounded,
+              title: LocalizationKeys.contributors.tr(context),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              LocalizationKeys.contributorsDesc.tr(context),
+              style: theme.textTheme.bodySmall,
+            ),
+            const Divider(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    LocalizationKeys.contributors.tr(context),
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    '事件',
+                    style: theme.textTheme.titleSmall,
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...contributors.asMap().entries.expand(
+              (entry) => [
+                _ContributorRow(item: entry.value),
+                if (entry.key != contributors.length - 1)
+                  const Divider(height: 14),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ContributorRow extends StatelessWidget {
+  final _ContributorEntry item;
+
+  const _ContributorRow({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              item.name,
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              item.contribution,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContributorEntry {
+  final String name;
+  final String contribution;
+
+  const _ContributorEntry({required this.name, required this.contribution});
 }
 
 class _CardHeader extends StatelessWidget {
