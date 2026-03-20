@@ -28,6 +28,14 @@ class FlightLogsProvider extends ChangeNotifier {
   static const int maxSampleIntervalMs = 2000;
   static const Duration _minimumRecordDuration = Duration(minutes: 1);
   static const Duration _landingStableDuration = Duration(seconds: 2);
+  static const Duration _approachMetricsWindow = Duration(seconds: 12);
+  static const Duration _takeoffPreMetricsWindow = Duration(seconds: 18);
+  static const Duration _takeoffPostMetricsWindow = Duration(seconds: 20);
+  static const double _approachDetectionRadioAltitudeFt = 1800;
+  static const double _approachDetectionAltitudeFt = 4500;
+  static const double _approachDetectionVsThreshold = -250;
+  static const double _minValidLandingG = 0.3;
+  static const double _maxValidLandingG = 8.0;
   static const Map<String, String> _backendAlertMessageMap = {
     'pitch_up_danger': MapLocalizationKeys.alertPitchUpDanger,
     'pitch_up_warning': MapLocalizationKeys.alertPitchUpWarning,
@@ -74,8 +82,10 @@ class FlightLogsProvider extends ChangeNotifier {
   int _sampleIntervalMs = defaultSampleIntervalMs;
   bool _isRecordingPaused = false;
   bool _isAutoStopping = false;
-  DateTime? _pendingLandingStartAt;
-  int? _pendingLandingStartIndex;
+  bool _landingMonitorActive = false;
+  DateTime? _stableGroundSince;
+  int? _stableTouchdownIndex;
+  final List<int> _touchdownPointIndexes = <int>[];
 
   List<FlightLog> get logs => _logs;
   bool get isLoading => _isLoading;
@@ -206,8 +216,10 @@ class FlightLogsProvider extends ChangeNotifier {
     _isRecordingPaused = snapshot.isPaused == true;
     _lastSampleAt = null;
     _lastOnGround = data.onGround;
-    _pendingLandingStartAt = null;
-    _pendingLandingStartIndex = null;
+    _landingMonitorActive = false;
+    _stableGroundSince = null;
+    _stableTouchdownIndex = null;
+    _touchdownPointIndexes.clear();
     captureSnapshot(snapshot, force: true);
     notifyListeners();
     return true;
@@ -335,11 +347,7 @@ class FlightLogsProvider extends ChangeNotifier {
     final log = _activeLog!;
     log.endTime = DateTime.now();
     log.wasOnGroundAtEnd = snapshot.flightData.onGround ?? false;
-    if (log.landingData == null &&
-        log.wasOnGroundAtEnd &&
-        _pendingLandingStartIndex != null) {
-      _finalizeLandingCandidate(log, force: true);
-    }
+    _finalizeLandingAtStop(log);
     if (log.points.isEmpty || log.duration < _minimumRecordDuration) {
       _resetRecordingState();
       notifyListeners();
@@ -381,81 +389,145 @@ class FlightLogsProvider extends ChangeNotifier {
     _activeLog = null;
     _lastSampleAt = null;
     _lastOnGround = null;
-    _pendingLandingStartAt = null;
-    _pendingLandingStartIndex = null;
+    _landingMonitorActive = false;
+    _stableGroundSince = null;
+    _stableTouchdownIndex = null;
+    _touchdownPointIndexes.clear();
   }
 
   void _trackLandingState({
     required FlightLog log,
     required FlightLogPoint point,
   }) {
-    final onGround = point.onGround ?? false;
-    final crossedToGround = _lastOnGround == false && onGround;
-    final crossedToAir = _lastOnGround == true && !onGround;
-    if (crossedToGround) {
-      _pendingLandingStartAt = point.timestamp;
-      _pendingLandingStartIndex = log.points.length - 1;
+    if (log.landingData != null && (point.onGround ?? false) == true) {
+      _landingMonitorActive = true;
     }
-    if (crossedToAir && _pendingLandingStartIndex != null) {
-      _pendingLandingStartAt = null;
-      _pendingLandingStartIndex = null;
+    if (!_landingMonitorActive && _isApproachAttitude(point)) {
+      _landingMonitorActive = true;
+      _stableGroundSince = null;
+      _stableTouchdownIndex = null;
+      _touchdownPointIndexes.clear();
+    }
+    if (!_landingMonitorActive) {
       return;
+    }
+    final onGround = point.onGround ?? false;
+    final previousOnGround = _lastOnGround ?? log.wasOnGroundAtStart;
+    final crossedToGround = !previousOnGround && onGround;
+    final crossedToAir = previousOnGround && !onGround;
+    final pointIndex = log.points.length - 1;
+    if (crossedToGround) {
+      _touchdownPointIndexes.add(pointIndex);
+      _stableGroundSince = point.timestamp;
+      _stableTouchdownIndex = pointIndex;
+    }
+    if (crossedToAir) {
+      _stableGroundSince = null;
+      _stableTouchdownIndex = null;
     }
     if (!onGround ||
-        _pendingLandingStartAt == null ||
-        _pendingLandingStartIndex == null ||
-        log.landingData != null) {
+        _stableGroundSince == null ||
+        _stableTouchdownIndex == null) {
       return;
     }
-    if (point.timestamp.difference(_pendingLandingStartAt!) >=
+    if (point.timestamp.difference(_stableGroundSince!) >=
         _landingStableDuration) {
-      _finalizeLandingCandidate(log, force: false);
+      _updateLandingDataFromTouchdowns(
+        log: log,
+        finalTouchdownIndex: _stableTouchdownIndex!,
+      );
     }
   }
 
-  void _finalizeLandingCandidate(FlightLog log, {required bool force}) {
-    final startIndex = _pendingLandingStartIndex;
-    if (startIndex == null ||
-        startIndex < 0 ||
-        startIndex >= log.points.length) {
+  bool _isApproachAttitude(FlightLogPoint point) {
+    final phase = (point.flightPhase ?? '').trim().toLowerCase();
+    if (phase == 'approach' || phase == 'landing') {
+      return true;
+    }
+    final radioAltitude = point.radioAltitude;
+    if (radioAltitude != null &&
+        radioAltitude > 0 &&
+        radioAltitude <= _approachDetectionRadioAltitudeFt &&
+        point.verticalSpeed <= _approachDetectionVsThreshold) {
+      return true;
+    }
+    return point.altitude <= _approachDetectionAltitudeFt &&
+        point.verticalSpeed <= _approachDetectionVsThreshold &&
+        (point.gearDown ?? false);
+  }
+
+  void _finalizeLandingAtStop(FlightLog log) {
+    if (_touchdownPointIndexes.isEmpty) {
       return;
     }
-    final from = startIndex > 2 ? startIndex - 2 : 0;
-    final sequence = List<FlightLogPoint>.from(log.points.sublist(from));
-    final touchPoint = log.points[startIndex];
-    if (!force && (touchPoint.onGround ?? false) == false) {
+    final finalIndex = _stableTouchdownIndex ?? _touchdownPointIndexes.last;
+    if (finalIndex < 0 || finalIndex >= log.points.length) {
       return;
     }
-    final touchdownG = _touchdownStableGearAverageG(
-      points: log.points,
-      touchdownIndex: startIndex,
-    );
-    final rating = _ratingByG(touchdownG);
+    _updateLandingDataFromTouchdowns(log: log, finalTouchdownIndex: finalIndex);
+  }
+
+  void _updateLandingDataFromTouchdowns({
+    required FlightLog log,
+    required int finalTouchdownIndex,
+  }) {
+    if (log.points.isEmpty ||
+        finalTouchdownIndex < 0 ||
+        finalTouchdownIndex >= log.points.length) {
+      return;
+    }
+    final validIndexes =
+        _touchdownPointIndexes
+            .where(
+              (index) =>
+                  index >= 0 &&
+                  index < log.points.length &&
+                  index <= finalTouchdownIndex,
+            )
+            .toList()
+          ..sort();
+    if (validIndexes.isEmpty) {
+      return;
+    }
+    final sequence = validIndexes
+        .map((index) => log.points[index])
+        .toList(growable: false);
+    final touchdownGForces = sequence
+        .map(_touchdownInstantG)
+        .toList(growable: false);
+    final finalTouchdownPoint = log.points[finalTouchdownIndex];
+    final finalTouchdownG = _touchdownInstantG(finalTouchdownPoint);
+    final bounceCount = sequence.length > 1 ? sequence.length - 1 : 0;
     final approachMetrics = _buildApproachLandingMetrics(
       points: log.points,
-      touchPointIndex: startIndex,
+      touchPointIndex: finalTouchdownIndex,
+      bounceCount: bounceCount,
+    );
+    final rating = _ratingByTouchdown(
+      gForce: finalTouchdownG,
+      touchdownVerticalSpeed: finalTouchdownPoint.verticalSpeed,
+      bounceCount: bounceCount,
     );
     log.landingData = LandingData(
-      latitude: touchPoint.latitude,
-      longitude: touchPoint.longitude,
-      gForce: touchdownG,
-      verticalSpeed: touchPoint.verticalSpeed,
-      airspeed: touchPoint.airspeed,
-      groundSpeed: touchPoint.groundSpeed,
-      pitch: touchPoint.pitch,
-      roll: touchPoint.roll,
+      latitude: finalTouchdownPoint.latitude,
+      longitude: finalTouchdownPoint.longitude,
+      gForce: finalTouchdownG,
+      verticalSpeed: finalTouchdownPoint.verticalSpeed,
+      airspeed: finalTouchdownPoint.airspeed,
+      groundSpeed: finalTouchdownPoint.groundSpeed,
+      pitch: finalTouchdownPoint.pitch,
+      roll: finalTouchdownPoint.roll,
       rating: rating,
-      timestamp: touchPoint.timestamp,
+      timestamp: finalTouchdownPoint.timestamp,
       touchdownSequence: sequence,
-      runway: _runwayIdentFromHeading(touchPoint.heading),
+      touchdownGForces: touchdownGForces,
+      runway: _runwayIdentFromHeading(finalTouchdownPoint.heading),
       approachStabilityScore: approachMetrics.stabilityScore,
       flareHeightFt: approachMetrics.flareHeightFt,
       sinkRateAt50FtFpm: approachMetrics.sinkRateAt50FtFpm,
       crosswindAtTouchdownKt: approachMetrics.crosswindAtTouchdownKt,
       bounceCount: approachMetrics.bounceCount,
     );
-    _pendingLandingStartAt = null;
-    _pendingLandingStartIndex = null;
   }
 
   String _simulatorLabel(HomeSimulatorType type) {
@@ -521,56 +593,60 @@ class FlightLogsProvider extends ChangeNotifier {
     return LandingRating.rip;
   }
 
-  double _touchdownStableGearAverageG({
-    required List<FlightLogPoint> points,
-    required int touchdownIndex,
+  LandingRating _ratingByTouchdown({
+    required double gForce,
+    required double touchdownVerticalSpeed,
+    required int bounceCount,
   }) {
-    if (points.isEmpty ||
-        touchdownIndex < 0 ||
-        touchdownIndex >= points.length) {
-      return 1.0;
+    final baseRating = _ratingByG(gForce);
+    final sinkRate = touchdownVerticalSpeed.abs();
+    LandingRating minimumRating = LandingRating.perfect;
+    if (sinkRate >= 1200) {
+      minimumRating = LandingRating.rip;
+    } else if (sinkRate >= 900) {
+      minimumRating = LandingRating.fired;
+    } else if (sinkRate >= 600) {
+      minimumRating = LandingRating.hard;
+    } else if (sinkRate >= 360 || bounceCount >= 2) {
+      minimumRating = LandingRating.acceptable;
     }
-    final touchdownPoint = points[touchdownIndex];
-    final touchdownAt = touchdownPoint.timestamp;
-    final windowEnd = touchdownAt.add(const Duration(seconds: 3));
-    final noseSamples = <double>[];
-    final leftSamples = <double>[];
-    final rightSamples = <double>[];
-    for (var i = touchdownIndex; i < points.length; i++) {
-      final point = points[i];
-      if (point.timestamp.isAfter(windowEnd)) {
-        break;
-      }
-      if ((point.onGround ?? false) == false) {
-        continue;
-      }
-      if (point.noseGearG != null && point.noseGearG != 0) {
-        noseSamples.add(point.noseGearG!);
-      }
-      if (point.leftGearG != null && point.leftGearG != 0) {
-        leftSamples.add(point.leftGearG!);
-      }
-      if (point.rightGearG != null && point.rightGearG != 0) {
-        rightSamples.add(point.rightGearG!);
-      }
-    }
-    final perGearStableValues = <double>[
-      if (noseSamples.isNotEmpty) _average(noseSamples),
-      if (leftSamples.isNotEmpty) _average(leftSamples),
-      if (rightSamples.isNotEmpty) _average(rightSamples),
-    ];
-    if (perGearStableValues.isEmpty) {
-      return touchdownPoint.gForce;
-    }
-    return _average(perGearStableValues);
+    return baseRating.index > minimumRating.index ? baseRating : minimumRating;
   }
 
-  double _average(List<double> values) {
-    if (values.isEmpty) {
-      return 0;
+  List<double> _touchdownSampleGValues(FlightLogPoint point) {
+    final samples = <double>[];
+    final candidateValues = <double?>[
+      point.leftGearG,
+      point.rightGearG,
+      point.noseGearG,
+      point.gForce,
+    ];
+    for (final value in candidateValues) {
+      if (value == null || !_isValidLandingG(value)) {
+        continue;
+      }
+      samples.add(value);
     }
-    final sum = values.reduce((a, b) => a + b);
-    return sum / values.length;
+    return samples;
+  }
+
+  double _touchdownInstantG(FlightLogPoint point) {
+    final samples = _touchdownSampleGValues(point);
+    if (samples.isEmpty) {
+      return _normalizedLandingG(point.gForce);
+    }
+    return samples.reduce(math.max);
+  }
+
+  bool _isValidLandingG(double value) {
+    return value >= _minValidLandingG && value <= _maxValidLandingG;
+  }
+
+  double _normalizedLandingG(double value) {
+    if (_isValidLandingG(value)) {
+      return value;
+    }
+    return value.clamp(_minValidLandingG, _maxValidLandingG).toDouble();
   }
 
   void _updateFuelUsed(FlightLog log) {
@@ -678,6 +754,7 @@ class FlightLogsProvider extends ChangeNotifier {
           rating: landing.rating,
           timestamp: landing.timestamp,
           touchdownSequence: landing.touchdownSequence,
+          touchdownGForces: landing.touchdownGForces,
           runway: landing.runway ?? estimate.ident,
           remainingRunwayFt: landing.remainingRunwayFt ?? estimate.remainingFt,
           approachStabilityScore: landing.approachStabilityScore,
@@ -714,9 +791,16 @@ class FlightLogsProvider extends ChangeNotifier {
     if (points.isEmpty || liftoffIndex < 0 || liftoffIndex >= points.length) {
       return const _TakeoffMetrics();
     }
-    final preStart = liftoffIndex > 180 ? liftoffIndex - 180 : 0;
+    final preWindowCount = _windowPointCount(_takeoffPreMetricsWindow);
+    final postWindowCount = _windowPointCount(_takeoffPostMetricsWindow);
+    final preStart = liftoffIndex > preWindowCount
+        ? liftoffIndex - preWindowCount
+        : 0;
     final preWindow = points.sublist(preStart, liftoffIndex + 1);
-    final postEnd = (liftoffIndex + 200).clamp(0, points.length - 1);
+    final postEnd = (liftoffIndex + postWindowCount).clamp(
+      0,
+      points.length - 1,
+    );
     final postWindow = points.sublist(liftoffIndex, postEnd + 1);
     final liftoffPoint = points[liftoffIndex];
 
@@ -790,13 +874,17 @@ class FlightLogsProvider extends ChangeNotifier {
   _ApproachLandingMetrics _buildApproachLandingMetrics({
     required List<FlightLogPoint> points,
     required int touchPointIndex,
+    required int bounceCount,
   }) {
     if (points.isEmpty ||
         touchPointIndex < 0 ||
         touchPointIndex >= points.length) {
       return const _ApproachLandingMetrics();
     }
-    final start = touchPointIndex > 120 ? touchPointIndex - 120 : 0;
+    final approachWindowCount = _windowPointCount(_approachMetricsWindow);
+    final start = touchPointIndex > approachWindowCount
+        ? touchPointIndex - approachWindowCount
+        : 0;
     final window = points.sublist(start, touchPointIndex + 1);
     final approachWindow = window
         .where((point) => (point.onGround ?? false) == false)
@@ -829,10 +917,6 @@ class FlightLogsProvider extends ChangeNotifier {
     final sinkRateAt50FtFpm = _estimateSinkRateAtRadioAltitude(
       points: stabilityWindow,
       targetAltitude: 50,
-    );
-    final bounceCount = _estimateBounceCount(
-      points: points,
-      touchdownIndex: touchPointIndex,
     );
     return _ApproachLandingMetrics(
       stabilityScore: score,
@@ -898,31 +982,12 @@ class FlightLogsProvider extends ChangeNotifier {
     return selected?.verticalSpeed;
   }
 
-  int _estimateBounceCount({
-    required List<FlightLogPoint> points,
-    required int touchdownIndex,
-  }) {
-    if (points.isEmpty ||
-        touchdownIndex < 0 ||
-        touchdownIndex >= points.length) {
-      return 0;
-    }
-    final end = (touchdownIndex + 80).clamp(0, points.length - 1);
-    final sequence = points.sublist(touchdownIndex, end + 1);
-    var bounceCount = 0;
-    var seenAirborneAfterTouchdown = false;
-    for (int i = 1; i < sequence.length; i++) {
-      final previousGround = sequence[i - 1].onGround ?? false;
-      final currentGround = sequence[i].onGround ?? false;
-      if (previousGround && !currentGround) {
-        seenAirborneAfterTouchdown = true;
-      }
-      if (seenAirborneAfterTouchdown && !previousGround && currentGround) {
-        bounceCount++;
-        seenAirborneAfterTouchdown = false;
-      }
-    }
-    return bounceCount;
+  int _windowPointCount(Duration window) {
+    final stepMs = _sampleIntervalMs <= 0
+        ? defaultSampleIntervalMs
+        : _sampleIntervalMs;
+    final count = (window.inMilliseconds / stepMs).round();
+    return count < 1 ? 1 : count;
   }
 
   Future<_RunwayEstimate?> _estimateRunwayAtAirport({

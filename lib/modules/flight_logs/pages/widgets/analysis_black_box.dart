@@ -519,19 +519,9 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
         ? '$startLabel / $stopLabel'
         : stopLabel;
     bool? previousGearDown = log.points.first.gearDown;
-    var previousOnGround = log.wasOnGroundAtStart;
-    var takeoffCaptured = false;
-    for (var i = 0; i < log.points.length; i++) {
+    for (var i = 1; i < log.points.length; i++) {
       final point = log.points[i];
       final pointLabels = <String>[];
-      final currentOnGround = point.onGround ?? previousOnGround;
-      if (!takeoffCaptured && !currentOnGround) {
-        pointLabels.add(takeoffLabel);
-        takeoffCaptured = true;
-      }
-      if (!previousOnGround && currentOnGround) {
-        pointLabels.add(touchdownLabel);
-      }
       if (point.gearDown != null &&
           previousGearDown != null &&
           point.gearDown != previousGearDown) {
@@ -542,22 +532,76 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
             ? pointLabels.join(' / ')
             : '${labels[i]} / ${pointLabels.join(' / ')}';
       }
-      previousOnGround = currentOnGround;
       previousGearDown = point.gearDown ?? previousGearDown;
     }
+    final takeoffAt = log.takeoffData?.timestamp;
+    if (takeoffAt != null) {
+      final takeoffIndex = _nearestPointIndexByTimestamp(log.points, takeoffAt);
+      if (takeoffIndex != null) {
+        labels[takeoffIndex] = labels[takeoffIndex] == '-'
+            ? takeoffLabel
+            : '${labels[takeoffIndex]} / $takeoffLabel';
+      }
+    }
     final touchdownSeq = log.landingData?.touchdownSequence ?? const [];
+    final touchdownGs = log.landingData?.touchdownGForces ?? const [];
     if (touchdownSeq.isNotEmpty) {
-      final finalTouchdown = touchdownSeq.last;
-      for (var i = labels.length - 1; i >= 0; i--) {
-        final point = log.points[i];
-        if (point.timestamp.isAtSameMomentAs(finalTouchdown.timestamp)) {
-          labels[i] = labels[i] == '-'
-              ? finalTouchdownLabel
-              : '${labels[i]} / $finalTouchdownLabel';
-          break;
+      for (int i = 0; i < touchdownSeq.length; i++) {
+        final touchdownIndex = _nearestPointIndexByTimestamp(
+          log.points,
+          touchdownSeq[i].timestamp,
+        );
+        if (touchdownIndex == null) {
+          continue;
         }
+        final touchdownG = i < touchdownGs.length
+            ? touchdownGs[i]
+            : touchdownSeq[i].gForce;
+        final value =
+            '$touchdownLabel ${i + 1} (${touchdownG.toStringAsFixed(2)}G)';
+        labels[touchdownIndex] = labels[touchdownIndex] == '-'
+            ? value
+            : '${labels[touchdownIndex]} / $value';
+      }
+      final finalTouchdownIndex = _nearestPointIndexByTimestamp(
+        log.points,
+        log.landingData?.timestamp ?? touchdownSeq.last.timestamp,
+      );
+      if (finalTouchdownIndex != null) {
+        final finalTouchdownG = log.landingData?.gForce;
+        final finalLabel = finalTouchdownG != null
+            ? '$finalTouchdownLabel (${finalTouchdownG.toStringAsFixed(2)}G)'
+            : finalTouchdownLabel;
+        labels[finalTouchdownIndex] = labels[finalTouchdownIndex] == '-'
+            ? finalLabel
+            : '${labels[finalTouchdownIndex]} / $finalLabel';
       }
     }
     return labels;
+  }
+
+  int? _nearestPointIndexByTimestamp(
+    List<FlightLogPoint> points,
+    DateTime timestamp,
+  ) {
+    if (points.isEmpty) {
+      return null;
+    }
+    int bestIndex = 0;
+    int bestDiff = points.first.timestamp
+        .difference(timestamp)
+        .inMilliseconds
+        .abs();
+    for (int i = 1; i < points.length; i++) {
+      final diff = points[i].timestamp
+          .difference(timestamp)
+          .inMilliseconds
+          .abs();
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
   }
 }

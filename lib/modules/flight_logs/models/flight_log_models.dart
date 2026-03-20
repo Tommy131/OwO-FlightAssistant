@@ -496,6 +496,7 @@ class LandingData {
   final LandingRating rating;
   final DateTime timestamp;
   final List<FlightLogPoint> touchdownSequence;
+  final List<double> touchdownGForces;
   final double? remainingRunwayFt;
   final String? runway;
   final double? approachStabilityScore;
@@ -516,6 +517,7 @@ class LandingData {
     required this.rating,
     required this.timestamp,
     required this.touchdownSequence,
+    required this.touchdownGForces,
     this.remainingRunwayFt,
     this.runway,
     this.approachStabilityScore,
@@ -537,6 +539,7 @@ class LandingData {
     'rating': rating.name,
     'ts': timestamp.toIso8601String(),
     'seq': touchdownSequence.map((p) => p.toJson()).toList(),
+    'seq_g': touchdownGForces,
     'rem_rwy': remainingRunwayFt,
     'rwy': runway,
     'stability': approachStabilityScore,
@@ -546,30 +549,40 @@ class LandingData {
     'bounce': bounceCount,
   };
 
-  factory LandingData.fromJson(Map<String, dynamic> json) => LandingData(
-    latitude: (json['lat'] as num? ?? 0.0).toDouble(),
-    longitude: (json['lon'] as num? ?? 0.0).toDouble(),
-    gForce: (json['g'] as num? ?? 1.0).toDouble(),
-    verticalSpeed: (json['vs'] as num? ?? 0.0).toDouble(),
-    airspeed: (json['spd'] as num? ?? 0.0).toDouble(),
-    groundSpeed: (json['gs'] as num? ?? 0.0).toDouble(),
-    pitch: (json['pit'] as num? ?? 0.0).toDouble(),
-    roll: (json['rol'] as num? ?? 0.0).toDouble(),
-    rating: LandingRating.fromName(json['rating'] as String?),
-    timestamp: json['ts'] != null
-        ? DateTime.parse(json['ts'] as String)
-        : DateTime.now(),
-    touchdownSequence: (json['seq'] as List? ?? const [])
+  factory LandingData.fromJson(Map<String, dynamic> json) {
+    final touchdownSequence = (json['seq'] as List? ?? const [])
         .map((p) => FlightLogPoint.fromJson(p as Map<String, dynamic>))
-        .toList(),
-    remainingRunwayFt: (json['rem_rwy'] as num?)?.toDouble(),
-    runway: json['rwy'] as String?,
-    approachStabilityScore: (json['stability'] as num?)?.toDouble(),
-    flareHeightFt: (json['flare_h'] as num?)?.toDouble(),
-    sinkRateAt50FtFpm: (json['sink_50'] as num?)?.toDouble(),
-    crosswindAtTouchdownKt: (json['xw_td'] as num?)?.toDouble(),
-    bounceCount: (json['bounce'] as num?)?.toInt(),
-  );
+        .toList();
+    final serializedTouchdownGs = json['seq_g'] as List?;
+    final touchdownGForces = serializedTouchdownGs != null
+        ? serializedTouchdownGs
+              .map((value) => (value as num).toDouble())
+              .toList()
+        : touchdownSequence.map((point) => point.gForce).toList();
+    return LandingData(
+      latitude: (json['lat'] as num? ?? 0.0).toDouble(),
+      longitude: (json['lon'] as num? ?? 0.0).toDouble(),
+      gForce: (json['g'] as num? ?? 1.0).toDouble(),
+      verticalSpeed: (json['vs'] as num? ?? 0.0).toDouble(),
+      airspeed: (json['spd'] as num? ?? 0.0).toDouble(),
+      groundSpeed: (json['gs'] as num? ?? 0.0).toDouble(),
+      pitch: (json['pit'] as num? ?? 0.0).toDouble(),
+      roll: (json['rol'] as num? ?? 0.0).toDouble(),
+      rating: LandingRating.fromName(json['rating'] as String?),
+      timestamp: json['ts'] != null
+          ? DateTime.parse(json['ts'] as String)
+          : DateTime.now(),
+      touchdownSequence: touchdownSequence,
+      touchdownGForces: touchdownGForces,
+      remainingRunwayFt: (json['rem_rwy'] as num?)?.toDouble(),
+      runway: json['rwy'] as String?,
+      approachStabilityScore: (json['stability'] as num?)?.toDouble(),
+      flareHeightFt: (json['flare_h'] as num?)?.toDouble(),
+      sinkRateAt50FtFpm: (json['sink_50'] as num?)?.toDouble(),
+      crosswindAtTouchdownKt: (json['xw_td'] as num?)?.toDouble(),
+      bounceCount: (json['bounce'] as num?)?.toInt(),
+    );
+  }
 }
 
 class TakeoffData {

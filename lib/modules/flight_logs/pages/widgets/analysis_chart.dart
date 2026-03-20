@@ -461,13 +461,15 @@ class _AnalysisChartState extends State<AnalysisChart> {
     List<FlightLogPoint> points,
   ) {
     final markers = <_ChartEventMarker>[];
-    final touchdownMarkers = <_ChartEventMarker>[];
-    var previousOnGround = widget.log.wasOnGroundAtStart;
+    final touchdownSequence =
+        widget.log.landingData?.touchdownSequence ?? const [];
+    final touchdownGForces =
+        widget.log.landingData?.touchdownGForces ?? const [];
+    final finalTouchdownAt = widget.log.landingData?.timestamp;
     var takeoffCaptured = false;
     var previousFlapsToken = '';
     double? previousFlapsLevel;
     var flapsInitialized = false;
-    var touchdownCount = 0;
     var previousLateralMode = '';
     var previousVerticalMode = '';
     var lateralInitialized = false;
@@ -476,8 +478,12 @@ class _AnalysisChartState extends State<AnalysisChart> {
     var gearInitialized = false;
     for (final point in points) {
       final time = _timeInMinutes(point.timestamp);
-      final currentOnGround = point.onGround ?? previousOnGround;
-      if (!takeoffCaptured && !currentOnGround) {
+      final isTakeoffPoint =
+          widget.log.takeoffData?.timestamp.isAtSameMomentAs(point.timestamp) ??
+          false;
+      if (!takeoffCaptured &&
+          (isTakeoffPoint ||
+              ((point.onGround ?? widget.log.wasOnGroundAtStart) == false))) {
         markers.add(
           _ChartEventMarker(
             type: _ChartEventType.takeoff,
@@ -601,32 +607,39 @@ class _AnalysisChartState extends State<AnalysisChart> {
           ),
         );
       }
-      if (!previousOnGround && currentOnGround) {
-        touchdownCount += 1;
-        touchdownMarkers.add(
-          _ChartEventMarker(
-            type: _ChartEventType.touchdown,
-            label:
-                '${_eventTypeLabel(context, _ChartEventType.touchdown)} $touchdownCount',
-            color: _eventColor(_ChartEventType.touchdown),
-            point: point,
-            timeInMinutes: time,
-          ),
-        );
-      }
-      previousOnGround = currentOnGround;
       previousFlapsLevel = currentFlapsLevel ?? previousFlapsLevel;
       previousFlapsToken = currentFlapsToken;
       previousLateralMode = currentLateralMode;
       previousVerticalMode = currentVerticalMode;
       previousGearDown = currentGearDown ?? previousGearDown;
     }
+    final touchdownMarkers = <_ChartEventMarker>[];
+    for (int i = 0; i < touchdownSequence.length; i++) {
+      final touchdown = _nearestPointByTimestamp(
+        points,
+        touchdownSequence[i].timestamp,
+      );
+      if (touchdown == null) {
+        continue;
+      }
+      touchdownMarkers.add(
+        _ChartEventMarker(
+          type: _ChartEventType.touchdown,
+          label:
+              '${_eventTypeLabel(context, _ChartEventType.touchdown)} ${i + 1} (${(i < touchdownGForces.length ? touchdownGForces[i] : touchdownSequence[i].gForce).toStringAsFixed(2)}G)',
+          color: _eventColor(_ChartEventType.touchdown),
+          point: touchdown,
+          timeInMinutes: _timeInMinutes(touchdown.timestamp),
+        ),
+      );
+    }
     if (touchdownMarkers.length == 1) {
       final firstTouchdown = touchdownMarkers.first;
       markers.add(
         _ChartEventMarker(
           type: _ChartEventType.finalTouchdown,
-          label: _eventTypeLabel(context, _ChartEventType.finalTouchdown),
+          label:
+              '${_eventTypeLabel(context, _ChartEventType.finalTouchdown)} (${widget.log.landingData?.gForce.toStringAsFixed(2) ?? firstTouchdown.point.gForce.toStringAsFixed(2)}G)',
           color: _eventColor(_ChartEventType.finalTouchdown),
           point: firstTouchdown.point,
           timeInMinutes: firstTouchdown.timeInMinutes,
@@ -634,12 +647,17 @@ class _AnalysisChartState extends State<AnalysisChart> {
       );
     } else if (touchdownMarkers.length > 1) {
       markers.addAll(touchdownMarkers);
-      final lastTouchdown = touchdownMarkers.last;
+      final lastTouchdown = touchdownMarkers.lastWhere(
+        (marker) =>
+            finalTouchdownAt == null ||
+            marker.point.timestamp.isAtSameMomentAs(finalTouchdownAt),
+        orElse: () => touchdownMarkers.last,
+      );
       markers.add(
         _ChartEventMarker(
           type: _ChartEventType.finalTouchdown,
           label:
-              '${_eventTypeLabel(context, _ChartEventType.finalTouchdown)} ${touchdownMarkers.length}',
+              '${_eventTypeLabel(context, _ChartEventType.finalTouchdown)} ${touchdownMarkers.length} (${widget.log.landingData?.gForce.toStringAsFixed(2) ?? lastTouchdown.point.gForce.toStringAsFixed(2)}G)',
           color: _eventColor(_ChartEventType.finalTouchdown),
           point: lastTouchdown.point,
           timeInMinutes: lastTouchdown.timeInMinutes,
@@ -647,6 +665,29 @@ class _AnalysisChartState extends State<AnalysisChart> {
       );
     }
     return markers;
+  }
+
+  FlightLogPoint? _nearestPointByTimestamp(
+    List<FlightLogPoint> points,
+    DateTime timestamp,
+  ) {
+    if (points.isEmpty) {
+      return null;
+    }
+    FlightLogPoint nearest = points.first;
+    int minDiff = nearest.timestamp.difference(timestamp).inMilliseconds.abs();
+    for (int i = 1; i < points.length; i++) {
+      final candidate = points[i];
+      final diff = candidate.timestamp
+          .difference(timestamp)
+          .inMilliseconds
+          .abs();
+      if (diff < minDiff) {
+        minDiff = diff;
+        nearest = candidate;
+      }
+    }
+    return nearest;
   }
 
   double _timeInMinutes(DateTime timestamp) {

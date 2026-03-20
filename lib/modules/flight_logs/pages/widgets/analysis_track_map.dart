@@ -8,8 +8,15 @@ import '../../models/flight_log_models.dart';
 
 class AnalysisTrackMap extends StatefulWidget {
   final FlightLog log;
+  final bool isFullscreen;
+  final VoidCallback? onToggleFullscreen;
 
-  const AnalysisTrackMap({super.key, required this.log});
+  const AnalysisTrackMap({
+    super.key,
+    required this.log,
+    this.isFullscreen = false,
+    this.onToggleFullscreen,
+  });
 
   @override
   State<AnalysisTrackMap> createState() => _AnalysisTrackMapState();
@@ -26,16 +33,18 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final screenHeight = MediaQuery.sizeOf(context).height;
-    final heightProgress = ((screenHeight - 640) / 520).clamp(0.0, 1.0);
-    final mapHeightFactor = 0.38 + 0.22 * heightProgress;
-    final mapHeight = (screenHeight * mapHeightFactor).clamp(320.0, 680.0);
+    final mapHeight = widget.isFullscreen
+        ? (screenHeight - 140).clamp(420.0, 1600.0)
+        : (screenHeight *
+                  (0.38 + 0.22 * ((screenHeight - 640) / 520).clamp(0.0, 1.0)))
+              .clamp(320.0, 680.0);
     final sampledPoints = _sampleTrackPoints(
       widget.log.points,
       maxPoints: 1200,
     );
-    final trackPoints = sampledPoints
-        .map((p) => LatLng(p.latitude, p.longitude))
-        .toList();
+    final takeoffAt = widget.log.takeoffData?.timestamp;
+    final landingAt = widget.log.landingData?.timestamp;
+    final stageSegments = _buildTrackStageSegments(sampledPoints);
     final specialMarkers = _buildSpecialMarkers(context);
     final highlightedKeys = specialMarkers
         .map((marker) => _pointKey(marker.point))
@@ -73,21 +82,32 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
           userAgentPackageName: 'com.owo.flight_assistant',
         ),
         PolylineLayer(
-          polylines: [
-            Polyline(
-              points: trackPoints,
-              color: theme.colorScheme.primary,
-              strokeWidth: 4,
-            ),
-          ],
+          polylines: stageSegments
+              .map(
+                (segment) => Polyline(
+                  points: segment.points,
+                  color: _stageColor(segment.stage, theme),
+                  strokeWidth: 4,
+                ),
+              )
+              .toList(),
         ),
         MarkerLayer(
           markers: [
             ...sampledPoints.map((point) {
               final isHighlighted = highlightedKeys.contains(_pointKey(point));
+              final markerStage = _resolveTrackStage(
+                point: point,
+                takeoffAt: takeoffAt,
+                landingAt: landingAt,
+              );
+              final baseMarkerColor = _stageColor(markerStage, theme);
               final markerColor = isHighlighted
-                  ? theme.colorScheme.tertiary
-                  : theme.colorScheme.primary;
+                  ? Color.alphaBlend(
+                      Colors.white.withValues(alpha: 0.2),
+                      baseMarkerColor,
+                    )
+                  : baseMarkerColor;
               return Marker(
                 point: LatLng(point.latitude, point.longitude),
                 width: 12,
@@ -109,10 +129,14 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
                     ),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: markerColor.withValues(alpha: 0.25),
+                        color: markerColor.withValues(
+                          alpha: isHighlighted ? 0.36 : 0.25,
+                        ),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: markerColor.withValues(alpha: 0.65),
+                          color: markerColor.withValues(
+                            alpha: isHighlighted ? 0.9 : 0.65,
+                          ),
                           width: 1,
                         ),
                       ),
@@ -167,12 +191,31 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
           Positioned.fill(child: mapWidget),
           Positioned(
             top: 12,
+            left: 12,
+            child: _buildStageLegend(context, theme),
+          ),
+          Positioned(
+            top: 12,
             right: 12,
-            child: _LayerToggle(
-              isDetail: _showDetail,
-              onSelect: (value) {
-                setState(() => _showDetail = value);
-              },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.onToggleFullscreen != null) ...[
+                  _MapActionButton(
+                    icon: widget.isFullscreen
+                        ? Icons.close_fullscreen_rounded
+                        : Icons.open_in_full_rounded,
+                    onTap: widget.onToggleFullscreen!,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                _LayerToggle(
+                  isDetail: _showDetail,
+                  onSelect: (value) {
+                    setState(() => _showDetail = value);
+                  },
+                ),
+              ],
             ),
           ),
           if (_hoveredPoint != null)
@@ -187,6 +230,154 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
         ],
       ),
     );
+  }
+
+  Widget _buildStageLegend(BuildContext context, ThemeData theme) {
+    final items = [
+      (_TrackStage.taxiBeforeTakeoff, '起飞前滑行'),
+      (_TrackStage.climb, '爬升中'),
+      (_TrackStage.cruise, '巡航中'),
+      (_TrackStage.approach, '进近中'),
+      (_TrackStage.taxiAfterLanding, '落地后滑行'),
+    ];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.2)),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        children: items.map((item) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: _stageColor(item.$1, theme),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                item.$2,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  List<_TrackStageSegment> _buildTrackStageSegments(
+    List<FlightLogPoint> points,
+  ) {
+    if (points.length < 2) {
+      return const <_TrackStageSegment>[];
+    }
+    final takeoffAt = widget.log.takeoffData?.timestamp;
+    final landingAt = widget.log.landingData?.timestamp;
+    final segments = <_TrackStageSegment>[];
+    var currentStage = _resolveTrackStage(
+      point: points.first,
+      takeoffAt: takeoffAt,
+      landingAt: landingAt,
+    );
+    var currentPoints = <LatLng>[
+      LatLng(points.first.latitude, points.first.longitude),
+    ];
+    for (var i = 1; i < points.length; i++) {
+      final point = points[i];
+      final previousPoint = points[i - 1];
+      final nextStage = _resolveTrackStage(
+        point: point,
+        takeoffAt: takeoffAt,
+        landingAt: landingAt,
+      );
+      final currentLatLng = LatLng(point.latitude, point.longitude);
+      if (nextStage != currentStage) {
+        currentPoints.add(currentLatLng);
+        if (currentPoints.length >= 2) {
+          segments.add(
+            _TrackStageSegment(stage: currentStage, points: currentPoints),
+          );
+        }
+        currentStage = nextStage;
+        currentPoints = <LatLng>[
+          LatLng(previousPoint.latitude, previousPoint.longitude),
+          currentLatLng,
+        ];
+      } else {
+        currentPoints.add(currentLatLng);
+      }
+    }
+    if (currentPoints.length >= 2) {
+      segments.add(
+        _TrackStageSegment(stage: currentStage, points: currentPoints),
+      );
+    }
+    return segments;
+  }
+
+  _TrackStage _resolveTrackStage({
+    required FlightLogPoint point,
+    required DateTime? takeoffAt,
+    required DateTime? landingAt,
+  }) {
+    final phase = (point.flightPhase ?? '').trim().toLowerCase();
+    if (landingAt != null &&
+        !point.timestamp.isBefore(landingAt) &&
+        ((point.onGround ?? false) || phase == 'taxi' || phase == 'landing')) {
+      return _TrackStage.taxiAfterLanding;
+    }
+    if (takeoffAt != null && point.timestamp.isBefore(takeoffAt)) {
+      return _TrackStage.taxiBeforeTakeoff;
+    }
+    switch (phase) {
+      case 'climb':
+      case 'takeoff':
+        return _TrackStage.climb;
+      case 'cruise':
+        return _TrackStage.cruise;
+      case 'approach':
+      case 'landing':
+        return _TrackStage.approach;
+      case 'taxi':
+        if (landingAt != null && !point.timestamp.isBefore(landingAt)) {
+          return _TrackStage.taxiAfterLanding;
+        }
+        return _TrackStage.taxiBeforeTakeoff;
+    }
+    if (point.onGround ?? false) {
+      if (landingAt != null && !point.timestamp.isBefore(landingAt)) {
+        return _TrackStage.taxiAfterLanding;
+      }
+      return _TrackStage.taxiBeforeTakeoff;
+    }
+    if (point.verticalSpeed <= -400 && point.altitude <= 9000) {
+      return _TrackStage.approach;
+    }
+    if (point.altitude >= 12000 && point.verticalSpeed.abs() <= 700) {
+      return _TrackStage.cruise;
+    }
+    return _TrackStage.climb;
+  }
+
+  Color _stageColor(_TrackStage stage, ThemeData theme) {
+    return switch (stage) {
+      _TrackStage.taxiBeforeTakeoff => Colors.amberAccent,
+      _TrackStage.climb => Colors.cyanAccent,
+      _TrackStage.cruise => Colors.deepPurpleAccent,
+      _TrackStage.approach => Colors.deepOrangeAccent,
+      _TrackStage.taxiAfterLanding => Colors.greenAccent,
+    };
   }
 
   String _pointKey(FlightLogPoint point) {
@@ -270,6 +461,9 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
     }
     final touchdownSequence =
         widget.log.landingData?.touchdownSequence ?? const [];
+    final touchdownGForces =
+        widget.log.landingData?.touchdownGForces ?? const [];
+    final finalTouchdownAt = widget.log.landingData?.timestamp;
     if (touchdownSequence.isNotEmpty) {
       for (var i = 0; i < touchdownSequence.length; i++) {
         final touchdown = _nearestPointByTimestamp(
@@ -278,10 +472,16 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
         if (touchdown == null) {
           continue;
         }
-        final isFinal = i == touchdownSequence.length - 1;
-        final label = isFinal
-            ? '${FlightLogsLocalizationKeys.chartEventFinalTouchdown.tr(context)} ${i + 1}'
-            : '${FlightLogsLocalizationKeys.chartEventTouchdown.tr(context)} ${i + 1}';
+        final touchdownG = i < touchdownGForces.length
+            ? touchdownGForces[i]
+            : touchdownSequence[i].gForce;
+        final isFinal =
+            finalTouchdownAt != null &&
+            touchdown.timestamp.isAtSameMomentAs(finalTouchdownAt);
+        final baseLabel = isFinal
+            ? FlightLogsLocalizationKeys.chartEventFinalTouchdown.tr(context)
+            : FlightLogsLocalizationKeys.chartEventTouchdown.tr(context);
+        final label = '$baseLabel ${i + 1} (${touchdownG.toStringAsFixed(2)}G)';
         markers.add(
           _MapMarkerSpec(
             point: touchdown,
@@ -518,6 +718,52 @@ class _InfoEntry {
   final String value;
 
   const _InfoEntry(this.label, this.value);
+}
+
+enum _TrackStage {
+  taxiBeforeTakeoff,
+  climb,
+  cruise,
+  approach,
+  taxiAfterLanding,
+}
+
+class _TrackStageSegment {
+  final _TrackStage stage;
+  final List<LatLng> points;
+
+  const _TrackStageSegment({required this.stage, required this.points});
+}
+
+class _MapActionButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _MapActionButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface.withValues(alpha: 0.85),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: theme.dividerColor.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Icon(icon, size: 18, color: theme.colorScheme.onSurface),
+        ),
+      ),
+    );
+  }
 }
 
 class _LayerToggle extends StatelessWidget {
