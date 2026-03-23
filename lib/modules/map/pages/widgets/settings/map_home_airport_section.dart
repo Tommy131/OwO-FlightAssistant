@@ -341,7 +341,9 @@ class _SuggestionDropdown extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints(maxHeight: 220),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.55,
+        ),
         borderRadius: BorderRadius.circular(AppThemeData.borderRadiusSmall),
         border: Border.all(
           color: theme.colorScheme.outline.withValues(alpha: 0.22),

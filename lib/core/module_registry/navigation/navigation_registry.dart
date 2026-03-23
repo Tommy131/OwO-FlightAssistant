@@ -55,9 +55,7 @@ class NavigationElement {
   final NavigationGroup? group;
   final List<NavigationItem> children;
 
-  NavigationElement.item(this.item)
-      : group = null,
-        children = [];
+  NavigationElement.item(this.item) : group = null, children = [];
   NavigationElement.group(this.group, this.children) : item = null;
 
   bool get isGroup => group != null;
@@ -94,24 +92,27 @@ class NavigationRegistry {
   /// 获取所有导航元素（包含分组和孤立项）
   List<NavigationElement> getNavigationElements(BuildContext context) {
     final allItems = _itemFactories.map((factory) => factory(context)).toList();
-    final allGroups = _groupFactories.map((factory) => factory(context)).toList();
+    final allGroups = _groupFactories
+        .map((factory) => factory(context))
+        .toList();
 
     final List<NavigationElement> elements = [];
     final Set<String> processedItemIds = {};
 
     // 1. 处理分组
     for (final group in allGroups) {
-      final children = allItems
-          .where((item) => item.groupId == group.id)
-          .toList()
-        ..sort((a, b) => a.priority.compareTo(b.priority));
+      final children =
+          allItems.where((item) => item.groupId == group.id).toList()
+            ..sort((a, b) => a.priority.compareTo(b.priority));
 
       elements.add(NavigationElement.group(group, children));
       processedItemIds.addAll(children.map((e) => e.id));
     }
 
     // 2. 处理不属于任何分组的孤立项
-    final orphanItems = allItems.where((item) => !processedItemIds.contains(item.id));
+    final orphanItems = allItems.where(
+      (item) => !processedItemIds.contains(item.id),
+    );
     for (final item in orphanItems) {
       elements.add(NavigationElement.item(item));
     }

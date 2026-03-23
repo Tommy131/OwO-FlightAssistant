@@ -153,8 +153,8 @@ Future<bool?> showMaterialConfirmDialog({
                       if (hasCancel)
                         Expanded(
                           child: TextButton(
-                            onPressed:
-                                () => Navigator.of(dialogContext).pop(false),
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(false),
                             child: Text(cancelText),
                           ),
                         ),
@@ -168,8 +168,8 @@ Future<bool?> showMaterialConfirmDialog({
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            onPressed:
-                                () => Navigator.of(dialogContext).pop(true),
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(true),
                             child: Text(confirmText),
                           ),
                         ),

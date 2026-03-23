@@ -43,8 +43,7 @@ class _WsAddressFormState extends State<WsAddressForm> {
   void _loadCurrent() {
     final httpUri = Uri.parse(HttpModule.client.baseUrl);
     final wsUri = Uri.parse(HttpModule.client.webSocketBaseUrl);
-    final fallbackHost =
-        httpUri.host.isNotEmpty ? httpUri.host : '127.0.0.1';
+    final fallbackHost = httpUri.host.isNotEmpty ? httpUri.host : '127.0.0.1';
     final wsHost = wsUri.host.isNotEmpty ? wsUri.host : fallbackHost;
     final wsPort = wsUri.hasPort ? wsUri.port : 18081;
     _wsHostController.text = wsHost;

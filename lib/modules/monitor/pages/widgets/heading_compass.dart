@@ -94,7 +94,8 @@ class CompassPainter extends CustomPainter {
         textPainter.text = TextSpan(
           text: label,
           style: TextStyle(
-            color: (label == 'N' || label == 'E' || label == 'S' || label == 'W')
+            color:
+                (label == 'N' || label == 'E' || label == 'S' || label == 'W')
                 ? Colors.orangeAccent
                 : color,
             fontSize: 12,

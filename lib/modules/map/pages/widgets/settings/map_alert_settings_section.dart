@@ -249,10 +249,9 @@ class _MapAlertSettingsSectionState extends State<MapAlertSettingsSection> {
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: InputDecoration(
-                  labelText:
-                      MapLocalizationKeys.alertThresholdDescentWarningLabel.tr(
-                        context,
-                      ),
+                  labelText: MapLocalizationKeys
+                      .alertThresholdDescentWarningLabel
+                      .tr(context),
                   prefixIcon: const Icon(Icons.trending_down_rounded),
                 ),
               ),
@@ -265,10 +264,9 @@ class _MapAlertSettingsSectionState extends State<MapAlertSettingsSection> {
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: InputDecoration(
-                  labelText:
-                      MapLocalizationKeys.alertThresholdDescentDangerLabel.tr(
-                        context,
-                      ),
+                  labelText: MapLocalizationKeys
+                      .alertThresholdDescentDangerLabel
+                      .tr(context),
                   prefixIcon: const Icon(Icons.trending_down_rounded),
                 ),
               ),
@@ -283,9 +281,7 @@ class _MapAlertSettingsSectionState extends State<MapAlertSettingsSection> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: canEdit
-                      ? () => _save(context, mapProvider)
-                      : null,
+                  onPressed: canEdit ? () => _save(context, mapProvider) : null,
                   icon: _isSaving
                       ? const SizedBox(
                           width: 16,

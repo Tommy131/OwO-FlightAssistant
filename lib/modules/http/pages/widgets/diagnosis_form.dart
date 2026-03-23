@@ -71,9 +71,7 @@ class _DiagnosisFormState extends State<DiagnosisForm> {
       final simulatorType = _resolveSimulatorType(homeProvider);
       try {
         await HttpModule.client.getSimulatorState(type: simulatorType);
-        checks.add(
-          '✅ ${HttpLocalizationKeys.diagnoseSimulatorOk.tr(context)}',
-        );
+        checks.add('✅ ${HttpLocalizationKeys.diagnoseSimulatorOk.tr(context)}');
       } catch (e) {
         checks.add(
           '❌ ${HttpLocalizationKeys.diagnoseSimulatorFail.tr(context)}: $e',
@@ -123,9 +121,7 @@ class _DiagnosisFormState extends State<DiagnosisForm> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _isDiagnosing
-                    ? null
-                    : () => _runDiagnosis(context),
+                onPressed: _isDiagnosing ? null : () => _runDiagnosis(context),
                 icon: _isDiagnosing
                     ? const SizedBox(
                         width: 16,

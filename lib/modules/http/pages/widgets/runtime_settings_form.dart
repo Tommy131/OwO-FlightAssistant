@@ -185,7 +185,9 @@ class _RuntimeSettingsFormState extends State<RuntimeSettingsForm> {
   /// 计算低性能模式下实际生效的间隔值
   int _effectiveIntervalMs(int value) {
     if (!_lowPerformanceMode) return value;
-    return value < _lowPerformanceIntervalMs ? _lowPerformanceIntervalMs : value;
+    return value < _lowPerformanceIntervalMs
+        ? _lowPerformanceIntervalMs
+        : value;
   }
 
   /// 构建当前间隔展示行

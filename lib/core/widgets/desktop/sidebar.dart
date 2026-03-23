@@ -497,10 +497,7 @@ class _GroupChildrenWidget extends StatelessWidget {
   final bool isVisible;
   final List<Widget> children;
 
-  const _GroupChildrenWidget({
-    required this.isVisible,
-    required this.children,
-  });
+  const _GroupChildrenWidget({required this.isVisible, required this.children});
 
   @override
   Widget build(BuildContext context) {

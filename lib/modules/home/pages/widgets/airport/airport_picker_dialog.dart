@@ -133,9 +133,7 @@ class AirportPickerButtonGroup extends StatelessWidget {
                 }
                 if (context.mounted) Navigator.pop(context);
               },
-              child: Text(
-                HomeLocalizationKeys.navClearSelection.tr(context),
-              ),
+              child: Text(HomeLocalizationKeys.navClearSelection.tr(context)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context),

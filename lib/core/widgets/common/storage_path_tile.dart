@@ -45,8 +45,10 @@ class StoragePathTile extends StatelessWidget {
     final pathLabel =
         currentPath ?? LocalizationKeys.storagePathNotSelected.tr(context);
     final changeLabel =
-        changeButtonLabel ?? LocalizationKeys.storagePathChangeButton.tr(context);
-    final tapLabel = '$displayTitle. $displaySubtitle. $pathLabel. $changeLabel';
+        changeButtonLabel ??
+        LocalizationKeys.storagePathChangeButton.tr(context);
+    final tapLabel =
+        '$displayTitle. $displaySubtitle. $pathLabel. $changeLabel';
 
     final content = Padding(
       padding: contentPadding,
@@ -97,7 +99,10 @@ class StoragePathTile extends StatelessWidget {
             child: ExcludeSemantics(
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(8),
@@ -141,9 +146,7 @@ class StoragePathTile extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: () => _pickPath(context),
                 icon: const Icon(Icons.drive_folder_upload_rounded, size: 18),
-                label: Text(
-                  changeLabel,
-                ),
+                label: Text(changeLabel),
               ),
             ),
           ],

@@ -76,7 +76,8 @@ class SystemsStatusCard extends StatelessWidget {
           // 减速板状态：展开时橙色高亮
           SystemsStatusRow(
             label: MonitorLocalizationKeys.speedBrakeLabel.tr(context),
-            value: data.speedBrakeLabel ??
+            value:
+                data.speedBrakeLabel ??
                 MonitorLocalizationKeys.speedBrakeUnknown.tr(context),
             isHighlight: data.speedBrake == true,
             highlightColor: Colors.orangeAccent,

@@ -6,6 +6,7 @@
 ///   - flight_data_provider.dart
 ///   - middleware_flight_data_adapter.dart
 library;
+
 export 'flight_data_adapter.dart';
 export 'flight_data_provider.dart';
 export 'middleware_flight_data_adapter.dart';

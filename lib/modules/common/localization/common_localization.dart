@@ -1,4 +1,3 @@
-
 /// 公共模块通用本地化 Key（跨模块复用）
 ///
 /// 包含以下分类：
@@ -123,7 +122,8 @@ final Map<String, Map<String, String>> commonModuleTranslations = {
   },
   'en_US': {
     CommonLocalizationKeys.backendAvailableLabel: 'Backend Connected',
-    CommonLocalizationKeys.backendUnavailableTitle: 'Backend service unavailable',
+    CommonLocalizationKeys.backendUnavailableTitle:
+        'Backend service unavailable',
     CommonLocalizationKeys.backendUnavailableContent:
         'Cannot communicate with the configured backend HTTP endpoint. Start the middleware service or verify proxy and endpoint settings.',
     CommonLocalizationKeys.goToSettings: 'Open Settings',

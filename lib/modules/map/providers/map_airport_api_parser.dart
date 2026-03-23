@@ -26,10 +26,11 @@ class MapAirportApiParser {
     Map<String, dynamic> raw, {
     List<MapAirportMarker> fallbackAirports = const [],
   }) {
-    final code = (raw['icao'] ?? raw['ICAO'] ?? raw['iata'] ?? raw['IATA'] ?? '')
-        .toString()
-        .trim()
-        .toUpperCase();
+    final code =
+        (raw['icao'] ?? raw['ICAO'] ?? raw['iata'] ?? raw['IATA'] ?? '')
+            .toString()
+            .trim()
+            .toUpperCase();
     final name = (raw['name'] ?? raw['Name'])?.toString().trim();
     final lat = _extractLatitude(raw);
     final lon = _extractLongitude(raw);
@@ -76,7 +77,10 @@ class MapAirportApiParser {
     final endLat = data.heLat;
     final endLon = data.heLon;
 
-    if (startLat == null || startLon == null || endLat == null || endLon == null) {
+    if (startLat == null ||
+        startLon == null ||
+        endLat == null ||
+        endLon == null) {
       return null;
     }
     if (!MapGeoUtils.isValidCoordinate(startLat, startLon) ||
@@ -169,8 +173,9 @@ class MapAirportApiParser {
         final midLat = (runway.start.latitude + runway.end.latitude) / 2;
         final midLon = (runway.start.longitude + runway.end.longitude) / 2;
         // 以跑道长度为权重，未知长度时权重为 1.0
-        final weight =
-            runway.lengthM != null && runway.lengthM! > 0 ? runway.lengthM! : 1.0;
+        final weight = runway.lengthM != null && runway.lengthM! > 0
+            ? runway.lengthM!
+            : 1.0;
         latSum += midLat * weight;
         lonSum += midLon * weight;
         weightSum += weight;
@@ -196,7 +201,13 @@ class MapAirportApiParser {
   /// 从原始 Map 提取纬度（支持多个键名及嵌套结构）
   static double? _extractLatitude(Map<String, dynamic> raw) {
     final direct = _toDouble(
-      MapWeatherUtils.pickValue(raw, ['latitude', 'lat', 'Lat', 'Latitude', 'y']),
+      MapWeatherUtils.pickValue(raw, [
+        'latitude',
+        'lat',
+        'Lat',
+        'Latitude',
+        'y',
+      ]),
     );
     if (direct != null) return direct;
     for (final key in ['location', 'position', 'coordinate', 'coordinates']) {
@@ -204,10 +215,12 @@ class MapAirportApiParser {
         MapWeatherUtils.pickValue(raw, [key]),
       );
       final value = _toDouble(
-        MapWeatherUtils.pickValue(
-          nested ?? const {},
-          ['latitude', 'lat', 'Lat', 'y'],
-        ),
+        MapWeatherUtils.pickValue(nested ?? const {}, [
+          'latitude',
+          'lat',
+          'Lat',
+          'y',
+        ]),
       );
       if (value != null) return value;
     }
@@ -227,10 +240,14 @@ class MapAirportApiParser {
   /// 从原始 Map 提取经度（支持多个键名及嵌套结构）
   static double? _extractLongitude(Map<String, dynamic> raw) {
     final direct = _toDouble(
-      MapWeatherUtils.pickValue(
-        raw,
-        ['longitude', 'lon', 'lng', 'Lon', 'Lng', 'x'],
-      ),
+      MapWeatherUtils.pickValue(raw, [
+        'longitude',
+        'lon',
+        'lng',
+        'Lon',
+        'Lng',
+        'x',
+      ]),
     );
     if (direct != null) return direct;
     for (final key in ['location', 'position', 'coordinate', 'coordinates']) {
@@ -238,10 +255,14 @@ class MapAirportApiParser {
         MapWeatherUtils.pickValue(raw, [key]),
       );
       final value = _toDouble(
-        MapWeatherUtils.pickValue(
-          nested ?? const {},
-          ['longitude', 'lon', 'lng', 'Lon', 'Lng', 'x'],
-        ),
+        MapWeatherUtils.pickValue(nested ?? const {}, [
+          'longitude',
+          'lon',
+          'lng',
+          'Lon',
+          'Lng',
+          'x',
+        ]),
       );
       if (value != null) return value;
     }

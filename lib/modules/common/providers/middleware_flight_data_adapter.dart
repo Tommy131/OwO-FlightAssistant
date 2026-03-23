@@ -775,13 +775,14 @@ class MiddlewareFlightDataAdapter implements FlightDataAdapter {
           _pickDouble(payload, const ['latitude', 'lat', 'Lat']) ??
           airport.latitude;
       final longitude =
-          _pickDouble(airportMap, const [
+          _pickDouble(airportMap, const ['longitude', 'lon', 'lng', 'Lon']) ??
+          _pickDouble(detail, const [
             'longitude',
             'lon',
             'lng',
+            'Lng',
             'Lon',
           ]) ??
-          _pickDouble(detail, const ['longitude', 'lon', 'lng', 'Lng', 'Lon']) ??
           _pickDouble(payload, const [
             'longitude',
             'lon',

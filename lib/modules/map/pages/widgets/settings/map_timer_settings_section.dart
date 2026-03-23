@@ -34,10 +34,7 @@ class _MapTimerSettingsSectionState extends State<MapTimerSettingsSection> {
   // ── 内部操作方法 ──────────────────────────────────────────────────────────
 
   /// 切换自动计时器总开关，并保存到持久存储
-  Future<void> _setAutoTimerEnabled(
-    BuildContext context,
-    bool value,
-  ) async {
+  Future<void> _setAutoTimerEnabled(BuildContext context, bool value) async {
     final mapProvider = context.read<MapProvider?>();
     if (mapProvider == null) return;
     await mapProvider.setAutoHudTimerEnabled(value);
@@ -97,9 +94,7 @@ class _MapTimerSettingsSectionState extends State<MapTimerSettingsSection> {
               SwitchListTile(
                 value: mapProvider.autoHudTimerEnabled,
                 contentPadding: EdgeInsets.zero,
-                title: Text(
-                  MapLocalizationKeys.timerAutoEnable.tr(context),
-                ),
+                title: Text(MapLocalizationKeys.timerAutoEnable.tr(context)),
                 onChanged: (value) {
                   unawaited(_setAutoTimerEnabled(context, value));
                 },
@@ -119,7 +114,10 @@ class _MapTimerSettingsSectionState extends State<MapTimerSettingsSection> {
                 icon: Icons.flight_takeoff_rounded,
                 onTap: () {
                   unawaited(
-                    _setStartMode(context, MapAutoTimerStartMode.runwayMovement),
+                    _setStartMode(
+                      context,
+                      MapAutoTimerStartMode.runwayMovement,
+                    ),
                   );
                 },
               ),
@@ -172,7 +170,8 @@ class _MapTimerSettingsSectionState extends State<MapTimerSettingsSection> {
 
               // 落地后脱离跑道时停止
               SelectionTile(
-                selected: stopMode == MapAutoTimerStopMode.runwayExitAfterLanding,
+                selected:
+                    stopMode == MapAutoTimerStopMode.runwayExitAfterLanding,
                 label: MapLocalizationKeys.timerStopRunwayExit.tr(context),
                 icon: Icons.turn_right_rounded,
                 onTap: () {
@@ -193,10 +192,7 @@ class _MapTimerSettingsSectionState extends State<MapTimerSettingsSection> {
                 icon: Icons.local_parking_rounded,
                 onTap: () {
                   unawaited(
-                    _setStopMode(
-                      context,
-                      MapAutoTimerStopMode.parkingArrival,
-                    ),
+                    _setStopMode(context, MapAutoTimerStopMode.parkingArrival),
                   );
                 },
               ),

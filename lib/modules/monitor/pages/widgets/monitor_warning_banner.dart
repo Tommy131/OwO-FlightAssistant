@@ -41,10 +41,7 @@ class MonitorWarningBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: bannerColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
-        border: Border.all(
-          color: bannerColor.withValues(alpha: 0.5),
-          width: 2,
-        ),
+        border: Border.all(color: bannerColor.withValues(alpha: 0.5), width: 2),
       ),
       child: Row(
         children: [
@@ -53,10 +50,7 @@ class MonitorWarningBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
-                color: bannerColor,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: bannerColor, fontWeight: FontWeight.bold),
             ),
           ),
         ],

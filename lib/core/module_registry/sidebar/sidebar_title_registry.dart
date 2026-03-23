@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 typedef SidebarTitleResolver = String? Function(BuildContext context);
 
 class SidebarTitleRegistry {
-  static final SidebarTitleRegistry _instance = SidebarTitleRegistry._internal();
+  static final SidebarTitleRegistry _instance =
+      SidebarTitleRegistry._internal();
   factory SidebarTitleRegistry() => _instance;
   SidebarTitleRegistry._internal();
 

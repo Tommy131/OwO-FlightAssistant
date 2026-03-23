@@ -200,9 +200,8 @@ class _HomePageState extends State<HomePage> {
               showHelpCard: _showConnectionHelpCard,
               isRetrying: _isRetryingBackend,
               absorbPointer: shouldBlockHomeInteraction,
-              onRetry: () => _checkBackendAvailability(
-                showDialogWhenUnavailable: true,
-              ),
+              onRetry: () =>
+                  _checkBackendAvailability(showDialogWhenUnavailable: true),
               onFadeEnd: () {
                 if (!mounted) return;
                 if (_glassMaskOpacity == 0 && !_showConnectionHelpCard) {

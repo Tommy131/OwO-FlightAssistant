@@ -92,10 +92,7 @@ class MonitorNoConnectionPage extends StatelessWidget {
   Widget _buildGradientTitle(BuildContext context, ThemeData theme) {
     return ShaderMask(
       shaderCallback: (bounds) => LinearGradient(
-        colors: [
-          theme.colorScheme.primary,
-          theme.colorScheme.secondary,
-        ],
+        colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
       ).createShader(bounds),
       child: Text(
         MonitorLocalizationKeys.noConnectionTitle.tr(context),

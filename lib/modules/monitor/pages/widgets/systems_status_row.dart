@@ -42,9 +42,9 @@ class SystemsStatusRow extends StatelessWidget {
           label,
           style: TextStyle(
             color:
-                Theme.of(context).textTheme.bodySmall?.color?.withValues(
-                  alpha: 0.7,
-                ) ??
+                Theme.of(
+                  context,
+                ).textTheme.bodySmall?.color?.withValues(alpha: 0.7) ??
                 Colors.grey,
             fontSize: 13,
           ),
