@@ -1,5 +1,11 @@
 import 'monitor_localization_keys.dart';
 
+// 监控模块多语言翻译表
+//
+// 键名定义于 [MonitorLocalizationKeys]，本文件仅维护各语言的对应翻译值。
+// 当前支持语言：zh_CN（简体中文）、en_US（英语）
+// 新增语言支持：在 [monitorTranslations] Map 中添加对应 BCP-47 语言标签的子 Map。
+
 final Map<String, Map<String, String>> monitorTranslations = {
   'zh_CN': {
     MonitorLocalizationKeys.navTitle: '监控',

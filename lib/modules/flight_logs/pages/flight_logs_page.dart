@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
-import '../../home/providers/home_provider.dart';
+import '../../common/providers/common_provider.dart';
 import '../localization/flight_logs_localization_keys.dart';
 import '../providers/flight_logs_provider.dart';
 import 'flight_log_detail_page.dart';
@@ -29,7 +29,7 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
   @override
   Widget build(BuildContext context) {
     return Consumer2<FlightLogsProvider, HomeProvider>(
-      builder: (context, provider, homeProvider, child) {
+      builder: (context, provider, commonProvider, child) {
         return AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
           transitionBuilder: (Widget child, Animation<double> animation) {
@@ -49,7 +49,7 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
                   log: provider.selectedLog!,
                   onBack: provider.clearSelection,
                 )
-              : _buildMainList(context, provider, homeProvider),
+              : _buildMainList(context, provider, commonProvider),
         );
       },
     );
@@ -58,7 +58,7 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
   Widget _buildMainList(
     BuildContext context,
     FlightLogsProvider provider,
-    HomeProvider homeProvider,
+    HomeProvider commonProvider,
   ) {
     final theme = Theme.of(context);
     return Scaffold(
@@ -71,11 +71,11 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (homeProvider.isConnected)
+          if (commonProvider.isConnected)
             FloatingActionButton.extended(
               heroTag: 'flight_log_record_fab',
               onPressed: () =>
-                  _handleToggleRecording(context, provider, homeProvider),
+                  _handleToggleRecording(context, provider, commonProvider),
               backgroundColor: provider.isRecording ? Colors.red : null,
               icon: Icon(
                 provider.isRecording
@@ -90,7 +90,7 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
                     : FlightLogsLocalizationKeys.startRecord.tr(context),
               ),
             ),
-          if (homeProvider.isConnected)
+          if (commonProvider.isConnected)
             const SizedBox(height: AppThemeData.spacingSmall),
           FloatingActionButton.extended(
             heroTag: 'flight_log_import_fab',
@@ -261,10 +261,10 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
   Future<void> _handleToggleRecording(
     BuildContext context,
     FlightLogsProvider provider,
-    HomeProvider homeProvider,
+    HomeProvider commonProvider,
   ) async {
     if (provider.isRecording) {
-      final saved = await provider.stopRecording(homeProvider.snapshot);
+      final saved = await provider.stopRecording(commonProvider.snapshot);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -278,8 +278,8 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
       return;
     }
     final started = provider.startRecording(
-      snapshot: homeProvider.snapshot,
-      flightNumber: homeProvider.flightNumber,
+      snapshot: commonProvider.snapshot,
+      flightNumber: commonProvider.flightNumber,
     );
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

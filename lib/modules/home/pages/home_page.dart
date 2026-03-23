@@ -1,18 +1,29 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/module_registry/navigation/navigation_registry.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
-import '../../checklist/providers/checklist_provider.dart';
+import '../../common/localization/common_localization.dart';
+import '../../common/providers/common_provider.dart';
 import '../localization/home_localization_keys.dart';
-import '../models/home_models.dart';
-import '../providers/home_provider.dart';
+import 'widgets/cards/checklist_phase_card.dart';
+import 'widgets/cards/flight_number_card.dart';
+import 'widgets/cards/simulator_connection_card.dart';
+import 'widgets/cards/welcome_card.dart';
 import 'widgets/flight_data_dashboard.dart';
-import 'widgets/transponder_status_widget.dart';
+import 'widgets/mask/backend_offline_mask.dart';
 
+/// 首页（主页面）
+///
+/// 负责整体布局编排及后端离线遮罩的显示逻辑。
+/// 各卡片与面板均已拆分至独立的 Widget 文件：
+/// - [WelcomeCard]
+/// - [FlightNumberCard]
+/// - [SimulatorConnectionCard]
+/// - [ChecklistPhaseCard]
+/// - [FlightDataDashboard]
+/// - [BackendOfflineMask]
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -21,12 +32,25 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  /// 记录后端对话框开关状态
   bool _backendDialogVisible = false;
+
+  /// 遮罩层是否存在于树中
   bool _showGlassMask = true;
+
+  /// 遮罩层是否显示帮助卡片
   bool _showConnectionHelpCard = false;
+
+  /// 遮罩层当前透明度（0=不可见，1=完全显示）
   double _glassMaskOpacity = 1;
+
+  /// 后端是否持续不可达
   bool _stickyBackendUnavailable = false;
+
+  /// 当前是否正在重试后端连接
   bool _isRetryingBackend = false;
+
+  /// 已处理的后端中断版本号（防止重复弹出对话框）
   int _handledBackendOutageVersion = 0;
 
   @override
@@ -34,12 +58,9 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     final provider = context.read<HomeProvider>();
     _handledBackendOutageVersion = provider.backendOutageVersion;
-    /// 功能：执行addPostFrameCallback的核心业务流程。
-    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       _showGlassMask = true;
       if (_stickyBackendUnavailable) {
         _showConnectionHelpCard = true;
@@ -54,17 +75,14 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  /// 检查后端可达性并更新遮罩状态
   Future<void> _checkBackendAvailability({
     required bool showDialogWhenUnavailable,
   }) async {
     if (_isRetryingBackend) return;
-    setState(() {
-      _isRetryingBackend = true;
-    });
+    setState(() => _isRetryingBackend = true);
     final reachable = await context.read<HomeProvider>().refreshBackendHealth();
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
     if (reachable) {
       _stickyBackendUnavailable = false;
       _showGlassMask = true;
@@ -76,58 +94,43 @@ class _HomePageState extends State<HomePage> {
       _showConnectionHelpCard = true;
       _glassMaskOpacity = 1;
     }
-    setState(() {
-      _isRetryingBackend = false;
-    });
+    setState(() => _isRetryingBackend = false);
     if (!reachable && showDialogWhenUnavailable) {
       await _showBackendUnavailableDialog();
     }
   }
 
-  /// 功能：执行_handleGlobalBackendOutage的核心业务流程。
-  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+  /// 处理全局后端中断事件（从 provider 版本号判断是否为新中断）
   void _handleGlobalBackendOutage(HomeProvider provider) {
     if (provider.isBackendReachable) {
       _handledBackendOutageVersion = provider.backendOutageVersion;
       return;
     }
     final outageVersion = provider.backendOutageVersion;
-    if (outageVersion <= _handledBackendOutageVersion) {
-      return;
-    }
+    if (outageVersion <= _handledBackendOutageVersion) return;
     _handledBackendOutageVersion = outageVersion;
     _stickyBackendUnavailable = true;
     _showGlassMask = true;
     _showConnectionHelpCard = true;
     _glassMaskOpacity = 1;
-    /// 功能：执行addPostFrameCallback的核心业务流程。
-    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {});
       _showBackendUnavailableDialog();
     });
   }
 
-  /// 功能：执行_syncMaskWithConnection的核心业务流程。
-  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+  /// 当模拟器已连接时自动隐藏遮罩
   void _syncMaskWithConnection(HomeProvider provider) {
-    if (!provider.isConnected) {
-      return;
-    }
+    if (!provider.isConnected) return;
     if (!_stickyBackendUnavailable &&
         !_showConnectionHelpCard &&
         !_showGlassMask) {
       return;
     }
-    /// 功能：执行addPostFrameCallback的核心业务流程。
-    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _stickyBackendUnavailable = false;
         _showConnectionHelpCard = false;
@@ -137,19 +140,18 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  /// 功能：执行_showBackendUnavailableDialog的核心业务流程。
-  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
+  /// 显示后端不可达提示对话框，可选跳转到设置页
   Future<void> _showBackendUnavailableDialog() async {
     if (_backendDialogVisible || !mounted) return;
     _backendDialogVisible = true;
     final shouldOpenSettings = await showAdvancedConfirmDialog(
       context: context,
       style: ConfirmDialogStyle.material,
-      title: HomeLocalizationKeys.backendUnavailableTitle.tr(context),
-      content: HomeLocalizationKeys.backendUnavailableContent.tr(context),
+      title: CommonLocalizationKeys.backendUnavailableTitle.tr(context),
+      content: CommonLocalizationKeys.backendUnavailableContent.tr(context),
       icon: Icons.cloud_off_rounded,
       confirmColor: Theme.of(context).colorScheme.primary,
-      confirmText: HomeLocalizationKeys.goToSettings.tr(context),
+      confirmText: CommonLocalizationKeys.goToSettings.tr(context),
       cancelText: HomeLocalizationKeys.flightNumberDialogCancel.tr(context),
     );
     _backendDialogVisible = false;
@@ -164,14 +166,15 @@ class _HomePageState extends State<HomePage> {
     final homeProvider = context.watch<HomeProvider>();
     _handleGlobalBackendOutage(homeProvider);
     _syncMaskWithConnection(homeProvider);
-    final theme = Theme.of(context);
+
     final shouldBlockHomeInteraction =
         _showConnectionHelpCard || _glassMaskOpacity > 0.01;
 
     return Stack(
       children: [
+        // 主体内容滚动区域
         Container(
-          color: theme.scaffoldBackgroundColor,
+          color: Theme.of(context).scaffoldBackgroundColor,
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(AppThemeData.spacingLarge),
             child: Column(
@@ -188,151 +191,26 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
+
+        // 后端离线遮罩层（按需显示）
         if (_showGlassMask)
           Positioned.fill(
-            child: Stack(
-              children: [
-                AbsorbPointer(
-                  absorbing: shouldBlockHomeInteraction,
-                  child: AnimatedOpacity(
-                    opacity: _glassMaskOpacity,
-                    duration: const Duration(milliseconds: 240),
-                    curve: Curves.easeOutCubic,
-                    /// 功能：执行onEnd的核心业务流程。
-                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-                    onEnd: () {
-                      if (!mounted) {
-                        return;
-                      }
-                      if (_glassMaskOpacity == 0 && !_showConnectionHelpCard) {
-                        setState(() {
-                          _showGlassMask = false;
-                        });
-                      }
-                    },
-                    child: ClipRect(
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                        child: Container(
-                          color: theme.colorScheme.surface.withValues(
-                            alpha: 0.35,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                if (_showConnectionHelpCard)
-                  Center(
-                    child: Container(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      margin: const EdgeInsets.all(AppThemeData.spacingLarge),
-                      padding: const EdgeInsets.all(
-                        AppThemeData.spacingLarge + 4,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            theme.colorScheme.surface.withValues(alpha: 0.93),
-                            theme.colorScheme.surfaceContainerHighest
-                                .withValues(alpha: 0.9),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(
-                          AppThemeData.borderRadiusLarge,
-                        ),
-                        border: Border.all(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.35,
-                          ),
-                          width: 1.2,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.28),
-                            blurRadius: 36,
-                            offset: const Offset(0, 18),
-                          ),
-                          BoxShadow(
-                            color: theme.colorScheme.primary.withValues(
-                              alpha: 0.2,
-                            ),
-                            blurRadius: 22,
-                            spreadRadius: 2,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.error.withValues(
-                                alpha: 0.12,
-                              ),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.cloud_off_rounded,
-                              color: theme.colorScheme.error,
-                              size: 34,
-                            ),
-                          ),
-                          const SizedBox(height: AppThemeData.spacingMedium),
-                          Text(
-                            HomeLocalizationKeys.homeMaskConnectBackendTitle
-                                .tr(context),
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: AppThemeData.spacingSmall),
-                          Text(
-                            HomeLocalizationKeys
-                                .homeMaskConnectBackendSubtitle
-                                .tr(context),
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(
-                                alpha: 0.85,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: AppThemeData.spacingMedium),
-                          FilledButton.icon(
-                            onPressed: _isRetryingBackend
-                                ? null
-                                : () => _checkBackendAvailability(
-                                    showDialogWhenUnavailable: true,
-                                  ),
-                            icon: _isRetryingBackend
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.refresh_rounded, size: 18),
-                            label: Text(
-                              _isRetryingBackend
-                                  ? HomeLocalizationKeys
-                                        .homeMaskRetryingButton
-                                        .tr(context)
-                                  : HomeLocalizationKeys.homeMaskRetryButton
-                                        .tr(context),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
+            child: BackendOfflineMask(
+              opacity: _glassMaskOpacity,
+              showHelpCard: _showConnectionHelpCard,
+              isRetrying: _isRetryingBackend,
+              absorbPointer: shouldBlockHomeInteraction,
+              onRetry: () => _checkBackendAvailability(
+                showDialogWhenUnavailable: true,
+              ),
+              onFadeEnd: () {
+                if (!mounted) return;
+                if (_glassMaskOpacity == 0 && !_showConnectionHelpCard) {
+                  setState(() {
+                    _showGlassMask = false;
+                  });
+                }
+              },
             ),
           ),
       ],
@@ -340,6 +218,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+/// 首页状态行：模拟器连接卡片 + 检查单阶段卡片（等高并排）
 class _HomeStatusRow extends StatelessWidget {
   const _HomeStatusRow();
 
@@ -355,639 +234,5 @@ class _HomeStatusRow extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class WelcomeCard extends StatelessWidget {
-  const WelcomeCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final provider = context.watch<HomeProvider>();
-
-    final isConnected = provider.isConnected;
-    final aircraftTitle = provider.aircraftTitle;
-    final isPaused = provider.isPaused ?? false;
-    final showTransponder =
-        isConnected &&
-        (provider.transponderState != null || provider.transponderCode != null);
-
-    String title;
-    String subtitle;
-    Widget? statusIndicator;
-
-    if (!isConnected) {
-      title = HomeLocalizationKeys.welcomeNotConnectedTitle.tr(context);
-      subtitle = HomeLocalizationKeys.welcomeNotConnectedSubtitle.tr(context);
-    } else if (isPaused) {
-      title = HomeLocalizationKeys.welcomePausedTitle.tr(context);
-      subtitle = HomeLocalizationKeys.welcomePausedSubtitle
-          .tr(context)
-          .replaceAll('{aircraft}', aircraftTitle ?? '-');
-      statusIndicator = Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.yellow.withValues(alpha: 0.2),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.pause_circle_filled,
-          color: Colors.yellow,
-          size: 32,
-        ),
-      );
-    } else {
-      title = HomeLocalizationKeys.welcomeReadyTitle.tr(context);
-      subtitle = aircraftTitle != null
-          ? HomeLocalizationKeys.welcomeReadySubtitle
-                .tr(context)
-                /// 功能：执行replaceAll的核心业务流程。
-                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-                .replaceAll('{aircraft}', aircraftTitle)
-          : HomeLocalizationKeys.welcomeReadySubtitleWaiting.tr(context);
-      statusIndicator = Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.greenAccent.withValues(alpha: 0.2),
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(
-          Icons.check_circle,
-          color: Colors.greenAccent,
-          size: 32,
-        ),
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppThemeData.spacingLarge),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusLarge),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.primary.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: AppThemeData.spacingSmall),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: AppThemeData.spacingLarge),
-              Row(
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    color: Colors.white.withValues(alpha: 0.8),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    HomeLocalizationKeys.welcomeSupportSims.tr(context),
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              statusIndicator ?? const SizedBox.shrink(),
-              if (showTransponder && statusIndicator != null)
-                const SizedBox(height: 8),
-              if (showTransponder)
-                TransponderStatusWidget(
-                  code: provider.transponderCode,
-                  state: provider.transponderState,
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class SimulatorConnectionCard extends StatelessWidget {
-  const SimulatorConnectionCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final provider = context.watch<HomeProvider>();
-    final isConnected = provider.isConnected;
-    final simulatorType = provider.simulatorType;
-
-    return Container(
-      padding: const EdgeInsets.all(AppThemeData.spacingLarge),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
-        border: Border.all(
-          color: isConnected
-              ? Colors.green.withValues(alpha: 0.5)
-              : AppThemeData.getBorderColor(theme),
-          width: isConnected ? 2 : 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                isConnected ? Icons.link : Icons.link_off,
-                color: isConnected ? Colors.green : Colors.grey,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  HomeLocalizationKeys.simTitle.tr(context),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            isConnected
-                ? HomeLocalizationKeys.simConnected
-                      .tr(context)
-                      /// 功能：执行replaceAll的核心业务流程。
-                      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-                      .replaceAll('{sim}', _getSimulatorName(simulatorType))
-                : HomeLocalizationKeys.simDisconnected.tr(context),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: isConnected ? Colors.green : Colors.grey,
-            ),
-          ),
-          const Spacer(),
-          const SizedBox(height: 12),
-          if (isConnected)
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                /// 功能：执行onPressed的核心业务流程。
-                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-                onPressed: () => provider.disconnect(),
-                icon: const Icon(Icons.link_off, size: 16),
-                label: Text(HomeLocalizationKeys.simDisconnect.tr(context)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red),
-                ),
-              ),
-            )
-          else
-            SizedBox(
-              width: double.infinity,
-              child: PopupMenuButton<String>(
-                /// 功能：执行onSelected的核心业务流程。
-                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-                onSelected: (value) {
-                  final type = switch (value) {
-                    'xplane' => HomeSimulatorType.xplane,
-                    'msfs' => HomeSimulatorType.msfs,
-                    _ => HomeSimulatorType.msfs,
-                  };
-                  _handleConnect(context, provider, type);
-                },
-                /// 功能：执行itemBuilder的核心业务流程。
-                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: 'xplane',
-                    child: Row(
-                      children: [
-                        const Icon(Icons.airplanemode_active, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          HomeLocalizationKeys.simConnectXplane.tr(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'msfs',
-                    child: Row(
-                      children: [
-                        const Icon(Icons.flight, size: 18),
-                        const SizedBox(width: 8),
-                        Text(HomeLocalizationKeys.simConnectMsfs.tr(context)),
-                      ],
-                    ),
-                  ),
-                ],
-                child: ElevatedButton.icon(
-                  onPressed: null,
-                  icon: const Icon(Icons.link, size: 16),
-                  label: Text(HomeLocalizationKeys.simConnect.tr(context)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: theme.colorScheme.onPrimary,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// 功能：执行_getSimulatorName的核心业务流程。
-  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-  String _getSimulatorName(HomeSimulatorType type) {
-    return switch (type) {
-      HomeSimulatorType.xplane => 'X-Plane 11/12',
-      HomeSimulatorType.msfs => 'MSFS 2020/2024',
-      HomeSimulatorType.none => 'N/A',
-    };
-  }
-
-  Future<void> _handleConnect(
-    BuildContext context,
-    HomeProvider provider,
-    HomeSimulatorType type,
-  ) async {
-    final theme = Theme.of(context);
-    final name = _getSimulatorName(type);
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      /// 功能：执行builder的核心业务流程。
-      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-      builder: (context) => Center(
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
-                BoxShadow(color: Colors.black26, blurRadius: 20),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 20),
-                Text(
-                  HomeLocalizationKeys.simConnectingTitle
-                      .tr(context)
-                      /// 功能：执行replaceAll的核心业务流程。
-                      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-                      .replaceAll('{sim}', name),
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  HomeLocalizationKeys.simConnectingSubtitle.tr(context),
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    final success = await provider.connect(type);
-
-    if (context.mounted) {
-      Navigator.of(context).pop();
-    }
-
-    if (!success && context.mounted) {
-      showAdvancedConfirmDialog(
-        context: context,
-        style: ConfirmDialogStyle.material,
-        title: HomeLocalizationKeys.simConnectFailedTitle.tr(context),
-        content:
-            provider.errorMessage ??
-            HomeLocalizationKeys.simConnectFailedContent.tr(context),
-        icon: Icons.error_outline,
-        confirmColor: Colors.red,
-        confirmText: HomeLocalizationKeys.flightNumberDialogConfirm.tr(
-          context,
-        ),
-        cancelText: '',
-      );
-    }
-  }
-}
-
-class ChecklistPhaseCard extends StatelessWidget {
-  const ChecklistPhaseCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final checklistProvider = context.watch<ChecklistProvider>();
-    final checklistPhase = checklistProvider.currentPhase;
-    final phase = HomeChecklistPhase(
-      labelKey: checklistPhase.labelKey,
-      icon: checklistPhase.icon,
-    );
-    final progress = checklistProvider.getPhaseProgress(checklistPhase);
-    final showEmpty = checklistProvider.selectedAircraft == null;
-
-    return Container(
-      padding: const EdgeInsets.all(AppThemeData.spacingLarge),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
-        border: Border.all(color: AppThemeData.getBorderColor(theme)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(phase.icon, color: theme.colorScheme.primary, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  HomeLocalizationKeys.checklistTitle.tr(context),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            showEmpty
-                ? HomeLocalizationKeys.checklistEmpty.tr(context)
-                : phase.labelKey.tr(context),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.primary,
-            ),
-          ),
-          const Spacer(),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: LinearProgressIndicator(
-                  value: showEmpty ? null : progress,
-                  backgroundColor: theme.colorScheme.outline.withValues(
-                    alpha: 0.1,
-                  ),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    theme.colorScheme.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                /// 功能：执行showEmpty的核心业务流程。
-                /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-                showEmpty ? '--' : '${(progress * 100).toInt()}%',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class FlightNumberCard extends StatelessWidget {
-  const FlightNumberCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final provider = context.watch<HomeProvider>();
-
-    return Container(
-      padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
-        border: Border.all(
-          color: AppThemeData.getBorderColor(theme).withValues(alpha: 0.5),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.shadowColor.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(
-                AppThemeData.borderRadiusSmall,
-              ),
-            ),
-            child: Icon(
-              Icons.confirmation_number_outlined,
-              color: theme.colorScheme.primary,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: AppThemeData.spacingMedium),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  HomeLocalizationKeys.flightNumberTitle.tr(context),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  provider.hasFlightNumber
-                      ? provider.flightNumber!
-                      : HomeLocalizationKeys.flightNumberEmpty.tr(context),
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ElevatedButton.icon(
-            /// 功能：执行onPressed的核心业务流程。
-            /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-            onPressed: () => _showEditDialog(context, provider),
-            icon: const Icon(Icons.edit_note_rounded, size: 18),
-            label: Text(
-              provider.hasFlightNumber
-                  ? HomeLocalizationKeys.flightNumberEdit.tr(context)
-                  : HomeLocalizationKeys.flightNumberSet.tr(context),
-            ),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showEditDialog(
-    BuildContext context,
-    HomeProvider provider,
-  ) async {
-    final controller = TextEditingController(text: provider.flightNumber);
-
-    if (provider.hasFlightNumber) {
-      final confirm = await showAdvancedConfirmDialog(
-        context: context,
-        title: HomeLocalizationKeys.flightNumberDialogEditTitle.tr(context),
-        content: HomeLocalizationKeys.flightNumberDialogEditContent
-            .tr(context)
-            /// 功能：执行replaceAll的核心业务流程。
-            /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-            .replaceAll('{number}', provider.flightNumber ?? ''),
-        icon: Icons.info_outline_rounded,
-        confirmText: HomeLocalizationKeys.flightNumberDialogContinue.tr(
-          context,
-        ),
-        cancelText: HomeLocalizationKeys.flightNumberDialogCancel.tr(context),
-      );
-      if (confirm != true) return;
-    }
-
-    if (!context.mounted) return;
-
-    final result = await showDialog<String>(
-      context: context,
-      /// 功能：执行builder的核心业务流程。
-      /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-      builder: (context) {
-        final formKey = GlobalKey<FormState>();
-        return AlertDialog(
-          title: Text(
-            HomeLocalizationKeys.flightNumberDialogTitle.tr(context),
-          ),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(HomeLocalizationKeys.flightNumberDialogHint.tr(context)),
-                Text(
-                  HomeLocalizationKeys.flightNumberDialogFormat.tr(context),
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: controller,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: HomeLocalizationKeys.flightNumberDialogInputHint
-                        .tr(context),
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.flight_outlined),
-                  ),
-                  textCapitalization: TextCapitalization.characters,
-                  /// 功能：执行validator的核心业务流程。
-                  /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) return null;
-                    if (!RegExp(
-                      r'^[A-Z]{2,3}\d{1,4}[A-Z]?$',
-                    /// 功能：执行hasMatch的核心业务流程。
-                    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-                    ).hasMatch(value.trim().toUpperCase())) {
-                      return HomeLocalizationKeys.flightNumberDialogInvalid
-                          .tr(context);
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              /// 功能：执行onPressed的核心业务流程。
-              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                HomeLocalizationKeys.flightNumberDialogCancel.tr(context),
-              ),
-            ),
-            ElevatedButton(
-              /// 功能：执行onPressed的核心业务流程。
-              /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  Navigator.pop(context, controller.text.trim());
-                }
-              },
-              child: Text(
-                HomeLocalizationKeys.flightNumberDialogConfirm.tr(context),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result != null) {
-      await provider.setFlightNumber(result.isEmpty ? null : result);
-    }
   }
 }

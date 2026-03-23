@@ -3,8 +3,13 @@ import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme_data.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../data/unit_conversion_options.dart';
+import '../../models/toolbox_models.dart';
 import '../../localization/toolbox_localization_keys.dart';
 import 'toolbox_section_card.dart';
+
+/// 工具箱 - 单位转换分页
+///
+/// 支持航空相关单位（如 hPa, inHg, ft, m, kt, km/h 等）的实时换算。
 
 class UnitConversionTab extends StatefulWidget {
   const UnitConversionTab({super.key});

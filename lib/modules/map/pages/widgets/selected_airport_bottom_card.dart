@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../../../core/services/localization_service.dart';
-import '../../../home/localization/home_localization_keys.dart';
+import '../../../common/localization/common_localization.dart';
 import '../../localization/map_localization_keys.dart';
 import '../../models/map_models.dart';
 import 'selected_airport/airport_detail_primitives.dart';
@@ -386,7 +386,7 @@ class _SelectedAirportBottomCardState extends State<SelectedAirportBottomCard> {
                                   selectedIcon: Icons.flight_takeoff_rounded,
                                   unselectedIcon: Icons.flight_takeoff_outlined,
                                   label: widget.isDeparture
-                                      ? HomeLocalizationKeys.navDeparture.tr(
+                                      ? CommonLocalizationKeys.navDeparture.tr(
                                           context,
                                         )
                                       : widget.setDepartureLabel,
@@ -399,7 +399,7 @@ class _SelectedAirportBottomCardState extends State<SelectedAirportBottomCard> {
                                   selectedIcon: Icons.flag_rounded,
                                   unselectedIcon: Icons.outlined_flag_rounded,
                                   label: widget.isDestination
-                                      ? HomeLocalizationKeys.navDestination
+                                      ? CommonLocalizationKeys.navDestination
                                             .tr(context)
                                       : widget.setDestinationLabel,
                                 ),
@@ -411,7 +411,7 @@ class _SelectedAirportBottomCardState extends State<SelectedAirportBottomCard> {
                                   selectedIcon: Icons.alt_route_rounded,
                                   unselectedIcon: Icons.alt_route_outlined,
                                   label: widget.isAlternate
-                                      ? HomeLocalizationKeys.navAlternate.tr(
+                                      ? CommonLocalizationKeys.navAlternate.tr(
                                           context,
                                         )
                                       : widget.setAlternateLabel,

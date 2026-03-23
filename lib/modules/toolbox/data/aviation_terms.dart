@@ -1,19 +1,8 @@
-class AviationTerm {
-  final String abbreviation;
-  final String fullName;
-  final String chineseName;
-  final String? description;
+import '../models/toolbox_models.dart';
 
-  const AviationTerm({
-    required this.abbreviation,
-    required this.fullName,
-    required this.chineseName,
-    this.description,
-  });
-
-  String get displayValue => '$chineseName ($fullName)';
-}
-
+/// 航空术语静态数据类
+///
+/// 包含了日常飞行、气象及航电系统常用的专业术语库。
 class AviationTermsData {
   static const List<AviationTerm> terms = [
     AviationTerm(
@@ -101,8 +90,7 @@ class AviationTermsData {
       abbreviation: 'Vmcg',
       fullName: 'Minimum Control Speed on Ground',
       chineseName: '地面最小控制速度',
-      description:
-          '在起飞滑跑过程中，关键发动机突然失效后，仅使用方向舵即可维持方向控制的最低速度。',
+      description: '在起飞滑跑过程中，关键发动机突然失效后，仅使用方向舵即可维持方向控制的最低速度。',
     ),
     AviationTerm(
       abbreviation: 'Vmca',
@@ -324,11 +312,7 @@ class AviationTermsData {
       fullName: 'Will Comply',
       chineseName: '遵照执行',
     ),
-    AviationTerm(
-      abbreviation: 'Affirm',
-      fullName: 'Yes',
-      chineseName: '是的',
-    ),
+    AviationTerm(abbreviation: 'Affirm', fullName: 'Yes', chineseName: '是的'),
     AviationTerm(
       abbreviation: 'Negative',
       fullName: 'No',

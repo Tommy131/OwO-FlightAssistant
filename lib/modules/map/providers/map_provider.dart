@@ -1,16 +1,38 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:latlong2/latlong.dart';
 import '../../../core/services/persistence_service.dart';
 import '../../airport_search/models/airport_search_models.dart';
-import '../../home/models/home_models.dart';
+import '../../common/models/common_models.dart';
 import '../../http/http_module.dart';
 import '../localization/map_localization_keys.dart';
 import '../models/map_models.dart';
+import 'components/map_airport_data_component.dart';
+import 'components/map_alert_component.dart';
+import 'components/map_flight_track_component.dart';
+import 'map_airport_api_parser.dart';
+import 'map_geo_utils.dart';
+import 'map_weather_utils.dart';
 
+/// 地图模块核心状态管理器
+///
+/// 职责：
+/// 1. **数据订阅**：监听 [HomeDataSnapshot] 更新，构建飞机状态、维护轨迹和机场列表
+/// 2. **持久化设置**：本机机场、自动计时器、飞行警报阈值、UI 刷新频率
+/// 3. **机场查询**：关键字搜索（带本地兜底）、范围查询、选中机场详情拉取
+/// 4. **飞行计时器**：手动/自动模式，支持多种启停条件
+/// 5. **飞行警报**：将后端告警与本地垂直速率计算合并，按优先级去重后推送给 UI
+/// 6. **天气雷达**：推拉 RainViewer 时间戳，联动地图图层
+/// 7. **UI 节流**：内置刷新间隔控制，支持低性能模式
+///
+/// 复杂子逻辑已拆分到独立工具类：
+/// - 几何计算 → [MapGeoUtils]
+/// - METAR 解析 → [MapWeatherUtils]
+/// - API 响应解析 → [MapAirportApiParser]
+/// - 机场数据组件（数据聚合）→ [MapAirportDataComponent]
+/// - 轨迹计算组件（算法）→ [MapFlightTrackComponent]
+/// - 告警规则组件（规则引擎）→ [MapAlertComponent]
 class MapProvider extends ChangeNotifier {
   MapProvider({MapDataAdapter? adapter}) : _adapter = adapter {
     _subscribeAdapter();
@@ -85,6 +107,11 @@ class MapProvider extends ChangeNotifier {
     'descent_rate_warning',
     'descent_rate_danger',
   };
+
+  final MapAlertComponent _alertComponent = const MapAlertComponent(
+    backendAlertMessageMap: _backendAlertMessageMap,
+    verticalRateAlertIds: _verticalRateAlertIds,
+  );
 
   MapDataAdapter? _adapter;
   StreamSubscription<MapDataSnapshot>? _subscription;
@@ -621,17 +648,8 @@ class MapProvider extends ChangeNotifier {
     final icao = airport.code.trim().toUpperCase();
     final fallbackAirport = _findAirportByCode(icao) ?? airport;
     try {
-      await HttpModule.client.init();
-      Map<String, dynamic> airportRoot = const {};
-      try {
-        final layoutResponse = await HttpModule.client.getAirportLayoutByIcao(
-          icao,
-        );
-        airportRoot = _asMap(layoutResponse.decodedBody) ?? const {};
-      } catch (_) {
-        final fallbackResponse = await HttpModule.client.getAirportByIcao(icao);
-        airportRoot = _asMap(fallbackResponse.decodedBody) ?? const {};
-      }
+      final airportRoot =
+          await MapAirportDataComponent.fetchAirportLayoutByIcao(icao);
       final metarRoot = await _fetchMetarPayload(icao);
       final detail = AirportDetailData.fromApi(airportRoot);
       final metar = MetarData.fromApi(metarRoot);
@@ -1243,149 +1261,17 @@ class MapProvider extends ChangeNotifier {
       return false;
     }
     final runways = _runwayGeometryCache[icao];
-    if (runways == null || runways.isEmpty) {
+    if (runways == null) {
       return false;
     }
-    for (final runway in runways) {
-      final lengthM =
-          runway.lengthM ??
-          _distanceMeters(
-            runway.start.latitude,
-            runway.start.longitude,
-            runway.end.latitude,
-            runway.end.longitude,
-          );
-      if (lengthM <= 0) {
-        continue;
-      }
-      final projection = _projectPointToRunway(
-        point: aircraftState.position,
-        runwayStart: runway.start,
-        runwayEnd: runway.end,
-      );
-      final lateralDistance = projection.crossTrackDistanceM.abs();
-      final nearCenterLine =
-          projection.alongTrackRatio >= -0.1 &&
-          projection.alongTrackRatio <= 1.1 &&
-          lateralDistance <= 95;
-      final distanceToStart = _distanceMeters(
-        aircraftState.position.latitude,
-        aircraftState.position.longitude,
-        runway.start.latitude,
-        runway.start.longitude,
-      );
-      final distanceToEnd = _distanceMeters(
-        aircraftState.position.latitude,
-        aircraftState.position.longitude,
-        runway.end.latitude,
-        runway.end.longitude,
-      );
-      final nearEndpoint = distanceToStart <= 220 || distanceToEnd <= 220;
-      if (nearCenterLine || nearEndpoint) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  _RunwayProjection _projectPointToRunway({
-    required MapCoordinate point,
-    required MapCoordinate runwayStart,
-    required MapCoordinate runwayEnd,
-  }) {
-    final start = _projectToMeters(
-      latitude: runwayStart.latitude,
-      longitude: runwayStart.longitude,
-      refLatitude: runwayStart.latitude,
-      refLongitude: runwayStart.longitude,
-    );
-    final end = _projectToMeters(
-      latitude: runwayEnd.latitude,
-      longitude: runwayEnd.longitude,
-      refLatitude: runwayStart.latitude,
-      refLongitude: runwayStart.longitude,
-    );
-    final target = _projectToMeters(
-      latitude: point.latitude,
-      longitude: point.longitude,
-      refLatitude: runwayStart.latitude,
-      refLongitude: runwayStart.longitude,
-    );
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-    final lenSq = dx * dx + dy * dy;
-    if (lenSq <= 0) {
-      return const _RunwayProjection(
-        alongTrackRatio: 0,
-        crossTrackDistanceM: 999999,
-      );
-    }
-    final ratio =
-        ((target.dx - start.dx) * dx + (target.dy - start.dy) * dy) / lenSq;
-    final closestX = start.dx + ratio * dx;
-    final closestY = start.dy + ratio * dy;
-    final crossTrack = math.sqrt(
-      (target.dx - closestX) * (target.dx - closestX) +
-          (target.dy - closestY) * (target.dy - closestY),
-    );
-    return _RunwayProjection(
-      alongTrackRatio: ratio,
-      crossTrackDistanceM: crossTrack,
-    );
-  }
-
-  _ProjectedPoint _projectToMeters({
-    required double latitude,
-    required double longitude,
-    required double refLatitude,
-    required double refLongitude,
-  }) {
-    const meterPerDegLat = 111320.0;
-    final meterPerDegLon =
-        meterPerDegLat * math.cos(refLatitude * math.pi / 180);
-    return _ProjectedPoint(
-      dx: (longitude - refLongitude) * meterPerDegLon,
-      dy: (latitude - refLatitude) * meterPerDegLat,
-    );
-  }
-
-  double _distanceMeters(double lat1, double lon1, double lat2, double lon2) {
-    return const Distance().as(
-      LengthUnit.Meter,
-      LatLng(lat1, lon1),
-      LatLng(lat2, lon2),
+    return MapFlightTrackComponent.isNearRunwayOrEndpoint(
+      aircraftState: aircraftState,
+      runways: runways,
     );
   }
 
   List<MapAirportMarker> _buildAirportsFromSnapshot(HomeDataSnapshot snapshot) {
-    final result = <MapAirportMarker>[];
-    final added = <String>{};
-
-    void addAirport(HomeAirportInfo? airport, {required bool isPrimary}) {
-      if (airport == null) return;
-      final code = airport.icaoCode.trim().toUpperCase();
-      if (code.isEmpty || added.contains(code)) return;
-      added.add(code);
-      result.add(
-        MapAirportMarker(
-          code: code,
-          name: airport.displayName,
-          position: MapCoordinate(
-            latitude: airport.latitude,
-            longitude: airport.longitude,
-          ),
-          isPrimary: isPrimary,
-        ),
-      );
-    }
-
-    addAirport(snapshot.nearestAirport, isPrimary: true);
-    addAirport(snapshot.destinationAirport, isPrimary: true);
-    addAirport(snapshot.alternateAirport, isPrimary: false);
-    for (final airport in snapshot.suggestedAirports) {
-      addAirport(airport, isPrimary: false);
-    }
-    return result;
+    return MapAirportDataComponent.buildAirportsFromSnapshot(snapshot);
   }
 
   void _appendRoutePoint(
@@ -1393,599 +1279,123 @@ class MapProvider extends ChangeNotifier {
     DateTime now,
     bool isMoving,
   ) {
-    if (!isMoving) {
-      return;
-    }
-    if (_route.isNotEmpty) {
-      final last = _route.last;
-      final movedDistance = const Distance().as(
-        LengthUnit.Meter,
-        LatLng(last.latitude, last.longitude),
-        LatLng(
-          aircraftState.position.latitude,
-          aircraftState.position.longitude,
-        ),
-      );
-      final secondsFromLast = _lastRouteTimestamp == null
-          ? 999
-          : now.difference(_lastRouteTimestamp!).inSeconds;
-      if (movedDistance < 6 && secondsFromLast < 2) {
-        return;
-      }
-    }
-
-    _route = [
-      ..._route,
-      MapRoutePoint(
-        latitude: aircraftState.position.latitude,
-        longitude: aircraftState.position.longitude,
-        altitude: aircraftState.altitude,
-        groundSpeed: aircraftState.groundSpeed,
-        timestamp: now,
-      ),
-    ];
-    if (_route.length > 3600) {
-      _route = _route.sublist(_route.length - 3600);
-    }
-    _lastRouteTimestamp = now;
+    final result = MapFlightTrackComponent.appendRoutePoint(
+      route: _route,
+      lastRouteTimestamp: _lastRouteTimestamp,
+      aircraftState: aircraftState,
+      now: now,
+      isMoving: isMoving,
+    );
+    _route = result.route;
+    _lastRouteTimestamp = result.lastRouteTimestamp;
   }
 
   bool _resolveIsAircraftMoving(MapAircraftState aircraftState, DateTime now) {
-    if (!_isConnected || _isPaused) {
-      _lastMovementSamplePosition = aircraftState.position;
-      _lastMovementSampleAt = now;
-      return false;
-    }
-    final speed = aircraftState.groundSpeed ?? 0;
-    final movingBySpeed = speed >= 1.5;
-    var movingByDistance = false;
-    final lastPosition = _lastMovementSamplePosition;
-    final lastAt = _lastMovementSampleAt;
-    if (lastPosition != null && lastAt != null) {
-      final movedDistance = const Distance().as(
-        LengthUnit.Meter,
-        LatLng(lastPosition.latitude, lastPosition.longitude),
-        LatLng(
-          aircraftState.position.latitude,
-          aircraftState.position.longitude,
-        ),
-      );
-      final elapsedMs = now.difference(lastAt).inMilliseconds;
-      movingByDistance = elapsedMs >= 350 && movedDistance >= 2.5;
-    }
-    _lastMovementSamplePosition = aircraftState.position;
-    _lastMovementSampleAt = now;
-    return movingBySpeed || movingByDistance;
+    final result = MapFlightTrackComponent.resolveAircraftMoving(
+      isConnected: _isConnected,
+      isPaused: _isPaused,
+      aircraftState: aircraftState,
+      now: now,
+      lastSamplePosition: _lastMovementSamplePosition,
+      lastSampleAt: _lastMovementSampleAt,
+    );
+    _lastMovementSamplePosition = result.nextSamplePosition;
+    _lastMovementSampleAt = result.nextSampleAt;
+    return result.isMoving;
   }
 
   void _updateTakeoffLandingMarker(bool? onGround, MapCoordinate position) {
-    if (onGround == null) {
-      return;
-    }
-    if (_lastOnGround == null) {
-      _lastOnGround = onGround;
-      return;
-    }
-    if (_lastOnGround == true && onGround == false) {
-      _takeoffPoint = position;
-    } else if (_lastOnGround == false && onGround == true) {
-      _landingPoint = position;
-    }
-    _lastOnGround = onGround;
+    final result = MapFlightTrackComponent.updateTakeoffLandingMarker(
+      onGround: onGround,
+      position: position,
+      lastOnGround: _lastOnGround,
+      takeoffPoint: _takeoffPoint,
+      landingPoint: _landingPoint,
+    );
+    _lastOnGround = result.lastOnGround;
+    _takeoffPoint = result.takeoffPoint;
+    _landingPoint = result.landingPoint;
   }
 
   void _evaluateFlightAlerts(HomeFlightData flightData) {
-    if (!_isConnected) {
-      _activeAlerts = const [];
-      return;
-    }
-    final backendAlerts = _mapBackendAlerts(flightData.flightAlerts);
-    _activeAlerts = _applyAlertSettings(backendAlerts, flightData);
-  }
-
-  List<MapFlightAlert> _mapBackendAlerts(List<HomeFlightAlert> alerts) {
-    if (alerts.isEmpty) {
-      return const [];
-    }
-    final next = <MapFlightAlert>[];
-    final shownMessages = <String>{};
-    for (final alert in alerts) {
-      final message = _mapBackendAlertMessage(alert.message);
-      if (message == null) {
-        continue;
-      }
-      if (!shownMessages.add(message)) {
-        continue;
-      }
-      next.add(
-        MapFlightAlert(
-          id: alert.id.isNotEmpty ? alert.id : alert.message,
-          level: _mapBackendAlertLevel(alert.level),
-          message: message,
-        ),
-      );
-    }
-    return next;
-  }
-
-  MapFlightAlertLevel _mapBackendAlertLevel(String raw) {
-    final value = raw.trim().toLowerCase();
-    if (value == 'danger') {
-      return MapFlightAlertLevel.danger;
-    }
-    if (value == 'warning') {
-      return MapFlightAlertLevel.warning;
-    }
-    return MapFlightAlertLevel.caution;
-  }
-
-  String? _mapBackendAlertMessage(String raw) {
-    final value = raw.trim().toLowerCase();
-    return _backendAlertMessageMap[value];
-  }
-
-  List<MapFlightAlert> _applyAlertSettings(
-    List<MapFlightAlert> backendAlerts,
-    HomeFlightData flightData,
-  ) {
-    if (!_alertsEnabled) {
-      return const [];
-    }
-    final next = <MapFlightAlert>[];
-    final shownMessages = <String>{};
-    for (final alert in backendAlerts) {
-      final normalizedId = alert.id.trim().toLowerCase();
-      if (_verticalRateAlertIds.contains(normalizedId)) {
-        continue;
-      }
-      if (!isAlertEnabled(normalizedId)) {
-        continue;
-      }
-      if (!shownMessages.add(alert.message)) {
-        continue;
-      }
-      next.add(alert);
-    }
-    final verticalRateAlert = _buildVerticalRateAlert(flightData.verticalSpeed);
-    if (verticalRateAlert != null &&
-        isAlertEnabled(verticalRateAlert.id) &&
-        shownMessages.add(verticalRateAlert.message)) {
-      next.add(verticalRateAlert);
-    }
-    return next;
-  }
-
-  MapFlightAlert? _buildVerticalRateAlert(double? verticalSpeedFpm) {
-    if (verticalSpeedFpm == null) {
-      return null;
-    }
-    if (verticalSpeedFpm >= _climbRateDangerFpm) {
-      return const MapFlightAlert(
-        id: 'climb_rate_danger',
-        level: MapFlightAlertLevel.danger,
-        message: MapLocalizationKeys.alertClimbRateDanger,
-      );
-    }
-    if (verticalSpeedFpm >= _climbRateWarningFpm) {
-      return const MapFlightAlert(
-        id: 'climb_rate_warning',
-        level: MapFlightAlertLevel.warning,
-        message: MapLocalizationKeys.alertClimbRateWarning,
-      );
-    }
-    final descentRate = -verticalSpeedFpm;
-    if (descentRate >= _descentRateDangerFpm) {
-      return const MapFlightAlert(
-        id: 'descent_rate_danger',
-        level: MapFlightAlertLevel.danger,
-        message: MapLocalizationKeys.alertDescentRateDanger,
-      );
-    }
-    if (descentRate >= _descentRateWarningFpm) {
-      return const MapFlightAlert(
-        id: 'descent_rate_warning',
-        level: MapFlightAlertLevel.warning,
-        message: MapLocalizationKeys.alertDescentRateWarning,
-      );
-    }
-    return null;
+    _activeAlerts = _alertComponent.evaluateFlightAlerts(
+      isConnected: _isConnected,
+      alertsEnabled: _alertsEnabled,
+      disabledAlertIds: _disabledAlertIds,
+      climbRateWarningFpm: _climbRateWarningFpm,
+      climbRateDangerFpm: _climbRateDangerFpm,
+      descentRateWarningFpm: _descentRateWarningFpm,
+      descentRateDangerFpm: _descentRateDangerFpm,
+      flightData: flightData,
+    );
   }
 
   List<MapAirportMarker> _fallbackSearchAirports(String keyword) {
-    final query = keyword.toLowerCase();
-    return _airports.where((airport) {
-      final name = airport.name?.toLowerCase() ?? '';
-      return airport.code.toLowerCase().contains(query) || name.contains(query);
-    }).toList();
+    return MapAirportDataComponent.fallbackSearchAirports(keyword, _airports);
   }
 
-  MapAirportMarker _airportMarkerFromApi(Map<String, dynamic> raw) {
-    final code =
-        (raw['icao'] ?? raw['ICAO'] ?? raw['iata'] ?? raw['IATA'] ?? '')
-            .toString()
-            .trim()
-            .toUpperCase();
-    final name = (raw['name'] ?? raw['Name'])?.toString().trim();
-    final lat = _extractLatitude(raw);
-    final lon = _extractLongitude(raw);
-    final fallbackAirport = _findAirportByCode(code);
-    final fallbackLat = fallbackAirport?.position.latitude;
-    final fallbackLon = fallbackAirport?.position.longitude;
-    final resolvedLat =
-        lat != null && lon != null && _isValidCoordinate(lat, lon)
-        ? lat
-        : (fallbackLat != null &&
-                  fallbackLon != null &&
-                  _isValidCoordinate(fallbackLat, fallbackLon)
-              ? fallbackLat
-              : 0.0);
-    final resolvedLon =
-        lat != null && lon != null && _isValidCoordinate(lat, lon)
-        ? lon
-        : (fallbackLat != null &&
-                  fallbackLon != null &&
-                  _isValidCoordinate(fallbackLat, fallbackLon)
-              ? fallbackLon
-              : 0.0);
-    return MapAirportMarker(
-      code: code,
-      name: name?.isEmpty ?? true ? null : name,
-      position: MapCoordinate(latitude: resolvedLat, longitude: resolvedLon),
-      isPrimary: false,
-    );
-  }
+  MapAirportMarker _airportMarkerFromApi(Map<String, dynamic> raw) =>
+      MapAirportApiParser.airportMarkerFromApi(
+        raw,
+        fallbackAirports: _airports,
+      );
 
   MapAirportMarker? _findAirportByCode(String code) {
-    for (final airport in _airports) {
-      if (airport.code.toUpperCase() == code.toUpperCase()) {
-        return airport;
-      }
-    }
+    return MapAirportDataComponent.findAirportByCode(code, _airports);
+  }
+
+  // ── 工具方法委托区 ─────────────────────────────────────────────────────────
+  // 保留原始私有签名以兼容当前调用站点，内部统一委托至工具类。
+
+  /// 见 [MapWeatherUtils.asMap]
+  Map<String, dynamic>? _asMap(dynamic v) => MapWeatherUtils.asMap(v);
+
+  List<dynamic>? _asList(dynamic v) {
+    if (v is List<dynamic>) return v;
+    if (v is List) return v.cast<dynamic>();
     return null;
   }
 
-  Map<String, dynamic>? _asMap(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is Map) {
-      return value.map((key, val) => MapEntry('$key', val));
-    }
-    return null;
-  }
+  /// 委托给 [MapAirportApiParser.normalizeRunwayIdent]
+  String _normalizeRunwayIdent(String ident) =>
+      MapAirportApiParser.normalizeRunwayIdent(ident);
 
-  List<dynamic>? _asList(dynamic value) {
-    if (value is List<dynamic>) return value;
-    if (value is List) {
-      return value.cast<dynamic>();
-    }
-    return null;
-  }
+  /// 委托给 [MapAirportApiParser.toRunwayGeometry]
+  MapRunwayGeometry? _toRunwayGeometry(AirportRunwayData data) =>
+      MapAirportApiParser.toRunwayGeometry(data);
 
-  double? _toDouble(dynamic value) {
-    if (value is num) return value.toDouble();
-    return double.tryParse(value?.toString() ?? '');
-  }
+  /// 委托给 [MapAirportApiParser.toParkingSpot]
+  MapParkingSpot? _toParkingSpot(AirportParkingData data) =>
+      MapAirportApiParser.toParkingSpot(data);
 
-  dynamic _pickValue(Map<String, dynamic> raw, List<String> keys) {
-    for (final key in keys) {
-      if (raw.containsKey(key)) {
-        return raw[key];
-      }
-    }
-    for (final key in keys) {
-      for (final entry in raw.entries) {
-        if (entry.key.toLowerCase() == key.toLowerCase()) {
-          return entry.value;
-        }
-      }
-    }
-    return null;
-  }
-
-  double? _extractLatitude(Map<String, dynamic> raw) {
-    final direct = _toDouble(
-      _pickValue(raw, ['latitude', 'lat', 'Lat', 'Latitude', 'y']),
-    );
-    if (direct != null) return direct;
-    for (final key in ['location', 'position', 'coordinate', 'coordinates']) {
-      final nested = _asMap(_pickValue(raw, [key]));
-      final value = _toDouble(
-        _pickValue(nested ?? const {}, ['latitude', 'lat', 'Lat', 'y']),
-      );
-      if (value != null) {
-        return value;
-      }
-    }
-    final geometry = _asMap(_pickValue(raw, ['geometry', 'geojson']));
-    final coordinates = _asList(
-      _pickValue(geometry ?? const {}, ['coordinates']),
-    );
-    if (coordinates != null && coordinates.length >= 2) {
-      return _toDouble(coordinates[1]);
-    }
-    return null;
-  }
-
-  double? _extractLongitude(Map<String, dynamic> raw) {
-    final direct = _toDouble(
-      _pickValue(raw, ['longitude', 'lon', 'lng', 'Lon', 'Lng', 'x']),
-    );
-    if (direct != null) return direct;
-    for (final key in ['location', 'position', 'coordinate', 'coordinates']) {
-      final nested = _asMap(_pickValue(raw, [key]));
-      final value = _toDouble(
-        _pickValue(nested ?? const {}, [
-          'longitude',
-          'lon',
-          'lng',
-          'Lon',
-          'Lng',
-          'x',
-        ]),
-      );
-      if (value != null) {
-        return value;
-      }
-    }
-    final geometry = _asMap(_pickValue(raw, ['geometry', 'geojson']));
-    final coordinates = _asList(
-      _pickValue(geometry ?? const {}, ['coordinates']),
-    );
-    if (coordinates != null && coordinates.length >= 2) {
-      return _toDouble(coordinates[0]);
-    }
-    return null;
-  }
-
-  String _normalizeRunwayIdent(String ident) {
-    final text = ident.trim().toUpperCase();
-    if (text.isEmpty) return '';
-    final pairMatch = RegExp(r'(\d{2}[LCR]?/\d{2}[LCR]?)').firstMatch(text);
-    if (pairMatch != null) {
-      return pairMatch.group(1) ?? '';
-    }
-    final singleMatch = RegExp(r'\d{2}[LCR]?').firstMatch(text);
-    return singleMatch?.group(0) ?? text;
-  }
-
-  MapRunwayGeometry? _toRunwayGeometry(AirportRunwayData data) {
-    final startLat = data.leLat;
-    final startLon = data.leLon;
-    final endLat = data.heLat;
-    final endLon = data.heLon;
-    if (startLat == null ||
-        startLon == null ||
-        endLat == null ||
-        endLon == null) {
-      return null;
-    }
-    if (!_isValidCoordinate(startLat, startLon) ||
-        !_isValidCoordinate(endLat, endLon)) {
-      return null;
-    }
-    final leIdent = _resolveRunwayEndIdent(data.ident, data.leIdent, true);
-    final heIdent = _resolveRunwayEndIdent(data.ident, data.heIdent, false);
-    return MapRunwayGeometry(
-      ident: data.ident,
-      leIdent: leIdent,
-      heIdent: heIdent,
-      start: MapCoordinate(latitude: startLat, longitude: startLon),
-      end: MapCoordinate(latitude: endLat, longitude: endLon),
-      lengthM: data.lengthM,
-    );
-  }
-
-  MapParkingSpot? _toParkingSpot(AirportParkingData data) {
-    final lat = data.latitude;
-    final lon = data.longitude;
-    if (lat == null || lon == null) {
-      return null;
-    }
-    if (!_isValidCoordinate(lat, lon)) {
-      return null;
-    }
-    return MapParkingSpot(
-      name: data.name,
-      position: MapCoordinate(latitude: lat, longitude: lon),
-      headingDeg: data.headingDeg,
-    );
-  }
-
+  /// 委托给 [MapAirportApiParser.resolveAirportCenter]
   MapCoordinate _resolveAirportCenter(
     List<MapRunwayGeometry> runways,
     double? latitude,
     double? longitude,
     MapCoordinate fallback,
-  ) {
-    if (runways.isNotEmpty) {
-      double latSum = 0;
-      double lonSum = 0;
-      double weightSum = 0;
-      for (final runway in runways) {
-        final midpointLat = (runway.start.latitude + runway.end.latitude) / 2;
-        final midpointLon = (runway.start.longitude + runway.end.longitude) / 2;
-        final weight = runway.lengthM != null && runway.lengthM! > 0
-            ? runway.lengthM!
-            : 1.0;
-        latSum += midpointLat * weight;
-        lonSum += midpointLon * weight;
-        weightSum += weight;
-      }
-      if (weightSum > 0) {
-        final candidateLat = latSum / weightSum;
-        final candidateLon = lonSum / weightSum;
-        if (_isValidCoordinate(candidateLat, candidateLon)) {
-          return MapCoordinate(latitude: candidateLat, longitude: candidateLon);
-        }
-      }
-    }
-    if (latitude != null &&
-        longitude != null &&
-        _isValidCoordinate(latitude, longitude)) {
-      return MapCoordinate(latitude: latitude, longitude: longitude);
-    }
-    return fallback;
-  }
+  ) => MapAirportApiParser.resolveAirportCenter(
+    runways,
+    latitude,
+    longitude,
+    fallback,
+  );
 
-  bool _isValidCoordinate(double latitude, double longitude) {
-    if (latitude < -90 || latitude > 90) {
-      return false;
-    }
-    if (longitude < -180 || longitude > 180) {
-      return false;
-    }
-    if (latitude.abs() < 0.0001 && longitude.abs() < 0.0001) {
-      return false;
-    }
-    return true;
-  }
+  /// 委托给 [MapGeoUtils.isValidCoordinate]
+  bool _isValidCoordinate(double latitude, double longitude) =>
+      MapGeoUtils.isValidCoordinate(latitude, longitude);
 
-  String? _extractMetarField(Map<String, dynamic> root, List<String> keys) {
-    final payloadRoot = _asMap(_pickValue(root, ['data'])) ?? root;
-    final raw = _pickValue(payloadRoot, keys);
-    final text = raw?.toString().trim();
-    if (text == null || text.isEmpty) {
-      return null;
-    }
-    return text;
-  }
+  /// 委托给 [MapWeatherUtils.extractMetarField]
+  String? _extractMetarField(Map<String, dynamic> root, List<String> keys) =>
+      MapWeatherUtils.extractMetarField(root, keys);
 
-  String? _normalizeWeatherText(String? value) {
-    final text = (value ?? '').trim();
-    if (text.isEmpty) {
-      return null;
-    }
-    final cleaned = text
-        .replaceAll('\u0000', '')
-        .replaceAll('\uFFFD', '')
-        .replaceAll(RegExp(r'[\u0001-\u0008\u000B\u000C\u000E-\u001F]'), '');
-    return cleaned.trim();
-  }
+  /// 委托给 [MapWeatherUtils.normalizeWeatherText]
+  String? _normalizeWeatherText(String? value) =>
+      MapWeatherUtils.normalizeWeatherText(value);
 
-  String _resolveApproachRule(Map<String, dynamic> root, String? rawMetar) {
-    final payloadRoot = _asMap(_pickValue(root, ['data'])) ?? root;
-    final direct = _extractMetarField(payloadRoot, [
-      'flight_rules',
-      'flight_rule',
-      'flight_category',
-      'flightCategory',
-      'category',
-      'approach_rule',
-      'approachRule',
-    ]);
-    final byDirect = _normalizeApproachRule(direct);
-    if (byDirect != null) {
-      return byDirect;
-    }
-    final visibility = _extractMetarField(payloadRoot, [
-      'visibility',
-      'display_visibility',
-    ]);
-    final clouds = _extractMetarField(payloadRoot, ['clouds']);
-    final visibilitySm = _parseVisibilitySm(visibility);
-    final ceilingFt = _parseCeilingFt(clouds);
-    if (visibilitySm != null || ceilingFt != null) {
-      if ((ceilingFt != null && ceilingFt < 500) ||
-          (visibilitySm != null && visibilitySm < 1)) {
-        return 'LIFR';
-      }
-      if ((ceilingFt != null && ceilingFt < 1000) ||
-          (visibilitySm != null && visibilitySm < 3)) {
-        return 'IFR';
-      }
-      if ((ceilingFt != null && ceilingFt <= 3000) ||
-          (visibilitySm != null && visibilitySm <= 5)) {
-        return 'MVFR';
-      }
-      return 'VFR';
-    }
-    final fromRaw = _normalizeApproachRule(rawMetar);
-    if (fromRaw != null) {
-      return fromRaw;
-    }
-    if ((rawMetar ?? '').toUpperCase().contains('CAVOK')) {
-      return 'VFR';
-    }
-    return 'UNK';
-  }
-
-  String? _normalizeApproachRule(String? text) {
-    final upper = (text ?? '').toUpperCase();
-    if (upper.contains('LIFR')) return 'LIFR';
-    if (upper.contains('MVFR')) return 'MVFR';
-    if (upper.contains('IFR')) return 'IFR';
-    if (upper.contains('VFR')) return 'VFR';
-    return null;
-  }
-
-  double? _parseVisibilitySm(String? rawVisibility) {
-    final text = (rawVisibility ?? '').trim().toUpperCase();
-    if (text.isEmpty) {
-      return null;
-    }
-    final meterMatch = RegExp(r'^\d{4}$').firstMatch(text);
-    if (meterMatch != null) {
-      final meters = double.tryParse(text);
-      if (meters == null) {
-        return null;
-      }
-      return meters / 1609.344;
-    }
-    final smMatch = RegExp(
-      r'([PM]?\d+(?:/\d+)?(?:\.\d+)?)\s*SM',
-    ).firstMatch(text);
-    if (smMatch == null) {
-      return null;
-    }
-    final token = smMatch.group(1) ?? '';
-    final normalized = token.replaceAll('P', '').replaceAll('M', '');
-    if (normalized.contains('/')) {
-      final parts = normalized.split('/');
-      if (parts.length == 2) {
-        final numerator = double.tryParse(parts[0]);
-        final denominator = double.tryParse(parts[1]);
-        if (numerator != null && denominator != null && denominator != 0) {
-          return numerator / denominator;
-        }
-      }
-    }
-    return double.tryParse(normalized);
-  }
-
-  double? _parseCeilingFt(String? cloudText) {
-    final text = (cloudText ?? '').toUpperCase();
-    if (text.isEmpty) {
-      return null;
-    }
-    final matches = RegExp(r'(BKN|OVC|VV)(\d{3})').allMatches(text);
-    int? minCeiling;
-    for (final match in matches) {
-      final value = int.tryParse(match.group(2) ?? '');
-      if (value == null) {
-        continue;
-      }
-      final ceiling = value * 100;
-      if (minCeiling == null || ceiling < minCeiling) {
-        minCeiling = ceiling;
-      }
-    }
-    return minCeiling?.toDouble();
-  }
-
-  String? _resolveRunwayEndIdent(String ident, String? endpoint, bool isLeft) {
-    final direct = endpoint?.trim();
-    if (direct != null && direct.isNotEmpty) {
-      return direct.toUpperCase();
-    }
-    final normalized = ident.trim().toUpperCase();
-    if (normalized.isEmpty) {
-      return null;
-    }
-    final parts = normalized.split('/');
-    if (parts.length == 2) {
-      return isLeft ? parts[0].trim() : parts[1].trim();
-    }
-    return normalized;
-  }
+  /// 委托给 [MapWeatherUtils.resolveApproachRule]
+  String _resolveApproachRule(Map<String, dynamic> root, String? rawMetar) =>
+      MapWeatherUtils.resolveApproachRule(root, rawMetar);
 
   @override
   void dispose() {
@@ -1995,21 +1405,4 @@ class MapProvider extends ChangeNotifier {
     _hudTimer?.cancel();
     super.dispose();
   }
-}
-
-class _ProjectedPoint {
-  final double dx;
-  final double dy;
-
-  const _ProjectedPoint({required this.dx, required this.dy});
-}
-
-class _RunwayProjection {
-  final double alongTrackRatio;
-  final double crossTrackDistanceM;
-
-  const _RunwayProjection({
-    required this.alongTrackRatio,
-    required this.crossTrackDistanceM,
-  });
 }

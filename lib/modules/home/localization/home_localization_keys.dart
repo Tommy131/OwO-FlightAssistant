@@ -1,5 +1,12 @@
+
+/// Home 模块本地化 Key
 class HomeLocalizationKeys {
+  // ── 页面标题 ─────────────────────────────────────────────────────────────
+
   static const String homeTitle = 'home.nav.title';
+
+  // ── 欢迎屏文案 ───────────────────────────────────────────────────────────
+
   static const String welcomeNotConnectedTitle = 'home.welcome.not_connected';
   static const String welcomeNotConnectedSubtitle =
       'home.welcome.not_connected_subtitle';
@@ -16,6 +23,8 @@ class HomeLocalizationKeys {
   static const String transponderHijack = 'home.welcome.transponder_7500';
   static const String transponderRadioFailure = 'home.welcome.transponder_7600';
 
+  // ── 模拟器连接 ───────────────────────────────────────────────────────────
+
   static const String simTitle = 'home.sim.title';
   static const String simConnected = 'home.sim.connected';
   static const String simDisconnected = 'home.sim.disconnected';
@@ -29,15 +38,13 @@ class HomeLocalizationKeys {
   static const String simConnectFailedContent =
       'home.sim.connect_failed_content';
   static const String simRecording = 'home.sim.recording';
-  static const String backendUnavailableTitle =
-      'home.backend.unavailable_title';
-  static const String backendUnavailableContent =
-      'home.backend.unavailable_content';
-  static const String goToSettings = 'home.backend.go_to_settings';
-  static const String backendAvailableLabel = 'home.backend.available_label';
+
+  // ── 检查单（home 仪表盘展示用） ──────────────────────────────────────────
 
   static const String checklistTitle = 'home.checklist.title';
   static const String checklistEmpty = 'home.checklist.empty';
+
+  // ── 航班号 ───────────────────────────────────────────────────────────────
 
   static const String flightNumberTitle = 'home.flight_number.title';
   static const String flightNumberEmpty = 'home.flight_number.empty';
@@ -63,6 +70,8 @@ class HomeLocalizationKeys {
   static const String flightNumberDialogInvalid =
       'home.flight_number.dialog_invalid';
 
+  // ── 仪表板 ───────────────────────────────────────────────────────────────
+
   static const String dashboardTitle = 'home.dashboard.title';
   static const String dashboardNoConnectionTitle =
       'home.dashboard.no_connection_title';
@@ -75,6 +84,8 @@ class HomeLocalizationKeys {
   static const String homeMaskRetryButton = 'home.mask.retry_button';
   static const String homeMaskRetryingButton = 'home.mask.retrying_button';
 
+  // ── 主要飞行参数面板 ─────────────────────────────────────────────────────
+
   static const String primaryAirspeed = 'home.dashboard.primary.airspeed';
   static const String primaryAltitude = 'home.dashboard.primary.altitude';
   static const String primaryHeading = 'home.dashboard.primary.heading';
@@ -86,6 +97,8 @@ class HomeLocalizationKeys {
   static const String primaryFuelUnknown =
       'home.dashboard.primary.fuel_unknown';
 
+  // ── 导航与位置面板 ───────────────────────────────────────────────────────
+
   static const String navTitle = 'home.dashboard.nav.title';
   static const String navGroundSpeed = 'home.dashboard.nav.ground_speed';
   static const String navTrueAirspeed = 'home.dashboard.nav.true_airspeed';
@@ -93,11 +106,8 @@ class HomeLocalizationKeys {
   static const String navLongitude = 'home.dashboard.nav.longitude';
   static const String navAircraft = 'home.dashboard.nav.aircraft';
   static const String navAircraftIcao = 'home.dashboard.nav.aircraft_icao';
-  static const String navDeparture = 'home.dashboard.nav.departure';
   static const String navArrival = 'home.dashboard.nav.arrival';
   static const String navCom1 = 'home.dashboard.nav.com1';
-  static const String navDestination = 'home.dashboard.nav.destination';
-  static const String navAlternate = 'home.dashboard.nav.alternate';
   static const String navSetDeparture = 'home.dashboard.nav.set_departure';
   static const String navSetDestination = 'home.dashboard.nav.set_destination';
   static const String navSetAlternate = 'home.dashboard.nav.set_alternate';
@@ -111,6 +121,8 @@ class HomeLocalizationKeys {
   static const String navClearSelection = 'home.dashboard.nav.clear_selection';
   static const String navCancel = 'home.dashboard.nav.cancel';
 
+  // ── 环境面板 ─────────────────────────────────────────────────────────────
+
   static const String environmentTitle = 'home.dashboard.environment.title';
   static const String environmentOat = 'home.dashboard.environment.oat';
   static const String environmentTat = 'home.dashboard.environment.tat';
@@ -119,6 +131,8 @@ class HomeLocalizationKeys {
   static const String environmentVisibility =
       'home.dashboard.environment.visibility';
 
+  // ── 发动机与燃油面板 ─────────────────────────────────────────────────────
+
   static const String engineTitle = 'home.dashboard.engine.title';
   static const String engineFob = 'home.dashboard.engine.fob';
   static const String engineFf = 'home.dashboard.engine.ff';
@@ -126,6 +140,8 @@ class HomeLocalizationKeys {
   static const String engineEng2N1 = 'home.dashboard.engine.eng2_n1';
   static const String engineEng1Egt = 'home.dashboard.engine.eng1_egt';
   static const String engineEng2Egt = 'home.dashboard.engine.eng2_egt';
+
+  // ── METAR 面板 ───────────────────────────────────────────────────────────
 
   static const String metarTitle = 'home.dashboard.metar.title';
   static const String metarUpdatedAt = 'home.dashboard.metar.updated_at';
@@ -137,6 +153,8 @@ class HomeLocalizationKeys {
   static const String metarErrorSubtitle =
       'home.dashboard.metar.error_subtitle';
   static const String metarErrorDefault = 'home.dashboard.metar.error_default';
+
+  // ── 系统状态面板 ─────────────────────────────────────────────────────────
 
   static const String systemTitle = 'home.dashboard.system.title';
   static const String systemSectionWarning =
@@ -186,33 +204,4 @@ class HomeLocalizationKeys {
   static const String systemRunwayTurnoff =
       'home.dashboard.system.runway_turnoff';
   static const String systemWheelWell = 'home.dashboard.system.wheel_well';
-
-  static const String searchHint = 'home.search.hint';
-  static const String searchEmpty = 'home.search.empty';
-  static const String miniStageGround = 'home.mini.stage.ground';
-  static const String miniStageClimb = 'home.mini.stage.climb';
-  static const String miniStageCruise = 'home.mini.stage.cruise';
-  static const String miniStageDescent = 'home.mini.stage.descent';
-  static const String miniStageApproach = 'home.mini.stage.approach';
-  static const String miniWeatherUnknown = 'home.mini.weather.unknown';
-  static const String miniWeatherThunderstorm =
-      'home.mini.weather.thunderstorm';
-  static const String miniWeatherHeavyRain = 'home.mini.weather.heavy_rain';
-  static const String miniWeatherRain = 'home.mini.weather.rain';
-  static const String miniWeatherSnow = 'home.mini.weather.snow';
-  static const String miniWeatherLowVisibility =
-      'home.mini.weather.low_visibility';
-  static const String miniWeatherOvercast = 'home.mini.weather.overcast';
-  static const String miniWeatherExcellent = 'home.mini.weather.excellent';
-  static const String miniWeatherNormal = 'home.mini.weather.normal';
-  static const String miniNearbyAirport = 'home.mini.nearby_airport';
-  static const String miniLabelPhase = 'home.mini.label.phase';
-  static const String miniLabelAirport = 'home.mini.label.airport';
-  static const String miniLabelCurrentAirport = 'home.mini.label.current_airport';
-  static const String miniLabelNearbyAirport = 'home.mini.label.nearby_airport';
-  static const String miniLabelWeather = 'home.mini.label.weather';
-  static const String miniLabelVisibility = 'home.mini.label.visibility';
-  static const String miniLabelDistance = 'home.mini.label.distance';
-  static const String miniLabelEta = 'home.mini.label.eta';
-  static const String miniRecording = 'home.mini.recording';
 }

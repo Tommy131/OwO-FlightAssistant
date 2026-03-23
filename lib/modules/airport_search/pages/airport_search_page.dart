@@ -10,7 +10,10 @@ import '../providers/airport_search_provider.dart';
 import 'widgets/airport_result_card.dart';
 import 'widgets/favorite_airports_list.dart';
 import 'widgets/icao_search_input.dart';
+import 'widgets/search_overview_card.dart';
 
+/// 机场查询主页面
+/// 提供 ICAO 代码搜索、自动联想建议以及收藏列表功能
 class AirportSearchPage extends StatefulWidget {
   const AirportSearchPage({super.key});
 
@@ -19,8 +22,13 @@ class AirportSearchPage extends StatefulWidget {
 }
 
 class _AirportSearchPageState extends State<AirportSearchPage> {
+  /// ICAO 文本输入控制器 (强制大写)
   final TextEditingController _icaoController = TextEditingController();
+
+  /// 搜素建议防抖定时器
   Timer? _suggestionDebounce;
+
+  /// 初始化标记，防止 didChangeDependencies 重复触发
   bool _initialized = false;
 
   @override
@@ -35,6 +43,8 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
+
+    // 在首帧渲染后进行 Provider 初始化
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<AirportSearchProvider>().init();
@@ -45,8 +55,11 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
   Widget build(BuildContext context) {
     return Consumer<AirportSearchProvider>(
       builder: (context, provider, child) {
+        // 渲染异常状态提示
         _showError(provider);
+
         final result = provider.latestResult;
+        // 判断当前查询结果是否已在收藏列表中
         final isFavorite =
             result != null && provider.isFavorite(result.airport.icao);
 
@@ -54,33 +67,18 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
           body: SafeArea(
             child: CustomScrollView(
               slivers: [
-                /* SliverAppBar(
-                  expandedHeight: 70,
-                  floating: false,
-                  pinned: true,
-                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                  flexibleSpace: FlexibleSpaceBar(
-                    titlePadding: const EdgeInsets.symmetric(
-                      horizontal: AppThemeData.spacingMedium,
-                      vertical: AppThemeData.spacingMedium,
-                    ),
-                    title: Text(
-                      AirportSearchLocalizationKeys.pageTitle.tr(context),
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    centerTitle: false,
-                  ),
-                ), */
                 SliverPadding(
                   padding: const EdgeInsets.all(AppThemeData.spacingMedium),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
-                      _SearchOverviewCard(
+                      // 1. 顶部状态概览
+                      SearchOverviewCard(
                         suggestionCount: provider.suggestions.length,
                         favoritesCount: provider.favorites.length,
                       ),
                       const SizedBox(height: AppThemeData.spacingLarge),
+
+                      // 2. ICAO 输入与搜索框
                       IcaoSearchInput(
                         controller: _icaoController,
                         isBusy: provider.isSearching,
@@ -95,12 +93,16 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
                             provider.queryAirport(_icaoController.text),
                       ),
                       const SizedBox(height: AppThemeData.spacingMedium),
+
+                      // 3. 查询结果卡片 (包含天气、跑道、频率等)
                       AirportResultCard(
                         result: result,
                         isFavorite: isFavorite,
                         onToggleFavorite: provider.toggleFavoriteForLatest,
                       ),
                       const SizedBox(height: AppThemeData.spacingMedium),
+
+                      // 4. 收藏机场快速入口列表
                       FavoriteAirportsList(
                         favorites: provider.favorites,
                         onOpen: (icao) {
@@ -120,16 +122,21 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
     );
   }
 
+  /// 检查 provider 是否有待显示的错误
   void _showError(AirportSearchProvider provider) {
     final errorKey = provider.errorKey;
     if (errorKey == null) return;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // 显示错误 Snack bar
       SnackBarHelper.showError(context, _mapErrorText(errorKey));
+      // 弹出后清除 provider 内部错误状态
       context.read<AirportSearchProvider>().clearError();
     });
   }
 
+  /// 将硬编码的错误 Key 映射为国际化显示文本
   String _mapErrorText(String errorKey) {
     switch (errorKey) {
       case 'invalidIcao':
@@ -145,55 +152,12 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
     }
   }
 
+  /// 响应输入框变化，进行 260ms 的防抖搜索建议请求
   void _onInputChanged(AirportSearchProvider provider, String input) {
     _suggestionDebounce?.cancel();
     _suggestionDebounce = Timer(const Duration(milliseconds: 260), () {
       if (!mounted) return;
       provider.updateSuggestions(input);
     });
-  }
-}
-
-class _SearchOverviewCard extends StatelessWidget {
-  final int suggestionCount;
-  final int favoritesCount;
-
-  const _SearchOverviewCard({
-    required this.suggestionCount,
-    required this.favoritesCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppThemeData.spacingMedium),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Theme.of(context).colorScheme.primary.withValues(alpha: 0.16),
-            Theme.of(
-              context,
-            ).colorScheme.secondaryContainer.withValues(alpha: 0.3),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.travel_explore_rounded, size: 24),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              '${AirportSearchLocalizationKeys.suggestionsTitle.tr(context)}: $suggestionCount   ${AirportSearchLocalizationKeys.favoritesTitle.tr(context)}: $favoritesCount',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

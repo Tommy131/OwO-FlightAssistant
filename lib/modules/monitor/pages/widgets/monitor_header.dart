@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../../../core/services/localization_service.dart';
-import '../../../../core/theme/app_theme_data.dart';
 import '../../localization/monitor_localization_keys.dart';
-import '../../models/monitor_models.dart';
+import '../../models/monitor_data.dart';
+import 'monitor_warning_banner.dart';
 
+/// 监控页面顶部标题栏组件
+///
+/// 显示以下内容（从上到下）：
+/// 1. 主警告 / 主告警横幅（仅在告警激活时显示，由 [MonitorWarningBanner] 负责）
+/// 2. 页面标题与连接状态副标题
+/// 3. 暂停状态徽章（仅在已连接且模拟器暂停时显示）
 class MonitorHeader extends StatelessWidget {
+  /// 当前飞行数据快照
   final MonitorData data;
 
   const MonitorHeader({super.key, required this.data});
@@ -16,55 +23,14 @@ class MonitorHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (data.masterWarning == true || data.masterCaution == true)
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: AppThemeData.spacingMedium),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: (data.masterWarning == true ? Colors.red : Colors.orange)
-                  .withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(
-                AppThemeData.borderRadiusMedium,
-              ),
-              border: Border.all(
-                color: (data.masterWarning == true ? Colors.red : Colors.orange)
-                    .withValues(alpha: 0.5),
-                width: 2,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  data.masterWarning == true ? Icons.warning : Icons.info,
-                  color:
-                      data.masterWarning == true ? Colors.red : Colors.orange,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    data.masterWarning == true
-                        ? MonitorLocalizationKeys.masterWarningMessage.tr(
-                            context,
-                          )
-                        : MonitorLocalizationKeys.masterCautionMessage.tr(
-                            context,
-                          ),
-                    style: TextStyle(
-                      color: data.masterWarning == true
-                          ? Colors.red
-                          : Colors.orange,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        // 警告横幅（主警告 / 主告警），无告警时不渲染
+        MonitorWarningBanner(data: data),
+
+        // 标题行：左侧标题 + 副标题，右侧暂停徽章
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            // 左侧：页面标题与连接状态描述
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -87,6 +53,8 @@ class MonitorHeader extends StatelessWidget {
                 ),
               ],
             ),
+
+            // 右侧：暂停徽章（仅在已连接且模拟器暂停时显示）
             if (data.isConnected && data.isPaused == true)
               Container(
                 padding: const EdgeInsets.symmetric(

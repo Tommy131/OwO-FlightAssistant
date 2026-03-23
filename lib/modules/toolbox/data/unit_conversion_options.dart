@@ -1,17 +1,9 @@
 import '../localization/toolbox_localization_keys.dart';
+import '../models/toolbox_models.dart';
 
-class UnitConversionOption {
-  final String labelKey;
-  final String resultUnit;
-  final double Function(double) converter;
-
-  const UnitConversionOption({
-    required this.labelKey,
-    required this.resultUnit,
-    required this.converter,
-  });
-}
-
+/// 单位转换配置项数据
+///
+/// 用于定义气压、高度、重量、速度、距离及温度等航空常用的单位换算公式。
 const List<UnitConversionOption> unitConversionOptions = [
   UnitConversionOption(
     labelKey: ToolboxLocalizationKeys.unitHpaToInhg,

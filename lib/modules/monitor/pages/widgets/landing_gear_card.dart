@@ -2,9 +2,16 @@ import 'package:flutter/material.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
 import '../../localization/monitor_localization_keys.dart';
-import '../../models/monitor_models.dart';
+import '../../models/monitor_data.dart';
 
+/// 起落架状态卡片组件
+///
+/// 以航空仪表板风格展示三组起落架（前起、左主、右主）的收放状态，包含：
+/// 1. 状态指示灯矩阵：每组两个灯（红灯 = 过渡中，绿灯 = 放下/过渡）
+/// 2. 起落架手柄动画：圆形手柄沿中央轨道滑动，反映平均放下比例
+/// 3. 速度限制铭牌：展示收放速度限制文字
 class LandingGearCard extends StatelessWidget {
+  /// 当前飞行数据快照（读取三组起落架收放比例）
   final MonitorData data;
 
   const LandingGearCard({super.key, required this.data});
@@ -12,8 +19,9 @@ class LandingGearCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final panelColor = const Color(0xFF2A2A2A);
-    final panelBorderColor = const Color(0xFF1A1A1A);
+    // 仪表板面板深色背景
+    const panelColor = Color(0xFF2A2A2A);
+    const panelBorderColor = Color(0xFF1A1A1A);
 
     return Container(
       width: double.infinity,
@@ -26,11 +34,14 @@ class LandingGearCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 卡片标题
           Text(
             MonitorLocalizationKeys.landingGearTitle.tr(context),
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 20),
+
+          // 中央仿真面板容器（深色背景 + 阴影）
           Center(
             child: Container(
               width: 280,
@@ -49,10 +60,13 @@ class LandingGearCard extends StatelessWidget {
               ),
               child: Column(
                 children: [
+                  // 三组状态指示灯
                   _buildIndicators(context),
                   const SizedBox(height: 24),
+                  // 手柄滑动动画
                   _buildGearHandle(context),
                   const SizedBox(height: 16),
+                  // 速度限制铭牌
                   _buildLimitText(context),
                 ],
               ),
@@ -63,7 +77,12 @@ class LandingGearCard extends StatelessWidget {
     );
   }
 
+  /// 构建三组起落架状态指示灯（前起居中，左右主起并排）
   Widget _buildIndicators(BuildContext context) {
+    /// 将收放比例转换为状态码
+    /// - 0: 完全收起（< 2%）
+    /// - 1: 过渡中（2%~98%，红灯亮）
+    /// - 2: 完全放下（>= 98%，绿灯亮）
     int getStatus(double? ratio) {
       if (ratio == null) return 0;
       if (ratio <= 0.02) return 0;
@@ -73,11 +92,13 @@ class LandingGearCard extends StatelessWidget {
 
     return Column(
       children: [
+        // 前起指示灯（居中）
         _buildLightBox(
           MonitorLocalizationKeys.gearNoseLabel.tr(context),
           getStatus(data.noseGearDown),
         ),
         const SizedBox(height: 12),
+        // 左右主起指示灯（并排）
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -96,6 +117,9 @@ class LandingGearCard extends StatelessWidget {
     );
   }
 
+  /// 构建单组指示灯盒（上方红灯 + 下方绿灯）
+  ///
+  /// [status] == 1 时红灯亮；[status] >= 1 时绿灯亮
   Widget _buildLightBox(String text, int status) {
     final showRed = status == 1;
     final showGreen = status == 1 || status == 2;
@@ -109,6 +133,9 @@ class LandingGearCard extends StatelessWidget {
     );
   }
 
+  /// 构建单个指示灯（黑色底框 + 点亮/熄灭状态）
+  ///
+  /// [isLit] 为 true 时灯亮（带光晕投影），为 false 时熄灭（低透明度灰色）
   Widget _buildSingleLight(String text, Color color, bool isLit) {
     return Container(
       width: 60,
@@ -143,12 +170,18 @@ class LandingGearCard extends StatelessWidget {
     );
   }
 
+  /// 构建起落架手柄滑块动画
+  ///
+  /// 取三组起落架收放比例的平均值，映射到 -1（UP）至 +1（DOWN）的位置，
+  /// 由 [AnimatedAlign] 实现平滑过渡动画。
   Widget _buildGearHandle(BuildContext context) {
+    // 三组平均收放比例（0.0=收起，1.0=放下）
     final avg =
         ((data.noseGearDown ?? 0) +
             (data.leftGearDown ?? 0) +
             (data.rightGearDown ?? 0)) /
         3.0;
+    // 映射到 -1（顶部 UP）至 +1（底部 DOWN）
     final sliderValue = (avg * 2) - 1;
 
     return SizedBox(
@@ -157,6 +190,7 @@ class LandingGearCard extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
+          // 中央轨道槽（黑色圆角矩形）
           Container(
             width: 40,
             height: 200,
@@ -166,6 +200,8 @@ class LandingGearCard extends StatelessWidget {
               border: Border.all(color: Colors.grey[800]!, width: 2),
             ),
           ),
+
+          // 位置标签：UP（顶部）
           Positioned(
             top: 10,
             left: 0,
@@ -174,6 +210,8 @@ class LandingGearCard extends StatelessWidget {
               style: const TextStyle(color: Colors.white70, fontSize: 10),
             ),
           ),
+
+          // 位置标签：OFF（中部）
           Positioned(
             top: 95,
             left: 0,
@@ -182,6 +220,8 @@ class LandingGearCard extends StatelessWidget {
               style: const TextStyle(color: Colors.white70, fontSize: 10),
             ),
           ),
+
+          // 位置标签：DN（底部）
           Positioned(
             bottom: 10,
             left: 0,
@@ -190,6 +230,8 @@ class LandingGearCard extends StatelessWidget {
               style: const TextStyle(color: Colors.white70, fontSize: 10),
             ),
           ),
+
+          // 手柄圆钮（随平均收放比例平滑滑动）
           AnimatedAlign(
             duration: const Duration(milliseconds: 300),
             alignment: Alignment(0, sliderValue),
@@ -226,6 +268,8 @@ class LandingGearCard extends StatelessWidget {
               ),
             ),
           ),
+
+          // 手柄旁侧竖排标签文字（逆时针旋转 90°）
           Positioned(
             left: -25,
             top: 50,
@@ -246,6 +290,7 @@ class LandingGearCard extends StatelessWidget {
     );
   }
 
+  /// 构建速度限制铭牌（显示收放速度限制文字）
   Widget _buildLimitText(BuildContext context) {
     return Column(
       children: [

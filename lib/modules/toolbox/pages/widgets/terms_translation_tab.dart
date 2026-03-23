@@ -3,8 +3,13 @@ import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme_data.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../data/aviation_terms.dart';
+import '../../models/toolbox_models.dart';
 import '../../localization/toolbox_localization_keys.dart';
 import 'toolbox_section_card.dart';
+
+/// 工具箱 - 航空术语翻译分页
+///
+/// 提供航空专业术语的搜索、缩写查询、中文对照及详细解释。
 
 class TermsTranslationTab extends StatefulWidget {
   const TermsTranslationTab({super.key});

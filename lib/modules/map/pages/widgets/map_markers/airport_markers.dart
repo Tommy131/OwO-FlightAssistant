@@ -306,10 +306,7 @@ class _RoleTag extends StatelessWidget {
   final AirportPinTag tag;
   final double scale;
 
-  const _RoleTag({
-    required this.tag,
-    required this.scale,
-  });
+  const _RoleTag({required this.tag, required this.scale});
 
   @override
   Widget build(BuildContext context) {

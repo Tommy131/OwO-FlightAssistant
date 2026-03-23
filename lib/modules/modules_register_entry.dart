@@ -9,7 +9,7 @@ import 'flight_logs/flight_logs_module.dart';
 import 'http/http_module.dart';
 import 'map/map_module.dart';
 import 'monitor/monitor_module.dart';
-import 'navigation/navigation_module.dart';
+import 'common/common_module.dart';
 import 'toolbox/toolbox_module.dart';
 import 'home/home_module.dart';
 
@@ -23,7 +23,7 @@ class ModulesRegisterEntry {
     AboutPage.registerDefaults();
 
     // 1. 注册核心业务模块
-    registry.registerModule(NavigationModule());
+    registry.registerModule(CommonModule());
     registry.registerModule(HomeModule());
     registry.registerModule(ChecklistModule());
     registry.registerModule(MapModule());

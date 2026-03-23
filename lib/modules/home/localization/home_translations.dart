@@ -1,13 +1,14 @@
 import 'home_localization_keys.dart';
 
+/// Home 模块翻译内容
+///
+/// 仅包含 home 模块专属页面文案。
 final Map<String, Map<String, String>> homeTranslations = {
   'zh_CN': {
     HomeLocalizationKeys.homeTitle: '首页',
     HomeLocalizationKeys.welcomeNotConnectedTitle: '未连接模拟器！',
     HomeLocalizationKeys.welcomeNotConnectedSubtitle: '等待建立数据链路...',
     HomeLocalizationKeys.welcomePausedTitle: '模拟器已暂停',
-    /// 功能：执行welcomePausedSubtitle的核心业务流程。
-    /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
     HomeLocalizationKeys.welcomePausedSubtitle: '检测到模拟器处于暂停状态 ({aircraft})',
     HomeLocalizationKeys.welcomeReadyTitle: '飞行准备就绪',
     HomeLocalizationKeys.welcomeReadySubtitle: '当前机型: {aircraft}',
@@ -30,11 +31,6 @@ final Map<String, Map<String, String>> homeTranslations = {
     HomeLocalizationKeys.simConnectFailedTitle: '连接失败',
     HomeLocalizationKeys.simConnectFailedContent: '原因不明，请检查模拟器设置或网络连接。',
     HomeLocalizationKeys.simRecording: '正在录制',
-    HomeLocalizationKeys.backendUnavailableTitle: '后端服务不可用',
-    HomeLocalizationKeys.backendUnavailableContent:
-        '当前无法与已配置的后端 HTTP 接口通信，请启动中间件服务，或检查网络代理与后端地址配置是否正确。',
-    HomeLocalizationKeys.goToSettings: '前往设置',
-    HomeLocalizationKeys.backendAvailableLabel: '已连接后端服务',
     HomeLocalizationKeys.checklistTitle: '当前检查阶段',
     HomeLocalizationKeys.checklistEmpty: '暂无检查阶段',
     HomeLocalizationKeys.flightNumberTitle: '航班号',
@@ -55,7 +51,7 @@ final Map<String, Map<String, String>> homeTranslations = {
     HomeLocalizationKeys.flightNumberDialogInvalid: '请输入正确的航班号格式',
     HomeLocalizationKeys.dashboardTitle: '实时飞行数据',
     HomeLocalizationKeys.dashboardNoConnectionTitle: '连接模拟器以查看实时飞行数据',
-    HomeLocalizationKeys.dashboardNoConnectionSubtitle: '点击上方“连接”按钮开始',
+    HomeLocalizationKeys.dashboardNoConnectionSubtitle: '点击上方"连接"按钮开始',
     HomeLocalizationKeys.homeMaskConnectBackendTitle: '连接中间件服务后端以建立通信连接',
     HomeLocalizationKeys.homeMaskConnectBackendSubtitle:
         '请先启动中间件服务并确认通讯地址、网络代理配置正确，然后重试连接。',
@@ -76,11 +72,8 @@ final Map<String, Map<String, String>> homeTranslations = {
     HomeLocalizationKeys.navLongitude: '经度',
     HomeLocalizationKeys.navAircraft: '机型',
     HomeLocalizationKeys.navAircraftIcao: '机型ICAO',
-    HomeLocalizationKeys.navDeparture: '起飞机场',
     HomeLocalizationKeys.navArrival: '目的机场',
     HomeLocalizationKeys.navCom1: '通信频率',
-    HomeLocalizationKeys.navDestination: '目的地',
-    HomeLocalizationKeys.navAlternate: '备降',
     HomeLocalizationKeys.navSetDeparture: '设置起飞机场',
     HomeLocalizationKeys.navSetDestination: '设置抵达机场',
     HomeLocalizationKeys.navSetAlternate: '设置备降机场',
@@ -149,32 +142,6 @@ final Map<String, Map<String, String>> homeTranslations = {
     HomeLocalizationKeys.systemTaxiLights: '滑行灯',
     HomeLocalizationKeys.systemRunwayTurnoff: '跑道脱离灯',
     HomeLocalizationKeys.systemWheelWell: '轮舱灯',
-    HomeLocalizationKeys.miniStageGround: '在地面',
-    HomeLocalizationKeys.miniStageClimb: '爬升中',
-    HomeLocalizationKeys.miniStageCruise: '巡航中',
-    HomeLocalizationKeys.miniStageDescent: '下降中',
-    HomeLocalizationKeys.miniStageApproach: '进近中',
-    HomeLocalizationKeys.miniWeatherUnknown: '未知',
-    HomeLocalizationKeys.miniWeatherThunderstorm: '雷暴',
-    HomeLocalizationKeys.miniWeatherHeavyRain: '暴雨',
-    HomeLocalizationKeys.miniWeatherRain: '阴雨',
-    HomeLocalizationKeys.miniWeatherSnow: '降雪',
-    HomeLocalizationKeys.miniWeatherLowVisibility: '低能见',
-    HomeLocalizationKeys.miniWeatherOvercast: '阴天',
-    HomeLocalizationKeys.miniWeatherExcellent: '天气极好',
-    HomeLocalizationKeys.miniWeatherNormal: '天气一般',
-    HomeLocalizationKeys.miniNearbyAirport: '附近机场',
-    HomeLocalizationKeys.miniLabelPhase: '阶段',
-    HomeLocalizationKeys.miniLabelAirport: '机场',
-    HomeLocalizationKeys.miniLabelCurrentAirport: '当前机场',
-    HomeLocalizationKeys.miniLabelNearbyAirport: '附近机场',
-    HomeLocalizationKeys.miniLabelWeather: '天气',
-    HomeLocalizationKeys.miniLabelVisibility: '能见度',
-    HomeLocalizationKeys.miniLabelDistance: '距离',
-    HomeLocalizationKeys.miniLabelEta: '预计到达',
-    HomeLocalizationKeys.miniRecording: '录制中',
-    HomeLocalizationKeys.searchHint: '输入 ICAO/IATA/名称/经纬度...',
-    HomeLocalizationKeys.searchEmpty: '未找到相关机场',
   },
   'en_US': {
     HomeLocalizationKeys.homeTitle: 'Home',
@@ -183,8 +150,6 @@ final Map<String, Map<String, String>> homeTranslations = {
         'Waiting for data link...',
     HomeLocalizationKeys.welcomePausedTitle: 'Simulator paused',
     HomeLocalizationKeys.welcomePausedSubtitle:
-        /// 功能：执行paused的核心业务流程。
-        /// 说明：该方法封装单一职责逻辑，便于后续维护、定位问题与扩展功能。
         'Simulator is paused ({aircraft})',
     HomeLocalizationKeys.welcomeReadyTitle: 'Ready for flight',
     HomeLocalizationKeys.welcomeReadySubtitle: 'Current aircraft: {aircraft}',
@@ -210,12 +175,6 @@ final Map<String, Map<String, String>> homeTranslations = {
     HomeLocalizationKeys.simConnectFailedContent:
         'Unknown error. Check simulator settings or network.',
     HomeLocalizationKeys.simRecording: 'Recording',
-    HomeLocalizationKeys.backendUnavailableTitle:
-        'Backend service unavailable',
-    HomeLocalizationKeys.backendUnavailableContent:
-        'Cannot communicate with the configured backend HTTP endpoint. Start the middleware service or verify proxy and endpoint settings.',
-    HomeLocalizationKeys.goToSettings: 'Open Settings',
-    HomeLocalizationKeys.backendAvailableLabel: 'Backend Connected',
     HomeLocalizationKeys.checklistTitle: 'Checklist Phase',
     HomeLocalizationKeys.checklistEmpty: 'No checklist phase',
     HomeLocalizationKeys.flightNumberTitle: 'Flight Number',
@@ -223,8 +182,7 @@ final Map<String, Map<String, String>> homeTranslations = {
     HomeLocalizationKeys.flightNumberSet: 'Set',
     HomeLocalizationKeys.flightNumberEdit: 'Edit',
     HomeLocalizationKeys.flightNumberDialogTitle: 'Flight Number',
-    HomeLocalizationKeys.flightNumberDialogHint:
-        'Enter current flight number',
+    HomeLocalizationKeys.flightNumberDialogHint: 'Enter current flight number',
     HomeLocalizationKeys.flightNumberDialogFormat:
         'Format: 2-letter airline code + 1-4 digits (e.g., CCA1234)',
     HomeLocalizationKeys.flightNumberDialogConfirm: 'Confirm',
@@ -262,11 +220,8 @@ final Map<String, Map<String, String>> homeTranslations = {
     HomeLocalizationKeys.navLongitude: 'Longitude',
     HomeLocalizationKeys.navAircraft: 'Aircraft',
     HomeLocalizationKeys.navAircraftIcao: 'Aircraft ICAO',
-    HomeLocalizationKeys.navDeparture: 'Departure',
     HomeLocalizationKeys.navArrival: 'Arrival',
     HomeLocalizationKeys.navCom1: 'COM1',
-    HomeLocalizationKeys.navDestination: 'Destination',
-    HomeLocalizationKeys.navAlternate: 'Alternate',
     HomeLocalizationKeys.navSetDeparture: 'Set departure airport',
     HomeLocalizationKeys.navSetDestination: 'Set arrival airport',
     HomeLocalizationKeys.navSetAlternate: 'Set alternate airport',
@@ -335,31 +290,5 @@ final Map<String, Map<String, String>> homeTranslations = {
     HomeLocalizationKeys.systemTaxiLights: 'Taxi Lights',
     HomeLocalizationKeys.systemRunwayTurnoff: 'Runway Turnoff',
     HomeLocalizationKeys.systemWheelWell: 'Wheel Well',
-    HomeLocalizationKeys.miniStageGround: 'Ground',
-    HomeLocalizationKeys.miniStageClimb: 'Climb',
-    HomeLocalizationKeys.miniStageCruise: 'Cruise',
-    HomeLocalizationKeys.miniStageDescent: 'Descent',
-    HomeLocalizationKeys.miniStageApproach: 'Approach',
-    HomeLocalizationKeys.miniWeatherUnknown: 'Unknown',
-    HomeLocalizationKeys.miniWeatherThunderstorm: 'Thunderstorm',
-    HomeLocalizationKeys.miniWeatherHeavyRain: 'Heavy Rain',
-    HomeLocalizationKeys.miniWeatherRain: 'Rain',
-    HomeLocalizationKeys.miniWeatherSnow: 'Snow',
-    HomeLocalizationKeys.miniWeatherLowVisibility: 'Low Visibility',
-    HomeLocalizationKeys.miniWeatherOvercast: 'Overcast',
-    HomeLocalizationKeys.miniWeatherExcellent: 'Excellent',
-    HomeLocalizationKeys.miniWeatherNormal: 'Normal',
-    HomeLocalizationKeys.miniNearbyAirport: 'Nearby Airport',
-    HomeLocalizationKeys.miniLabelPhase: 'Phase',
-    HomeLocalizationKeys.miniLabelAirport: 'Airport',
-    HomeLocalizationKeys.miniLabelCurrentAirport: 'Current Airport',
-    HomeLocalizationKeys.miniLabelNearbyAirport: 'Nearby Airport',
-    HomeLocalizationKeys.miniLabelWeather: 'Weather',
-    HomeLocalizationKeys.miniLabelVisibility: 'Visibility',
-    HomeLocalizationKeys.miniLabelDistance: 'Distance',
-    HomeLocalizationKeys.miniLabelEta: 'ETA',
-    HomeLocalizationKeys.miniRecording: 'REC',
-    HomeLocalizationKeys.searchHint: 'Enter ICAO/IATA/name/coordinates...',
-    HomeLocalizationKeys.searchEmpty: 'No matching airports',
   },
 };

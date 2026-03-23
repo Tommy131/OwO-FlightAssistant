@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/services/persistence_service.dart';
 import '../../airport_search/models/airport_search_models.dart';
-import '../../home/models/home_models.dart';
+import '../../common/models/common_models.dart';
 import '../../http/http_module.dart';
 import '../../map/localization/map_localization_keys.dart';
 import '../models/flight_log_models.dart';

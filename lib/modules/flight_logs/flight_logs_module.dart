@@ -9,7 +9,7 @@ import '../../core/module_registry/module_registrar.dart';
 import '../../core/module_registry/module_registry.dart';
 import '../../core/module_registry/navigation/navigation_item.dart';
 import '../../core/services/localization_service.dart';
-import '../home/providers/home_provider.dart';
+import '../common/providers/common_provider.dart';
 import 'localization/flight_logs_localization_keys.dart';
 import 'localization/flight_logs_translations.dart';
 import 'models/flight_log_models.dart';
@@ -28,11 +28,11 @@ class FlightLogsModule implements ModuleRegistrar {
     registry.providers.register(
       ChangeNotifierProxyProvider<HomeProvider, FlightLogsProvider>(
         create: (_) => FlightLogsProvider(adapter: LocalFlightLogsAdapter()),
-        update: (_, homeProvider, logsProvider) {
+        update: (_, commonProvider, logsProvider) {
           final provider =
               logsProvider ??
               FlightLogsProvider(adapter: LocalFlightLogsAdapter());
-          provider.handleHomeSnapshot(homeProvider.snapshot);
+          provider.handleHomeSnapshot(commonProvider.snapshot);
           return provider;
         },
       ),

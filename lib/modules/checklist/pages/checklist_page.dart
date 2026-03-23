@@ -26,9 +26,7 @@ class ChecklistPage extends StatelessWidget {
 
         if (selectedAircraft == null) {
           return Center(
-            child: Text(
-              ChecklistLocalizationKeys.emptyState.tr(context),
-            ),
+            child: Text(ChecklistLocalizationKeys.emptyState.tr(context)),
           );
         }
 
@@ -60,9 +58,7 @@ class ChecklistPage extends StatelessWidget {
                     children: [
                       ChecklistHeader(provider: provider),
                       const Divider(height: 1),
-                      Expanded(
-                        child: ChecklistItemsList(provider: provider),
-                      ),
+                      Expanded(child: ChecklistItemsList(provider: provider)),
                       ChecklistFooter(provider: provider),
                     ],
                   ),

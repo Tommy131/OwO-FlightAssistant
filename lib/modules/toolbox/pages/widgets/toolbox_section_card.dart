@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme_data.dart';
 
+/// 工具箱模块 - 基础卡片容器
+///
+/// 统一了工具箱内部各功能分区的布局样式，包含标题、图标及其子内容。
 class ToolboxSectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
