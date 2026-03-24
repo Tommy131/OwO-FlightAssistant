@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'bootstrap_service.dart';
 import '../constants/app_constants.dart';
 import '../utils/logger.dart';
@@ -67,17 +68,28 @@ class PersistenceService {
 
   /// 初始化存储系统
   Future<void> init({String? customPath}) async {
+    // 处理默认路径
+    String? baseDir = customPath;
+    if (baseDir == null) {
+      if (Platform.isAndroid || Platform.isIOS) {
+        // 移动端：使用应用专属的支持目录
+        final directory = await getApplicationSupportDirectory();
+        baseDir = directory.path;
+      } else {
+        // 桌面端：使用可执行文件所在目录下的 cache 文件夹
+        baseDir = getAppCacheRootPath();
+      }
+    }
+
+    final targetPath = getProcessedRootPath(baseDir);
+
     // 避免重复初始化
-    final targetPath = getProcessedRootPath(
-      customPath ?? getAppCacheRootPath(),
-    );
     if (_initialized && _rootPath == targetPath) {
       return;
     }
 
     _initCompleter = Completer<void>();
     _initialized = false;
-
     _rootPath = targetPath;
 
     final bootstrap = BootstrapService();

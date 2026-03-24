@@ -18,6 +18,9 @@ import 'home/home_module.dart';
 class ModulesRegisterEntry {
   static void registerAll() {
     final registry = ModuleRegistry();
+    if (registry.isInitialized) {
+      return;
+    }
 
     // 0. 注册基础核心组件的默认内容
     AboutPage.registerDefaults();

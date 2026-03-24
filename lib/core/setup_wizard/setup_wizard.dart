@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
@@ -35,9 +37,11 @@ class _SetupWizardState extends State<SetupWizard> with WindowListener {
   @override
   void initState() {
     super.initState();
-    windowManager.addListener(this);
 
-    windowManager.setPreventClose(true);
+    if (!Platform.isIOS && !Platform.isAndroid) {
+      windowManager.addListener(this);
+      windowManager.setPreventClose(true);
+    }
 
     _confettiController = ConfettiController(duration: _confettiDuration);
 
@@ -95,7 +99,9 @@ class _SetupWizardState extends State<SetupWizard> with WindowListener {
   void dispose() {
     _controller.removeListener(_onControllerUpdate);
     _confettiController.dispose();
-    windowManager.removeListener(this);
+    if (!Platform.isIOS && !Platform.isAndroid) {
+      windowManager.removeListener(this);
+    }
     super.dispose();
   }
 
@@ -116,7 +122,7 @@ class _SetupWizardState extends State<SetupWizard> with WindowListener {
       cancelText: LocalizationKeys.cancel.tr(context),
     );
 
-    if (result == true) {
+    if (result == true && !Platform.isIOS && !Platform.isAndroid) {
       await windowManager.setPreventClose(false);
       await windowManager.close();
     }

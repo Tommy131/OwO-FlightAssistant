@@ -99,7 +99,11 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
   @override
   void initState() {
     super.initState();
-    windowManager.addListener(this);
+
+    if (!Platform.isIOS && !Platform.isAndroid) {
+      windowManager.addListener(this);
+    }
+
     NavigationCommandBus().targetId.addListener(
       _handleNavigationCommandChanged,
     );
@@ -169,27 +173,29 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
 
       await AppLogger.init();
 
-      // 4. 初始化所有业务模块（通过统一入口）
-      ModulesRegisterEntry.registerAll();
-
-      // 5. 注册核心基础导航项 (如：设置)
-      ModuleRegistry().navigation.register(
-        (context) => NavigationItem(
-          id: 'settings',
-          title: LocalizationKeys.settings.tr(context),
-          icon: Icons.settings_outlined,
-          activeIcon: Icons.settings,
-          page: const SettingsPage(),
-          priority: 9999, // 设置页面通常放在最后
-        ),
-      );
+      final moduleRegistry = ModuleRegistry();
+      if (!moduleRegistry.isInitialized) {
+        ModulesRegisterEntry.registerAll();
+        moduleRegistry.navigation.register(
+          (context) => NavigationItem(
+            id: 'settings',
+            title: LocalizationKeys.settings.tr(context),
+            icon: Icons.settings_outlined,
+            activeIcon: Icons.settings,
+            page: const SettingsPage(),
+            priority: 9999,
+          ),
+        );
+      }
 
       // 6. 初始化通知服务
       final notificationService = NotificationService();
       await notificationService.initialize();
 
-      // Add this line to override the default close handler
-      await windowManager.setPreventClose(true);
+      if (!Platform.isIOS && !Platform.isAndroid) {
+        // Add this line to override the default close handler
+        await windowManager.setPreventClose(true);
+      }
 
       // 模拟加载核心资源和数据（仅用于演示高级加载效果）
       // AppLogger.info('正在模拟加载业务数据 (5s)...');
@@ -256,7 +262,10 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
     NavigationCommandBus().targetId.removeListener(
       _handleNavigationCommandChanged,
     );
-    windowManager.removeListener(this);
+
+    if (!Platform.isIOS && !Platform.isAndroid) {
+      windowManager.removeListener(this);
+    }
     super.dispose();
   }
 
@@ -470,6 +479,9 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
 
   @override
   void onWindowClose() async {
+    if (!!Platform.isIOS && !Platform.isAndroid) {
+      return;
+    }
     bool isPreventClose = await windowManager.isPreventClose();
     if (isPreventClose && mounted) {
       final result = await showAdvancedConfirmDialog(

@@ -19,6 +19,7 @@ class ModuleRegistry {
   final List<ModuleRegistrar> _modules = [];
   final List<Future<void> Function()> _cleanupCallbacks = [];
   bool _initialized = false;
+  bool get isInitialized => _initialized;
 
   /// 注册模块
   void registerModule(ModuleRegistrar module) {

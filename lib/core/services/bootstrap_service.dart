@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import '../utils/logger.dart';
 
 /// 引导配置文件服务
@@ -29,8 +31,13 @@ class BootstrapService {
   /// 初始化引导配置
   Future<void> init() async {
     try {
-      final rootDir = _getAppRootDir();
+      if (kIsWeb) {
+        _initialized = true;
+        return;
+      }
+      final rootDir = await _resolveBootstrapRootDir();
       _bootstrapFile = File(p.join(rootDir, _bootstrapFileName));
+      await _bootstrapFile!.parent.create(recursive: true);
 
       if (await _bootstrapFile!.exists()) {
         final content = await _bootstrapFile!.readAsString();
@@ -71,6 +78,14 @@ class BootstrapService {
     } catch (e) {
       AppLogger.error('Error saving bootstrap config: $e');
     }
+  }
+
+  Future<String> _resolveBootstrapRootDir() async {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      final supportDir = await getApplicationSupportDirectory();
+      return supportDir.path;
+    }
+    return _getAppRootDir();
   }
 
   /// 获取存储路径

@@ -199,6 +199,8 @@ class NotificationService {
   static const String _windowsAppName = AppConstants.appName;
   static const String _windowsAppUserModelId = AppConstants.appPackageName;
   static const String _windowsGuid = 'b8206b54-a31f-48cc-bede-3f1bf3102865';
+  static const String _androidNotificationIcon = 'ic_notification';
+  static const String _androidFallbackNotificationIcon = 'launch_background';
 
   // 图标路径 (从常量引用)
   static const String _iconPath = AppConstants.assetIconPath;
@@ -220,6 +222,7 @@ class NotificationService {
   /// 初始化状态标志
   bool _initialized = false;
   bool _timeZoneInitialized = false;
+  String _resolvedAndroidNotificationIcon = _androidNotificationIcon;
 
   /// 回调函数
   Function(NotificationResponse)? onNotificationTapped;
@@ -274,23 +277,7 @@ class NotificationService {
         windowsIconPath = await _prepareWindowsIcon();
       }
 
-      // 3. 创建初始化配置
-      final initSettings = InitializationSettings(
-        android: _createAndroidInitSettings(),
-        iOS: _createIOSInitSettings(),
-        macOS: _createIOSInitSettings(),
-        windows: _createWindowsInitSettings(windowsIconPath),
-        linux: LinuxInitializationSettings(
-          defaultActionName: 'Open notification',
-          defaultIcon: AssetsLinuxIcon(_iconPath),
-        ),
-      );
-
-      // 4. 初始化插件
-      final result = await _notifications.initialize(
-        initSettings,
-        onDidReceiveNotificationResponse: _onNotificationTapped,
-      );
+      final result = await _initializePluginWithFallback(windowsIconPath);
 
       if (result != true) {
         AppLogger.warning('通知插件初始化返回 false');
@@ -313,8 +300,51 @@ class NotificationService {
   }
 
   /// 创建 Android 初始化设置
-  AndroidInitializationSettings _createAndroidInitSettings() {
-    return const AndroidInitializationSettings('ic_launcher');
+  AndroidInitializationSettings _createAndroidInitSettings(String iconName) {
+    return AndroidInitializationSettings(iconName);
+  }
+
+  Future<bool?> _initializePluginWithFallback(String? windowsIconPath) async {
+    try {
+      _resolvedAndroidNotificationIcon = _androidNotificationIcon;
+      final primarySettings = InitializationSettings(
+        android: _createAndroidInitSettings(_resolvedAndroidNotificationIcon),
+        iOS: _createIOSInitSettings(),
+        macOS: _createIOSInitSettings(),
+        windows: _createWindowsInitSettings(windowsIconPath),
+        linux: LinuxInitializationSettings(
+          defaultActionName: 'Open notification',
+          defaultIcon: AssetsLinuxIcon(_iconPath),
+        ),
+      );
+      return await _notifications.initialize(
+        primarySettings,
+        onDidReceiveNotificationResponse: _onNotificationTapped,
+      );
+    } on PlatformException catch (e) {
+      final shouldFallback =
+          defaultTargetPlatform == TargetPlatform.android &&
+          e.code == 'invalid_icon';
+      if (!shouldFallback) rethrow;
+      _resolvedAndroidNotificationIcon = _androidFallbackNotificationIcon;
+      AppLogger.warning(
+        '通知图标 $_androidNotificationIcon 无效，回退为 $_androidFallbackNotificationIcon',
+      );
+      final fallbackSettings = InitializationSettings(
+        android: _createAndroidInitSettings(_resolvedAndroidNotificationIcon),
+        iOS: _createIOSInitSettings(),
+        macOS: _createIOSInitSettings(),
+        windows: _createWindowsInitSettings(windowsIconPath),
+        linux: LinuxInitializationSettings(
+          defaultActionName: 'Open notification',
+          defaultIcon: AssetsLinuxIcon(_iconPath),
+        ),
+      );
+      return await _notifications.initialize(
+        fallbackSettings,
+        onDidReceiveNotificationResponse: _onNotificationTapped,
+      );
+    }
   }
 
   /// 创建 iOS 初始化设置
@@ -643,10 +673,10 @@ class NotificationService {
             channelId,
             channelName,
             channelDescription: channelDescription ?? '$channelName渠道',
-            icon: 'ic_launcher', // 小图标（状态栏）
-            largeIcon: const DrawableResourceAndroidBitmap(
-              'ic_launcher',
-            ), // 大图标（通知栏右侧）
+            icon: _resolvedAndroidNotificationIcon,
+            largeIcon: DrawableResourceAndroidBitmap(
+              _resolvedAndroidNotificationIcon,
+            ),
             importance: importance,
             priority: priority,
             showWhen: true,

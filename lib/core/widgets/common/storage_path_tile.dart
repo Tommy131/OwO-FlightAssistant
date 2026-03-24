@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../localization/localization_keys.dart';
 import '../../services/localization_service.dart';
 
@@ -28,6 +30,12 @@ class StoragePathTile extends StatelessWidget {
   });
 
   Future<void> _pickPath(BuildContext context) async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      final appSupportDir = await getApplicationSupportDirectory();
+      onPathSelected(appSupportDir.path);
+      return;
+    }
+
     String? result = await FilePicker.platform.getDirectoryPath(
       dialogTitle: LocalizationKeys.storagePathSelectionDialogTitle.tr(context),
     );

@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/persistence_service.dart';
 import '../services/bootstrap_service.dart';
 import '../utils/logger.dart';
@@ -23,6 +25,7 @@ class WizardController extends ChangeNotifier {
     if (savedLanguage != null) {
       _languageCode = savedLanguage;
     }
+    _initializeMobileDefaultPath();
   }
 
   int get currentStep => _currentStep;
@@ -71,6 +74,13 @@ class WizardController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _initializeMobileDefaultPath() async {
+    if (!(Platform.isAndroid || Platform.isIOS)) return;
+    final appSupportDir = await getApplicationSupportDirectory();
+    _selectedPath = appSupportDir.path;
+    notifyListeners();
+  }
+
   bool get canGoNext {
     // 存储路径步骤必须选择路径
     // 我们检查步骤 ID 而不是索引，因为增加了语言步骤
@@ -103,6 +113,11 @@ class WizardController extends ChangeNotifier {
   }
 
   Future<void> _complete() async {
+    if (_selectedPath == null && (Platform.isAndroid || Platform.isIOS)) {
+      final appSupportDir = await getApplicationSupportDirectory();
+      _selectedPath = appSupportDir.path;
+    }
+
     if (_selectedPath != null) {
       await _steps[_currentStep].onComplete();
 
