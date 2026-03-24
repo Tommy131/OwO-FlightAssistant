@@ -116,14 +116,70 @@ class MapLocalizationKeys {
   static const String tooltipPlannedRoute = 'map.tooltip.planned_route';
   static const String tooltipZoomIn = 'map.tooltip.zoom_in';
   static const String tooltipZoomOut = 'map.tooltip.zoom_out';
+  static const String tooltipHideDetail = 'map.tooltip.hide_detail';
+  static const String tooltipShowDetail = 'map.tooltip.show_detail';
   static const String plannedRouteTotal = 'map.label.planned_route_total';
+  static const String labelTakeoff = 'map.label.takeoff';
+  static const String labelLanding = 'map.label.landing';
+  static const String labelLatitudeLongitude = 'map.label.latitude_longitude';
+  static const String labelHeading = 'map.label.heading';
+  static const String labelLastEdited = 'map.label.last_edited';
+  static const String labelNodeCount = 'map.label.node_count';
   static const String clearRouteConfirmTitle = 'map.clear_route.confirm_title';
   static const String clearRouteConfirmContent =
       'map.clear_route.confirm_content';
+  static const String reconnectPromptTitle = 'map.reconnect.prompt_title';
+  static const String reconnectPromptContent = 'map.reconnect.prompt_content';
+  static const String reconnectKeepRoute = 'map.reconnect.keep_route';
   static const String taxiwayExportSuccess = 'map.taxiway.export_success';
   static const String taxiwayImportSuccess = 'map.taxiway.import_success';
   static const String taxiwayImportInvalid = 'map.taxiway.import_invalid';
   static const String taxiwayNoRouteToSave = 'map.taxiway.no_route_to_save';
+  static const String taxiwayNodePositionUpdated =
+      'map.taxiway.node_position_updated';
+  static const String taxiwayEditUnsaved = 'map.taxiway.edit_unsaved';
+  static const String taxiwaySaveInProgress = 'map.taxiway.save_in_progress';
+  static const String taxiwayAutoLoadTitle = 'map.taxiway.auto_load.title';
+  static const String taxiwayAutoLoadPrompt =
+      'map.taxiway.auto_load.load_prompt';
+  static const String taxiwayAutoLoadSkip = 'map.taxiway.auto_load.skip';
+  static const String taxiwayAutoLoadLoad = 'map.taxiway.auto_load.load';
+  static const String taxiwayAutoLoadLoaded = 'map.taxiway.auto_load.loaded';
+  static const String taxiwayAutoLoadInvalid = 'map.taxiway.auto_load.invalid';
+  static const String taxiwayNode = 'map.taxiway.node';
+  static const String taxiwayNodeSettings = 'map.taxiway.node_settings';
+  static const String taxiwayNodeName = 'map.taxiway.node_name';
+  static const String taxiwayNodeNote = 'map.taxiway.node_note';
+  static const String taxiwayNodeColor = 'map.taxiway.node_color';
+  static const String taxiwayNodeCurrentColor =
+      'map.taxiway.node_current_color';
+  static const String taxiwayDeleteNode = 'map.taxiway.delete_node';
+  static const String taxiwayInsertNode = 'map.taxiway.insert_node';
+  static const String taxiwayInsertNodeSuccess =
+      'map.taxiway.insert_node_success';
+  static const String taxiwayEditConnection = 'map.taxiway.edit_connection';
+  static const String taxiwayConnection = 'map.taxiway.connection';
+  static const String taxiwayConnectionRange = 'map.taxiway.connection_range';
+  static const String taxiwayConnectionName = 'map.taxiway.connection_name';
+  static const String taxiwayConnectionNote = 'map.taxiway.connection_note';
+  static const String taxiwayConnectionColor = 'map.taxiway.connection_color';
+  static const String taxiwayConnectionLineType =
+      'map.taxiway.connection_line_type';
+  static const String taxiwayConnectionLineTypeStraight =
+      'map.taxiway.connection_line_type_straight';
+  static const String taxiwayConnectionLineTypeMapMatching =
+      'map.taxiway.connection_line_type_map_matching';
+  static const String taxiwayConnectionCurvature =
+      'map.taxiway.connection_curvature';
+  static const String taxiwayConnectionCurveDirection =
+      'map.taxiway.connection_curve_direction';
+  static const String taxiwayConnectionCurveDirectionLeft =
+      'map.taxiway.connection_curve_direction_left';
+  static const String taxiwayConnectionCurveDirectionRight =
+      'map.taxiway.connection_curve_direction_right';
+  static const String taxiwayConnectionDragHint =
+      'map.taxiway.connection_drag_hint';
+  static const String taxiwayDangerGeneric = 'map.taxiway.danger_generic';
   static const String weatherNoData = 'map.weather.no_data';
   static const String loadingAirportDetail = 'map.airport.loading_detail';
   static const String metarRawShort = 'map.weather.raw_short';

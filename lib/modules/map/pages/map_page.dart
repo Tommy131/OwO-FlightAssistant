@@ -32,8 +32,20 @@ class MapPage extends StatefulWidget {
 class _MapPageState extends State<MapPage> {
   static const double _nearbyAirportMinZoom = 8.5;
   static const double _airportIcaoLabelMinZoom = 10.8;
+  static const List<String> _taxiwayColorHexPalette = [
+    '#00E5FF',
+    '#4CAF50',
+    '#FFC107',
+    '#FF7043',
+    '#EC407A',
+    '#7E57C2',
+    '#42A5F5',
+    '#FFFFFF',
+  ];
 
   final MapController _mapController = MapController();
+  final GlobalKey _mapKey = GlobalKey();
+  final Distance _distance = const Distance();
   final _weatherRadarTransformer = TileUpdateTransformers.throttle(
     const Duration(milliseconds: 100),
   );
@@ -55,6 +67,14 @@ class _MapPageState extends State<MapPage> {
   bool _showAircraftInfoPanel = false;
   Timer? _airportFetchTimer;
   LatLngBounds? _lastFetchBounds;
+  int? _selectedTaxiwayNodeIndex;
+  int? _draggingTaxiwayNodeIndex;
+  int? _draggingTaxiwaySegmentIndex;
+  int? _hoveredTaxiwayNodeIndex;
+  Offset? _hoveredTaxiwayNodeGlobalPosition;
+  bool _isTaxiwayLoadPromptShowing = false;
+  bool _isSavingTaxiwayRoute = false;
+  final Set<String> _taxiwayAutoPromptedAirports = <String>{};
 
   @override
   void dispose() {
@@ -68,6 +88,7 @@ class _MapPageState extends State<MapPage> {
       builder: (context, provider, child) {
         final homeProvider = context.watch<HomeProvider>();
         _handleReconnectPrompt(provider);
+        _handleTaxiwayAutoLoadPrompt(provider);
         final theme = Theme.of(context);
         final size = MediaQuery.sizeOf(context);
         final scale = (size.width / 1280).clamp(0.8, 1.2);
@@ -130,6 +151,28 @@ class _MapPageState extends State<MapPage> {
         final showDangerOverlay =
             _shouldShowDangerOverlay(provider, activeAlerts) &&
             !showCrashOverlay;
+        final taxiwayNodes = provider.taxiwayNodes;
+        final showTaxiwayControls =
+            taxiwayNodes.isNotEmpty || provider.isTaxiwayDrawingActive;
+        final showTaxiwayEditStatus =
+            provider.isTaxiwayDrawingActive &&
+            provider.hasUnsavedTaxiwayChanges;
+        final showPlannedRouteChip =
+            provider.showPlannedRoute && plannedRouteTotalNm > 0;
+        final mapRenderObject = _mapKey.currentContext?.findRenderObject();
+        final mapRenderBox = mapRenderObject is RenderBox
+            ? mapRenderObject
+            : null;
+        Offset? hoveredNodeLocalOffset;
+        if (_hoveredTaxiwayNodeIndex != null &&
+            _hoveredTaxiwayNodeIndex! >= 0 &&
+            _hoveredTaxiwayNodeIndex! < taxiwayNodes.length &&
+            _hoveredTaxiwayNodeGlobalPosition != null &&
+            mapRenderBox != null) {
+          hoveredNodeLocalOffset = mapRenderBox.globalToLocal(
+            _hoveredTaxiwayNodeGlobalPosition!,
+          );
+        }
 
         if (_mapReady) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -156,6 +199,7 @@ class _MapPageState extends State<MapPage> {
           body: Stack(
             children: [
               FlutterMap(
+                key: _mapKey,
                 mapController: _mapController,
                 options: MapOptions(
                   initialCenter: center,
@@ -201,6 +245,9 @@ class _MapPageState extends State<MapPage> {
                     if (!provider.isTaxiwayDrawingActive) {
                       return;
                     }
+                    setState(() {
+                      _selectedTaxiwayNodeIndex = null;
+                    });
                     provider.addTaxiwayRoutePoint(
                       MapCoordinate(
                         latitude: point.latitude,
@@ -271,18 +318,6 @@ class _MapPageState extends State<MapPage> {
                           strokeWidth: 3,
                         ),
                       ],
-                    ),
-                  if (provider.showCustomTaxiwayRoute &&
-                      provider.taxiwayRoutePoints.isNotEmpty)
-                    TaxiwayRoutePolylineLayer(
-                      points: provider.taxiwayRoutePoints,
-                      scale: scale,
-                    ),
-                  if (provider.showCustomTaxiwayRoute &&
-                      provider.taxiwayRoutePoints.isNotEmpty)
-                    TaxiwayRoutePointMarkerLayer(
-                      points: provider.taxiwayRoutePoints,
-                      scale: scale,
                     ),
                   if (provider.showPlannedRoute && plannedRouteLegs.isNotEmpty)
                     PolylineLayer(
@@ -505,8 +540,12 @@ class _MapPageState extends State<MapPage> {
                             },
                             child: Tooltip(
                               message: _showAircraftInfoPanel
-                                  ? '点击隐藏详情'
-                                  : '点击显示详情',
+                                  ? MapLocalizationKeys.tooltipHideDetail.tr(
+                                      context,
+                                    )
+                                  : MapLocalizationKeys.tooltipShowDetail.tr(
+                                      context,
+                                    ),
                               waitDuration: const Duration(milliseconds: 500),
                               child: AircraftMarker(
                                 heading: aircraft.heading,
@@ -525,9 +564,11 @@ class _MapPageState extends State<MapPage> {
                             ),
                             width: 78,
                             height: 68,
-                            child: const FlightEventMarker(
+                            child: FlightEventMarker(
                               icon: Icons.flight_takeoff,
-                              label: 'TAKEOFF',
+                              label: MapLocalizationKeys.labelTakeoff.tr(
+                                context,
+                              ),
                               color: Colors.blueAccent,
                             ),
                           ),
@@ -539,13 +580,123 @@ class _MapPageState extends State<MapPage> {
                             ),
                             width: 78,
                             height: 68,
-                            child: const FlightEventMarker(
+                            child: FlightEventMarker(
                               icon: Icons.flight_land,
-                              label: 'LANDING',
+                              label: MapLocalizationKeys.labelLanding.tr(
+                                context,
+                              ),
                               color: Colors.greenAccent,
                             ),
                           ),
                       ],
+                    ),
+                  if (provider.showCustomTaxiwayRoute &&
+                      provider.taxiwayRoutePoints.isNotEmpty)
+                    TaxiwayRoutePolylineLayer(
+                      nodes: taxiwayNodes,
+                      segments: provider.taxiwaySegments,
+                      completedSegmentIndexes:
+                          provider.completedTaxiwaySegmentIndexes,
+                      scale: scale,
+                      enableSegmentMenu: provider.isTaxiwayDrawingActive,
+                      onSegmentSecondaryTap: (segmentIndex, globalPosition) {
+                        _showTaxiwaySegmentContextMenu(
+                          provider: provider,
+                          segmentIndex: segmentIndex,
+                          globalPosition: globalPosition,
+                        );
+                      },
+                      onSegmentCurveDragStart: provider.isTaxiwayDrawingActive
+                          ? (segmentIndex, globalPosition) {
+                              setState(() {
+                                _draggingTaxiwaySegmentIndex = segmentIndex;
+                              });
+                              _updateTaxiwaySegmentCurveByDrag(
+                                provider: provider,
+                                segmentIndex: segmentIndex,
+                                globalPosition: globalPosition,
+                              );
+                            }
+                          : null,
+                      onSegmentCurveDragUpdate: provider.isTaxiwayDrawingActive
+                          ? (segmentIndex, globalPosition) {
+                              _updateTaxiwaySegmentCurveByDrag(
+                                provider: provider,
+                                segmentIndex: segmentIndex,
+                                globalPosition: globalPosition,
+                              );
+                            }
+                          : null,
+                      onSegmentCurveDragEnd: provider.isTaxiwayDrawingActive
+                          ? (_) {
+                              if (_draggingTaxiwaySegmentIndex != null) {
+                                setState(() {
+                                  _draggingTaxiwaySegmentIndex = null;
+                                });
+                              }
+                            }
+                          : null,
+                    ),
+                  if (provider.showCustomTaxiwayRoute &&
+                      provider.taxiwayRoutePoints.isNotEmpty)
+                    TaxiwayRoutePointMarkerLayer(
+                      nodes: taxiwayNodes,
+                      completedNodeIndexes:
+                          provider.completedTaxiwayNodeIndexes,
+                      scale: scale,
+                      selectedIndex: _selectedTaxiwayNodeIndex,
+                      draggingIndex: provider.isTaxiwayDrawingActive
+                          ? _draggingTaxiwayNodeIndex
+                          : null,
+                      onNodeTap: provider.isTaxiwayDrawingActive
+                          ? (index) {
+                              _showTaxiwayNodeEditor(provider, index);
+                            }
+                          : null,
+                      onNodeDragStart: provider.isTaxiwayDrawingActive
+                          ? (index) {
+                              setState(() {
+                                _selectedTaxiwayNodeIndex = index;
+                                _draggingTaxiwayNodeIndex = index;
+                              });
+                            }
+                          : null,
+                      onNodeDragUpdate: provider.isTaxiwayDrawingActive
+                          ? (index, globalPosition) {
+                              _onTaxiwayNodeDragUpdate(
+                                provider: provider,
+                                index: index,
+                                globalPosition: globalPosition,
+                              );
+                            }
+                          : null,
+                      onNodeDragEnd: provider.isTaxiwayDrawingActive
+                          ? () {
+                              setState(() {
+                                _draggingTaxiwayNodeIndex = null;
+                              });
+                              if (!mounted) {
+                                return;
+                              }
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    MapLocalizationKeys
+                                        .taxiwayNodePositionUpdated
+                                        .tr(context),
+                                  ),
+                                  duration: Duration(milliseconds: 900),
+                                ),
+                              );
+                            }
+                          : null,
+                      onNodeHover: (index, globalPosition) {
+                        _onTaxiwayNodeHover(
+                          index: index,
+                          globalPosition: globalPosition,
+                        );
+                      },
+                      onNodeHoverEnd: _clearTaxiwayNodeHover,
                     ),
                 ],
               ),
@@ -623,6 +774,7 @@ class _MapPageState extends State<MapPage> {
                   showWeather: provider.showWeather,
                   showCustomTaxiway: provider.showCustomTaxiwayRoute,
                   isTaxiwayDrawingActive: provider.isTaxiwayDrawingActive,
+                  showTaxiwayControls: showTaxiwayControls,
                   isConnected: provider.isConnected,
                   activeAlerts: activeAlerts,
                   onClearRoute: () => _confirmClearRoute(provider),
@@ -674,16 +826,96 @@ class _MapPageState extends State<MapPage> {
                     onImport: () => _importCustomTaxiwayRoute(provider),
                   ),
                 ),
-              if (provider.showPlannedRoute && plannedRouteTotalNm > 0)
+              if (showTaxiwayEditStatus || showPlannedRouteChip)
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutCubic,
                   bottom: _plannedRouteChipBottom(scale),
                   left: 20 * scale,
-                  child: _PlannedRouteTotalChip(
-                    scale: scale,
-                    text:
-                        '${MapLocalizationKeys.plannedRouteTotal.tr(context)}: ${plannedRouteTotalNm.toStringAsFixed(1)} NM',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (showTaxiwayEditStatus)
+                        Container(
+                          constraints: BoxConstraints(maxWidth: 380 * scale),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12 * scale,
+                            vertical: 8 * scale,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withAlpha(196),
+                            borderRadius: BorderRadius.circular(12 * scale),
+                            border: Border.all(
+                              color: Colors.orangeAccent,
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.edit_rounded,
+                                size: 16 * scale,
+                                color: Colors.orangeAccent,
+                              ),
+                              SizedBox(width: 8 * scale),
+                              Text(
+                                MapLocalizationKeys.taxiwayEditUnsaved.tr(
+                                  context,
+                                ),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12 * scale,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(width: 10 * scale),
+                              FilledButton.icon(
+                                onPressed:
+                                    provider.taxiwayRoutePoints.isNotEmpty &&
+                                        !_isSavingTaxiwayRoute
+                                    ? () => _saveCustomTaxiwayRoute(provider)
+                                    : null,
+                                icon: _isSavingTaxiwayRoute
+                                    ? SizedBox(
+                                        width: 14 * scale,
+                                        height: 14 * scale,
+                                        child: const CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : Icon(
+                                        Icons.save_rounded,
+                                        size: 14 * scale,
+                                      ),
+                                label: Text(
+                                  _isSavingTaxiwayRoute
+                                      ? MapLocalizationKeys
+                                            .taxiwaySaveInProgress
+                                            .tr(context)
+                                      : LocalizationKeys.save.tr(context),
+                                  style: TextStyle(fontSize: 11 * scale),
+                                ),
+                                style: FilledButton.styleFrom(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 10 * scale,
+                                    vertical: 6 * scale,
+                                  ),
+                                  minimumSize: Size(0, 28 * scale),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (showTaxiwayEditStatus && showPlannedRouteChip)
+                        SizedBox(width: 8 * scale),
+                      if (showPlannedRouteChip)
+                        _PlannedRouteTotalChip(
+                          scale: scale,
+                          text:
+                              '${MapLocalizationKeys.plannedRouteTotal.tr(context)}: ${plannedRouteTotalNm.toStringAsFixed(1)} NM',
+                        ),
+                    ],
                   ),
                 ),
               if (_selectedAirport != null)
@@ -723,6 +955,29 @@ class _MapPageState extends State<MapPage> {
                         _isAirportDetailExpanded = value;
                       });
                     },
+                  ),
+                ),
+              if (_hoveredTaxiwayNodeIndex != null &&
+                  _hoveredTaxiwayNodeIndex! >= 0 &&
+                  _hoveredTaxiwayNodeIndex! < taxiwayNodes.length &&
+                  hoveredNodeLocalOffset != null)
+                Positioned(
+                  left: (hoveredNodeLocalOffset.dx + 16 * scale).clamp(
+                    8.0,
+                    size.width - 248 * scale,
+                  ),
+                  top: (hoveredNodeLocalOffset.dy - 108 * scale).clamp(
+                    8.0,
+                    size.height - 100 * scale,
+                  ),
+                  child: _TaxiwayNodeInfoCard(
+                    scale: scale,
+                    index: _hoveredTaxiwayNodeIndex!,
+                    node: taxiwayNodes[_hoveredTaxiwayNodeIndex!],
+                    headingDeg: _computeTaxiwayNodeHeading(
+                      taxiwayNodes,
+                      _hoveredTaxiwayNodeIndex!,
+                    ),
                   ),
                 ),
               if (provider.isLoading)
@@ -773,20 +1028,160 @@ class _MapPageState extends State<MapPage> {
     });
   }
 
+  void _handleTaxiwayAutoLoadPrompt(MapProvider provider) {
+    final nearestIcao = provider.currentNearestAirportIcao
+        ?.trim()
+        .toUpperCase();
+    final selectedIcao = _normalizeAirportCode(_selectedAirport?.code);
+    final homeIcao = _normalizeAirportCode(provider.homeAirport?.code);
+    final resolvedIcao = nearestIcao != null && nearestIcao.isNotEmpty
+        ? nearestIcao
+        : (selectedIcao.isNotEmpty
+              ? selectedIcao
+              : (homeIcao.isNotEmpty ? homeIcao : null));
+    if (resolvedIcao == null || resolvedIcao.isEmpty) {
+      return;
+    }
+    if (provider.hasLoadedCustomTaxiwayForAirport(resolvedIcao)) {
+      _taxiwayAutoPromptedAirports.add(resolvedIcao);
+      return;
+    }
+    if (_isTaxiwayLoadPromptShowing ||
+        _taxiwayAutoPromptedAirports.contains(resolvedIcao)) {
+      return;
+    }
+    _isTaxiwayLoadPromptShowing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (!mounted) {
+          return;
+        }
+        final files = await provider.listTaxiwayRouteFilesForAirport(
+          icao: resolvedIcao,
+        );
+        if (!mounted || files.isEmpty) {
+          return;
+        }
+        _taxiwayAutoPromptedAirports.add(resolvedIcao);
+        String selectedPath = files.first.filePath;
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) {
+            return StatefulBuilder(
+              builder: (context, setModalState) {
+                return AlertDialog(
+                  title: Text(
+                    '${MapLocalizationKeys.taxiwayAutoLoadTitle.tr(context)} ($resolvedIcao)',
+                  ),
+                  content: SizedBox(
+                    width: 520,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          MapLocalizationKeys.taxiwayAutoLoadPrompt.tr(context),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 320,
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: files.length,
+                            itemBuilder: (context, index) {
+                              final item = files[index];
+                              final selected = selectedPath == item.filePath;
+                              final modifiedText = _formatDateTime(
+                                item.lastModified,
+                              );
+                              return ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 0,
+                                ),
+                                onTap: () {
+                                  setModalState(() {
+                                    selectedPath = item.filePath;
+                                  });
+                                },
+                                leading: Icon(
+                                  selected
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_unchecked,
+                                  size: 20,
+                                ),
+                                title: Text(item.fileName),
+                                subtitle: Text(
+                                  '${MapLocalizationKeys.labelLastEdited.tr(context)}: $modifiedText  ·  ${MapLocalizationKeys.labelNodeCount.tr(context)}: ${item.nodeCount}',
+                                ),
+                                selected: selected,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: Text(
+                        MapLocalizationKeys.taxiwayAutoLoadSkip.tr(context),
+                      ),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: Text(
+                        MapLocalizationKeys.taxiwayAutoLoadLoad.tr(context),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+        if (confirmed == true) {
+          final loadedCount = await provider.importTaxiwayRouteFromPath(
+            selectedPath,
+          );
+          if (mounted) {
+            final message = loadedCount > 0
+                ? '${MapLocalizationKeys.taxiwayAutoLoadLoaded.tr(context)}: $loadedCount'
+                : MapLocalizationKeys.taxiwayAutoLoadInvalid.tr(context);
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(message)));
+          }
+        }
+      } finally {
+        _isTaxiwayLoadPromptShowing = false;
+      }
+    });
+  }
+
+  String _formatDateTime(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '$year-$month-$day $hour:$minute';
+  }
+
   Future<void> _showReconnectPromptDialog(MapProvider provider) async {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('检测到新的飞行连接'),
-          content: const Text('当前地图存在上一次飞行轨迹，是否清除后开始本次飞行？'),
+          title: Text(MapLocalizationKeys.reconnectPromptTitle.tr(context)),
+          content: Text(MapLocalizationKeys.reconnectPromptContent.tr(context)),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
               },
-              child: const Text('保留轨迹'),
+              child: Text(MapLocalizationKeys.reconnectKeepRoute.tr(context)),
             ),
             TextButton(
               onPressed: () {
@@ -794,7 +1189,7 @@ class _MapPageState extends State<MapPage> {
                 Navigator.of(dialogContext).pop();
               },
               style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-              child: const Text('清除轨迹'),
+              child: Text(MapLocalizationKeys.clearRoute.tr(context)),
             ),
           ],
         );
@@ -819,25 +1214,41 @@ class _MapPageState extends State<MapPage> {
   }
 
   Future<void> _saveCustomTaxiwayRoute(MapProvider provider) async {
-    final result = await provider.exportTaxiwayRouteToFile();
-    if (!mounted) {
+    if (_isSavingTaxiwayRoute) {
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
-    if (result > 0) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(MapLocalizationKeys.taxiwayExportSuccess.tr(context)),
-        ),
-      );
-      return;
-    }
-    if (result < 0) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(MapLocalizationKeys.taxiwayNoRouteToSave.tr(context)),
-        ),
-      );
+    setState(() {
+      _isSavingTaxiwayRoute = true;
+    });
+    try {
+      final result = await provider.exportTaxiwayRouteToFile();
+      if (!mounted) {
+        return;
+      }
+      final messenger = ScaffoldMessenger.of(context);
+      if (result > 0) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(MapLocalizationKeys.taxiwayExportSuccess.tr(context)),
+          ),
+        );
+        return;
+      }
+      if (result < 0) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(MapLocalizationKeys.taxiwayNoRouteToSave.tr(context)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingTaxiwayRoute = false;
+        });
+      } else {
+        _isSavingTaxiwayRoute = false;
+      }
     }
   }
 
@@ -873,6 +1284,645 @@ class _MapPageState extends State<MapPage> {
         ),
       );
     }
+  }
+
+  void _onTaxiwayNodeDragUpdate({
+    required MapProvider provider,
+    required int index,
+    required Offset globalPosition,
+  }) {
+    if (!provider.isTaxiwayDrawingActive) {
+      return;
+    }
+    final mapContext = _mapKey.currentContext;
+    if (!_mapReady || mapContext == null) {
+      return;
+    }
+    final renderBox = mapContext.findRenderObject();
+    if (renderBox is! RenderBox) {
+      return;
+    }
+    final localOffset = renderBox.globalToLocal(globalPosition);
+    final nextLatLng = _mapController.camera.screenOffsetToLatLng(localOffset);
+    provider.updateTaxiwayNodePosition(
+      index,
+      MapCoordinate(
+        latitude: nextLatLng.latitude,
+        longitude: nextLatLng.longitude,
+      ),
+    );
+    if (_selectedTaxiwayNodeIndex != index) {
+      setState(() {
+        _selectedTaxiwayNodeIndex = index;
+      });
+    }
+  }
+
+  void _updateTaxiwaySegmentCurveByDrag({
+    required MapProvider provider,
+    required int segmentIndex,
+    required Offset globalPosition,
+  }) {
+    if (!provider.isTaxiwayDrawingActive) {
+      return;
+    }
+    final nodes = provider.taxiwayNodes;
+    if (segmentIndex < 0 || segmentIndex >= nodes.length - 1) {
+      return;
+    }
+    final segments = provider.taxiwaySegments;
+    if (segmentIndex < 0 || segmentIndex >= segments.length) {
+      return;
+    }
+    final mapContext = _mapKey.currentContext;
+    if (!_mapReady || mapContext == null) {
+      return;
+    }
+    final renderBox = mapContext.findRenderObject();
+    if (renderBox is! RenderBox) {
+      return;
+    }
+    final start = nodes[segmentIndex];
+    final end = nodes[segmentIndex + 1];
+    final startOffset = _mapController.camera.latLngToScreenOffset(
+      LatLng(start.latitude, start.longitude),
+    );
+    final endOffset = _mapController.camera.latLngToScreenOffset(
+      LatLng(end.latitude, end.longitude),
+    );
+    final pointerOffset = renderBox.globalToLocal(globalPosition);
+    final vector = endOffset - startOffset;
+    final length = vector.distance;
+    if (length <= 0.01) {
+      return;
+    }
+    final relative = pointerOffset - startOffset;
+    final cross = vector.dx * relative.dy - vector.dy * relative.dx;
+    final distanceToLine = cross.abs() / length;
+    final offsetFactor = (distanceToLine / length).clamp(0.0, 0.57).toDouble();
+    final nextCurvature = ((offsetFactor - 0.12) / 0.45).clamp(0.0, 1.0);
+    final nextDirection = cross < 0
+        ? MapTaxiwaySegmentCurveDirection.left
+        : MapTaxiwaySegmentCurveDirection.right;
+    final target = segments[segmentIndex];
+    provider.updateTaxiwaySegmentInfo(
+      segmentIndex,
+      name: target.name,
+      colorHex: target.colorHex,
+      note: target.note,
+      lineType: MapTaxiwaySegmentLineType.mapMatching,
+      curvature: nextCurvature.toDouble(),
+      curveDirection: nextDirection,
+    );
+  }
+
+  void _onTaxiwayNodeHover({
+    required int index,
+    required Offset globalPosition,
+  }) {
+    if (_hoveredTaxiwayNodeIndex == index &&
+        _hoveredTaxiwayNodeGlobalPosition == globalPosition) {
+      return;
+    }
+    setState(() {
+      _hoveredTaxiwayNodeIndex = index;
+      _hoveredTaxiwayNodeGlobalPosition = globalPosition;
+    });
+  }
+
+  void _clearTaxiwayNodeHover() {
+    if (_hoveredTaxiwayNodeIndex == null &&
+        _hoveredTaxiwayNodeGlobalPosition == null) {
+      return;
+    }
+    setState(() {
+      _hoveredTaxiwayNodeIndex = null;
+      _hoveredTaxiwayNodeGlobalPosition = null;
+    });
+  }
+
+  Future<void> _showTaxiwaySegmentContextMenu({
+    required MapProvider provider,
+    required int segmentIndex,
+    required Offset globalPosition,
+  }) async {
+    if (!provider.isTaxiwayDrawingActive ||
+        segmentIndex < 0 ||
+        segmentIndex >= provider.taxiwayNodes.length - 1) {
+      return;
+    }
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        globalPosition.dx,
+        globalPosition.dy,
+        globalPosition.dx,
+        globalPosition.dy,
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'insert',
+          child: Text(MapLocalizationKeys.taxiwayInsertNode.tr(context)),
+        ),
+        PopupMenuItem<String>(
+          value: 'edit',
+          child: Text(MapLocalizationKeys.taxiwayEditConnection.tr(context)),
+        ),
+      ],
+    );
+    if (!mounted || selected == null) {
+      return;
+    }
+    if (selected == 'insert') {
+      final insertCoordinate = _resolveMapCoordinateFromGlobalPosition(
+        globalPosition,
+      );
+      provider.insertTaxiwayNodeBetween(
+        segmentIndex,
+        coordinate: insertCoordinate,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              MapLocalizationKeys.taxiwayInsertNodeSuccess.tr(context),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    await _showTaxiwaySegmentEditor(provider, segmentIndex);
+  }
+
+  MapCoordinate? _resolveMapCoordinateFromGlobalPosition(
+    Offset globalPosition,
+  ) {
+    final mapContext = _mapKey.currentContext;
+    if (!_mapReady || mapContext == null) {
+      return null;
+    }
+    final renderBox = mapContext.findRenderObject();
+    if (renderBox is! RenderBox) {
+      return null;
+    }
+    final localOffset = renderBox.globalToLocal(globalPosition);
+    final latLng = _mapController.camera.screenOffsetToLatLng(localOffset);
+    return MapCoordinate(
+      latitude: latLng.latitude,
+      longitude: latLng.longitude,
+    );
+  }
+
+  Future<void> _showTaxiwaySegmentEditor(
+    MapProvider provider,
+    int segmentIndex,
+  ) async {
+    final nodes = provider.taxiwayNodes;
+    if (segmentIndex < 0 || segmentIndex >= nodes.length - 1) {
+      return;
+    }
+    final segments = provider.taxiwaySegments;
+    final target = segmentIndex < segments.length
+        ? segments[segmentIndex]
+        : const MapTaxiwaySegment();
+    final nameController = TextEditingController(text: target.name ?? '');
+    final noteController = TextEditingController(text: target.note ?? '');
+    var selectedColorHex = target.colorHex ?? '#FFD54F';
+    var selectedLineType = target.lineType;
+    var selectedCurvature = target.curvature;
+    var selectedCurveDirection = target.curveDirection;
+    final startNode = nodes[segmentIndex];
+    final endNode = nodes[segmentIndex + 1];
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: Text(
+                '${MapLocalizationKeys.taxiwayConnection.tr(context)} ${segmentIndex + 1}',
+              ),
+              content: SizedBox(
+                width: 360,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${MapLocalizationKeys.taxiwayConnectionRange.tr(context)}：${segmentIndex + 1} → ${segmentIndex + 2}\n'
+                          '${MapLocalizationKeys.labelLatitudeLongitude.tr(context)}：${startNode.latitude.toStringAsFixed(6)}, ${startNode.longitude.toStringAsFixed(6)} ↔ ${endNode.latitude.toStringAsFixed(6)}, ${endNode.longitude.toStringAsFixed(6)}',
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: nameController,
+                        decoration: InputDecoration(
+                          labelText: MapLocalizationKeys.taxiwayConnectionName
+                              .tr(context),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: noteController,
+                        decoration: InputDecoration(
+                          labelText: MapLocalizationKeys.taxiwayConnectionNote
+                              .tr(context),
+                        ),
+                        minLines: 2,
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        MapLocalizationKeys.taxiwayConnectionColor.tr(context),
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _taxiwayColorHexPalette
+                            .map(
+                              (hex) => GestureDetector(
+                                onTap: () {
+                                  setModalState(() {
+                                    selectedColorHex = hex;
+                                  });
+                                },
+                                child: Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    color: _colorFromHex(hex),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: selectedColorHex == hex
+                                          ? Colors.white
+                                          : Colors.black.withValues(
+                                              alpha: 0.45,
+                                            ),
+                                      width: selectedColorHex == hex ? 2 : 1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${MapLocalizationKeys.taxiwayNodeCurrentColor.tr(context)}：$selectedColorHex',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        MapLocalizationKeys.taxiwayConnectionLineType.tr(
+                          context,
+                        ),
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<MapTaxiwaySegmentLineType>(
+                        initialValue: selectedLineType,
+                        decoration: const InputDecoration(),
+                        items: [
+                          DropdownMenuItem<MapTaxiwaySegmentLineType>(
+                            value: MapTaxiwaySegmentLineType.straight,
+                            child: Text(
+                              MapLocalizationKeys
+                                  .taxiwayConnectionLineTypeStraight
+                                  .tr(context),
+                            ),
+                          ),
+                          DropdownMenuItem<MapTaxiwaySegmentLineType>(
+                            value: MapTaxiwaySegmentLineType.mapMatching,
+                            child: Text(
+                              MapLocalizationKeys
+                                  .taxiwayConnectionLineTypeMapMatching
+                                  .tr(context),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setModalState(() {
+                            selectedLineType = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        '${MapLocalizationKeys.taxiwayConnectionCurvature.tr(context)}：${selectedCurvature.toStringAsFixed(2)}',
+                      ),
+                      Slider(
+                        value: selectedCurvature.clamp(0.0, 1.0).toDouble(),
+                        min: 0.0,
+                        max: 1.0,
+                        divisions: 20,
+                        onChanged:
+                            selectedLineType ==
+                                MapTaxiwaySegmentLineType.mapMatching
+                            ? (value) {
+                                setModalState(() {
+                                  selectedCurvature = value;
+                                });
+                              }
+                            : null,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        MapLocalizationKeys.taxiwayConnectionCurveDirection.tr(
+                          context,
+                        ),
+                      ),
+                      DropdownButtonFormField<MapTaxiwaySegmentCurveDirection>(
+                        initialValue: selectedCurveDirection,
+                        decoration: const InputDecoration(),
+                        items: [
+                          DropdownMenuItem<MapTaxiwaySegmentCurveDirection>(
+                            value: MapTaxiwaySegmentCurveDirection.left,
+                            child: Text(
+                              MapLocalizationKeys
+                                  .taxiwayConnectionCurveDirectionLeft
+                                  .tr(context),
+                            ),
+                          ),
+                          DropdownMenuItem<MapTaxiwaySegmentCurveDirection>(
+                            value: MapTaxiwaySegmentCurveDirection.right,
+                            child: Text(
+                              MapLocalizationKeys
+                                  .taxiwayConnectionCurveDirectionRight
+                                  .tr(context),
+                            ),
+                          ),
+                        ],
+                        onChanged:
+                            selectedLineType ==
+                                MapTaxiwaySegmentLineType.mapMatching
+                            ? (value) {
+                                if (value == null) {
+                                  return;
+                                }
+                                setModalState(() {
+                                  selectedCurveDirection = value;
+                                });
+                              }
+                            : null,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        MapLocalizationKeys.taxiwayConnectionDragHint.tr(
+                          context,
+                        ),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: Text(LocalizationKeys.cancel.tr(context)),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    provider.updateTaxiwaySegmentInfo(
+                      segmentIndex,
+                      name: nameController.text,
+                      colorHex: selectedColorHex,
+                      note: noteController.text,
+                      lineType: selectedLineType,
+                      curvature: selectedCurvature,
+                      curveDirection: selectedCurveDirection,
+                    );
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: Text(LocalizationKeys.save.tr(context)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showTaxiwayNodeEditor(MapProvider provider, int index) async {
+    final nodes = provider.taxiwayNodes;
+    if (index < 0 || index >= nodes.length) {
+      return;
+    }
+    setState(() {
+      _selectedTaxiwayNodeIndex = index;
+    });
+    final target = nodes[index];
+    final nameController = TextEditingController(text: target.name ?? '');
+    final noteController = TextEditingController(text: target.note ?? '');
+    final headingDeg = _computeTaxiwayNodeHeading(nodes, index);
+    var selectedColorHex = target.colorHex ?? '#00E5FF';
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: Text(
+                '${MapLocalizationKeys.taxiwayNode.tr(context)} ${index + 1} ${MapLocalizationKeys.taxiwayNodeSettings.tr(context)}',
+              ),
+              content: SizedBox(
+                width: 360,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${MapLocalizationKeys.taxiwayNode.tr(context)} ${index + 1}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${MapLocalizationKeys.labelLatitudeLongitude.tr(context)}：${target.latitude.toStringAsFixed(6)}, ${target.longitude.toStringAsFixed(6)}',
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${MapLocalizationKeys.labelHeading.tr(context)}：${headingDeg == null ? '--' : '${headingDeg.toStringAsFixed(0)}°'}',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: nameController,
+                        decoration: InputDecoration(
+                          labelText: MapLocalizationKeys.taxiwayNodeName.tr(
+                            context,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: noteController,
+                        decoration: InputDecoration(
+                          labelText: MapLocalizationKeys.taxiwayNodeNote.tr(
+                            context,
+                          ),
+                        ),
+                        minLines: 2,
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        MapLocalizationKeys.taxiwayNodeColor.tr(context),
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _taxiwayColorHexPalette
+                            .map(
+                              (hex) => GestureDetector(
+                                onTap: () {
+                                  setModalState(() {
+                                    selectedColorHex = hex;
+                                  });
+                                },
+                                child: Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    color: _colorFromHex(hex),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: selectedColorHex == hex
+                                          ? Colors.white
+                                          : Colors.black.withValues(
+                                              alpha: 0.45,
+                                            ),
+                                      width: selectedColorHex == hex ? 2 : 1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${MapLocalizationKeys.taxiwayNodeCurrentColor.tr(context)}：$selectedColorHex',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: Text(LocalizationKeys.cancel.tr(context)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    provider.removeTaxiwayNodeAt(index);
+                    setState(() {
+                      final nextLength = provider.taxiwayNodes.length;
+                      if (nextLength <= 0) {
+                        _selectedTaxiwayNodeIndex = null;
+                      } else {
+                        _selectedTaxiwayNodeIndex = index >= nextLength
+                            ? nextLength - 1
+                            : index;
+                      }
+                    });
+                    Navigator.of(dialogContext).pop();
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                  ),
+                  child: Text(
+                    MapLocalizationKeys.taxiwayDeleteNode.tr(context),
+                  ),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    provider.updateTaxiwayNodeInfo(
+                      index,
+                      name: nameController.text,
+                      colorHex: selectedColorHex,
+                      note: noteController.text,
+                    );
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: Text(LocalizationKeys.save.tr(context)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  double? _computeTaxiwayNodeHeading(List<MapTaxiwayNode> nodes, int index) {
+    if (nodes.length < 2 || index < 0 || index >= nodes.length) {
+      return null;
+    }
+    LatLng from;
+    LatLng to;
+    if (index < nodes.length - 1) {
+      from = LatLng(nodes[index].latitude, nodes[index].longitude);
+      to = LatLng(nodes[index + 1].latitude, nodes[index + 1].longitude);
+    } else {
+      from = LatLng(nodes[index - 1].latitude, nodes[index - 1].longitude);
+      to = LatLng(nodes[index].latitude, nodes[index].longitude);
+    }
+    final raw = _distance.bearing(from, to);
+    return (raw + 360) % 360;
+  }
+
+  Color _colorFromHex(String hex) {
+    final normalized = hex.trim().toUpperCase().replaceAll('#', '');
+    if (RegExp(r'^[0-9A-F]{6}$').hasMatch(normalized)) {
+      return Color(int.parse('FF$normalized', radix: 16));
+    }
+    if (RegExp(r'^[0-9A-F]{8}$').hasMatch(normalized)) {
+      return Color(int.parse(normalized, radix: 16));
+    }
+    return Colors.cyanAccent;
   }
 
   bool _shouldShowDangerOverlay(
@@ -916,7 +1966,7 @@ class _MapPageState extends State<MapPage> {
     if (prioritizedAlert.id != '__none__') {
       return prioritizedAlert.message.tr(context);
     }
-    return '飞行参数异常，请立即修正';
+    return MapLocalizationKeys.taxiwayDangerGeneric.tr(context);
   }
 
   void _onMapBoundsChanged(LatLngBounds? bounds, MapProvider provider) {
@@ -1741,6 +2791,64 @@ class _PlannedRouteTotalChip extends StatelessWidget {
           color: Colors.white,
           fontSize: 12 * scale,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _TaxiwayNodeInfoCard extends StatelessWidget {
+  final double scale;
+  final int index;
+  final MapTaxiwayNode node;
+  final double? headingDeg;
+
+  const _TaxiwayNodeInfoCard({
+    required this.scale,
+    required this.index,
+    required this.node,
+    required this.headingDeg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final headingText = headingDeg == null
+        ? '--'
+        : '${headingDeg!.toStringAsFixed(0)}°';
+    return Container(
+      width: 240 * scale,
+      padding: EdgeInsets.symmetric(
+        horizontal: 12 * scale,
+        vertical: 10 * scale,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(10 * scale),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: DefaultTextStyle(
+        style: TextStyle(color: Colors.white, fontSize: 12 * scale),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              (node.name ?? '').trim().isEmpty
+                  ? '${MapLocalizationKeys.taxiwayNode.tr(context)} ${index + 1}'
+                  : '${node.name} (${MapLocalizationKeys.taxiwayNode.tr(context)} ${index + 1})',
+              style: TextStyle(
+                fontSize: 13 * scale,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(height: 6 * scale),
+            Text(
+              '${MapLocalizationKeys.labelLatitudeLongitude.tr(context)}：${node.latitude.toStringAsFixed(6)}, ${node.longitude.toStringAsFixed(6)}',
+            ),
+            SizedBox(height: 3 * scale),
+            Text(
+              '${MapLocalizationKeys.labelHeading.tr(context)}：$headingText',
+            ),
+          ],
         ),
       ),
     );

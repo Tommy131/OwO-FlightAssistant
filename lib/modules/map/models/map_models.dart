@@ -9,4 +9,6 @@ export 'map_coordinate.dart';
 export 'map_data_snapshot.dart';
 export 'map_flight_alert.dart';
 export 'map_layer.dart';
+export 'map_taxiway_node.dart';
+export 'map_taxiway_segment.dart';
 export 'map_timer.dart';
