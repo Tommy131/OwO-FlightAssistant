@@ -36,6 +36,7 @@ class MapTopPanel extends StatelessWidget {
   final bool showWeather;
   final bool showCustomTaxiway;
   final bool isTaxiwayDrawingActive;
+  final bool showTaxiwayControls;
   final bool isConnected;
   final List<MapFlightAlert> activeAlerts;
   final VoidCallback onClearRoute;
@@ -76,6 +77,7 @@ class MapTopPanel extends StatelessWidget {
     required this.showWeather,
     required this.showCustomTaxiway,
     required this.isTaxiwayDrawingActive,
+    required this.showTaxiwayControls,
     required this.isConnected,
     required this.activeAlerts,
     required this.onClearRoute,
@@ -205,140 +207,151 @@ class MapTopPanel extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (isFilterExpanded) ...[
-                  SizedBox(width: 8 * scale),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          if (isConnected) ...[
-                            FilterToggleButton(
-                              label: MapLocalizationKeys.toggleRoute.tr(
-                                context,
-                              ),
-                              value: showRoute,
-                              onChanged: (value) => onToggleRoute(),
-                              scale: scale,
-                            ),
-                            SizedBox(width: 8 * scale),
-                          ],
-                          FilterToggleButton(
-                            label: MapLocalizationKeys.toggleNearbyAirports.tr(
-                              context,
-                            ),
-                            value: showAirports,
-                            onChanged: (value) => onToggleAirports(),
-                            activeColor: Colors.blueGrey,
-                            scale: scale,
-                          ),
-                          SizedBox(width: 8 * scale),
-                          FilterToggleButton(
-                            label: MapLocalizationKeys.toggleRunways.tr(
-                              context,
-                            ),
-                            value: showRunways,
-                            onChanged: (value) => onToggleRunways(),
-                            activeColor: Colors.deepOrangeAccent,
-                            scale: scale,
-                          ),
-                          SizedBox(width: 8 * scale),
-                          FilterToggleButton(
-                            label: MapLocalizationKeys.toggleParkings.tr(
-                              context,
-                            ),
-                            value: showParkings,
-                            onChanged: (value) => onToggleParkings(),
-                            activeColor: Colors.lightBlueAccent,
-                            scale: scale,
-                          ),
-                          if (isConnected) ...[
-                            SizedBox(width: 8 * scale),
-                            FilterToggleButton(
-                              label: MapLocalizationKeys.toggleCompass.tr(
-                                context,
-                              ),
-                              value: showCompass,
-                              onChanged: (value) => onToggleCompass(),
-                              activeColor: Colors.blueAccent,
-                              scale: scale,
-                            ),
-                          ],
-                          SizedBox(width: 8 * scale),
-                          FilterToggleButton(
-                            label: MapLocalizationKeys.toggleWeather.tr(
-                              context,
-                            ),
-                            value: showWeather,
-                            onChanged: (value) => onToggleWeather(),
-                            scale: scale,
-                          ),
-                          SizedBox(width: 8 * scale),
-                          TaxiwayDrawControls(
-                            showCustomTaxiway: showCustomTaxiway,
-                            isTaxiwayDrawingActive: isTaxiwayDrawingActive,
-                            onToggleCustomTaxiway: onToggleCustomTaxiway,
-                            onToggleTaxiwayDrawing: onToggleTaxiwayDrawing,
-                            scale: scale,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
                 SizedBox(width: 8 * scale),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
+                Expanded(
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (isFilterExpanded)
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                if (isConnected) ...[
+                                  FilterToggleButton(
+                                    label: MapLocalizationKeys.toggleRoute.tr(
+                                      context,
+                                    ),
+                                    value: showRoute,
+                                    onChanged: (value) => onToggleRoute(),
+                                    scale: scale,
+                                  ),
+                                  SizedBox(width: 8 * scale),
+                                ],
+                                FilterToggleButton(
+                                  label: MapLocalizationKeys
+                                      .toggleNearbyAirports
+                                      .tr(context),
+                                  value: showAirports,
+                                  onChanged: (value) => onToggleAirports(),
+                                  activeColor: Colors.blueGrey,
+                                  scale: scale,
+                                ),
+                                SizedBox(width: 8 * scale),
+                                FilterToggleButton(
+                                  label: MapLocalizationKeys.toggleRunways.tr(
+                                    context,
+                                  ),
+                                  value: showRunways,
+                                  onChanged: (value) => onToggleRunways(),
+                                  activeColor: Colors.deepOrangeAccent,
+                                  scale: scale,
+                                ),
+                                SizedBox(width: 8 * scale),
+                                FilterToggleButton(
+                                  label: MapLocalizationKeys.toggleParkings.tr(
+                                    context,
+                                  ),
+                                  value: showParkings,
+                                  onChanged: (value) => onToggleParkings(),
+                                  activeColor: Colors.lightBlueAccent,
+                                  scale: scale,
+                                ),
+                                if (isConnected) ...[
+                                  SizedBox(width: 8 * scale),
+                                  FilterToggleButton(
+                                    label: MapLocalizationKeys.toggleCompass.tr(
+                                      context,
+                                    ),
+                                    value: showCompass,
+                                    onChanged: (value) => onToggleCompass(),
+                                    activeColor: Colors.blueAccent,
+                                    scale: scale,
+                                  ),
+                                ],
+                                SizedBox(width: 8 * scale),
+                                FilterToggleButton(
+                                  label: MapLocalizationKeys.toggleWeather.tr(
+                                    context,
+                                  ),
+                                  value: showWeather,
+                                  onChanged: (value) => onToggleWeather(),
+                                  scale: scale,
+                                ),
+                                SizedBox(width: 8 * scale),
+                                TaxiwayDrawControls(
+                                  showCustomTaxiwayButton: showTaxiwayControls,
+                                  showCustomTaxiway: showCustomTaxiway,
+                                  isTaxiwayDrawingActive:
+                                      isTaxiwayDrawingActive,
+                                  onToggleCustomTaxiway: onToggleCustomTaxiway,
+                                  onToggleTaxiwayDrawing:
+                                      onToggleTaxiwayDrawing,
+                                  scale: scale,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        const Spacer(),
                       if (isConnected) ...[
-                        FilterToggleButton(
-                          label: isHudTimerRunning
-                              ? MapLocalizationKeys.tooltipTimerPause.tr(
-                                  context,
-                                )
-                              : MapLocalizationKeys.tooltipTimerStart.tr(
+                        SizedBox(width: 18 * scale),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FilterToggleButton(
+                                label: isHudTimerRunning
+                                    ? MapLocalizationKeys.tooltipTimerPause.tr(
+                                        context,
+                                      )
+                                    : MapLocalizationKeys.tooltipTimerStart.tr(
+                                        context,
+                                      ),
+                                value: isHudTimerRunning,
+                                onChanged: (_) => onToggleHudTimer(),
+                                activeColor: Colors.lightGreenAccent,
+                                inactiveColor: Colors.greenAccent,
+                                leadingIcon: isHudTimerRunning
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                showActiveCheck: false,
+                                scale: scale,
+                              ),
+                              SizedBox(width: 8 * scale),
+                              FilterToggleButton(
+                                label: MapLocalizationKeys.tooltipTimerReset.tr(
                                   context,
                                 ),
-                          value: isHudTimerRunning,
-                          onChanged: (_) => onToggleHudTimer(),
-                          activeColor: Colors.lightGreenAccent,
-                          inactiveColor: Colors.greenAccent,
-                          leadingIcon: isHudTimerRunning
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          showActiveCheck: false,
-                          scale: scale,
-                        ),
-                        SizedBox(width: 8 * scale),
-                        FilterToggleButton(
-                          label: MapLocalizationKeys.tooltipTimerReset.tr(
-                            context,
+                                value: false,
+                                onChanged: (_) => onResetHudTimer(),
+                                activeColor: Colors.amberAccent,
+                                inactiveColor: Colors.amberAccent,
+                                leadingIcon: Icons.restart_alt_rounded,
+                                leadingIconColor: Colors.amberAccent,
+                                showActiveCheck: false,
+                                scale: scale,
+                              ),
+                              SizedBox(width: 8 * scale),
+                              FilterToggleButton(
+                                label: MapLocalizationKeys.clearRoute.tr(
+                                  context,
+                                ),
+                                value: false,
+                                onChanged: (_) => onClearRoute(),
+                                activeColor: Colors.redAccent,
+                                inactiveColor: Colors.redAccent,
+                                leadingIcon: Icons.delete_outline_rounded,
+                                leadingIconColor: Colors.redAccent,
+                                showActiveCheck: false,
+                                scale: scale,
+                              ),
+                            ],
                           ),
-                          value: false,
-                          onChanged: (_) => onResetHudTimer(),
-                          activeColor: Colors.amberAccent,
-                          inactiveColor: Colors.amberAccent,
-                          leadingIcon: Icons.restart_alt_rounded,
-                          leadingIconColor: Colors.amberAccent,
-                          showActiveCheck: false,
-                          scale: scale,
                         ),
-                        SizedBox(width: 8 * scale),
                       ],
-                      if (isConnected)
-                        FilterToggleButton(
-                          label: MapLocalizationKeys.clearRoute.tr(context),
-                          value: false,
-                          onChanged: (_) => onClearRoute(),
-                          activeColor: Colors.redAccent,
-                          inactiveColor: Colors.redAccent,
-                          leadingIcon: Icons.delete_outline_rounded,
-                          leadingIconColor: Colors.redAccent,
-                          showActiveCheck: false,
-                          scale: scale,
-                        ),
                     ],
                   ),
                 ),
