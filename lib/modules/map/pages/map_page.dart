@@ -39,7 +39,6 @@ class _MapPageState extends State<MapPage> {
   static const double _aiAircraftMarkerLift = 14;
   // 颜色调色板已迁移至 map_taxiway_dialogs.dart（kTaxiwayColorHexPalette）
 
-
   final MapController _mapController = MapController();
   final GlobalKey _mapKey = GlobalKey();
   final Distance _distance = const Distance();
@@ -62,6 +61,7 @@ class _MapPageState extends State<MapPage> {
   bool _isCrashOverlayDismissed = false;
   bool _isReconnectPromptShowing = false;
   bool _showAircraftInfoPanel = false;
+  String? _hoveredAIAircraftId;
   Timer? _airportFetchTimer;
   LatLngBounds? _lastFetchBounds;
   int? _selectedTaxiwayNodeIndex;
@@ -132,6 +132,18 @@ class _MapPageState extends State<MapPage> {
         final aircraftScreenOffset = _mapReady && aircraft != null
             ? _mapController.camera.latLngToScreenOffset(
                 LatLng(aircraft.position.latitude, aircraft.position.longitude),
+              )
+            : null;
+        final hoveredAIAircraft = _resolveHoveredAIAircraft(
+          provider.aiAircraft,
+        );
+        final hoveredAIAircraftScreenOffset =
+            _mapReady && hoveredAIAircraft != null
+            ? _mapController.camera.latLngToScreenOffset(
+                LatLng(
+                  hoveredAIAircraft.position.latitude,
+                  hoveredAIAircraft.position.longitude,
+                ),
               )
             : null;
         final aircraftRegistration = _resolveAircraftRegistration(homeSnapshot);
@@ -284,23 +296,23 @@ class _MapPageState extends State<MapPage> {
                       ),
                     ),
                   if (provider.showWeather &&
-                      provider.weatherRadarTimestamp != null &&
+                      provider.weatherRadarTileUrlTemplate != null &&
                       !provider.isWeatherRadarCoolingDown &&
-                      zoom <= 8)
+                      zoom <= 7.9)
                     Opacity(
                       opacity: 0.6,
                       child: TileLayer(
-                        urlTemplate:
-                            'https://tilecache.rainviewer.com/v2/radar/${provider.weatherRadarTimestamp}/256/{z}/{x}/{y}/4/1_1.png',
+                        key: ValueKey(
+                          'weather-${provider.weatherRadarTimestamp}-${provider.tileReloadToken}',
+                        ),
+                        urlTemplate: provider.weatherRadarTileUrlTemplate!,
                         userAgentPackageName: 'com.owo.flight_assistant',
                         tileUpdateTransformer: _weatherRadarTransformer,
                         maxNativeZoom: 7,
                         minZoom: 3,
+                        maxZoom: 7.9,
                         errorTileCallback: (tile, error, stackTrace) {
-                          final message = error.toString();
-                          if (message.contains('statusCode: 429')) {
-                            provider.handleWeatherRadarRateLimit();
-                          }
+                          provider.handleWeatherRadarTileError(error);
                         },
                       ),
                     ),
@@ -499,168 +511,15 @@ class _MapPageState extends State<MapPage> {
                         ),
                       ],
                     ),
-                  if (aircraft != null)
-                    MarkerLayer(
-                      markers: [
-                        if (provider.showCompass)
-                          Marker(
-                            point: LatLng(
-                              aircraft.position.latitude,
-                              aircraft.position.longitude,
-                            ),
-                            width: 190 * scale,
-                            height: 190 * scale,
-                            child: Transform.translate(
-                              offset: Offset(0, -_aircraftCompassLift * scale),
-                              child: AircraftCompassRing(
-                                heading: aircraft.heading,
-                                headingTarget: aircraft.headingTarget,
-                                mapRotation: _mapReady
-                                    ? _mapController.camera.rotation
-                                    : 0,
-                                scale: scale,
-                                highContrastOnBrightBackground:
-                                    brightMapBackground,
-                              ),
-                            ),
-                          ),
-                        Marker(
-                          point: LatLng(
-                            aircraft.position.latitude,
-                            aircraft.position.longitude,
-                          ),
-                          width: 40,
-                          height: 40,
-                          child: Transform.translate(
-                            offset: Offset(0, -_aircraftMarkerLift * scale),
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _showAircraftInfoPanel =
-                                      !_showAircraftInfoPanel;
-                                });
-                              },
-                              child: Tooltip(
-                                message: _showAircraftInfoPanel
-                                    ? MapLocalizationKeys.tooltipHideDetail.tr(
-                                        context,
-                                      )
-                                    : MapLocalizationKeys.tooltipShowDetail.tr(
-                                        context,
-                                      ),
-                                waitDuration: const Duration(milliseconds: 500),
-                                child: AircraftMarker(
-                                  heading: aircraft.heading,
-                                  isDark: theme.brightness == Brightness.dark,
-                                  highContrastOnBrightBackground:
-                                      brightMapBackground,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (provider.takeoffPoint != null)
-                          Marker(
-                            point: LatLng(
-                              provider.takeoffPoint!.latitude,
-                              provider.takeoffPoint!.longitude,
-                            ),
-                            width: 78,
-                            height: 68,
-                            child: FlightEventMarker(
-                              icon: Icons.flight_takeoff,
-                              label: MapLocalizationKeys.labelTakeoff.tr(
-                                context,
-                              ),
-                              color: Colors.blueAccent,
-                            ),
-                          ),
-                        if (provider.landingPoint != null)
-                          Marker(
-                            point: LatLng(
-                              provider.landingPoint!.latitude,
-                              provider.landingPoint!.longitude,
-                            ),
-                            width: 78,
-                            height: 68,
-                            child: FlightEventMarker(
-                              icon: Icons.flight_land,
-                              label: MapLocalizationKeys.labelLanding.tr(
-                                context,
-                              ),
-                              color: Colors.greenAccent,
-                            ),
-                          ),
-                      ],
-                    ),
+                  if (provider.takeoffPoint != null ||
+                      provider.landingPoint != null)
+                    _buildFlightEventLayer(provider, context),
                   if (provider.aiAircraft.isNotEmpty)
-                    MarkerLayer(
-                      markers: provider.aiAircraft
-                          .map(
-                            (ai) => Marker(
-                              point: LatLng(
-                                ai.position.latitude,
-                                ai.position.longitude,
-                              ),
-                              width: 76 * scale,
-                              height: 74 * scale,
-                              child: Transform.translate(
-                                offset: Offset(
-                                  0,
-                                  -_aiAircraftMarkerLift * scale,
-                                ),
-                                child: IgnorePointer(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 6 * scale,
-                                          vertical: 2 * scale,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: brightMapBackground
-                                              ? Colors.black.withValues(
-                                                  alpha: 0.72,
-                                                )
-                                              : Colors.white.withValues(
-                                                  alpha: 0.82,
-                                                ),
-                                          borderRadius: BorderRadius.circular(
-                                            999,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          _formatAltitudeFeet(ai.altitude),
-                                          style: TextStyle(
-                                            fontSize: 9 * scale,
-                                            color: brightMapBackground
-                                                ? Colors.white
-                                                : Colors.black87,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(height: 4 * scale),
-                                      SizedBox(
-                                        width: 24 * scale,
-                                        height: 24 * scale,
-                                        child: AircraftMarker(
-                                          heading: ai.heading,
-                                          isDark:
-                                              theme.brightness ==
-                                              Brightness.dark,
-                                          highContrastOnBrightBackground:
-                                              brightMapBackground,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          )
-                          .toList(growable: false),
+                    _buildAIAircraftLayer(
+                      provider: provider,
+                      scale: scale,
+                      brightMapBackground: brightMapBackground,
+                      layerStyle: provider.layerStyle,
                     ),
                   if (provider.showCustomTaxiwayRoute &&
                       provider.taxiwayRoutePoints.isNotEmpty)
@@ -770,6 +629,15 @@ class _MapPageState extends State<MapPage> {
                       },
                       onNodeHoverEnd: _clearTaxiwayNodeHover,
                     ),
+                  if (aircraft != null)
+                    _buildPlayerAircraftLayer(
+                      context: context,
+                      provider: provider,
+                      aircraft: aircraft,
+                      scale: scale,
+                      brightMapBackground: brightMapBackground,
+                      isDarkTheme: theme.brightness == Brightness.dark,
+                    ),
                 ],
               ),
               if (aircraft != null &&
@@ -790,6 +658,20 @@ class _MapPageState extends State<MapPage> {
                         homeSnapshot.flightData.groundSpeed,
                     transponderCode: homeSnapshot.transponderCode,
                     transponderState: homeSnapshot.transponderState,
+                  ),
+                ),
+              if (hoveredAIAircraft != null &&
+                  hoveredAIAircraftScreenOffset != null)
+                Positioned.fill(
+                  child: AircraftInfoMiniPanel(
+                    aircraftScreenOffset: hoveredAIAircraftScreenOffset,
+                    viewportSize: size,
+                    scale: scale,
+                    brightBackground: brightMapBackground,
+                    flightNumber: hoveredAIAircraft.type,
+                    registration: hoveredAIAircraft.id,
+                    altitude: hoveredAIAircraft.altitude,
+                    groundSpeed: hoveredAIAircraft.groundSpeed,
                   ),
                 ),
               Positioned(
@@ -1147,9 +1029,9 @@ class _MapPageState extends State<MapPage> {
           provider: provider,
           onLoadResult: (message) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(message)),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(message)));
             }
           },
         );
@@ -1159,12 +1041,355 @@ class _MapPageState extends State<MapPage> {
     });
   }
 
+  Widget _buildFlightEventLayer(MapProvider provider, BuildContext context) {
+    return MarkerLayer(
+      markers: [
+        if (provider.takeoffPoint != null)
+          Marker(
+            point: LatLng(
+              provider.takeoffPoint!.latitude,
+              provider.takeoffPoint!.longitude,
+            ),
+            width: 78,
+            height: 68,
+            child: FlightEventMarker(
+              icon: Icons.flight_takeoff,
+              label: MapLocalizationKeys.labelTakeoff.tr(context),
+              color: Colors.blueAccent,
+            ),
+          ),
+        if (provider.landingPoint != null)
+          Marker(
+            point: LatLng(
+              provider.landingPoint!.latitude,
+              provider.landingPoint!.longitude,
+            ),
+            width: 78,
+            height: 68,
+            child: FlightEventMarker(
+              icon: Icons.flight_land,
+              label: MapLocalizationKeys.labelLanding.tr(context),
+              color: Colors.greenAccent,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildAIAircraftLayer({
+    required MapProvider provider,
+    required double scale,
+    required bool brightMapBackground,
+    required dynamic layerStyle,
+  }) {
+    final palette = _resolveAIAircraftLabelPalette(
+      brightMapBackground: brightMapBackground,
+      layerStyle: layerStyle,
+      themeBrightness: Theme.of(context).brightness,
+    );
+    return MarkerLayer(
+      markers: provider.aiAircraft
+          .map(
+            (ai) => Marker(
+              point: LatLng(ai.position.latitude, ai.position.longitude),
+              width: 140 * scale,
+              height: 80 * scale,
+              child: Transform.translate(
+                offset: Offset(0, -_aiAircraftMarkerLift * scale),
+                child: MouseRegion(
+                  onEnter: (_) {
+                    if (_hoveredAIAircraftId == ai.id) {
+                      return;
+                    }
+                    setState(() {
+                      _hoveredAIAircraftId = ai.id;
+                    });
+                  },
+                  onExit: (_) {
+                    if (_hoveredAIAircraftId != ai.id) {
+                      return;
+                    }
+                    setState(() {
+                      _hoveredAIAircraftId = null;
+                    });
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6 * scale,
+                          vertical: 2 * scale,
+                        ),
+                        decoration: BoxDecoration(
+                          color: palette.metricsBackground,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${_formatAltitudeFeet(ai.altitude)} · ${_formatHeadingDeg(ai.heading)} · ${_formatGroundSpeedKts(ai.groundSpeed)}',
+                          style: TextStyle(
+                            fontSize: 9 * scale,
+                            color: palette.metricsText,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 3 * scale),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: 96 * scale),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 6 * scale,
+                            vertical: 2 * scale,
+                          ),
+                          decoration: BoxDecoration(
+                            color: palette.identityBackground,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: palette.identityBorder,
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            _resolveAIAircraftLabel(ai),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 8.5 * scale,
+                              color: palette.identityText,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 4 * scale),
+                      SizedBox(
+                        width: 26 * scale,
+                        height: 26 * scale,
+                        child: _buildAIAircraftMarkerIcon(
+                          heading: ai.heading,
+                          scale: scale,
+                          brightMapBackground: brightMapBackground,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Widget _buildPlayerAircraftLayer({
+    required BuildContext context,
+    required MapProvider provider,
+    required MapAircraftState aircraft,
+    required double scale,
+    required bool brightMapBackground,
+    required bool isDarkTheme,
+  }) {
+    return MarkerLayer(
+      markers: [
+        if (provider.showCompass)
+          Marker(
+            point: LatLng(
+              aircraft.position.latitude,
+              aircraft.position.longitude,
+            ),
+            width: 190 * scale,
+            height: 190 * scale,
+            child: Transform.translate(
+              offset: Offset(0, -_aircraftCompassLift * scale),
+              child: AircraftCompassRing(
+                heading: aircraft.heading,
+                headingTarget: aircraft.headingTarget,
+                mapRotation: _mapReady ? _mapController.camera.rotation : 0,
+                scale: scale,
+                highContrastOnBrightBackground: brightMapBackground,
+              ),
+            ),
+          ),
+        Marker(
+          point: LatLng(
+            aircraft.position.latitude,
+            aircraft.position.longitude,
+          ),
+          width: 40,
+          height: 40,
+          child: Transform.translate(
+            offset: Offset(0, -_aircraftMarkerLift * scale),
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _showAircraftInfoPanel = !_showAircraftInfoPanel;
+                });
+              },
+              child: Tooltip(
+                message: _showAircraftInfoPanel
+                    ? MapLocalizationKeys.tooltipHideDetail.tr(context)
+                    : MapLocalizationKeys.tooltipShowDetail.tr(context),
+                waitDuration: const Duration(milliseconds: 500),
+                child: AircraftMarker(
+                  heading: aircraft.heading,
+                  isDark: isDarkTheme,
+                  highContrastOnBrightBackground: brightMapBackground,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   String _formatAltitudeFeet(double? altitude) {
     if (altitude == null || altitude.isNaN || altitude.isInfinite) {
       return '-- ft';
     }
     return '${altitude.round()} ft';
+  }
+
+  String _formatHeadingDeg(double? heading) {
+    if (heading == null || heading.isNaN || heading.isInfinite) {
+      return '--°';
+    }
+    final normalized = ((heading % 360) + 360) % 360;
+    return '${normalized.round()}°';
+  }
+
+  String _formatGroundSpeedKts(double? speed) {
+    if (speed == null || speed.isNaN || speed.isInfinite) {
+      return '-- kt';
+    }
+    return '${speed.round()} kt';
+  }
+
+  String _resolveAIAircraftLabel(MapAIAircraftState aircraft) {
+    final id = aircraft.id.trim();
+    final type = aircraft.type?.trim();
+    if (id.isNotEmpty && type != null && type.isNotEmpty) {
+      return '${id.toUpperCase()} / ${type.toUpperCase()}';
+    }
+    if (id.isNotEmpty) {
+      return id.toUpperCase();
+    }
+    if (type != null && type.isNotEmpty) {
+      return type.toUpperCase();
+    }
+    return 'AI';
+  }
+
+  _AIAircraftLabelPalette _resolveAIAircraftLabelPalette({
+    required bool brightMapBackground,
+    required dynamic layerStyle,
+    required Brightness themeBrightness,
+  }) {
+    final lowerStyle = layerStyle.toString().toLowerCase();
+    Color estimatedMapSurface;
+    if (lowerStyle.contains('dark')) {
+      estimatedMapSurface = const Color(0xFF232934);
+    } else if (lowerStyle.contains('taxiway')) {
+      estimatedMapSurface = const Color(0xFFDDE2E9);
+    } else if (lowerStyle.contains('terrain')) {
+      estimatedMapSurface = const Color(0xFFB3C2A5);
+    } else if (lowerStyle.contains('satellite')) {
+      estimatedMapSurface = const Color(0xFF7B8A71);
+    } else {
+      estimatedMapSurface = brightMapBackground
+          ? const Color(0xFFDCE2EA)
+          : const Color(0xFF2B3240);
+    }
+    final toneFilter = themeBrightness == Brightness.dark
+        ? Colors.black.withValues(alpha: 0.08)
+        : Colors.white.withValues(alpha: 0.08);
+    final backdrop = Color.alphaBlend(toneFilter, estimatedMapSurface);
+    final whiteContrast = _contrastRatio(Colors.white, backdrop);
+    final blackContrast = _contrastRatio(Colors.black, backdrop);
+    final useDarkText = blackContrast >= whiteContrast;
+
+    final metricsBackground = useDarkText
+        ? Colors.white.withValues(alpha: 0.88)
+        : Colors.black.withValues(alpha: 0.74);
+    final metricsText = useDarkText ? Colors.black87 : Colors.white;
+    final identityBackground = useDarkText
+        ? Colors.white.withValues(alpha: 0.7)
+        : Colors.black.withValues(alpha: 0.52);
+    final identityText = useDarkText ? Colors.black87 : Colors.white70;
+    final identityBorder = useDarkText
+        ? Colors.black.withValues(alpha: 0.18)
+        : Colors.white.withValues(alpha: 0.32);
+
+    return _AIAircraftLabelPalette(
+      metricsBackground: metricsBackground,
+      metricsText: metricsText,
+      identityBackground: identityBackground,
+      identityText: identityText,
+      identityBorder: identityBorder,
+    );
+  }
+
+  double _contrastRatio(Color a, Color b) {
+    final luminanceA = a.computeLuminance();
+    final luminanceB = b.computeLuminance();
+    final light = math.max(luminanceA, luminanceB);
+    final dark = math.min(luminanceA, luminanceB);
+    return (light + 0.05) / (dark + 0.05);
+  }
+
+  MapAIAircraftState? _resolveHoveredAIAircraft(
+    List<MapAIAircraftState> items,
+  ) {
+    final hoveredId = _hoveredAIAircraftId;
+    if (hoveredId == null || hoveredId.isEmpty) {
+      return null;
+    }
+    for (final item in items) {
+      if (item.id == hoveredId) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  Widget _buildAIAircraftMarkerIcon({
+    required double? heading,
+    required double scale,
+    required bool brightMapBackground,
+  }) {
+    final backgroundColor = brightMapBackground
+        ? const Color(0xFF2B4C7E)
+        : const Color(0xFF1A365D);
+    final borderColor = brightMapBackground
+        ? Colors.white.withValues(alpha: 0.8)
+        : Colors.black.withValues(alpha: 0.45);
+    final iconColor = Colors.white;
+    final angle = heading == null ? 0.0 : heading * (math.pi / 180.0);
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: backgroundColor,
+        border: Border.all(color: borderColor, width: 1.2 * scale),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 6 * scale,
+            offset: Offset(0, 2 * scale),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Transform.rotate(
+          angle: angle,
+          child: Icon(
+            Icons.airplanemode_active_rounded,
+            size: 16 * scale,
+            color: iconColor,
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _showReconnectPromptDialog(MapProvider provider) async {
@@ -1487,7 +1712,6 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-
   /// 显示滑行路线节点编辑对话框。
   ///
   /// 内部委托至 [showTaxiwayNodeEditorDialog]，不再内联大量对话框构建逻辑。
@@ -1528,7 +1752,6 @@ class _MapPageState extends State<MapPage> {
     );
     return (raw + 360) % 360;
   }
-
 
   bool _shouldShowDangerOverlay(
     MapProvider provider,
@@ -2321,6 +2544,22 @@ class _CombinedPinData {
   final Color color;
 
   const _CombinedPinData({required this.icon, required this.color});
+}
+
+class _AIAircraftLabelPalette {
+  final Color metricsBackground;
+  final Color metricsText;
+  final Color identityBackground;
+  final Color identityText;
+  final Color identityBorder;
+
+  const _AIAircraftLabelPalette({
+    required this.metricsBackground,
+    required this.metricsText,
+    required this.identityBackground,
+    required this.identityText,
+    required this.identityBorder,
+  });
 }
 
 class _PlannedRouteLeg {

@@ -702,7 +702,46 @@ class MiddlewareFlightDataAdapter implements FlightDataAdapter {
       flightPhase: _pickString(dataset, const ['flight_phase']),
       flightAlertLevel: _pickString(dataset, const ['flight_alert_level']),
       flightAlerts: _parseFlightAlerts(dataset['flight_alerts']),
+      aiAircraft: _parseAIAircraft(dataset['ai_aircraft']),
     );
+  }
+
+  List<AIAircraftState> _parseAIAircraft(dynamic raw) {
+    if (raw is! List) {
+      return const [];
+    }
+    final result = <AIAircraftState>[];
+    for (final item in raw) {
+      final map = _toStringDynamicMap(item);
+      if (map == null) {
+        continue;
+      }
+      final latitude = _toDouble(map['latitude']);
+      final longitude = _toDouble(map['longitude']);
+      if (latitude == null || longitude == null) {
+        continue;
+      }
+      if (latitude < -90 ||
+          latitude > 90 ||
+          longitude < -180 ||
+          longitude > 180) {
+        continue;
+      }
+      final id = map['id']?.toString().trim();
+      result.add(
+        AIAircraftState(
+          id: (id == null || id.isEmpty) ? 'AI-${result.length + 1}' : id,
+          type: map['type']?.toString().trim(),
+          latitude: latitude,
+          longitude: longitude,
+          altitude: _toDouble(map['altitude_ft']),
+          heading: _toDouble(map['heading_deg']),
+          groundSpeed: _toDouble(map['ground_speed_kt']),
+          onGround: _toBool(map['on_ground']),
+        ),
+      );
+    }
+    return result;
   }
 
   AirportInfo _airportFromSuggestion(Map<String, dynamic> raw) {

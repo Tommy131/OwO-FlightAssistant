@@ -2,6 +2,7 @@ import 'map_coordinate.dart';
 
 class MapAIAircraftState {
   final String id;
+  final String? type;
   final MapCoordinate position;
   final double? altitude;
   final double? heading;
@@ -10,6 +11,7 @@ class MapAIAircraftState {
 
   const MapAIAircraftState({
     required this.id,
+    this.type,
     required this.position,
     this.altitude,
     this.heading,

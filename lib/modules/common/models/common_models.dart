@@ -65,6 +65,28 @@ class FlightAlert {
   });
 }
 
+class AIAircraftState {
+  final String id;
+  final String? type;
+  final double latitude;
+  final double longitude;
+  final double? altitude;
+  final double? heading;
+  final double? groundSpeed;
+  final bool? onGround;
+
+  const AIAircraftState({
+    required this.id,
+    this.type,
+    required this.latitude,
+    required this.longitude,
+    this.altitude,
+    this.heading,
+    this.groundSpeed,
+    this.onGround,
+  });
+}
+
 /// 实时飞行数据快照（来自模拟器）
 class FlightData {
   final double? airspeed;
@@ -161,6 +183,7 @@ class FlightData {
   final String? flightPhase;
   final String? flightAlertLevel;
   final List<FlightAlert> flightAlerts;
+  final List<AIAircraftState> aiAircraft;
 
   const FlightData({
     this.airspeed,
@@ -257,6 +280,7 @@ class FlightData {
     this.flightPhase,
     this.flightAlertLevel,
     this.flightAlerts = const [],
+    this.aiAircraft = const [],
   });
 }
 

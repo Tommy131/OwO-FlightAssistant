@@ -144,8 +144,11 @@ class MapProvider extends ChangeNotifier {
   int _lastReconnectPromptEpoch = 0;
   bool _isPaused = false;
   int? _weatherRadarTimestamp;
+  String? _weatherRadarHost;
+  String? _weatherRadarPath;
   Timer? _radarRefreshTimer;
   DateTime? _lastRadarFetch;
+  DateTime? _lastRadarTileErrorAt;
   DateTime? _weatherRadarCooldownUntil;
   Timer? _radarCooldownTimer;
   int _tileReloadToken = 0;
@@ -264,6 +267,15 @@ class MapProvider extends ChangeNotifier {
   String? get loadedTaxiwayAirportIcao => _loadedTaxiwayAirportIcao;
   String? get loadedTaxiwayFilePath => _loadedTaxiwayFilePath;
   int? get weatherRadarTimestamp => _weatherRadarTimestamp;
+  String? get weatherRadarTileUrlTemplate {
+    final host = _weatherRadarHost;
+    final path = _weatherRadarPath;
+    if (host == null || host.isEmpty || path == null || path.isEmpty) {
+      return null;
+    }
+    return '$host$path/256/{z}/{x}/{y}/4/1_1.png';
+  }
+
   bool get isWeatherRadarCoolingDown =>
       _weatherRadarCooldownUntil != null &&
       DateTime.now().isBefore(_weatherRadarCooldownUntil!);
@@ -526,17 +538,13 @@ class MapProvider extends ChangeNotifier {
               _isValidCoordinate(item.latitude, item.longitude) &&
               (lat == null ||
                   lon == null ||
-                  _distanceInMeters(
-                        lat,
-                        lon,
-                        item.latitude,
-                        item.longitude,
-                      ) >
+                  _distanceInMeters(lat, lon, item.latitude, item.longitude) >
                       8),
         )
         .map(
           (item) => MapAIAircraftState(
             id: item.id,
+            type: item.type,
             position: MapCoordinate(
               latitude: item.latitude,
               longitude: item.longitude,
@@ -1598,8 +1606,27 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _updateWeatherRadarTimestamp() async {
-    if (_lastRadarFetch != null &&
+  void handleWeatherRadarTileError(Object error) {
+    final message = error.toString();
+    if (message.contains('statusCode: 429')) {
+      handleWeatherRadarRateLimit();
+      return;
+    }
+    if (!message.contains('statusCode: 404')) {
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastRadarTileErrorAt != null &&
+        now.difference(_lastRadarTileErrorAt!).inSeconds < 20) {
+      return;
+    }
+    _lastRadarTileErrorAt = now;
+    unawaited(_updateWeatherRadarTimestamp(force: true));
+  }
+
+  Future<void> _updateWeatherRadarTimestamp({bool force = false}) async {
+    if (!force &&
+        _lastRadarFetch != null &&
         DateTime.now().difference(_lastRadarFetch!).inSeconds < 5) {
       return;
     }
@@ -1608,13 +1635,42 @@ class MapProvider extends ChangeNotifier {
         Uri.parse('https://api.rainviewer.com/public/weather-maps.json'),
       );
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List<dynamic> past = data['radar']['past'];
-        if (past.isNotEmpty) {
-          _weatherRadarTimestamp = past.last['time'] as int;
-          _lastRadarFetch = DateTime.now();
-          notifyListeners();
+        final root = _asMap(json.decode(response.body));
+        final radar = root == null ? null : _asMap(root['radar']);
+        final past = radar == null ? null : _asList(radar['past']);
+        if (past == null || past.isEmpty) {
+          return;
         }
+        Map<String, dynamic>? latestFrame;
+        for (var i = past.length - 1; i >= 0; i -= 1) {
+          final item = _asMap(past[i]);
+          final path = item?['path']?.toString().trim();
+          if (item != null && path != null && path.isNotEmpty) {
+            latestFrame = item;
+            break;
+          }
+        }
+        if (latestFrame == null) {
+          return;
+        }
+        final host = root?['host']?.toString().trim();
+        final path = latestFrame['path']?.toString().trim();
+        final rawTimestamp = latestFrame['time'];
+        final timestamp = rawTimestamp is int
+            ? rawTimestamp
+            : int.tryParse(rawTimestamp?.toString() ?? '');
+        if (host == null || host.isEmpty || path == null || path.isEmpty) {
+          return;
+        }
+        final normalizedHost = host.endsWith('/')
+            ? host.substring(0, host.length - 1)
+            : host;
+        _weatherRadarHost = normalizedHost;
+        _weatherRadarPath = path.startsWith('/') ? path : '/$path';
+        _weatherRadarTimestamp = timestamp;
+        _lastRadarFetch = DateTime.now();
+        _lastRadarTileErrorAt = null;
+        notifyListeners();
       }
     } catch (_) {}
   }
