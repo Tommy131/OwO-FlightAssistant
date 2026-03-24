@@ -1,5 +1,23 @@
 import 'map_coordinate.dart';
 
+class MapAIAircraftState {
+  final String id;
+  final MapCoordinate position;
+  final double? altitude;
+  final double? heading;
+  final double? groundSpeed;
+  final bool? onGround;
+
+  const MapAIAircraftState({
+    required this.id,
+    required this.position,
+    this.altitude,
+    this.heading,
+    this.groundSpeed,
+    this.onGround,
+  });
+}
+
 /// 飞机实时飞行状态快照
 ///
 /// 包含飞机当前的位置、姿态、速度等关键飞行参数，

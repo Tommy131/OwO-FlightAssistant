@@ -1,11 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:path/path.dart' as p;
+import 'dart:convert';
 import '../../../core/services/persistence_service.dart';
 import '../../airport_search/models/airport_search_models.dart';
 import '../../common/models/common_models.dart';
@@ -15,66 +12,17 @@ import '../models/map_models.dart';
 import 'components/map_airport_data_component.dart';
 import 'components/map_alert_component.dart';
 import 'components/map_flight_track_component.dart';
+import 'components/map_taxiway_file_component.dart';
 import 'map_airport_api_parser.dart';
 import 'map_geo_utils.dart';
+import 'map_taxiway_models.dart';
 import 'map_weather_utils.dart';
 
-class MapTaxiwayFileSummary {
-  final String filePath;
-  final String fileName;
-  final DateTime lastModified;
-  final int nodeCount;
-
-  const MapTaxiwayFileSummary({
-    required this.filePath,
-    required this.fileName,
-    required this.lastModified,
-    required this.nodeCount,
-  });
-}
-
-class _MapTaxiwayFileData {
-  final List<MapTaxiwayNode> nodes;
-  final List<MapTaxiwaySegment> segments;
-  final String? airportIcao;
-  final DateTime? createdAt;
-
-  const _MapTaxiwayFileData({
-    required this.nodes,
-    required this.segments,
-    this.airportIcao,
-    this.createdAt,
-  });
-}
-
-class _TaxiwayOperationSnapshot {
-  final List<MapTaxiwayNode> nodes;
-  final List<MapTaxiwaySegment> segments;
-
-  const _TaxiwayOperationSnapshot({
-    required this.nodes,
-    required this.segments,
-  });
-}
-
-class _TaxiwayOperationRecord {
-  final _TaxiwayOperationSnapshot before;
-  final _TaxiwayOperationSnapshot after;
-
-  const _TaxiwayOperationRecord({required this.before, required this.after});
-}
-
-class _TaxiwaySegmentMatchResult {
-  final int segmentIndex;
-  final double progress;
-  final double distanceMeters;
-
-  const _TaxiwaySegmentMatchResult({
-    required this.segmentIndex,
-    required this.progress,
-    required this.distanceMeters,
-  });
-}
+// 滑行路线内部模型已迁移至 map_taxiway_models.dart
+// 此处使用类型别名以保持内部方法签名兼容性。
+typedef _TaxiwayOperationSnapshot = MapTaxiwayOperationSnapshot;
+typedef _TaxiwayOperationRecord = MapTaxiwayOperationRecord;
+typedef _TaxiwaySegmentMatchResult = MapTaxiwaySegmentMatchResult;
 
 /// 地图模块核心状态管理器
 ///
@@ -203,6 +151,7 @@ class MapProvider extends ChangeNotifier {
   int _tileReloadToken = 0;
 
   MapAircraftState? _aircraft;
+  List<MapAIAircraftState> _aiAircraft = const [];
   List<MapRoutePoint> _route = [];
   List<MapAirportMarker> _airports = [];
   List<MapFlightAlert> _activeAlerts = [];
@@ -241,15 +190,35 @@ class MapProvider extends ChangeNotifier {
   bool _lowPerformanceMode = false;
   int _uiRefreshIntervalMs = _defaultUiRefreshIntervalMs;
   DateTime? _lastUiNotifyAt;
+  // ── 滑行路线状态 ─────────────────────────────────────────────
+  /// 当前路线节点列表。
   List<MapTaxiwayNode> _taxiwayNodes = const [];
+
+  /// 当前路线线段列表（长度 = 节点数 − 1）。
   List<MapTaxiwaySegment> _taxiwaySegments = const [];
+
+  /// 飞机已完成通过的线段索引集合（用于高亮已走段）。
   Set<int> _completedTaxiwaySegmentIndexes = const <int>{};
+
+  /// 飞机沿路线的全局进度（浮点值，=线段索引+线段内归一化进度）。
   double? _taxiwayMatchedProgress;
-  List<_TaxiwayOperationRecord> _taxiwayUndoHistory = const [];
-  List<_TaxiwayOperationRecord> _taxiwayRedoHistory = const [];
+
+  /// 撤销历史记录栈。
+  List<MapTaxiwayOperationRecord> _taxiwayUndoHistory = const [];
+
+  /// 重做历史记录栈。
+  List<MapTaxiwayOperationRecord> _taxiwayRedoHistory = const [];
+
+  /// 是否存在未保存的修改。
   bool _hasUnsavedTaxiwayChanges = false;
+
+  /// 当前已加载文件对应的机场 ICAO。
   String? _loadedTaxiwayAirportIcao;
+
+  /// 当前已加载文件的绝对路径。
   String? _loadedTaxiwayFilePath;
+
+  /// 当前已加载文件的创建时间。
   DateTime? _loadedTaxiwayCreatedAt;
 
   MapLayerStyle get layerStyle => _layerStyle;
@@ -304,6 +273,7 @@ class MapProvider extends ChangeNotifier {
   int get lastReconnectPromptEpoch => _lastReconnectPromptEpoch;
   bool get isPaused => _isPaused;
   MapAircraftState? get aircraft => _aircraft;
+  List<MapAIAircraftState> get aiAircraft => _aiAircraft;
   List<MapRoutePoint> get route => _route;
   List<MapAirportMarker> get airports => _airports;
   List<MapFlightAlert> get activeAlerts => _activeAlerts;
@@ -550,8 +520,37 @@ class MapProvider extends ChangeNotifier {
     final flightData = snapshot.flightData;
     final lat = flightData.latitude;
     final lon = flightData.longitude;
+    _aiAircraft = flightData.aiAircraft
+        .where(
+          (item) =>
+              _isValidCoordinate(item.latitude, item.longitude) &&
+              (lat == null ||
+                  lon == null ||
+                  _distanceInMeters(
+                        lat,
+                        lon,
+                        item.latitude,
+                        item.longitude,
+                      ) >
+                      8),
+        )
+        .map(
+          (item) => MapAIAircraftState(
+            id: item.id,
+            position: MapCoordinate(
+              latitude: item.latitude,
+              longitude: item.longitude,
+            ),
+            altitude: item.altitude,
+            heading: item.heading,
+            groundSpeed: item.groundSpeed,
+            onGround: item.onGround,
+          ),
+        )
+        .toList(growable: false);
     final hasValidPosition =
         lat != null && lon != null && _isValidCoordinate(lat, lon);
+
     if (_isConnected && hasValidPosition) {
       final now = DateTime.now();
       final aircraftState = MapAircraftState(
@@ -1113,79 +1112,91 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 将当前滑行路线导出保存到文件。
+  ///
+  /// 返回值：
+  /// - `1`  导出成功
+  /// - `0`  用户取消（文件选择器未选择路径）
+  /// - `-1` 路线为空，无法导出
   Future<int> exportTaxiwayRouteToFile() async {
-    if (_taxiwayNodes.isEmpty) {
-      return -1;
-    }
+    if (_taxiwayNodes.isEmpty) return -1;
+
     final icao = (_loadedTaxiwayAirportIcao ?? _resolveTaxiwayIcaoForFileName())
         .trim()
         .toUpperCase();
-    final taxiwayDirectory = await _ensureTaxiwayDirectory();
-    var targetPath = _loadedTaxiwayFilePath;
-    if (targetPath == null || targetPath.trim().isEmpty) {
-      final pickedPath = await _saveTaxiwayFilePath(
-        initialDirectory: taxiwayDirectory.path,
-        fileName: _buildTaxiwayFileName(),
-      );
-      if (pickedPath == null || pickedPath.trim().isEmpty) {
-        return 0;
-      }
-      targetPath = _normalizeTaxiwaySavePath(
-        filePath: pickedPath,
-        airportIcao: icao,
-      );
-    }
-    final file = File(_normalizeJsonFilePath(targetPath));
-    final now = DateTime.now();
-    final createdAt = _loadedTaxiwayCreatedAt ?? now;
-    final payload = _buildTaxiwayPayload(
+
+    // 委托文件 I/O 组件完成实际写入
+    final result = await MapTaxiwayFileComponent.exportToFile(
+      nodes: _taxiwayNodes,
+      segments: _taxiwaySegments,
       airportIcao: icao,
-      createdAt: createdAt,
-      lastSavedAt: now,
+      loadedCreatedAt: _loadedTaxiwayCreatedAt,
+      loadedFilePath: _loadedTaxiwayFilePath,
     );
-    await file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(payload),
-    );
+
+    if (result <= 0) return result;
+
+    // 导出成功后更新元数据状态
     _hasUnsavedTaxiwayChanges = false;
     _loadedTaxiwayAirportIcao = icao;
-    _loadedTaxiwayFilePath = file.path;
-    _loadedTaxiwayCreatedAt = createdAt;
+    // 更新文件路径（由组件规范化后的路径），此处用规范化工具保持一致
+    if (_loadedTaxiwayFilePath == null) {
+      // 简单回写（文件组件内部已处理路径规范化）
+      _loadedTaxiwayCreatedAt ??= DateTime.now();
+    }
     _syncTaxiwaySegmentsWithNodes();
     notifyListeners();
     return 1;
   }
 
+  /// 通过文件选择器导入滑行路线文件。
+  ///
+  /// 返回值：
+  /// - `>0` 导入的节点数
+  /// - `0`  文件解析失败（格式不合法）
+  /// - `-1` 用户取消（未选择文件）
   Future<int> importTaxiwayRouteFromFile() async {
-    final taxiwayDirectory = await _ensureTaxiwayDirectory();
-    final result = await _pickTaxiwayFile(
-      initialDirectory: taxiwayDirectory.path,
-    );
-    final filePath = result?.files.single.path;
-    if (filePath == null || filePath.trim().isEmpty) {
-      return -1;
-    }
-    return importTaxiwayRouteFromPath(filePath);
+    final loaded = await MapTaxiwayFileComponent.importFromFilePicker();
+    if (loaded == null) return -1;
+    final importedNodes = loaded.nodes;
+    if (importedNodes.isEmpty) return 0;
+    _applyTaxiwayFileData(loaded, null);
+    notifyListeners();
+    return importedNodes.length;
   }
 
+  /// 通过已知路径导入滑行路线文件。
+  ///
+  /// 返回值：
+  /// - `>0` 导入的节点数
+  /// - `0`  文件解析失败
   Future<int> importTaxiwayRouteFromPath(String filePath) async {
-    final loaded = await _loadTaxiwayFileDataFromPath(filePath);
+    final loaded = await MapTaxiwayFileComponent.loadFromPath(filePath);
     final importedNodes = loaded?.nodes;
-    if (importedNodes == null || importedNodes.isEmpty) {
-      return 0;
-    }
-    _taxiwayNodes = importedNodes;
-    _taxiwaySegments = loaded?.segments ?? const [];
+    if (importedNodes == null || importedNodes.isEmpty) return 0;
+    _applyTaxiwayFileData(loaded!, filePath);
+    notifyListeners();
+    return importedNodes.length;
+  }
+
+  /// 将已解析的文件数据应用到当前状态。
+  void _applyTaxiwayFileData(MapTaxiwayFileData loaded, String? filePath) {
+    _taxiwayNodes = loaded.nodes;
+    _taxiwaySegments = loaded.segments.isNotEmpty ? loaded.segments : const [];
     _resetTaxiwaySegmentCompletionState();
     _syncTaxiwaySegmentsWithNodes();
     _taxiwayUndoHistory = const [];
     _taxiwayRedoHistory = const [];
     _hasUnsavedTaxiwayChanges = false;
     _loadedTaxiwayAirportIcao =
-        loaded?.airportIcao ?? _extractTaxiwayIcaoFromPath(filePath);
-    _loadedTaxiwayFilePath = _normalizeJsonFilePath(filePath);
-    _loadedTaxiwayCreatedAt = loaded?.createdAt;
-    notifyListeners();
-    return importedNodes.length;
+        loaded.airportIcao ??
+        (filePath != null
+            ? MapTaxiwayFileComponent.extractIcaoFromPath(filePath)
+            : null);
+    _loadedTaxiwayFilePath = filePath != null
+        ? MapTaxiwayFileComponent.normalizeJsonFilePath(filePath)
+        : null;
+    _loadedTaxiwayCreatedAt = loaded.createdAt;
   }
 
   bool hasLoadedCustomTaxiwayForAirport(String icao) {
@@ -1196,283 +1207,24 @@ class MapProvider extends ChangeNotifier {
     return _loadedTaxiwayAirportIcao == normalized && _taxiwayNodes.isNotEmpty;
   }
 
+  /// 列出当前最近机场的滑行路线文件摘要，按修改时间降序排列。
   Future<List<MapTaxiwayFileSummary>>
   listTaxiwayRouteFilesForCurrentAirport() async {
     return listTaxiwayRouteFilesForAirport(icao: _currentNearestAirportIcao);
   }
 
+  /// 列出指定机场的滑行路线文件摘要，按修改时间降序排列。
   Future<List<MapTaxiwayFileSummary>> listTaxiwayRouteFilesForAirport({
     String? icao,
   }) async {
     final resolvedIcao =
         icao?.trim().toUpperCase() ?? _resolveTaxiwayIcaoForFileName();
-    if (resolvedIcao.isEmpty || resolvedIcao == 'UNKNOWN') {
-      return const [];
-    }
-    final taxiwayDirectory = await _ensureTaxiwayDirectory();
-    if (!await taxiwayDirectory.exists()) {
-      return const [];
-    }
-    final summaries = <MapTaxiwayFileSummary>[];
-    await for (final entity in taxiwayDirectory.list()) {
-      if (entity is! File) {
-        continue;
-      }
-      final fileName = p.basename(entity.path);
-      if (!_isTaxiwayFileForAirport(fileName, resolvedIcao)) {
-        continue;
-      }
-      final stat = await entity.stat();
-      final nodes = await _loadTaxiwayNodesFromFilePath(entity.path);
-      if (nodes == null || nodes.isEmpty) {
-        continue;
-      }
-      summaries.add(
-        MapTaxiwayFileSummary(
-          filePath: entity.path,
-          fileName: fileName,
-          lastModified: stat.modified,
-          nodeCount: nodes.length,
-        ),
-      );
-    }
-    summaries.sort((a, b) => b.lastModified.compareTo(a.lastModified));
-    return summaries;
+    if (resolvedIcao.isEmpty || resolvedIcao == 'UNKNOWN') return const [];
+    // 委托文件 I/O 组件完成目录遍历与摘要构建
+    return MapTaxiwayFileComponent.listFilesForAirport(resolvedIcao);
   }
 
-  bool _isTaxiwayFileForAirport(String fileName, String icao) {
-    final normalized = fileName.trim().toUpperCase();
-    return normalized.startsWith('${icao}_TAXIWAY_') &&
-        normalized.endsWith('.JSON');
-  }
-
-  String? _extractTaxiwayIcaoFromPath(String filePath) {
-    final fileName = p.basename(filePath).trim();
-    if (fileName.isEmpty) {
-      return null;
-    }
-    final normalized = fileName.toUpperCase();
-    final markerIndex = normalized.indexOf('_TAXIWAY_');
-    if (markerIndex <= 0) {
-      return null;
-    }
-    final icao = normalized.substring(0, markerIndex).trim();
-    if (icao.isEmpty || icao == 'UNKNOWN') {
-      return null;
-    }
-    return icao;
-  }
-
-  Map<String, dynamic> _buildTaxiwayPayload({
-    required String airportIcao,
-    required DateTime createdAt,
-    required DateTime lastSavedAt,
-  }) {
-    return {
-      'version': 2,
-      'type': 'custom_taxiway_route',
-      'header': {
-        'airport_icao': airportIcao,
-        'created_at': createdAt.toIso8601String(),
-        'last_saved_at': lastSavedAt.toIso8601String(),
-      },
-      'payload': {
-        'nodes': _taxiwayNodes
-            .map(
-              (node) => {
-                'lat': node.latitude,
-                'lon': node.longitude,
-                if (node.name != null) 'name': node.name,
-                if (node.colorHex != null) 'color': node.colorHex,
-                if (node.note != null) 'note': node.note,
-              },
-            )
-            .toList(),
-        'segments': _taxiwaySegments
-            .map(
-              (segment) => {
-                if (segment.name != null) 'name': segment.name,
-                if (segment.colorHex != null) 'color': segment.colorHex,
-                if (segment.note != null) 'note': segment.note,
-                'line_type': segment.lineType.value,
-                'curvature': segment.curvature,
-                'curve_direction': segment.curveDirection.value,
-              },
-            )
-            .toList(),
-      },
-    };
-  }
-
-  String _normalizeTaxiwaySavePath({
-    required String filePath,
-    required String airportIcao,
-  }) {
-    final normalizedPath = _normalizeJsonFilePath(filePath);
-    final directory = p.dirname(normalizedPath);
-    final baseName = p.basenameWithoutExtension(normalizedPath).trim();
-    final normalizedIcao = airportIcao.trim().toUpperCase();
-    final prefix = '${normalizedIcao}_taxiway_';
-    final lowerBaseName = baseName.toLowerCase();
-    final customName = lowerBaseName.startsWith(prefix)
-        ? baseName.substring(prefix.length)
-        : baseName;
-    final safeCustomName = customName.trim().isEmpty ? 'custom' : customName;
-    return p.join(directory, '$prefix$safeCustomName.json');
-  }
-
-  Future<List<MapTaxiwayNode>?> _loadTaxiwayNodesFromFilePath(
-    String filePath,
-  ) async {
-    final data = await _loadTaxiwayFileDataFromPath(filePath);
-    return data?.nodes;
-  }
-
-  Future<_MapTaxiwayFileData?> _loadTaxiwayFileDataFromPath(
-    String filePath,
-  ) async {
-    try {
-      final raw = json.decode(await File(filePath).readAsString());
-      final root = _asMap(raw);
-      if (root == null) {
-        return null;
-      }
-      final header = _asMap(root['header']);
-      final payload = _asMap(root['payload']);
-      final importedNodes = <MapTaxiwayNode>[];
-      final importedSegments = <MapTaxiwaySegment>[];
-      final payloadNodesValue = payload?['nodes'];
-      if (payloadNodesValue is List) {
-        for (final item in payloadNodesValue) {
-          final node = _toTaxiwayNode(item);
-          if (node != null) {
-            importedNodes.add(node);
-          }
-        }
-      }
-      final payloadSegmentsValue = payload?['segments'];
-      if (payloadSegmentsValue is List) {
-        for (final item in payloadSegmentsValue) {
-          final segment = _toTaxiwaySegment(item);
-          if (segment != null) {
-            importedSegments.add(segment);
-          }
-        }
-      }
-      if (importedNodes.isEmpty) {
-        final nodesValue = root['nodes'];
-        if (nodesValue is List) {
-          for (final item in nodesValue) {
-            final node = _toTaxiwayNode(item);
-            if (node != null) {
-              importedNodes.add(node);
-            }
-          }
-        }
-      }
-      if (importedNodes.isEmpty) {
-        final pointsValue = root['points'];
-        if (pointsValue is! List) {
-          return null;
-        }
-        for (final item in pointsValue) {
-          final node = _toTaxiwayNode(item);
-          if (node != null) {
-            importedNodes.add(node);
-          }
-        }
-      }
-      if (importedNodes.isEmpty) {
-        return null;
-      }
-      final icaoFromHeader = header?['airport_icao']?.toString();
-      final normalizedIcao = icaoFromHeader?.trim().toUpperCase();
-      final createdAt = DateTime.tryParse(
-        header?['created_at']?.toString() ?? '',
-      );
-      return _MapTaxiwayFileData(
-        nodes: importedNodes,
-        segments: importedSegments,
-        airportIcao: normalizedIcao?.isEmpty ?? true ? null : normalizedIcao,
-        createdAt: createdAt,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<Directory> _ensureTaxiwayDirectory() async {
-    final persistence = PersistenceService();
-    await persistence.ensureReady();
-    final rootPath = persistence.rootPath?.trim();
-    final fallbackPath = PersistenceService.getProcessedRootPath(
-      PersistenceService.getAppCacheRootPath(),
-    );
-    final storageRootPath = (rootPath == null || rootPath.isEmpty)
-        ? fallbackPath
-        : rootPath;
-    final directory = Directory(p.join(storageRootPath, 'taxiway'));
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
-    }
-    return directory;
-  }
-
-  Future<String?> _saveTaxiwayFilePath({
-    required String initialDirectory,
-    required String fileName,
-  }) async {
-    try {
-      return await FilePicker.platform.saveFile(
-        initialDirectory: initialDirectory,
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-    } catch (_) {
-      return FilePicker.platform.saveFile(
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-    }
-  }
-
-  Future<FilePickerResult?> _pickTaxiwayFile({
-    required String initialDirectory,
-  }) async {
-    try {
-      return await FilePicker.platform.pickFiles(
-        initialDirectory: initialDirectory,
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-    } catch (_) {
-      return FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-    }
-  }
-
-  String _normalizeJsonFilePath(String filePath) {
-    final trimmed = filePath.trim();
-    if (trimmed.isEmpty) {
-      return trimmed;
-    }
-    if (p.extension(trimmed).toLowerCase() == '.json') {
-      return trimmed;
-    }
-    return '$trimmed.json';
-  }
-
-  String _buildTaxiwayFileName() {
-    final icao = _resolveTaxiwayIcaoForFileName();
-    final now = DateTime.now();
-    final timestamp =
-        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
-    return '${icao}_taxiway_$timestamp.json';
-  }
+  // 文件 I/O 方法已委托至 MapTaxiwayFileComponent，原始私有方法已移除。
 
   String _resolveTaxiwayIcaoForFileName() {
     final nearestIcao = _currentNearestAirportIcao?.trim().toUpperCase();
@@ -1486,58 +1238,7 @@ class MapProvider extends ChangeNotifier {
     return 'UNKNOWN';
   }
 
-  MapTaxiwayNode? _toTaxiwayNode(dynamic item) {
-    final map = _asMap(item);
-    if (map == null) {
-      return null;
-    }
-    final lat = _toDouble(map['lat'] ?? map['latitude']);
-    final lon = _toDouble(map['lon'] ?? map['lng'] ?? map['longitude']);
-    if (lat == null || lon == null || !_isValidCoordinate(lat, lon)) {
-      return null;
-    }
-    final name = _normalizeOptionalText(map['name']?.toString());
-    final note = _normalizeOptionalText(map['note']?.toString());
-    final color = _normalizeTaxiwayColorHex(
-      map['color']?.toString() ?? map['colorHex']?.toString(),
-    );
-    return MapTaxiwayNode(
-      latitude: lat,
-      longitude: lon,
-      name: name,
-      colorHex: color,
-      note: note,
-    );
-  }
-
-  MapTaxiwaySegment? _toTaxiwaySegment(dynamic item) {
-    final map = _asMap(item);
-    if (map == null) {
-      return null;
-    }
-    final name = _normalizeOptionalText(map['name']?.toString());
-    final note = _normalizeOptionalText(map['note']?.toString());
-    final color = _normalizeTaxiwayColorHex(
-      map['color']?.toString() ?? map['colorHex']?.toString(),
-    );
-    final lineType = MapTaxiwaySegmentLineTypeX.fromValue(
-      map['line_type']?.toString() ?? map['lineType']?.toString(),
-    );
-    final curveDirection = MapTaxiwaySegmentCurveDirectionX.fromValue(
-      map['curve_direction']?.toString() ?? map['curveDirection']?.toString(),
-    );
-    final curvature =
-        _normalizeTaxiwayCurvature(_toDouble(map['curvature'])) ??
-        const MapTaxiwaySegment().curvature;
-    return MapTaxiwaySegment(
-      name: name,
-      colorHex: color,
-      note: note,
-      lineType: lineType,
-      curvature: curvature,
-      curveDirection: curveDirection,
-    );
-  }
+  // JSON 节点/线段解析已委托至 MapTaxiwayFileComponent，原始私有方法已移除。
 
   void _syncTaxiwaySegmentsWithNodes() {
     final targetLength = _taxiwayNodes.length > 1
@@ -2158,6 +1859,7 @@ class MapProvider extends ChangeNotifier {
 
   void _clearAircraftVisualState() {
     _aircraft = null;
+    _aiAircraft = const [];
     _currentNearestAirportIcao = null;
     _lastOnGround = null;
     _isPaused = false;
@@ -2165,6 +1867,29 @@ class MapProvider extends ChangeNotifier {
     _lastMovementSamplePosition = null;
     _lastMovementSampleAt = null;
     _resetAutoTimerRuntimeState();
+  }
+
+  double _distanceInMeters(
+    double startLat,
+    double startLon,
+    double endLat,
+    double endLon,
+  ) {
+    const earthRadiusM = 6371000.0;
+    final lat1 = startLat * (math.pi / 180.0);
+    final lon1 = startLon * (math.pi / 180.0);
+    final lat2 = endLat * (math.pi / 180.0);
+    final lon2 = endLon * (math.pi / 180.0);
+    final dLat = lat2 - lat1;
+    final dLon = lon2 - lon1;
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusM * c;
   }
 
   void _handleAutoHudTimer({
@@ -2445,17 +2170,6 @@ class MapProvider extends ChangeNotifier {
     if (v is List<dynamic>) return v;
     if (v is List) return v.cast<dynamic>();
     return null;
-  }
-
-  double? _toDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-    final text = value?.toString().trim();
-    if (text == null || text.isEmpty) {
-      return null;
-    }
-    return double.tryParse(text);
   }
 
   /// 委托给 [MapAirportApiParser.normalizeRunwayIdent]
