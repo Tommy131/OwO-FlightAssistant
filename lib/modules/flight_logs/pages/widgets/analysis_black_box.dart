@@ -110,7 +110,7 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
             scrollDirection: Axis.horizontal,
             controller: _horizontalController,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 2080),
+              constraints: const BoxConstraints(minWidth: 2200),
               child: DataTable(
                 columnSpacing: 24,
                 horizontalMargin: 16,
@@ -155,6 +155,11 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                   DataColumn(
                     label: Text(
                       FlightLogsLocalizationKeys.blackBoxGForce.tr(context),
+                    ),
+                  ),
+                  DataColumn(
+                    label: Text(
+                      FlightLogsLocalizationKeys.blackBoxGSource.tr(context),
                     ),
                   ),
                   DataColumn(
@@ -262,6 +267,7 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                       ),
                       DataCell(Text(p.verticalSpeed.toStringAsFixed(0))),
                       DataCell(Text(p.gForce.toStringAsFixed(2))),
+                      DataCell(Text(_formatGSource(p.gForceSource))),
                       DataCell(
                         Text(
                           p.angleOfAttack != null
@@ -467,6 +473,10 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
     return '${value.toStringAsFixed(0)}°C';
   }
 
+  String _formatGSource(LandingGSource source) {
+    return source.wireValue;
+  }
+
   String _formatGearState(bool? gearDown) {
     if (gearDown == true) {
       return 'DN';
@@ -569,8 +579,9 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
       );
       if (finalTouchdownIndex != null) {
         final finalTouchdownG = log.landingData?.gForce;
+        final finalTouchdownSource = log.landingData?.gForceSource.wireValue;
         final finalLabel = finalTouchdownG != null
-            ? '$finalTouchdownLabel (${finalTouchdownG.toStringAsFixed(2)}G)'
+            ? '$finalTouchdownLabel (${finalTouchdownG.toStringAsFixed(2)}G, ${finalTouchdownSource ?? "-"})'
             : finalTouchdownLabel;
         labels[finalTouchdownIndex] = labels[finalTouchdownIndex] == '-'
             ? finalLabel

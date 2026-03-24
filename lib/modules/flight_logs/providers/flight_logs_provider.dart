@@ -36,6 +36,7 @@ class FlightLogsProvider extends ChangeNotifier {
   static const double _approachDetectionVsThreshold = -250;
   static const double _minValidLandingG = 0.3;
   static const double _maxValidLandingG = 8.0;
+  static const int _touchdownPeakSearchRadiusPoints = 2;
   static const Map<String, String> _backendAlertMessageMap = {
     'pitch_up_danger': MapLocalizationKeys.alertPitchUpDanger,
     'pitch_up_warning': MapLocalizationKeys.alertPitchUpWarning,
@@ -236,6 +237,7 @@ class FlightLogsProvider extends ChangeNotifier {
     }
     final data = snapshot.flightData;
     final anomalyAlerts = _buildPointAlerts(data.flightAlerts);
+    final resolvedPointG = _resolveSnapshotPointG(data);
     final point = FlightLogPoint(
       latitude: data.latitude ?? 0,
       longitude: data.longitude ?? 0,
@@ -247,7 +249,8 @@ class FlightLogsProvider extends ChangeNotifier {
       pitch: data.pitch ?? 0,
       roll: data.bank ?? 0,
       angleOfAttack: data.angleOfAttack,
-      gForce: data.gForce ?? 1,
+      gForce: resolvedPointG.value,
+      gForceSource: resolvedPointG.source,
       fuelQuantity: data.fuelQuantity ?? 0,
       fuelFlow: data.fuelFlow,
       timestamp: now,
@@ -258,6 +261,7 @@ class FlightLogsProvider extends ChangeNotifier {
       autopilotLateralMode: data.autopilotLateralMode,
       autopilotVerticalMode: data.autopilotVerticalMode,
       gearDown: data.gearDown,
+      touchdownGearG: data.touchdownGearG,
       noseGearG: data.noseGearG,
       leftGearG: data.leftGearG,
       rightGearG: data.rightGearG,
@@ -492,11 +496,16 @@ class FlightLogsProvider extends ChangeNotifier {
     final sequence = validIndexes
         .map((index) => log.points[index])
         .toList(growable: false);
-    final touchdownGForces = sequence
-        .map(_touchdownInstantG)
+    final touchdownGForces = validIndexes
+        .map((index) => _touchdownPeakAtIndex(log.points, index).value)
         .toList(growable: false);
     final finalTouchdownPoint = log.points[finalTouchdownIndex];
-    final finalTouchdownG = _touchdownInstantG(finalTouchdownPoint);
+    final finalTouchdown = _resolveFinalTouchdownG(
+      points: log.points,
+      touchdownIndexes: validIndexes,
+      finalTouchdownIndex: finalTouchdownIndex,
+      touchdownGForces: touchdownGForces,
+    );
     final bounceCount = sequence.length > 1 ? sequence.length - 1 : 0;
     final approachMetrics = _buildApproachLandingMetrics(
       points: log.points,
@@ -504,14 +513,15 @@ class FlightLogsProvider extends ChangeNotifier {
       bounceCount: bounceCount,
     );
     final rating = _ratingByTouchdown(
-      gForce: finalTouchdownG,
+      gForce: finalTouchdown.value,
       touchdownVerticalSpeed: finalTouchdownPoint.verticalSpeed,
       bounceCount: bounceCount,
     );
     log.landingData = LandingData(
       latitude: finalTouchdownPoint.latitude,
       longitude: finalTouchdownPoint.longitude,
-      gForce: finalTouchdownG,
+      gForce: finalTouchdown.value,
+      gForceSource: finalTouchdown.source,
       verticalSpeed: finalTouchdownPoint.verticalSpeed,
       airspeed: finalTouchdownPoint.airspeed,
       groundSpeed: finalTouchdownPoint.groundSpeed,
@@ -613,29 +623,105 @@ class FlightLogsProvider extends ChangeNotifier {
     return baseRating.index > minimumRating.index ? baseRating : minimumRating;
   }
 
-  List<double> _touchdownSampleGValues(FlightLogPoint point) {
-    final samples = <double>[];
-    final candidateValues = <double?>[
-      point.leftGearG,
-      point.rightGearG,
-      point.noseGearG,
-      point.gForce,
+  List<_ResolvedLandingG> _touchdownSampleGSources(FlightLogPoint point) {
+    final samples = <_ResolvedLandingG>[];
+    final candidateValues = <_ResolvedLandingG>[
+      if (point.touchdownGearG != null)
+        _ResolvedLandingG(point.touchdownGearG!, LandingGSource.touchdownGear),
+      if (point.leftGearG != null)
+        _ResolvedLandingG(point.leftGearG!, LandingGSource.gear),
+      if (point.rightGearG != null)
+        _ResolvedLandingG(point.rightGearG!, LandingGSource.gear),
+      if (point.noseGearG != null)
+        _ResolvedLandingG(point.noseGearG!, LandingGSource.gear),
+      _ResolvedLandingG(point.gForce, point.gForceSource),
     ];
-    for (final value in candidateValues) {
-      if (value == null || !_isValidLandingG(value)) {
+    for (final candidate in candidateValues) {
+      if (!_isValidLandingG(candidate.value)) {
         continue;
       }
-      samples.add(value);
+      samples.add(candidate);
     }
     return samples;
   }
 
-  double _touchdownInstantG(FlightLogPoint point) {
-    final samples = _touchdownSampleGValues(point);
+  _ResolvedLandingG _touchdownInstantG(FlightLogPoint point) {
+    final samples = _touchdownSampleGSources(point);
     if (samples.isEmpty) {
-      return _normalizedLandingG(point.gForce);
+      return _ResolvedLandingG(
+        _normalizedLandingG(point.gForce),
+        point.gForceSource,
+      );
     }
-    return samples.reduce(math.max);
+    return _maxResolvedLandingG(samples);
+  }
+
+  _ResolvedLandingG _touchdownPeakAtIndex(
+    List<FlightLogPoint> points,
+    int centerIndex,
+  ) {
+    if (centerIndex < 0 || centerIndex >= points.length) {
+      return const _ResolvedLandingG(1.0, LandingGSource.fallback);
+    }
+    var peak = _touchdownInstantG(points[centerIndex]);
+    final start = math.max(0, centerIndex - _touchdownPeakSearchRadiusPoints);
+    final end = math.min(
+      points.length - 1,
+      centerIndex + _touchdownPeakSearchRadiusPoints,
+    );
+    for (var i = start; i <= end; i++) {
+      final candidate = _touchdownInstantG(points[i]);
+      if (candidate.value > peak.value) {
+        peak = candidate;
+      }
+    }
+    return peak;
+  }
+
+  _ResolvedLandingG _resolveFinalTouchdownG({
+    required List<FlightLogPoint> points,
+    required List<int> touchdownIndexes,
+    required int finalTouchdownIndex,
+    required List<double> touchdownGForces,
+  }) {
+    final finalWindowPeak = _touchdownPeakAtIndex(points, finalTouchdownIndex);
+    if (touchdownGForces.isEmpty) {
+      return finalWindowPeak;
+    }
+    var globalPeak = finalWindowPeak;
+    for (final touchdownIndex in touchdownIndexes) {
+      final peakAtTouchdown = _touchdownPeakAtIndex(points, touchdownIndex);
+      if (peakAtTouchdown.value > globalPeak.value) {
+        globalPeak = peakAtTouchdown;
+      }
+    }
+    final windowStart = math.max(
+      0,
+      finalTouchdownIndex - _touchdownPeakSearchRadiusPoints,
+    );
+    final windowEnd = math.min(
+      points.length - 1,
+      finalTouchdownIndex + _touchdownPeakSearchRadiusPoints,
+    );
+    for (final touchdownIndex in touchdownIndexes) {
+      if (touchdownIndex >= windowStart && touchdownIndex <= windowEnd) {
+        return finalWindowPeak.value >= globalPeak.value
+            ? finalWindowPeak
+            : globalPeak;
+      }
+    }
+    return globalPeak;
+  }
+
+  _ResolvedLandingG _maxResolvedLandingG(List<_ResolvedLandingG> values) {
+    var current = values.first;
+    for (var i = 1; i < values.length; i++) {
+      final candidate = values[i];
+      if (candidate.value > current.value) {
+        current = candidate;
+      }
+    }
+    return current;
   }
 
   bool _isValidLandingG(double value) {
@@ -647,6 +733,37 @@ class FlightLogsProvider extends ChangeNotifier {
       return value;
     }
     return value.clamp(_minValidLandingG, _maxValidLandingG).toDouble();
+  }
+
+  _ResolvedLandingG _resolveSnapshotPointG(FlightData data) {
+    final bodyG = data.gForce;
+    if (bodyG != null && _isValidLandingG(bodyG)) {
+      return _ResolvedLandingG(bodyG, LandingGSource.body);
+    }
+    final gearCandidates = <double>[
+      if (data.leftGearG != null && _isValidLandingG(data.leftGearG!))
+        data.leftGearG!,
+      if (data.rightGearG != null && _isValidLandingG(data.rightGearG!))
+        data.rightGearG!,
+      if (data.noseGearG != null && _isValidLandingG(data.noseGearG!))
+        data.noseGearG!,
+    ];
+    if (data.touchdownGearG != null && _isValidLandingG(data.touchdownGearG!)) {
+      return _ResolvedLandingG(
+        data.touchdownGearG!,
+        LandingGSource.touchdownGear,
+      );
+    }
+    if (gearCandidates.isNotEmpty) {
+      return _ResolvedLandingG(
+        gearCandidates.reduce(math.max),
+        LandingGSource.gear,
+      );
+    }
+    if (bodyG == null || bodyG.isNaN || bodyG.isInfinite) {
+      return const _ResolvedLandingG(1.0, LandingGSource.fallback);
+    }
+    return _ResolvedLandingG(_normalizedLandingG(bodyG), LandingGSource.body);
   }
 
   void _updateFuelUsed(FlightLog log) {
@@ -1229,4 +1346,11 @@ class _TakeoffMetrics {
     this.crosswindAtLiftoffKt,
     this.pitchAt35FtDeg,
   });
+}
+
+class _ResolvedLandingG {
+  final double value;
+  final LandingGSource source;
+
+  const _ResolvedLandingG(this.value, this.source);
 }

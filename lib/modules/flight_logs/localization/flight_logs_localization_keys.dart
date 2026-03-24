@@ -67,6 +67,7 @@ class FlightLogsLocalizationKeys {
   static const String blackBoxVerticalSpeed =
       'flight_logs.black_box.vertical_speed';
   static const String blackBoxGForce = 'flight_logs.black_box.g_force';
+  static const String blackBoxGSource = 'flight_logs.black_box.g_source';
   static const String blackBoxAoa = 'flight_logs.black_box.aoa';
   static const String blackBoxApAt = 'flight_logs.black_box.ap_at';
   static const String blackBoxFlightPhase =

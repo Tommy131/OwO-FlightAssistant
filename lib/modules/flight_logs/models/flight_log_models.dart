@@ -1,5 +1,26 @@
 enum FlightLogAlertLevel { caution, warning, danger }
 
+enum LandingGSource {
+  body('body'),
+  gear('gear'),
+  touchdownGear('touchdown_gear'),
+  fallback('fallback');
+
+  final String wireValue;
+
+  const LandingGSource(this.wireValue);
+
+  static LandingGSource fromRaw(String? raw) {
+    final value = raw?.trim().toLowerCase();
+    for (final item in LandingGSource.values) {
+      if (item.wireValue == value) {
+        return item;
+      }
+    }
+    return LandingGSource.fallback;
+  }
+}
+
 class FlightLogAlert {
   final String id;
   final FlightLogAlertLevel level;
@@ -73,6 +94,7 @@ class FlightLogPoint {
   final double roll;
   final double? angleOfAttack;
   final double gForce;
+  final LandingGSource gForceSource;
   final double fuelQuantity;
   final double? fuelFlow;
   final DateTime timestamp;
@@ -83,6 +105,7 @@ class FlightLogPoint {
   final String? autopilotLateralMode;
   final String? autopilotVerticalMode;
   final bool? gearDown;
+  final double? touchdownGearG;
   final double? noseGearG;
   final double? leftGearG;
   final double? rightGearG;
@@ -134,6 +157,7 @@ class FlightLogPoint {
     required this.roll,
     this.angleOfAttack,
     required this.gForce,
+    this.gForceSource = LandingGSource.fallback,
     required this.fuelQuantity,
     this.fuelFlow,
     required this.timestamp,
@@ -144,6 +168,7 @@ class FlightLogPoint {
     this.autopilotLateralMode,
     this.autopilotVerticalMode,
     this.gearDown,
+    this.touchdownGearG,
     this.noseGearG,
     this.leftGearG,
     this.rightGearG,
@@ -196,6 +221,7 @@ class FlightLogPoint {
     'rol': roll,
     'aoa': angleOfAttack,
     'g': gForce,
+    'g_src': gForceSource.wireValue,
     'fuel': fuelQuantity,
     'ff': fuelFlow,
     'ts': timestamp.toIso8601String(),
@@ -206,6 +232,7 @@ class FlightLogPoint {
     'ap_lat': autopilotLateralMode,
     'ap_ver': autopilotVerticalMode,
     'gear': gearDown,
+    'tdg': touchdownGearG,
     'ngg': noseGearG,
     'lgg': leftGearG,
     'rgg': rightGearG,
@@ -259,6 +286,7 @@ class FlightLogPoint {
     roll: (json['rol'] as num? ?? 0.0).toDouble(),
     angleOfAttack: (json['aoa'] as num?)?.toDouble(),
     gForce: (json['g'] as num? ?? 1.0).toDouble(),
+    gForceSource: LandingGSource.fromRaw(json['g_src'] as String?),
     fuelQuantity: (json['fuel'] as num? ?? 0.0).toDouble(),
     fuelFlow: (json['ff'] as num?)?.toDouble(),
     timestamp: json['ts'] != null
@@ -271,6 +299,7 @@ class FlightLogPoint {
     autopilotLateralMode: json['ap_lat'] as String?,
     autopilotVerticalMode: json['ap_ver'] as String?,
     gearDown: _boolFromRaw(json['gear']),
+    touchdownGearG: (json['tdg'] as num?)?.toDouble(),
     noseGearG: (json['ngg'] as num?)?.toDouble(),
     leftGearG: (json['lgg'] as num?)?.toDouble(),
     rightGearG: (json['rgg'] as num?)?.toDouble(),
@@ -488,6 +517,7 @@ class LandingData {
   final double latitude;
   final double longitude;
   final double gForce;
+  final LandingGSource gForceSource;
   final double verticalSpeed;
   final double airspeed;
   final double groundSpeed;
@@ -509,6 +539,7 @@ class LandingData {
     required this.latitude,
     required this.longitude,
     required this.gForce,
+    this.gForceSource = LandingGSource.fallback,
     required this.verticalSpeed,
     required this.airspeed,
     required this.groundSpeed,
@@ -531,6 +562,7 @@ class LandingData {
     'lat': latitude,
     'lon': longitude,
     'g': gForce,
+    'g_src': gForceSource.wireValue,
     'vs': verticalSpeed,
     'spd': airspeed,
     'gs': groundSpeed,
@@ -563,6 +595,7 @@ class LandingData {
       latitude: (json['lat'] as num? ?? 0.0).toDouble(),
       longitude: (json['lon'] as num? ?? 0.0).toDouble(),
       gForce: (json['g'] as num? ?? 1.0).toDouble(),
+      gForceSource: LandingGSource.fromRaw(json['g_src'] as String?),
       verticalSpeed: (json['vs'] as num? ?? 0.0).toDouble(),
       airspeed: (json['spd'] as num? ?? 0.0).toDouble(),
       groundSpeed: (json['gs'] as num? ?? 0.0).toDouble(),
