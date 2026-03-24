@@ -7,6 +7,7 @@ import '../../models/map_models.dart';
 import 'map_button.dart';
 import 'top_panel/airport_search_bar.dart';
 import 'top_panel/flight_status_panel.dart';
+import 'top_panel/taxiway_draw_controls.dart';
 import 'top_panel/top_panel_chips.dart';
 
 class MapTopPanel extends StatelessWidget {
@@ -25,12 +26,16 @@ class MapTopPanel extends StatelessWidget {
   final VoidCallback onToggleParkings;
   final VoidCallback onToggleCompass;
   final VoidCallback onToggleWeather;
+  final VoidCallback onToggleCustomTaxiway;
+  final VoidCallback onToggleTaxiwayDrawing;
   final bool showRoute;
   final bool showAirports;
   final bool showRunways;
   final bool showParkings;
   final bool showCompass;
   final bool showWeather;
+  final bool showCustomTaxiway;
+  final bool isTaxiwayDrawingActive;
   final bool isConnected;
   final List<MapFlightAlert> activeAlerts;
   final VoidCallback onClearRoute;
@@ -61,12 +66,16 @@ class MapTopPanel extends StatelessWidget {
     required this.onToggleParkings,
     required this.onToggleCompass,
     required this.onToggleWeather,
+    required this.onToggleCustomTaxiway,
+    required this.onToggleTaxiwayDrawing,
     required this.showRoute,
     required this.showAirports,
     required this.showRunways,
     required this.showParkings,
     required this.showCompass,
     required this.showWeather,
+    required this.showCustomTaxiway,
+    required this.isTaxiwayDrawingActive,
     required this.isConnected,
     required this.activeAlerts,
     required this.onClearRoute,
@@ -262,6 +271,14 @@ class MapTopPanel extends StatelessWidget {
                             ),
                             value: showWeather,
                             onChanged: (value) => onToggleWeather(),
+                            scale: scale,
+                          ),
+                          SizedBox(width: 8 * scale),
+                          TaxiwayDrawControls(
+                            showCustomTaxiway: showCustomTaxiway,
+                            isTaxiwayDrawingActive: isTaxiwayDrawingActive,
+                            onToggleCustomTaxiway: onToggleCustomTaxiway,
+                            onToggleTaxiwayDrawing: onToggleTaxiwayDrawing,
                             scale: scale,
                           ),
                         ],

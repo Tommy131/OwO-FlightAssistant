@@ -65,11 +65,7 @@ class MapParkingSpot {
   /// 停机朝向（度，可选，0 = 正北）
   final double? headingDeg;
 
-  const MapParkingSpot({
-    this.name,
-    required this.position,
-    this.headingDeg,
-  });
+  const MapParkingSpot({this.name, required this.position, this.headingDeg});
 }
 
 /// 选中机场的完整详情数据

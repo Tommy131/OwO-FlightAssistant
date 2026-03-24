@@ -79,6 +79,8 @@ class MapLocalizationKeys {
   static const String toggleParkings = 'map.control.parkings';
   static const String toggleWeather = 'map.control.weather';
   static const String toggleCompass = 'map.control.compass';
+  static const String toggleCustomTaxiway = 'map.control.custom_taxiway';
+  static const String toggleTaxiwayDrawing = 'map.control.taxiway_drawing';
   static const String emptyState = 'map.empty_state';
   static const String aircraft = 'map.label.aircraft';
   static const String altitude = 'map.label.altitude';
@@ -106,11 +108,22 @@ class MapLocalizationKeys {
   static const String tooltipTimerStart = 'map.tooltip.timer_start';
   static const String tooltipTimerPause = 'map.tooltip.timer_pause';
   static const String tooltipTimerReset = 'map.tooltip.timer_reset';
+  static const String tooltipTaxiwayUndo = 'map.tooltip.taxiway_undo';
+  static const String tooltipTaxiwayRedo = 'map.tooltip.taxiway_redo';
+  static const String tooltipTaxiwayClear = 'map.tooltip.taxiway_clear';
+  static const String tooltipTaxiwaySave = 'map.tooltip.taxiway_save';
+  static const String tooltipTaxiwayImport = 'map.tooltip.taxiway_import';
+  static const String tooltipPlannedRoute = 'map.tooltip.planned_route';
   static const String tooltipZoomIn = 'map.tooltip.zoom_in';
   static const String tooltipZoomOut = 'map.tooltip.zoom_out';
+  static const String plannedRouteTotal = 'map.label.planned_route_total';
   static const String clearRouteConfirmTitle = 'map.clear_route.confirm_title';
   static const String clearRouteConfirmContent =
       'map.clear_route.confirm_content';
+  static const String taxiwayExportSuccess = 'map.taxiway.export_success';
+  static const String taxiwayImportSuccess = 'map.taxiway.import_success';
+  static const String taxiwayImportInvalid = 'map.taxiway.import_invalid';
+  static const String taxiwayNoRouteToSave = 'map.taxiway.no_route_to_save';
   static const String weatherNoData = 'map.weather.no_data';
   static const String loadingAirportDetail = 'map.airport.loading_detail';
   static const String metarRawShort = 'map.weather.raw_short';

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../../../core/services/persistence_service.dart';
@@ -119,11 +121,14 @@ class MapProvider extends ChangeNotifier {
   MapLayerStyle _layerStyle = MapLayerStyle.dark;
   bool _followAircraft = true;
   bool _showRoute = true;
+  bool _showPlannedRoute = true;
   bool _showAirports = true;
   bool _showRunways = true;
   bool _showParkings = true;
   bool _showCompass = true;
   bool _showWeather = false;
+  bool _showCustomTaxiwayRoute = true;
+  bool _isTaxiwayDrawingActive = false;
   bool _isLoading = false;
   bool _isConnected = false;
   int _connectionEpoch = 0;
@@ -175,15 +180,23 @@ class MapProvider extends ChangeNotifier {
   bool _lowPerformanceMode = false;
   int _uiRefreshIntervalMs = _defaultUiRefreshIntervalMs;
   DateTime? _lastUiNotifyAt;
+  List<MapCoordinate> _taxiwayRoutePoints = const [];
+  List<MapCoordinate> _taxiwayRedoStack = const [];
 
   MapLayerStyle get layerStyle => _layerStyle;
   bool get followAircraft => _followAircraft;
   bool get showRoute => _showRoute;
+  bool get showPlannedRoute => _showPlannedRoute;
   bool get showAirports => _showAirports;
   bool get showRunways => _showRunways;
   bool get showParkings => _showParkings;
   bool get showCompass => _showCompass;
   bool get showWeather => _showWeather;
+  bool get showCustomTaxiwayRoute => _showCustomTaxiwayRoute;
+  bool get isTaxiwayDrawingActive => _isTaxiwayDrawingActive;
+  List<MapCoordinate> get taxiwayRoutePoints => _taxiwayRoutePoints;
+  bool get canUndoTaxiwayRoute => _taxiwayRoutePoints.isNotEmpty;
+  bool get canRedoTaxiwayRoute => _taxiwayRedoStack.isNotEmpty;
   int? get weatherRadarTimestamp => _weatherRadarTimestamp;
   bool get isWeatherRadarCoolingDown =>
       _weatherRadarCooldownUntil != null &&
@@ -751,6 +764,11 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void togglePlannedRoute() {
+    _showPlannedRoute = !_showPlannedRoute;
+    notifyListeners();
+  }
+
   void toggleAirports() {
     _showAirports = !_showAirports;
     notifyListeners();
@@ -792,6 +810,116 @@ class MapProvider extends ChangeNotifier {
       _weatherRadarCooldownUntil = null;
     }
     notifyListeners();
+  }
+
+  void toggleCustomTaxiway() {
+    _showCustomTaxiwayRoute = !_showCustomTaxiwayRoute;
+    notifyListeners();
+  }
+
+  void toggleTaxiwayDrawing() {
+    _isTaxiwayDrawingActive = !_isTaxiwayDrawingActive;
+    notifyListeners();
+  }
+
+  void addTaxiwayRoutePoint(MapCoordinate point) {
+    _taxiwayRoutePoints = [..._taxiwayRoutePoints, point];
+    _taxiwayRedoStack = const [];
+    notifyListeners();
+  }
+
+  void undoTaxiwayRoutePoint() {
+    if (_taxiwayRoutePoints.isEmpty) {
+      return;
+    }
+    final nextRoute = [..._taxiwayRoutePoints];
+    final removed = nextRoute.removeLast();
+    _taxiwayRoutePoints = nextRoute;
+    _taxiwayRedoStack = [..._taxiwayRedoStack, removed];
+    notifyListeners();
+  }
+
+  void redoTaxiwayRoutePoint() {
+    if (_taxiwayRedoStack.isEmpty) {
+      return;
+    }
+    final nextRedo = [..._taxiwayRedoStack];
+    final restored = nextRedo.removeLast();
+    _taxiwayRedoStack = nextRedo;
+    _taxiwayRoutePoints = [..._taxiwayRoutePoints, restored];
+    notifyListeners();
+  }
+
+  void clearTaxiwayRoute() {
+    _taxiwayRoutePoints = const [];
+    _taxiwayRedoStack = const [];
+    notifyListeners();
+  }
+
+  Future<int> exportTaxiwayRouteToFile() async {
+    if (_taxiwayRoutePoints.isEmpty) {
+      return -1;
+    }
+    final filePath = await FilePicker.platform.saveFile(
+      fileName: 'custom_taxiway_route.json',
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (filePath == null || filePath.trim().isEmpty) {
+      return 0;
+    }
+    final file = File(filePath);
+    final payload = {
+      'version': 1,
+      'type': 'custom_taxiway_route',
+      'points': _taxiwayRoutePoints
+          .map((point) => {'lat': point.latitude, 'lon': point.longitude})
+          .toList(),
+    };
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(payload),
+    );
+    return 1;
+  }
+
+  Future<int> importTaxiwayRouteFromFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    final filePath = result?.files.single.path;
+    if (filePath == null || filePath.trim().isEmpty) {
+      return -1;
+    }
+    final raw = json.decode(await File(filePath).readAsString());
+    final root = _asMap(raw);
+    if (root == null) {
+      return 0;
+    }
+    final pointsValue = root['points'];
+    if (pointsValue is! List) {
+      return 0;
+    }
+    final imported = <MapCoordinate>[];
+    for (final item in pointsValue) {
+      final map = _asMap(item);
+      if (map == null) {
+        continue;
+      }
+      final lat = _toDouble(map['lat'] ?? map['latitude']);
+      final lon = _toDouble(map['lon'] ?? map['lng'] ?? map['longitude']);
+      if (lat == null || lon == null || !_isValidCoordinate(lat, lon)) {
+        continue;
+      }
+      imported.add(MapCoordinate(latitude: lat, longitude: lon));
+    }
+    if (imported.isEmpty) {
+      return 0;
+    }
+    _taxiwayRoutePoints = imported;
+    _taxiwayRedoStack = const [];
+    notifyListeners();
+    return imported.length;
   }
 
   void handleWeatherRadarRateLimit() {
@@ -1354,6 +1482,17 @@ class MapProvider extends ChangeNotifier {
     if (v is List<dynamic>) return v;
     if (v is List) return v.cast<dynamic>();
     return null;
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) {
+      return null;
+    }
+    return double.tryParse(text);
   }
 
   /// 委托给 [MapAirportApiParser.normalizeRunwayIdent]

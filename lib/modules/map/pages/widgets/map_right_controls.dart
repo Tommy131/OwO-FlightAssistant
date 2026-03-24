@@ -9,7 +9,10 @@ class MapRightControls extends StatelessWidget {
   final double scale;
   final MapController mapController;
   final bool followAircraft;
+  final bool showPlannedRoute;
+  final bool showPlannedRouteControl;
   final ValueChanged<bool> onFollowAircraftChanged;
+  final VoidCallback onTogglePlannedRoute;
   final VoidCallback onShowLayerPicker;
   final bool isMapReady;
   final bool isConnected;
@@ -19,7 +22,10 @@ class MapRightControls extends StatelessWidget {
     required this.scale,
     required this.mapController,
     required this.followAircraft,
+    required this.showPlannedRoute,
+    required this.showPlannedRouteControl,
     required this.onFollowAircraftChanged,
+    required this.onTogglePlannedRoute,
     required this.onShowLayerPicker,
     required this.isMapReady,
     required this.isConnected,
@@ -72,6 +78,18 @@ class MapRightControls extends StatelessWidget {
                   tooltip: MapLocalizationKeys.tooltipZoomOut.tr(context),
                   scale: scale,
                 ),
+                if (showPlannedRouteControl) ...[
+                  const SizedBox(height: 12),
+                  MapButton(
+                    icon: Icons.alt_route_rounded,
+                    onPressed: onTogglePlannedRoute,
+                    tooltip: MapLocalizationKeys.tooltipPlannedRoute.tr(
+                      context,
+                    ),
+                    highlight: showPlannedRoute,
+                    scale: scale,
+                  ),
+                ],
               ],
             ),
           ),

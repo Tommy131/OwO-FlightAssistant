@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -16,6 +17,8 @@ import 'widgets/map_hud.dart';
 import 'widgets/map_layer_picker.dart';
 import 'widgets/map_markers.dart';
 import 'widgets/map_right_controls.dart';
+import 'widgets/map_taxiway_drawing_controls.dart';
+import 'widgets/map_taxiway_route_layers.dart';
 import 'widgets/map_top_panel.dart';
 import 'widgets/selected_airport_bottom_card.dart';
 
@@ -103,6 +106,11 @@ class _MapPageState extends State<MapPage> {
         );
         final brightMapBackground = _isBrightMapBackground(provider.layerStyle);
         final homeSnapshot = homeProvider.snapshot;
+        final plannedRouteLegs = _buildPlannedRouteLegs(homeProvider);
+        final plannedRouteTotalNm = plannedRouteLegs.fold<double>(
+          0,
+          (sum, leg) => sum + leg.distanceNm,
+        );
         final aircraftScreenOffset = _mapReady && aircraft != null
             ? _mapController.camera.latLngToScreenOffset(
                 LatLng(aircraft.position.latitude, aircraft.position.longitude),
@@ -189,6 +197,17 @@ class _MapPageState extends State<MapPage> {
                       _clearSelectedAirportIfNeeded();
                     }
                   },
+                  onTap: (_, point) {
+                    if (!provider.isTaxiwayDrawingActive) {
+                      return;
+                    }
+                    provider.addTaxiwayRoutePoint(
+                      MapCoordinate(
+                        latitude: point.latitude,
+                        longitude: point.longitude,
+                      ),
+                    );
+                  },
                 ),
                 children: [
                   TileLayer(
@@ -252,6 +271,37 @@ class _MapPageState extends State<MapPage> {
                           strokeWidth: 3,
                         ),
                       ],
+                    ),
+                  if (provider.showCustomTaxiwayRoute &&
+                      provider.taxiwayRoutePoints.isNotEmpty)
+                    TaxiwayRoutePolylineLayer(
+                      points: provider.taxiwayRoutePoints,
+                      scale: scale,
+                    ),
+                  if (provider.showCustomTaxiwayRoute &&
+                      provider.taxiwayRoutePoints.isNotEmpty)
+                    TaxiwayRoutePointMarkerLayer(
+                      points: provider.taxiwayRoutePoints,
+                      scale: scale,
+                    ),
+                  if (provider.showPlannedRoute && plannedRouteLegs.isNotEmpty)
+                    PolylineLayer(
+                      polylines: plannedRouteLegs
+                          .map(
+                            (leg) => Polyline(
+                              points: _buildPlannedRouteCurvePoints(leg),
+                              color: Colors.amberAccent.withValues(alpha: 0.82),
+                              strokeWidth: (3.2 * scale).clamp(2.2, 4.6),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  if (provider.showPlannedRoute && plannedRouteLegs.isNotEmpty)
+                    MarkerLayer(
+                      markers: _buildPlannedRouteDistanceMarkers(
+                        legs: plannedRouteLegs,
+                        scale: scale,
+                      ),
                     ),
                   if (_selectedAirportDetail != null &&
                       provider.showRunways &&
@@ -563,12 +613,16 @@ class _MapPageState extends State<MapPage> {
                   onToggleParkings: provider.toggleParkings,
                   onToggleCompass: provider.toggleCompass,
                   onToggleWeather: provider.toggleWeather,
+                  onToggleCustomTaxiway: provider.toggleCustomTaxiway,
+                  onToggleTaxiwayDrawing: provider.toggleTaxiwayDrawing,
                   showRoute: provider.showRoute,
                   showAirports: provider.showAirports,
                   showRunways: provider.showRunways,
                   showParkings: provider.showParkings,
                   showCompass: provider.showCompass,
                   showWeather: provider.showWeather,
+                  showCustomTaxiway: provider.showCustomTaxiwayRoute,
+                  isTaxiwayDrawingActive: provider.isTaxiwayDrawingActive,
                   isConnected: provider.isConnected,
                   activeAlerts: activeAlerts,
                   onClearRoute: () => _confirmClearRoute(provider),
@@ -588,11 +642,14 @@ class _MapPageState extends State<MapPage> {
                   scale: scale,
                   mapController: _mapController,
                   followAircraft: provider.followAircraft,
+                  showPlannedRoute: provider.showPlannedRoute,
+                  showPlannedRouteControl: plannedRouteLegs.isNotEmpty,
                   onFollowAircraftChanged: (value) {
                     if (provider.followAircraft != value) {
                       provider.toggleFollowAircraft();
                     }
                   },
+                  onTogglePlannedRoute: provider.togglePlannedRoute,
                   onShowLayerPicker: () {
                     _showLayerPicker(context, provider);
                   },
@@ -600,6 +657,35 @@ class _MapPageState extends State<MapPage> {
                   isConnected: provider.isConnected,
                 ),
               ),
+              if (provider.isTaxiwayDrawingActive)
+                Positioned(
+                  left: 20 * scale,
+                  top: 250 * scale,
+                  child: MapTaxiwayDrawingControls(
+                    scale: scale,
+                    canUndo: provider.canUndoTaxiwayRoute,
+                    canRedo: provider.canRedoTaxiwayRoute,
+                    hasRoute: provider.taxiwayRoutePoints.isNotEmpty,
+                    canImport: true,
+                    onUndo: provider.undoTaxiwayRoutePoint,
+                    onRedo: provider.redoTaxiwayRoutePoint,
+                    onClear: provider.clearTaxiwayRoute,
+                    onSave: () => _saveCustomTaxiwayRoute(provider),
+                    onImport: () => _importCustomTaxiwayRoute(provider),
+                  ),
+                ),
+              if (provider.showPlannedRoute && plannedRouteTotalNm > 0)
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  bottom: _plannedRouteChipBottom(scale),
+                  left: 20 * scale,
+                  child: _PlannedRouteTotalChip(
+                    scale: scale,
+                    text:
+                        '${MapLocalizationKeys.plannedRouteTotal.tr(context)}: ${plannedRouteTotalNm.toStringAsFixed(1)} NM',
+                  ),
+                ),
               if (_selectedAirport != null)
                 Positioned(
                   left: 20 * scale,
@@ -730,6 +816,63 @@ class _MapPageState extends State<MapPage> {
       return;
     }
     provider.clearRoute();
+  }
+
+  Future<void> _saveCustomTaxiwayRoute(MapProvider provider) async {
+    final result = await provider.exportTaxiwayRouteToFile();
+    if (!mounted) {
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    if (result > 0) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(MapLocalizationKeys.taxiwayExportSuccess.tr(context)),
+        ),
+      );
+      return;
+    }
+    if (result < 0) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(MapLocalizationKeys.taxiwayNoRouteToSave.tr(context)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _importCustomTaxiwayRoute(MapProvider provider) async {
+    try {
+      final result = await provider.importTaxiwayRouteFromFile();
+      if (!mounted) {
+        return;
+      }
+      final messenger = ScaffoldMessenger.of(context);
+      if (result > 0) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(MapLocalizationKeys.taxiwayImportSuccess.tr(context)),
+          ),
+        );
+        return;
+      }
+      if (result == 0) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(MapLocalizationKeys.taxiwayImportInvalid.tr(context)),
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(MapLocalizationKeys.taxiwayImportInvalid.tr(context)),
+        ),
+      );
+    }
   }
 
   bool _shouldShowDangerOverlay(
@@ -1335,6 +1478,129 @@ class _MapPageState extends State<MapPage> {
     showMapLayerPicker(context, provider);
   }
 
+  double _plannedRouteChipBottom(double scale) {
+    if (_selectedAirport == null) {
+      return 20 * scale;
+    }
+    if (_isAirportDetailExpanded) {
+      return 240 * scale;
+    }
+    return 104 * scale;
+  }
+
+  List<_PlannedRouteLeg> _buildPlannedRouteLegs(HomeProvider homeProvider) {
+    final departure = homeProvider.departureAirport;
+    final destination = homeProvider.destinationAirport;
+    if (departure == null || destination == null) {
+      return const [];
+    }
+    final alternate = homeProvider.alternateAirport;
+    final result = <_PlannedRouteLeg>[];
+
+    void addLeg({required HomeAirportInfo from, required HomeAirportInfo to}) {
+      if (!_isValidCoordinate(from.latitude, from.longitude) ||
+          !_isValidCoordinate(to.latitude, to.longitude)) {
+        return;
+      }
+      final fromLatLng = LatLng(from.latitude, from.longitude);
+      final toLatLng = LatLng(to.latitude, to.longitude);
+      final distanceMeters = const Distance().as(
+        LengthUnit.Meter,
+        fromLatLng,
+        toLatLng,
+      );
+      final distanceNm = distanceMeters / 1852.0;
+      if (distanceNm <= 0.01) {
+        return;
+      }
+      result.add(
+        _PlannedRouteLeg(
+          fromCode: _normalizeAirportCode(from.icaoCode),
+          toCode: _normalizeAirportCode(to.icaoCode),
+          from: MapCoordinate(
+            latitude: from.latitude,
+            longitude: from.longitude,
+          ),
+          to: MapCoordinate(latitude: to.latitude, longitude: to.longitude),
+          distanceNm: distanceNm,
+        ),
+      );
+    }
+
+    if (alternate != null) {
+      addLeg(from: departure, to: alternate);
+      addLeg(from: alternate, to: destination);
+    } else {
+      addLeg(from: departure, to: destination);
+    }
+
+    return result;
+  }
+
+  List<LatLng> _buildPlannedRouteCurvePoints(_PlannedRouteLeg leg) {
+    final start = LatLng(leg.from.latitude, leg.from.longitude);
+    final end = LatLng(leg.to.latitude, leg.to.longitude);
+    final deltaLat = end.latitude - start.latitude;
+    final deltaLon = end.longitude - start.longitude;
+    final length = math.sqrt(deltaLat * deltaLat + deltaLon * deltaLon);
+    if (length < 0.00001) {
+      return [start, end];
+    }
+    final midLat = (start.latitude + end.latitude) / 2;
+    final midLon = (start.longitude + end.longitude) / 2;
+    final normalLat = -deltaLon / length;
+    final normalLon = deltaLat / length;
+    final curvature = (0.18 * length).clamp(0.02, 3.6);
+    final controlLat = midLat + normalLat * curvature;
+    final controlLon = midLon + normalLon * curvature;
+    const segments = 32;
+    final points = <LatLng>[];
+    for (var i = 0; i <= segments; i += 1) {
+      final t = i / segments;
+      final oneMinusT = 1 - t;
+      final lat =
+          oneMinusT * oneMinusT * start.latitude +
+          2 * oneMinusT * t * controlLat +
+          t * t * end.latitude;
+      final lon =
+          oneMinusT * oneMinusT * start.longitude +
+          2 * oneMinusT * t * controlLon +
+          t * t * end.longitude;
+      points.add(LatLng(lat, lon));
+    }
+    return points;
+  }
+
+  List<Marker> _buildPlannedRouteDistanceMarkers({
+    required List<_PlannedRouteLeg> legs,
+    required double scale,
+  }) {
+    return legs.map((leg) {
+      final curvePoints = _buildPlannedRouteCurvePoints(leg);
+      final centerPoint = curvePoints[curvePoints.length ~/ 2];
+      final fromCode = leg.fromCode.isEmpty ? 'DEP' : leg.fromCode;
+      final toCode = leg.toCode.isEmpty ? 'ARR' : leg.toCode;
+      return Marker(
+        point: centerPoint,
+        width: 180 * scale,
+        height: 46 * scale,
+        child: _PlannedRouteLegLabel(
+          scale: scale,
+          text: '$fromCode → $toCode  ${leg.distanceNm.toStringAsFixed(1)} NM',
+        ),
+      );
+    }).toList();
+  }
+
+  bool _isValidCoordinate(double latitude, double longitude) {
+    return latitude.isFinite &&
+        longitude.isFinite &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
+  }
+
   LatLng _resolveCenter(MapProvider provider) {
     if (provider.aircraft != null) {
       final pos = provider.aircraft!.position;
@@ -1400,4 +1666,83 @@ class _CombinedPinData {
   final Color color;
 
   const _CombinedPinData({required this.icon, required this.color});
+}
+
+class _PlannedRouteLeg {
+  final String fromCode;
+  final String toCode;
+  final MapCoordinate from;
+  final MapCoordinate to;
+  final double distanceNm;
+
+  const _PlannedRouteLeg({
+    required this.fromCode,
+    required this.toCode,
+    required this.from,
+    required this.to,
+    required this.distanceNm,
+  });
+}
+
+class _PlannedRouteLegLabel extends StatelessWidget {
+  final double scale;
+  final String text;
+
+  const _PlannedRouteLegLabel({required this.scale, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: Alignment.center,
+      padding: EdgeInsets.symmetric(
+        horizontal: 10 * scale,
+        vertical: 5 * scale,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(10 * scale),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 12 * scale,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _PlannedRouteTotalChip extends StatelessWidget {
+  final double scale;
+  final String text;
+
+  const _PlannedRouteTotalChip({required this.scale, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 10 * scale,
+        vertical: 7 * scale,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(10 * scale),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 12 * scale,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
 }
