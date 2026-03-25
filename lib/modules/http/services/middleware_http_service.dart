@@ -328,7 +328,9 @@ class MiddlewareHttpService {
         }
       }
     } catch (_) {}
-    return buildSimulatorWebSocketUri(base: base, token: token);
+    return _sanitizeWebSocketUriForClient(
+      buildSimulatorWebSocketUri(base: base, token: token),
+    );
   }
 
   Uri buildSimulatorWebSocketUri({String? base, required String token}) {
@@ -336,7 +338,9 @@ class MiddlewareHttpService {
     final wsUri = Uri.parse(wsBase);
     final query = <String, String>{...wsUri.queryParameters};
     query['token'] = token.trim();
-    return wsUri.replace(queryParameters: query);
+    return _sanitizeWebSocketUriForClient(
+      wsUri.replace(queryParameters: query),
+    );
   }
 
   Uri _buildUri(String path, Map<String, dynamic>? queryParameters) {
@@ -389,7 +393,7 @@ class MiddlewareHttpService {
   }
 
   String _normalizeWebSocketBaseUrl(String value) {
-    final trimmed = value.trim();
+    final trimmed = _ensureWebSocketScheme(value.trim());
     final uri = Uri.parse(trimmed);
     final normalized = uri.replace(
       pathSegments: uri.pathSegments.where((e) => e.isNotEmpty).toList(),
@@ -397,6 +401,39 @@ class MiddlewareHttpService {
       fragment: null,
     );
     return normalized.toString().replaceAll(RegExp(r'\/+$'), '');
+  }
+
+  String _ensureWebSocketScheme(String value) {
+    if (value.startsWith('ws://') || value.startsWith('wss://')) {
+      return value;
+    }
+    return 'ws://$value';
+  }
+
+  Uri _sanitizeWebSocketUriForClient(Uri uri) {
+    final host = _resolveClientReachableHost(uri.host);
+    if (host == uri.host) {
+      return uri;
+    }
+    return uri.replace(host: host);
+  }
+
+  String _resolveClientReachableHost(String host) {
+    final normalized = host.trim();
+    if (normalized.isNotEmpty &&
+        normalized != '0.0.0.0' &&
+        normalized != '::' &&
+        normalized != '[::]') {
+      return normalized;
+    }
+    final fallbackHost = Uri.parse(_baseUrl).host.trim();
+    if (fallbackHost.isNotEmpty &&
+        fallbackHost != '0.0.0.0' &&
+        fallbackHost != '::' &&
+        fallbackHost != '[::]') {
+      return fallbackHost;
+    }
+    return '127.0.0.1';
   }
 
   String _deriveWebSocketUrlFromBase(String baseUrl) {

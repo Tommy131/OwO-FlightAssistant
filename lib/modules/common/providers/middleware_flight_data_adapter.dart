@@ -411,7 +411,7 @@ class MiddlewareFlightDataAdapter implements FlightDataAdapter {
 
   Future<void> _startRealtimeUpdates(String token) async {
     final connected = await _connectWebSocket(token);
-    if (!connected) _startPolling();
+    if (!connected) _startPolling(minIntervalMs: 1000);
   }
 
   Future<bool> _connectWebSocket(String token) async {
@@ -421,8 +421,10 @@ class MiddlewareFlightDataAdapter implements FlightDataAdapter {
       );
       final channel = WebSocketChannel.connect(wsUri);
       await _wsSubscription?.cancel();
-      await _wsChannel?.sink.close();
+      _wsSubscription = null;
+      await _safeCloseChannel(_wsChannel);
       _wsChannel = channel;
+      await _awaitChannelReady(channel);
       _wsSubscription = channel.stream.listen(
         _handleWebSocketEvent,
         onError: (_) => _handleWebSocketClosed(),
@@ -452,20 +454,39 @@ class MiddlewareFlightDataAdapter implements FlightDataAdapter {
 
   void _handleWebSocketClosed() {
     if (_token != null && _token!.isNotEmpty && !_isDisposed) {
-      _startPolling();
+      _startPolling(minIntervalMs: 1000);
     }
   }
 
   Future<void> _closeWebSocket() async {
     await _wsSubscription?.cancel();
     _wsSubscription = null;
-    await _wsChannel?.sink.close();
+    await _safeCloseChannel(_wsChannel);
     _wsChannel = null;
   }
 
-  void _startPolling() {
+  Future<void> _safeCloseChannel(WebSocketChannel? channel) async {
+    if (channel == null) return;
+    try {
+      await channel.sink.close();
+    } catch (_) {}
+  }
+
+  Future<void> _awaitChannelReady(WebSocketChannel channel) async {
+    try {
+      final dynamic readyFuture = (channel as dynamic).ready;
+      if (readyFuture is Future) {
+        await readyFuture;
+      }
+    } catch (_) {}
+  }
+
+  void _startPolling({int? minIntervalMs}) {
     _stopPolling();
-    final interval = Duration(milliseconds: _pollIntervalMs);
+    final intervalMs = minIntervalMs == null
+        ? _pollIntervalMs
+        : (_pollIntervalMs < minIntervalMs ? minIntervalMs : _pollIntervalMs);
+    final interval = Duration(milliseconds: intervalMs);
     _pollTimer = Timer.periodic(interval, (_) => _pollData());
   }
 
