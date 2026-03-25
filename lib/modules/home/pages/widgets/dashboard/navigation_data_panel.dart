@@ -103,34 +103,59 @@ class NavigationDataPanel extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // 底部：COM1 频率 + 机场选择器
-          Row(
-            children: [
-              Icon(
-                Icons.settings_input_antenna,
-                color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                size: 16,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${HomeLocalizationKeys.navCom1.tr(context)}:',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                data.com1Frequency != null
-                    ? '${data.com1Frequency!.toStringAsFixed(2)} MHz'
-                    : 'N/A',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontFamily: 'Monospace',
-                ),
-              ),
-              const Spacer(),
-              // 机场快速选择按钮组
-              const AirportPickerButtonGroup(),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 660;
+              final frequencyWidget = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.settings_input_antenna,
+                    color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${HomeLocalizationKeys.navCom1.tr(context)}:',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    data.com1Frequency != null
+                        ? '${data.com1Frequency!.toStringAsFixed(2)} MHz'
+                        : 'N/A',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontFamily: 'Monospace',
+                    ),
+                  ),
+                ],
+              );
+              if (isCompact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    frequencyWidget,
+                    const SizedBox(height: AppThemeData.spacingSmall),
+                    const Align(
+                      alignment: Alignment.centerRight,
+                      child: AirportPickerButtonGroup(direction: Axis.vertical),
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: frequencyWidget),
+                  const SizedBox(width: AppThemeData.spacingSmall),
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: AirportPickerButtonGroup(),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),

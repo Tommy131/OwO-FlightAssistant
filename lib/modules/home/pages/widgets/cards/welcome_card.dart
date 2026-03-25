@@ -71,84 +71,163 @@ class WelcomeCard extends StatelessWidget {
       );
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppThemeData.spacingLarge),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusLarge),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.primary.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 左侧：标题 + 副标题 + 支持模拟器说明
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: AppThemeData.spacingSmall),
-              Text(
-                subtitle,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 740;
+
+        final supportSimsRow = Row(
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              color: Colors.white.withValues(alpha: 0.8),
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                HomeLocalizationKeys.welcomeSupportSims.tr(context),
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 16,
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 12,
                 ),
               ),
-              const SizedBox(height: AppThemeData.spacingLarge),
-              Row(
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    color: Colors.white.withValues(alpha: 0.8),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    HomeLocalizationKeys.welcomeSupportSims.tr(context),
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 12,
-                    ),
+            ),
+          ],
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppThemeData.spacingLarge),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(
+                  AppThemeData.borderRadiusLarge,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
-            ],
-          ),
-          // 右侧：状态图标 + 应答机状态
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              statusIndicator ?? const SizedBox.shrink(),
-              if (showTransponder && statusIndicator != null)
-                const SizedBox(height: 8),
-              if (showTransponder)
-                TransponderStatusWidget(
-                  code: provider.transponderCode,
-                  state: provider.transponderState,
+              child: isCompact
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: AppThemeData.spacingSmall),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: AppThemeData.spacingLarge),
+                        supportSimsRow,
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: AppThemeData.spacingSmall),
+                              Text(
+                                subtitle,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: AppThemeData.spacingLarge),
+                              supportSimsRow,
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppThemeData.spacingLarge),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            statusIndicator ?? const SizedBox.shrink(),
+                            if (showTransponder && statusIndicator != null)
+                              const SizedBox(height: 8),
+                            if (showTransponder)
+                              TransponderStatusWidget(
+                                code: provider.transponderCode,
+                                state: provider.transponderState,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+            ),
+            if (isCompact && isConnected)
+              const SizedBox(height: AppThemeData.spacingSmall),
+            if (isCompact && isConnected)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppThemeData.spacingMedium,
+                  vertical: AppThemeData.spacingSmall,
                 ),
-            ],
-          ),
-        ],
-      ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(
+                    AppThemeData.borderRadiusMedium,
+                  ),
+                  border: Border.all(color: AppThemeData.getBorderColor(theme)),
+                ),
+                child: Row(
+                  children: [
+                    if (showTransponder)
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: TransponderStatusWidget(
+                            code: provider.transponderCode,
+                            state: provider.transponderState,
+                          ),
+                        ),
+                      )
+                    else
+                      const Spacer(),
+                    if (statusIndicator != null)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: statusIndicator,
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

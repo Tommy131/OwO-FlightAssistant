@@ -27,36 +27,39 @@ class ChecklistHeader extends StatelessWidget {
             size: 32,
           ),
           const SizedBox(width: AppThemeData.spacingMedium),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: aircraft.id,
-                  icon: const Icon(Icons.arrow_drop_down),
-                  items: provider.aircraftList
-                      .map(
-                        (item) => DropdownMenuItem<String>(
-                          value: item.id,
-                          child: Text(item.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value == null) return;
-                    provider.selectAircraft(value);
-                  },
-                  hint: Text(
-                    ChecklistLocalizationKeys.selectAircraft.tr(context),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: aircraft.id,
+                    isExpanded: true,
+                    icon: const Icon(Icons.arrow_drop_down),
+                    items: provider.aircraftList
+                        .map(
+                          (item) => DropdownMenuItem<String>(
+                            value: item.id,
+                            child: Text(item.name, overflow: TextOverflow.fade),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      provider.selectAircraft(value);
+                    },
+                    hint: Text(
+                      ChecklistLocalizationKeys.selectAircraft.tr(context),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${ChecklistLocalizationKeys.currentPhase.tr(context)}: ${provider.currentPhase.labelKey.tr(context)}',
-                style: theme.textTheme.bodyMedium,
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  '${ChecklistLocalizationKeys.currentPhase.tr(context)}: ${provider.currentPhase.labelKey.tr(context)}',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
+            ),
           ),
         ],
       ),

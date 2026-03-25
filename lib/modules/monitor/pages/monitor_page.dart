@@ -41,41 +41,51 @@ class MonitorPage extends StatelessWidget {
         // 已连接：渲染完整仪表盘布局
         return Scaffold(
           backgroundColor: Colors.transparent,
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppThemeData.spacingLarge),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 页面顶部：标题栏（含警告横幅、暂停状态）
-                MonitorHeader(data: data),
-                const SizedBox(height: AppThemeData.spacingLarge),
-
-                // 中部双列区域：左列（罗盘 + 系统状态），右列（起落架）
-                Row(
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 980;
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(AppThemeData.spacingLarge),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
+                    MonitorHeader(data: data),
+                    const SizedBox(height: AppThemeData.spacingLarge),
+                    if (isCompact) ...[
+                      CompassSection(data: data),
+                      const SizedBox(height: AppThemeData.spacingLarge),
+                      SystemsStatusCard(data: data),
+                      const SizedBox(height: AppThemeData.spacingLarge),
+                      MonitorCharts(
+                        provider: provider,
+                        forceSingleColumn: true,
+                      ),
+                    ] else ...[
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // 磁航向罗盘卡片
-                          CompassSection(data: data),
-                          const SizedBox(height: AppThemeData.spacingLarge),
-                          // 飞行系统状态列表卡片
-                          SystemsStatusCard(data: data),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                CompassSection(data: data),
+                                const SizedBox(
+                                  height: AppThemeData.spacingLarge,
+                                ),
+                                SystemsStatusCard(data: data),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AppThemeData.spacingLarge),
+                          Expanded(child: LandingGearCard(data: data)),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: AppThemeData.spacingLarge),
-                    // 起落架状态仪表卡片（右列单独占满）
-                    Expanded(child: LandingGearCard(data: data)),
+                      const SizedBox(height: AppThemeData.spacingLarge),
+                      MonitorCharts(provider: provider),
+                    ],
                   ],
                 ),
-                const SizedBox(height: AppThemeData.spacingLarge),
-
-                // 底部：实时图表区域（G力、高度、气压，宽屏三列/窄屏堆叠）
-                MonitorCharts(provider: provider),
-              ],
-            ),
+              );
+            },
           ),
         );
       },

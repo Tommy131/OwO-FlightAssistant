@@ -18,15 +18,20 @@ import 'monitor_chart_card.dart';
 class MonitorCharts extends StatelessWidget {
   /// 监控数据 Provider（读取图表历史数据与当前值）
   final MonitorProvider provider;
+  final bool forceSingleColumn;
 
-  const MonitorCharts({super.key, required this.provider});
+  const MonitorCharts({
+    super.key,
+    required this.provider,
+    this.forceSingleColumn = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         // 宽屏（> 900px）时三列并排
-        final isThreeColumn = constraints.maxWidth > 900;
+        final isThreeColumn = !forceSingleColumn && constraints.maxWidth > 900;
 
         if (isThreeColumn) {
           return Row(

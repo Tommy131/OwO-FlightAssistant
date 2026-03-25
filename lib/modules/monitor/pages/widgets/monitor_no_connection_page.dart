@@ -124,7 +124,7 @@ class MonitorNoConnectionPage extends StatelessWidget {
 
   /// 构建三步操作引导横排步骤条
   Widget _buildStepRow(BuildContext context, ThemeData theme) {
-    return Row(
+    final content = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildStep(
@@ -145,6 +145,16 @@ class MonitorNoConnectionPage extends StatelessWidget {
           Icons.check_circle_outline_rounded,
         ),
       ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) => SizedBox(
+        width: constraints.maxWidth,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.center,
+          child: content,
+        ),
+      ),
     );
   }
 
@@ -190,16 +200,26 @@ class MonitorNoConnectionPage extends StatelessWidget {
 
   /// 构建底部支持平台列表（低透明度装饰性区域）
   Widget _buildSupportedSimulators(ThemeData theme) {
-    return Opacity(
+    final content = Opacity(
       opacity: 0.3,
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(width: 24),
           _buildStatusDot(theme, 'X-Plane 11/12', true),
           const SizedBox(width: 24),
           _buildStatusDot(theme, 'MSFS 2020/2024', true),
         ],
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) => SizedBox(
+        width: constraints.maxWidth,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.center,
+          child: content,
+        ),
       ),
     );
   }

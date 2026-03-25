@@ -154,25 +154,14 @@ class _SelectedAirportBottomCardState extends State<SelectedAirportBottomCard> {
                         ),
                         SizedBox(width: 8 * widget.scale),
                         Expanded(
-                          child: Row(
-                            children: [
-                              Text(
-                                title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: headlineStyle.copyWith(
-                                  color: isDark ? Colors.white : Colors.black87,
-                                ),
-                              ),
-                              if (sourceText.isNotEmpty) ...[
-                                SizedBox(width: 8 * widget.scale),
-                                SourceBadge(
-                                  scale: widget.scale,
-                                  label: sourceText,
-                                  isDark: isDark,
-                                ),
-                              ],
-                            ],
+                          child: _AirportHeadlineTicker(
+                            title: title,
+                            sourceText: sourceText,
+                            scale: widget.scale,
+                            isDark: isDark,
+                            titleStyle: headlineStyle.copyWith(
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
                           ),
                         ),
                       ],
@@ -490,6 +479,193 @@ class _SelectedAirportBottomCardState extends State<SelectedAirportBottomCard> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AirportHeadlineTicker extends StatefulWidget {
+  final String title;
+  final String sourceText;
+  final double scale;
+  final bool isDark;
+  final TextStyle titleStyle;
+
+  const _AirportHeadlineTicker({
+    required this.title,
+    required this.sourceText,
+    required this.scale,
+    required this.isDark,
+    required this.titleStyle,
+  });
+
+  @override
+  State<_AirportHeadlineTicker> createState() => _AirportHeadlineTickerState();
+}
+
+class _AirportHeadlineTickerState extends State<_AirportHeadlineTicker>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  double _loopDistance = 0;
+  int _loopDurationMs = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _syncLoop(double loopDistance) {
+    final durationMs =
+        ((loopDistance / (32 * widget.scale)).clamp(4, 12) * 1000).round();
+    if (_loopDistance == loopDistance &&
+        _loopDurationMs == durationMs &&
+        _controller.isAnimating) {
+      return;
+    }
+    _loopDistance = loopDistance;
+    _loopDurationMs = durationMs;
+    _controller
+      ..duration = Duration(milliseconds: durationMs)
+      ..repeat();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textDirection = Directionality.of(context);
+        final availableWidth = constraints.maxWidth;
+        final sourceStyle = TextStyle(
+          color: widget.isDark ? Colors.white70 : Colors.black54,
+          fontSize: 10 * widget.scale,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
+        );
+        final titlePainter = TextPainter(
+          text: TextSpan(text: widget.title, style: widget.titleStyle),
+          maxLines: 1,
+          textDirection: textDirection,
+        )..layout();
+        final sourcePainter = TextPainter(
+          text: TextSpan(text: widget.sourceText, style: sourceStyle),
+          maxLines: 1,
+          textDirection: textDirection,
+        )..layout();
+        final hasSource = widget.sourceText.isNotEmpty;
+        final sourceWidth = hasSource
+            ? sourcePainter.width + (6 * widget.scale * 2)
+            : 0.0;
+        final fullWidth =
+            titlePainter.width +
+            (hasSource ? (8 * widget.scale + sourceWidth) : 0);
+
+        if (fullWidth <= availableWidth) {
+          if (_controller.isAnimating) {
+            _controller.stop();
+          }
+          return _buildHeadlineContent(
+            hasSource: hasSource,
+            isTickerItem: false,
+          );
+        }
+
+        final gap = 24 * widget.scale;
+        final loopDistance = fullWidth + gap;
+        _syncLoop(loopDistance);
+
+        return ClipRect(
+          child: SizedBox(
+            height: 22 * widget.scale,
+            child: OverflowBox(
+              alignment: Alignment.centerLeft,
+              minWidth: 0,
+              maxWidth: double.infinity,
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Transform.translate(
+                    offset: Offset(-loopDistance * _controller.value, 0),
+                    child: child,
+                  );
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildHeadlineContent(
+                      hasSource: hasSource,
+                      isTickerItem: true,
+                    ),
+                    SizedBox(width: gap),
+                    _buildHeadlineContent(
+                      hasSource: hasSource,
+                      isTickerItem: true,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeadlineContent({
+    required bool hasSource,
+    required bool isTickerItem,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          widget.title,
+          maxLines: 1,
+          overflow: isTickerItem ? TextOverflow.visible : TextOverflow.ellipsis,
+          style: widget.titleStyle,
+        ),
+        if (hasSource) ...[
+          SizedBox(width: 8 * widget.scale),
+          Container(
+            constraints: isTickerItem
+                ? null
+                : BoxConstraints(maxWidth: 130 * widget.scale),
+            padding: EdgeInsets.symmetric(
+              horizontal: 6 * widget.scale,
+              vertical: 3 * widget.scale,
+            ),
+            decoration: BoxDecoration(
+              color: widget.isDark
+                  ? Colors.white10
+                  : Colors.black.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(7 * widget.scale),
+              border: Border.all(
+                color: widget.isDark
+                    ? Colors.white24
+                    : Colors.black.withValues(alpha: 0.12),
+              ),
+            ),
+            child: Text(
+              widget.sourceText,
+              maxLines: 1,
+              overflow: isTickerItem
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
+              style: TextStyle(
+                color: widget.isDark ? Colors.white70 : Colors.black54,
+                fontSize: 10 * widget.scale,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

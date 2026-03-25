@@ -19,6 +19,7 @@ class ChecklistLocalizationKeys {
   static const String refresh = 'checklist.footer.refresh';
   static const String importFile = 'checklist.footer.import';
   static const String exportFile = 'checklist.footer.export';
+  static const String more = 'checklist.footer.more';
   static const String selectAircraft = 'checklist.header.select_aircraft';
   static const String importSuccess = 'checklist.message.import_success';
   static const String importFailed = 'checklist.message.import_failed';

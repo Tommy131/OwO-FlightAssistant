@@ -69,77 +69,86 @@ class _AirportSearchBarState extends State<AirportSearchBar> {
     final showingSuggestions = query.isEmpty;
     final items = showingSuggestions ? widget.suggestedAirports : _results;
 
-    return Column(
-      children: [
-        TextField(
-          controller: _controller,
-          onChanged: _onSearchChanged,
-          decoration: InputDecoration(
-            hintText: CommonLocalizationKeys.searchHint.tr(context),
-            prefixIcon: const Icon(Icons.search),
-            suffixIcon: _controller.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _controller.clear();
-                      _onSearchChanged('');
-                    },
-                  )
-                : null,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(
-                AppThemeData.borderRadiusSmall,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Column(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            TextField(
+              controller: _controller,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: CommonLocalizationKeys.searchHint.tr(context),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _controller.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _controller.clear();
+                          _onSearchChanged('');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(
+                    AppThemeData.borderRadiusSmall,
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (_isSearching)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: CircularProgressIndicator(),
-          )
-        else if (items.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text(
-              CommonLocalizationKeys.searchEmpty.tr(context),
-              style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            const SizedBox(height: 16),
+            Expanded(
+              child: _isSearching
+                  ? const Center(child: CircularProgressIndicator())
+                  : items.isEmpty
+                  ? Center(
+                      child: Text(
+                        CommonLocalizationKeys.searchEmpty.tr(context),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey,
+                        ),
+                      ),
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.max,
+                      children: [
+                        Text(
+                          HomeLocalizationKeys.navRecentAirports.tr(context),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: ListView.separated(
+                            itemCount: items.length,
+                            separatorBuilder: (context, index) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final airport = items[index];
+                              return ListTile(
+                                leading: Icon(
+                                  Icons.flight_takeoff,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                title: Text(
+                                  '${airport.icaoCode} / ${airport.iataCode}',
+                                ),
+                                subtitle: Text(airport.displayName),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => widget.onSelect(airport),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
             ),
-          )
-        else ...[
-          Text(
-            HomeLocalizationKeys.navRecentAirports.tr(context),
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 260),
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: items.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final airport = items[index];
-                return ListTile(
-                  leading: Icon(
-                    Icons.flight_takeoff,
-                    color: theme.colorScheme.primary,
-                  ),
-                  title: Text('${airport.icaoCode} / ${airport.iataCode}'),
-                  subtitle: Text(airport.displayName),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => widget.onSelect(airport),
-                );
-              },
-            ),
-          ),
-        ],
-      ],
+          ],
+        );
+      },
     );
   }
 }

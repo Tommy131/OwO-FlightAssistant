@@ -223,15 +223,23 @@ class _HomeStatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: const [
-          Expanded(child: SimulatorConnectionCard()),
-          SizedBox(width: AppThemeData.spacingMedium),
-          Expanded(child: ChecklistPhaseCard()),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 760;
+        if (isCompact) {
+          return const SimulatorConnectionCard();
+        }
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: const [
+              Expanded(child: SimulatorConnectionCard()),
+              SizedBox(width: AppThemeData.spacingMedium),
+              Expanded(child: ChecklistPhaseCard()),
+            ],
+          ),
+        );
+      },
     );
   }
 }

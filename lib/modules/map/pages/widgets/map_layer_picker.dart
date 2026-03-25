@@ -29,48 +29,72 @@ void showMapLayerPicker(BuildContext context, MapProvider provider) {
             ),
           ),
           const SizedBox(height: 24),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 16,
-            runSpacing: 16,
-            children: [
-              LayerOption(
-                label: MapLocalizationKeys.layerDark.tr(context),
-                icon: Icons.dark_mode,
-                selected: provider.layerStyle == MapLayerStyle.dark,
-                onTap: () {
-                  provider.setLayerStyle(MapLayerStyle.dark);
-                  Navigator.pop(context);
-                },
-              ),
-              LayerOption(
-                label: MapLocalizationKeys.layerSatellite.tr(context),
-                icon: Icons.satellite_alt,
-                selected: provider.layerStyle == MapLayerStyle.satellite,
-                onTap: () {
-                  provider.setLayerStyle(MapLayerStyle.satellite);
-                  Navigator.pop(context);
-                },
-              ),
-              LayerOption(
-                label: MapLocalizationKeys.layerTerrain.tr(context),
-                icon: Icons.landscape,
-                selected: provider.layerStyle == MapLayerStyle.terrain,
-                onTap: () {
-                  provider.setLayerStyle(MapLayerStyle.terrain);
-                  Navigator.pop(context);
-                },
-              ),
-              LayerOption(
-                label: MapLocalizationKeys.layerTaxiway.tr(context),
-                icon: Icons.flight,
-                selected: provider.layerStyle == MapLayerStyle.taxiway,
-                onTap: () {
-                  provider.setLayerStyle(MapLayerStyle.taxiway);
-                  Navigator.pop(context);
-                },
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const spacing = 16.0;
+              const columns = 4;
+              final itemWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              final optionSize = itemWidth.clamp(52.0, 72.0);
+              final iconSize = (optionSize * 0.39).clamp(20.0, 28.0);
+              final tileHeight = optionSize + 34;
+              return GridView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
+                  childAspectRatio: itemWidth / tileHeight,
+                ),
+                children: [
+                  LayerOption(
+                    label: MapLocalizationKeys.layerDark.tr(context),
+                    icon: Icons.dark_mode,
+                    selected: provider.layerStyle == MapLayerStyle.dark,
+                    optionSize: optionSize,
+                    iconSize: iconSize,
+                    onTap: () {
+                      provider.setLayerStyle(MapLayerStyle.dark);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  LayerOption(
+                    label: MapLocalizationKeys.layerSatellite.tr(context),
+                    icon: Icons.satellite_alt,
+                    selected: provider.layerStyle == MapLayerStyle.satellite,
+                    optionSize: optionSize,
+                    iconSize: iconSize,
+                    onTap: () {
+                      provider.setLayerStyle(MapLayerStyle.satellite);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  LayerOption(
+                    label: MapLocalizationKeys.layerTerrain.tr(context),
+                    icon: Icons.landscape,
+                    selected: provider.layerStyle == MapLayerStyle.terrain,
+                    optionSize: optionSize,
+                    iconSize: iconSize,
+                    onTap: () {
+                      provider.setLayerStyle(MapLayerStyle.terrain);
+                      Navigator.pop(context);
+                    },
+                  ),
+                  LayerOption(
+                    label: MapLocalizationKeys.layerTaxiway.tr(context),
+                    icon: Icons.flight,
+                    selected: provider.layerStyle == MapLayerStyle.taxiway,
+                    optionSize: optionSize,
+                    iconSize: iconSize,
+                    onTap: () {
+                      provider.setLayerStyle(MapLayerStyle.taxiway);
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 24),
         ],
@@ -84,6 +108,8 @@ class LayerOption extends StatelessWidget {
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+  final double optionSize;
+  final double iconSize;
 
   const LayerOption({
     super.key,
@@ -91,6 +117,8 @@ class LayerOption extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onTap,
+    this.optionSize = 72,
+    this.iconSize = 28,
   });
 
   @override
@@ -101,13 +129,13 @@ class LayerOption extends StatelessWidget {
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: 72,
-            height: 72,
+            width: optionSize,
+            height: optionSize,
             decoration: BoxDecoration(
               color: selected
                   ? Colors.orangeAccent
                   : Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(optionSize * 0.28),
               border: Border.all(
                 color: selected ? Colors.white : Colors.white12,
                 width: 2,
@@ -116,7 +144,7 @@ class LayerOption extends StatelessWidget {
             child: Icon(
               icon,
               color: selected ? Colors.black : Colors.white,
-              size: 28,
+              size: iconSize,
             ),
           ),
           const SizedBox(height: 8),

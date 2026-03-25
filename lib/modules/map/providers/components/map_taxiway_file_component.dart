@@ -41,16 +41,22 @@ class MapTaxiwayFileComponent {
     var targetPath = loadedFilePath;
 
     if (targetPath == null || targetPath.trim().isEmpty) {
-      // 无已加载文件路径，弹出保存对话框
-      final picked = await _saveTaxiwayFilePath(
-        initialDirectory: taxiwayDirectory.path,
-        fileName: _buildTaxiwayFileName(airportIcao),
-      );
-      if (picked == null || picked.trim().isEmpty) return 0;
-      targetPath = _normalizeTaxiwaySavePath(
-        filePath: picked,
-        airportIcao: airportIcao,
-      );
+      if (_isMobilePlatform()) {
+        targetPath = p.join(
+          taxiwayDirectory.path,
+          _buildTaxiwayFileName(airportIcao),
+        );
+      } else {
+        final picked = await _saveTaxiwayFilePath(
+          initialDirectory: taxiwayDirectory.path,
+          fileName: _buildTaxiwayFileName(airportIcao),
+        );
+        if (picked == null || picked.trim().isEmpty) return 0;
+        targetPath = _normalizeTaxiwaySavePath(
+          filePath: picked,
+          airportIcao: airportIcao,
+        );
+      }
     }
 
     final file = File(_normalizeJsonFilePath(targetPath));
@@ -281,14 +287,20 @@ class MapTaxiwayFileComponent {
         allowedExtensions: ['json'],
       );
     } catch (_) {
-      // 部分平台不支持 initialDirectory，回退至无目录模式
-      return FilePicker.platform.saveFile(
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
+      try {
+        return await FilePicker.platform.saveFile(
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: ['json'],
+        );
+      } catch (_) {
+        return null;
+      }
     }
   }
+
+  static bool _isMobilePlatform() =>
+      Platform.isAndroid || Platform.isIOS;
 
   /// 弹出系统文件选择对话框并返回用户选择的结果。
   static Future<FilePickerResult?> _pickTaxiwayFile({

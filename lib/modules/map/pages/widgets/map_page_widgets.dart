@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../localization/map_localization_keys.dart';
 import '../../models/map_taxiway_node.dart';
+import '../../models/map_taxiway_segment.dart';
 
 // ─────────────────────────────────────────────────────────────────
 // 地图页面专属小型 UI 组件
@@ -179,6 +180,81 @@ class TaxiwayNodeInfoCard extends StatelessWidget {
             Text(
               '${MapLocalizationKeys.labelHeading.tr(context)}：$headingText',
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TaxiwaySegmentInfoCard extends StatelessWidget {
+  final double scale;
+  final int segmentIndex;
+  final MapTaxiwayNode startNode;
+  final MapTaxiwayNode endNode;
+  final MapTaxiwaySegment segment;
+  final double distanceMeters;
+
+  const TaxiwaySegmentInfoCard({
+    super.key,
+    required this.scale,
+    required this.segmentIndex,
+    required this.startNode,
+    required this.endNode,
+    required this.segment,
+    required this.distanceMeters,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final connectionTitle =
+        '${MapLocalizationKeys.taxiwayConnection.tr(context)} ${segmentIndex + 1}';
+    final lineTypeLabel = segment.lineType == MapTaxiwaySegmentLineType.straight
+        ? MapLocalizationKeys.taxiwayConnectionLineTypeStraight.tr(context)
+        : MapLocalizationKeys.taxiwayConnectionLineTypeMapMatching.tr(context);
+    final connectionRangeText =
+        '${MapLocalizationKeys.taxiwayConnectionRange.tr(context)}：'
+        '${segmentIndex + 1} → ${segmentIndex + 2}';
+    final coordinateText =
+        '${MapLocalizationKeys.labelLatitudeLongitude.tr(context)}：'
+        '${startNode.latitude.toStringAsFixed(6)}, ${startNode.longitude.toStringAsFixed(6)} ↔ '
+        '${endNode.latitude.toStringAsFixed(6)}, ${endNode.longitude.toStringAsFixed(6)}';
+    return Container(
+      width: 300 * scale,
+      padding: EdgeInsets.symmetric(
+        horizontal: 12 * scale,
+        vertical: 10 * scale,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(10 * scale),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: DefaultTextStyle(
+        style: TextStyle(color: Colors.white, fontSize: 12 * scale),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              connectionTitle,
+              style: TextStyle(
+                fontSize: 13 * scale,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(height: 6 * scale),
+            Text(connectionRangeText),
+            SizedBox(height: 3 * scale),
+            Text(
+              '${MapLocalizationKeys.distance.tr(context)}：'
+              '${distanceMeters.toStringAsFixed(1)} m',
+            ),
+            SizedBox(height: 3 * scale),
+            Text(
+              '${MapLocalizationKeys.taxiwayConnectionLineType.tr(context)}：$lineTypeLabel',
+            ),
+            SizedBox(height: 3 * scale),
+            Text(coordinateText),
           ],
         ),
       ),

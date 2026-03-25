@@ -362,68 +362,80 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Text(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 760;
+                final pageInfo = Text(
                   '${currentPage + 1}/$totalPages',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.hintColor,
                   ),
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  onPressed: currentPage > 0
-                      ? () {
-                          setState(() {
-                            _currentPage = currentPage - 1;
-                          });
-                        }
-                      : null,
-                  icon: const Icon(Icons.chevron_left_rounded),
-                ),
-                IconButton(
-                  onPressed: currentPage < totalPages - 1
-                      ? () {
-                          setState(() {
-                            _currentPage = currentPage + 1;
-                          });
-                        }
-                      : null,
-                  icon: const Icon(Icons.chevron_right_rounded),
-                ),
-                SizedBox(
-                  width: 96,
-                  child: TextField(
-                    controller: _pageJumpController,
-                    focusNode: _pageJumpFocusNode,
-                    keyboardType: TextInputType.number,
-                    textInputAction: TextInputAction.go,
-                    onSubmitted: (value) =>
-                        _jumpToPage(totalPages: totalPages, rawPage: value),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: FlightLogsLocalizationKeys.blackBoxJumpToPage
-                          .tr(context),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      border: const OutlineInputBorder(),
+                );
+                final navButtons = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: currentPage > 0
+                          ? () {
+                              setState(() {
+                                _currentPage = currentPage - 1;
+                              });
+                            }
+                          : null,
+                      icon: const Icon(Icons.chevron_left_rounded),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                TextButton(
-                  onPressed: () => _jumpToPage(
-                    totalPages: totalPages,
-                    rawPage: _pageJumpController.text,
-                  ),
-                  child: Text(
-                    FlightLogsLocalizationKeys.blackBoxJumpAction.tr(context),
-                  ),
-                ),
-                const Spacer(),
-                DropdownButton<int>(
+                    IconButton(
+                      onPressed: currentPage < totalPages - 1
+                          ? () {
+                              setState(() {
+                                _currentPage = currentPage + 1;
+                              });
+                            }
+                          : null,
+                      icon: const Icon(Icons.chevron_right_rounded),
+                    ),
+                  ],
+                );
+                final jumpControls = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 96,
+                      child: TextField(
+                        controller: _pageJumpController,
+                        focusNode: _pageJumpFocusNode,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.go,
+                        onSubmitted: (value) =>
+                            _jumpToPage(totalPages: totalPages, rawPage: value),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: FlightLogsLocalizationKeys
+                              .blackBoxJumpToPage
+                              .tr(context),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    TextButton(
+                      onPressed: () => _jumpToPage(
+                        totalPages: totalPages,
+                        rawPage: _pageJumpController.text,
+                      ),
+                      child: Text(
+                        FlightLogsLocalizationKeys.blackBoxJumpAction.tr(
+                          context,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+                final pageSizeDropdown = DropdownButton<int>(
                   value: rowsPerPage,
                   items: availablePageSizes
                       .map(
@@ -442,8 +454,44 @@ class _AnalysisBlackBoxState extends State<AnalysisBlackBox> {
                       _currentPage = 0;
                     });
                   },
-                ),
-              ],
+                );
+
+                if (!isCompact) {
+                  return Row(
+                    children: [
+                      pageInfo,
+                      const SizedBox(width: 12),
+                      navButtons,
+                      jumpControls,
+                      const Spacer(),
+                      pageSizeDropdown,
+                    ],
+                  );
+                }
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(children: [pageInfo, const Spacer(), navButtons]),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: jumpControls,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        pageSizeDropdown,
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],

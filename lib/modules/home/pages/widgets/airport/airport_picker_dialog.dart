@@ -10,7 +10,9 @@ import 'airport_search_bar.dart';
 ///
 /// 包含三个紧凑型按钮，点击后弹出含搜索框的机场选择对话框
 class AirportPickerButtonGroup extends StatelessWidget {
-  const AirportPickerButtonGroup({super.key});
+  final Axis direction;
+
+  const AirportPickerButtonGroup({super.key, this.direction = Axis.horizontal});
 
   @override
   Widget build(BuildContext context) {
@@ -19,9 +21,14 @@ class AirportPickerButtonGroup extends StatelessWidget {
     final dep = provider.departureAirport;
     final dest = provider.destinationAirport;
     final alt = provider.alternateAirport;
+    final isVertical = direction == Axis.vertical;
 
-    return Row(
+    return Flex(
+      direction: direction,
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: isVertical
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.center,
       children: [
         _buildPickerButton(
           context,
@@ -35,7 +42,7 @@ class AirportPickerButtonGroup extends StatelessWidget {
             isAlternate: false,
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: isVertical ? 0 : 8, height: isVertical ? 6 : 0),
         _buildPickerButton(
           context,
           label: dest != null
@@ -45,7 +52,7 @@ class AirportPickerButtonGroup extends StatelessWidget {
           onPressed: () =>
               _showAirportPickerDialog(context, isAlternate: false),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: isVertical ? 0 : 8, height: isVertical ? 6 : 0),
         _buildPickerButton(
           context,
           label: alt != null
@@ -89,6 +96,11 @@ class AirportPickerButtonGroup extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) {
+        final media = MediaQuery.of(context);
+        final bodyMaxHeight = media.size.height - media.viewInsets.bottom - 180;
+        final bodyHeight = bodyMaxHeight <= 0
+            ? media.size.height * 0.3
+            : (bodyMaxHeight > 520 ? 520.0 : bodyMaxHeight);
         // 根据类型决定对话框标题
         final title = isDeparture
             ? HomeLocalizationKeys.navPickDepartureTitle.tr(context)
@@ -97,27 +109,27 @@ class AirportPickerButtonGroup extends StatelessWidget {
                   : HomeLocalizationKeys.navPickDestinationTitle.tr(context));
 
         return AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 24,
+          ),
           title: Text(title),
           content: SizedBox(
             width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AirportSearchBar(
-                  onSearch: provider.searchAirports,
-                  onSelect: (airport) async {
-                    if (isDeparture) {
-                      await provider.setDeparture(airport);
-                    } else if (isAlternate) {
-                      await provider.setAlternate(airport);
-                    } else {
-                      await provider.setDestination(airport);
-                    }
-                    if (context.mounted) Navigator.pop(context);
-                  },
-                  suggestedAirports: provider.suggestedAirports,
-                ),
-              ],
+            height: bodyHeight,
+            child: AirportSearchBar(
+              onSearch: provider.searchAirports,
+              onSelect: (airport) async {
+                if (isDeparture) {
+                  await provider.setDeparture(airport);
+                } else if (isAlternate) {
+                  await provider.setAlternate(airport);
+                } else {
+                  await provider.setDestination(airport);
+                }
+                if (context.mounted) Navigator.pop(context);
+              },
+              suggestedAirports: provider.suggestedAirports,
             ),
           ),
           actions: [

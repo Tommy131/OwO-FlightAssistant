@@ -30,56 +30,78 @@ class PrimaryFlightDataPanel extends StatelessWidget {
         ? Colors.teal
         : Colors.red;
 
-    return GridView.count(
-      crossAxisCount: 5,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: AppThemeData.spacingSmall,
-      mainAxisSpacing: AppThemeData.spacingMedium,
-      childAspectRatio: 1.1,
-      children: [
-        DataCard(
-          icon: Icons.speed,
-          label: HomeLocalizationKeys.primaryAirspeed.tr(context),
-          value: data.airspeed != null
-              ? '${data.airspeed!.toStringAsFixed(0)} kt'
-              : 'N/A',
-          subValue: data.machNumber != null && data.machNumber! > 0.1
-              ? 'M ${data.machNumber!.toStringAsFixed(3)}'
-              : null,
-          color: Colors.blue,
-        ),
-        DataCard(
-          icon: Icons.height,
-          label: HomeLocalizationKeys.primaryAltitude.tr(context),
-          value: data.altitude != null
-              ? '${data.altitude!.toStringAsFixed(0)} ft'
-              : 'N/A',
-          color: Colors.green,
-        ),
-        DataCard(
-          icon: Icons.explore,
-          label: HomeLocalizationKeys.primaryHeading.tr(context),
-          value: data.heading != null
-              ? '${data.heading!.toStringAsFixed(0)}°'
-              : 'N/A',
-          color: Colors.purple,
-        ),
-        DataCard(
-          icon: Icons.trending_up,
-          label: HomeLocalizationKeys.primaryVerticalSpeed.tr(context),
-          value: data.verticalSpeed != null
-              ? '${data.verticalSpeed!.toStringAsFixed(0)} fpm'
-              : 'N/A',
-          color: Colors.orange,
-        ),
-        DataCard(
-          icon: Icons.local_gas_station,
-          label: HomeLocalizationKeys.primaryFuelStatus.tr(context),
-          value: fuelStatusLabel,
-          color: fuelColor,
-        ),
-      ],
+    final cards = [
+      DataCard(
+        icon: Icons.speed,
+        label: HomeLocalizationKeys.primaryAirspeed.tr(context),
+        value: data.airspeed != null ? '${data.airspeed!.toStringAsFixed(0)} kt' : 'N/A',
+        subValue: data.machNumber != null && data.machNumber! > 0.1
+            ? 'M ${data.machNumber!.toStringAsFixed(3)}'
+            : null,
+        color: Colors.blue,
+      ),
+      DataCard(
+        icon: Icons.height,
+        label: HomeLocalizationKeys.primaryAltitude.tr(context),
+        value: data.altitude != null ? '${data.altitude!.toStringAsFixed(0)} ft' : 'N/A',
+        color: Colors.green,
+      ),
+      DataCard(
+        icon: Icons.explore,
+        label: HomeLocalizationKeys.primaryHeading.tr(context),
+        value: data.heading != null ? '${data.heading!.toStringAsFixed(0)}°' : 'N/A',
+        color: Colors.purple,
+      ),
+      DataCard(
+        icon: Icons.trending_up,
+        label: HomeLocalizationKeys.primaryVerticalSpeed.tr(context),
+        value: data.verticalSpeed != null
+            ? '${data.verticalSpeed!.toStringAsFixed(0)} fpm'
+            : 'N/A',
+        color: Colors.orange,
+      ),
+      DataCard(
+        icon: Icons.local_gas_station,
+        label: HomeLocalizationKeys.primaryFuelStatus.tr(context),
+        value: fuelStatusLabel,
+        color: fuelColor,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 760;
+        if (isCompact) {
+          return Column(
+            children: cards
+                .map(
+                  (card) => Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: AppThemeData.spacingSmall,
+                    ),
+                    child: DataCard(
+                      icon: card.icon,
+                      label: card.label,
+                      value: card.value,
+                      subValue: card.subValue,
+                      color: card.color,
+                      compactRow: true,
+                    ),
+                  ),
+                )
+                .toList(),
+          );
+        }
+        return GridView.count(
+          crossAxisCount: 5,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: AppThemeData.spacingSmall,
+          mainAxisSpacing: AppThemeData.spacingMedium,
+          childAspectRatio: 1.1,
+          children: cards,
+        );
+      },
     );
   }
 }

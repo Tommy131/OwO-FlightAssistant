@@ -35,6 +35,7 @@ class SimulatorConnectionCard extends StatelessWidget {
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 标题行：连接状态图标 + 标签
@@ -68,7 +69,6 @@ class SimulatorConnectionCard extends StatelessWidget {
               color: isConnected ? Colors.green : Colors.grey,
             ),
           ),
-          const Spacer(),
           const SizedBox(height: 12),
           // 操作按钮：断开 or 连接菜单
           if (isConnected)

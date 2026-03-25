@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -18,6 +19,7 @@ import 'dialogs/map_taxiway_dialogs.dart';
 import 'widgets/map_hud.dart';
 import 'widgets/map_layer_picker.dart';
 import 'widgets/map_markers.dart';
+import 'widgets/map_page_widgets.dart';
 import 'widgets/map_right_controls.dart';
 import 'widgets/map_taxiway_drawing_controls.dart';
 import 'widgets/map_taxiway_route_layers.dart';
@@ -66,9 +68,10 @@ class _MapPageState extends State<MapPage> {
   LatLngBounds? _lastFetchBounds;
   int? _selectedTaxiwayNodeIndex;
   int? _draggingTaxiwayNodeIndex;
-  int? _draggingTaxiwaySegmentIndex;
   int? _hoveredTaxiwayNodeIndex;
   Offset? _hoveredTaxiwayNodeGlobalPosition;
+  int? _hoveredTaxiwaySegmentIndex;
+  Offset? _hoveredTaxiwaySegmentGlobalPosition;
   bool _isTaxiwayLoadPromptShowing = false;
   bool _isSavingTaxiwayRoute = false;
   final Set<String> _taxiwayAutoPromptedAirports = <String>{};
@@ -111,6 +114,10 @@ class _MapPageState extends State<MapPage> {
           homeProvider.alternateAirport?.icaoCode,
         );
         final selectedCode = _normalizeAirportCode(_selectedAirport?.code);
+        final isTouchSegmentEditMode =
+            !kIsWeb &&
+            (defaultTargetPlatform == TargetPlatform.android ||
+                defaultTargetPlatform == TargetPlatform.iOS);
         final isSelectedDeparture =
             selectedCode.isNotEmpty && selectedCode == departureCode;
         final isSelectedDestination =
@@ -173,6 +180,7 @@ class _MapPageState extends State<MapPage> {
             ? mapRenderObject
             : null;
         Offset? hoveredNodeLocalOffset;
+        Offset? hoveredSegmentLocalOffset;
         if (_hoveredTaxiwayNodeIndex != null &&
             _hoveredTaxiwayNodeIndex! >= 0 &&
             _hoveredTaxiwayNodeIndex! < taxiwayNodes.length &&
@@ -180,6 +188,15 @@ class _MapPageState extends State<MapPage> {
             mapRenderBox != null) {
           hoveredNodeLocalOffset = mapRenderBox.globalToLocal(
             _hoveredTaxiwayNodeGlobalPosition!,
+          );
+        }
+        if (_hoveredTaxiwaySegmentIndex != null &&
+            _hoveredTaxiwaySegmentIndex! >= 0 &&
+            _hoveredTaxiwaySegmentIndex! < taxiwayNodes.length - 1 &&
+            _hoveredTaxiwaySegmentGlobalPosition != null &&
+            mapRenderBox != null) {
+          hoveredSegmentLocalOffset = mapRenderBox.globalToLocal(
+            _hoveredTaxiwaySegmentGlobalPosition!,
           );
         }
 
@@ -537,34 +554,31 @@ class _MapPageState extends State<MapPage> {
                           globalPosition: globalPosition,
                         );
                       },
-                      onSegmentCurveDragStart: provider.isTaxiwayDrawingActive
+                      onSegmentTap:
+                          !provider.isTaxiwayDrawingActive &&
+                              isTouchSegmentEditMode
+                          ? (segmentIndex, _) {
+                              _showTaxiwaySegmentDetail(provider, segmentIndex);
+                            }
+                          : null,
+                      onSegmentHover: !isTouchSegmentEditMode
                           ? (segmentIndex, globalPosition) {
-                              setState(() {
-                                _draggingTaxiwaySegmentIndex = segmentIndex;
-                              });
-                              _updateTaxiwaySegmentCurveByDrag(
-                                provider: provider,
+                              _onTaxiwaySegmentHover(
                                 segmentIndex: segmentIndex,
                                 globalPosition: globalPosition,
                               );
                             }
                           : null,
-                      onSegmentCurveDragUpdate: provider.isTaxiwayDrawingActive
+                      onSegmentHoverEnd: !isTouchSegmentEditMode
+                          ? _clearTaxiwaySegmentHover
+                          : null,
+                      onSegmentLongPress: provider.isTaxiwayDrawingActive
                           ? (segmentIndex, globalPosition) {
-                              _updateTaxiwaySegmentCurveByDrag(
+                              _showTaxiwaySegmentContextMenu(
                                 provider: provider,
                                 segmentIndex: segmentIndex,
                                 globalPosition: globalPosition,
                               );
-                            }
-                          : null,
-                      onSegmentCurveDragEnd: provider.isTaxiwayDrawingActive
-                          ? (_) {
-                              if (_draggingTaxiwaySegmentIndex != null) {
-                                setState(() {
-                                  _draggingTaxiwaySegmentIndex = null;
-                                });
-                              }
                             }
                           : null,
                     ),
@@ -582,6 +596,11 @@ class _MapPageState extends State<MapPage> {
                       onNodeTap: provider.isTaxiwayDrawingActive
                           ? (index) {
                               _showTaxiwayNodeEditor(provider, index);
+                            }
+                          : (!provider.isTaxiwayDrawingActive &&
+                                isTouchSegmentEditMode)
+                          ? (index) {
+                              _showTaxiwayNodeDetail(provider, index);
                             }
                           : null,
                       onNodeDragStart: provider.isTaxiwayDrawingActive
@@ -924,13 +943,42 @@ class _MapPageState extends State<MapPage> {
                     8.0,
                     size.height - 100 * scale,
                   ),
-                  child: _TaxiwayNodeInfoCard(
+                  child: TaxiwayNodeInfoCard(
                     scale: scale,
                     index: _hoveredTaxiwayNodeIndex!,
                     node: taxiwayNodes[_hoveredTaxiwayNodeIndex!],
                     headingDeg: _computeTaxiwayNodeHeading(
                       taxiwayNodes,
                       _hoveredTaxiwayNodeIndex!,
+                    ),
+                  ),
+                ),
+              if (!isTouchSegmentEditMode &&
+                  _hoveredTaxiwaySegmentIndex != null &&
+                  _hoveredTaxiwaySegmentIndex! >= 0 &&
+                  _hoveredTaxiwaySegmentIndex! < taxiwayNodes.length - 1 &&
+                  hoveredSegmentLocalOffset != null)
+                Positioned(
+                  left: (hoveredSegmentLocalOffset.dx + 16 * scale).clamp(
+                    8.0,
+                    size.width - 308 * scale,
+                  ),
+                  top: (hoveredSegmentLocalOffset.dy - 126 * scale).clamp(
+                    8.0,
+                    size.height - 120 * scale,
+                  ),
+                  child: TaxiwaySegmentInfoCard(
+                    scale: scale,
+                    segmentIndex: _hoveredTaxiwaySegmentIndex!,
+                    startNode: taxiwayNodes[_hoveredTaxiwaySegmentIndex!],
+                    endNode: taxiwayNodes[_hoveredTaxiwaySegmentIndex! + 1],
+                    segment: _resolveTaxiwaySegmentByIndex(
+                      provider,
+                      _hoveredTaxiwaySegmentIndex!,
+                    ),
+                    distanceMeters: _computeTaxiwaySegmentDistanceMeters(
+                      taxiwayNodes[_hoveredTaxiwaySegmentIndex!],
+                      taxiwayNodes[_hoveredTaxiwaySegmentIndex! + 1],
                     ),
                   ),
                 ),
@@ -1542,64 +1590,6 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
-  void _updateTaxiwaySegmentCurveByDrag({
-    required MapProvider provider,
-    required int segmentIndex,
-    required Offset globalPosition,
-  }) {
-    if (!provider.isTaxiwayDrawingActive) {
-      return;
-    }
-    final nodes = provider.taxiwayNodes;
-    if (segmentIndex < 0 || segmentIndex >= nodes.length - 1) {
-      return;
-    }
-    final segments = provider.taxiwaySegments;
-    if (segmentIndex < 0 || segmentIndex >= segments.length) {
-      return;
-    }
-    final mapContext = _mapKey.currentContext;
-    if (!_mapReady || mapContext == null) {
-      return;
-    }
-    final renderBox = mapContext.findRenderObject();
-    if (renderBox is! RenderBox) {
-      return;
-    }
-    final start = nodes[segmentIndex];
-    final end = nodes[segmentIndex + 1];
-    final startOffset = _mapController.camera.latLngToScreenOffset(
-      LatLng(start.latitude, start.longitude),
-    );
-    final endOffset = _mapController.camera.latLngToScreenOffset(
-      LatLng(end.latitude, end.longitude),
-    );
-    final pointerOffset = renderBox.globalToLocal(globalPosition);
-    final vector = endOffset - startOffset;
-    final length = vector.distance;
-    if (length <= 0.01) {
-      return;
-    }
-    final relative = pointerOffset - startOffset;
-    final cross = vector.dx * relative.dy - vector.dy * relative.dx;
-    final distanceToLine = cross.abs() / length;
-    final offsetFactor = (distanceToLine / length).clamp(0.0, 0.57).toDouble();
-    final nextCurvature = ((offsetFactor - 0.12) / 0.45).clamp(0.0, 1.0);
-    final nextDirection = cross < 0
-        ? MapTaxiwaySegmentCurveDirection.left
-        : MapTaxiwaySegmentCurveDirection.right;
-    final target = segments[segmentIndex];
-    provider.updateTaxiwaySegmentInfo(
-      segmentIndex,
-      name: target.name,
-      colorHex: target.colorHex,
-      note: target.note,
-      lineType: MapTaxiwaySegmentLineType.mapMatching,
-      curvature: nextCurvature.toDouble(),
-      curveDirection: nextDirection,
-    );
-  }
-
   void _onTaxiwayNodeHover({
     required int index,
     required Offset globalPosition,
@@ -1623,6 +1613,53 @@ class _MapPageState extends State<MapPage> {
       _hoveredTaxiwayNodeIndex = null;
       _hoveredTaxiwayNodeGlobalPosition = null;
     });
+  }
+
+  void _onTaxiwaySegmentHover({
+    required int segmentIndex,
+    required Offset globalPosition,
+  }) {
+    if (_hoveredTaxiwaySegmentIndex == segmentIndex &&
+        _hoveredTaxiwaySegmentGlobalPosition == globalPosition) {
+      return;
+    }
+    setState(() {
+      _hoveredTaxiwaySegmentIndex = segmentIndex;
+      _hoveredTaxiwaySegmentGlobalPosition = globalPosition;
+    });
+  }
+
+  void _clearTaxiwaySegmentHover() {
+    if (_hoveredTaxiwaySegmentIndex == null &&
+        _hoveredTaxiwaySegmentGlobalPosition == null) {
+      return;
+    }
+    setState(() {
+      _hoveredTaxiwaySegmentIndex = null;
+      _hoveredTaxiwaySegmentGlobalPosition = null;
+    });
+  }
+
+  MapTaxiwaySegment _resolveTaxiwaySegmentByIndex(
+    MapProvider provider,
+    int segmentIndex,
+  ) {
+    final segments = provider.taxiwaySegments;
+    if (segmentIndex >= 0 && segmentIndex < segments.length) {
+      return segments[segmentIndex];
+    }
+    return const MapTaxiwaySegment();
+  }
+
+  double _computeTaxiwaySegmentDistanceMeters(
+    MapTaxiwayNode startNode,
+    MapTaxiwayNode endNode,
+  ) {
+    return _distance.as(
+      LengthUnit.Meter,
+      LatLng(startNode.latitude, startNode.longitude),
+      LatLng(endNode.latitude, endNode.longitude),
+    );
   }
 
   Future<void> _showTaxiwaySegmentContextMenu({
@@ -1728,6 +1765,163 @@ class _MapPageState extends State<MapPage> {
         setState(() {
           _selectedTaxiwayNodeIndex = newIndex;
         });
+      },
+    );
+  }
+
+  Future<void> _showTaxiwayNodeDetail(MapProvider provider, int index) async {
+    final nodes = provider.taxiwayNodes;
+    if (index < 0 || index >= nodes.length || !mounted) {
+      return;
+    }
+    final node = nodes[index];
+    final headingDeg = _computeTaxiwayNodeHeading(nodes, index);
+    final name = node.name?.trim() ?? '';
+    final note = node.note?.trim() ?? '';
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            '${MapLocalizationKeys.taxiwayNode.tr(dialogContext)} ${index + 1}',
+          ),
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${MapLocalizationKeys.labelLatitudeLongitude.tr(dialogContext)}: '
+                  '${node.latitude.toStringAsFixed(6)}, ${node.longitude.toStringAsFixed(6)}',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${MapLocalizationKeys.labelHeading.tr(dialogContext)}: '
+                  '${headingDeg == null ? '--' : headingDeg.toStringAsFixed(1)}°',
+                ),
+                if (name.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${MapLocalizationKeys.taxiwayNodeName.tr(dialogContext)}: $name',
+                  ),
+                ],
+                if (note.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${MapLocalizationKeys.taxiwayNodeNote.tr(dialogContext)}: $note',
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(LocalizationKeys.confirm.tr(dialogContext)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showTaxiwaySegmentDetail(
+    MapProvider provider,
+    int segmentIndex,
+  ) async {
+    final nodes = provider.taxiwayNodes;
+    if (segmentIndex < 0 || segmentIndex >= nodes.length - 1 || !mounted) {
+      return;
+    }
+    final segments = provider.taxiwaySegments;
+    final segment = segmentIndex < segments.length
+        ? segments[segmentIndex]
+        : const MapTaxiwaySegment();
+    final startNode = nodes[segmentIndex];
+    final endNode = nodes[segmentIndex + 1];
+    final distanceMeters = _distance.as(
+      LengthUnit.Meter,
+      LatLng(startNode.latitude, startNode.longitude),
+      LatLng(endNode.latitude, endNode.longitude),
+    );
+    final lineTypeLabel = segment.lineType == MapTaxiwaySegmentLineType.straight
+        ? MapLocalizationKeys.taxiwayConnectionLineTypeStraight.tr(context)
+        : MapLocalizationKeys.taxiwayConnectionLineTypeMapMatching.tr(context);
+    final directionLabel =
+        segment.curveDirection == MapTaxiwaySegmentCurveDirection.left
+        ? MapLocalizationKeys.taxiwayConnectionCurveDirectionLeft.tr(context)
+        : MapLocalizationKeys.taxiwayConnectionCurveDirectionRight.tr(context);
+    final name = segment.name?.trim() ?? '';
+    final note = segment.note?.trim() ?? '';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            '${MapLocalizationKeys.taxiwayConnection.tr(dialogContext)} ${segmentIndex + 1}',
+          ),
+          content: SizedBox(
+            width: 340,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${MapLocalizationKeys.taxiwayConnectionRange.tr(dialogContext)}: '
+                  '${segmentIndex + 1} → ${segmentIndex + 2}',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${MapLocalizationKeys.labelLatitudeLongitude.tr(dialogContext)}: '
+                  '${startNode.latitude.toStringAsFixed(6)}, ${startNode.longitude.toStringAsFixed(6)} ↔ '
+                  '${endNode.latitude.toStringAsFixed(6)}, ${endNode.longitude.toStringAsFixed(6)}',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${MapLocalizationKeys.distance.tr(dialogContext)}: '
+                  '${distanceMeters.toStringAsFixed(1)} m',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${MapLocalizationKeys.taxiwayConnectionLineType.tr(dialogContext)}: $lineTypeLabel',
+                ),
+                if (segment.lineType ==
+                    MapTaxiwaySegmentLineType.mapMatching) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${MapLocalizationKeys.taxiwayConnectionCurvature.tr(dialogContext)}: '
+                    '${segment.curvature.toStringAsFixed(2)}',
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${MapLocalizationKeys.taxiwayConnectionCurveDirection.tr(dialogContext)}: '
+                    '$directionLabel',
+                  ),
+                ],
+                if (name.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${MapLocalizationKeys.taxiwayConnectionName.tr(dialogContext)}: $name',
+                  ),
+                ],
+                if (note.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '${MapLocalizationKeys.taxiwayConnectionNote.tr(dialogContext)}: $note',
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(LocalizationKeys.confirm.tr(dialogContext)),
+            ),
+          ],
+        );
       },
     );
   }
@@ -2635,64 +2829,6 @@ class _PlannedRouteTotalChip extends StatelessWidget {
           color: Colors.white,
           fontSize: 12 * scale,
           fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _TaxiwayNodeInfoCard extends StatelessWidget {
-  final double scale;
-  final int index;
-  final MapTaxiwayNode node;
-  final double? headingDeg;
-
-  const _TaxiwayNodeInfoCard({
-    required this.scale,
-    required this.index,
-    required this.node,
-    required this.headingDeg,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final headingText = headingDeg == null
-        ? '--'
-        : '${headingDeg!.toStringAsFixed(0)}°';
-    return Container(
-      width: 240 * scale,
-      padding: EdgeInsets.symmetric(
-        horizontal: 12 * scale,
-        vertical: 10 * scale,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(10 * scale),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: DefaultTextStyle(
-        style: TextStyle(color: Colors.white, fontSize: 12 * scale),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              (node.name ?? '').trim().isEmpty
-                  ? '${MapLocalizationKeys.taxiwayNode.tr(context)} ${index + 1}'
-                  : '${node.name} (${MapLocalizationKeys.taxiwayNode.tr(context)} ${index + 1})',
-              style: TextStyle(
-                fontSize: 13 * scale,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            SizedBox(height: 6 * scale),
-            Text(
-              '${MapLocalizationKeys.labelLatitudeLongitude.tr(context)}：${node.latitude.toStringAsFixed(6)}, ${node.longitude.toStringAsFixed(6)}',
-            ),
-            SizedBox(height: 3 * scale),
-            Text(
-              '${MapLocalizationKeys.labelHeading.tr(context)}：$headingText',
-            ),
-          ],
         ),
       ),
     );

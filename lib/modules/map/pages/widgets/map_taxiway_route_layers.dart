@@ -14,11 +14,11 @@ class TaxiwayRoutePolylineLayer extends StatelessWidget {
   final bool enableSegmentMenu;
   final void Function(int segmentIndex, Offset globalPosition)?
   onSegmentSecondaryTap;
+  final void Function(int segmentIndex, Offset globalPosition)? onSegmentTap;
+  final void Function(int segmentIndex, Offset globalPosition)? onSegmentHover;
+  final VoidCallback? onSegmentHoverEnd;
   final void Function(int segmentIndex, Offset globalPosition)?
-  onSegmentCurveDragStart;
-  final void Function(int segmentIndex, Offset globalPosition)?
-  onSegmentCurveDragUpdate;
-  final void Function(int segmentIndex)? onSegmentCurveDragEnd;
+  onSegmentLongPress;
 
   const TaxiwayRoutePolylineLayer({
     super.key,
@@ -28,9 +28,10 @@ class TaxiwayRoutePolylineLayer extends StatelessWidget {
     required this.scale,
     this.enableSegmentMenu = false,
     this.onSegmentSecondaryTap,
-    this.onSegmentCurveDragStart,
-    this.onSegmentCurveDragUpdate,
-    this.onSegmentCurveDragEnd,
+    this.onSegmentTap,
+    this.onSegmentHover,
+    this.onSegmentHoverEnd,
+    this.onSegmentLongPress,
   });
 
   @override
@@ -120,52 +121,61 @@ class TaxiwayRoutePolylineLayer extends StatelessWidget {
       onSegmentSecondaryTap?.call(segmentIndex, globalPosition);
     }
 
-    int? draggingSegmentIndex;
+    void triggerSegmentTap(Offset globalPosition) {
+      final hitResult = hitNotifier.value;
+      if (hitResult == null || hitResult.hitValues.isEmpty) {
+        return;
+      }
+      final segmentIndex = hitResult.hitValues.first;
+      onSegmentTap?.call(segmentIndex, globalPosition);
+    }
 
-    void startSegmentCurveDrag(Offset globalPosition) {
+    void triggerSegmentLongPress(Offset globalPosition) {
       final hitResult = hitNotifier.value;
       if (!enableSegmentMenu ||
           hitResult == null ||
-          hitResult.hitValues.isEmpty ||
-          onSegmentCurveDragStart == null) {
+          hitResult.hitValues.isEmpty) {
         return;
       }
-      draggingSegmentIndex = hitResult.hitValues.first;
-      onSegmentCurveDragStart?.call(draggingSegmentIndex!, globalPosition);
+      final segmentIndex = hitResult.hitValues.first;
+      onSegmentLongPress?.call(segmentIndex, globalPosition);
+    }
+
+    void triggerSegmentHover(Offset globalPosition) {
+      final hitResult = hitNotifier.value;
+      if (hitResult == null || hitResult.hitValues.isEmpty) {
+        onSegmentHoverEnd?.call();
+        return;
+      }
+      final segmentIndex = hitResult.hitValues.first;
+      onSegmentHover?.call(segmentIndex, globalPosition);
     }
 
     return Stack(
       children: [
-        GestureDetector(
-          behavior: HitTestBehavior.deferToChild,
-          onSecondaryTapDown: (details) {
-            triggerSegmentMenu(details.globalPosition);
+        MouseRegion(
+          onHover: (event) {
+            triggerSegmentHover(event.position);
           },
-          onLongPressStart: (details) {
-            startSegmentCurveDrag(details.globalPosition);
+          onExit: (_) {
+            onSegmentHoverEnd?.call();
           },
-          onLongPressMoveUpdate: (details) {
-            final segmentIndex = draggingSegmentIndex;
-            if (segmentIndex == null) {
-              return;
-            }
-            onSegmentCurveDragUpdate?.call(
-              segmentIndex,
-              details.globalPosition,
-            );
-          },
-          onLongPressEnd: (_) {
-            final segmentIndex = draggingSegmentIndex;
-            if (segmentIndex == null) {
-              return;
-            }
-            onSegmentCurveDragEnd?.call(segmentIndex);
-            draggingSegmentIndex = null;
-          },
-          child: PolylineLayer<int>(
-            polylines: polylines,
-            hitNotifier: hitNotifier,
-            minimumHitbox: 18,
+          child: GestureDetector(
+            behavior: HitTestBehavior.deferToChild,
+            onSecondaryTapDown: (details) {
+              triggerSegmentMenu(details.globalPosition);
+            },
+            onTapDown: (details) {
+              triggerSegmentTap(details.globalPosition);
+            },
+            onLongPressStart: (details) {
+              triggerSegmentLongPress(details.globalPosition);
+            },
+            child: PolylineLayer<int>(
+              polylines: polylines,
+              hitNotifier: hitNotifier,
+              minimumHitbox: 18,
+            ),
           ),
         ),
         MarkerLayer(markers: labelMarkers),

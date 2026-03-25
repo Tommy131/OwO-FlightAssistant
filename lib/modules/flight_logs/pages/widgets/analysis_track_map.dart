@@ -74,6 +74,19 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
         initialZoom: 10,
         minZoom: 3,
         maxZoom: 18,
+        onTap: (_, tappedLatLng) {
+          if (_hoveredPoint == null) {
+            return;
+          }
+          final tappedOnRecordPoint = _isNearAnyRecordPoint(
+            tappedLatLng: tappedLatLng,
+            sampledPoints: sampledPoints,
+            specialMarkers: specialMarkers,
+          );
+          if (!tappedOnRecordPoint) {
+            setState(() => _hoveredPoint = null);
+          }
+        },
       ),
       children: [
         TileLayer(
@@ -189,35 +202,7 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
       child: Stack(
         children: [
           Positioned.fill(child: mapWidget),
-          Positioned(
-            top: 12,
-            left: 12,
-            child: _buildStageLegend(context, theme),
-          ),
-          Positioned(
-            top: 12,
-            right: 12,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (widget.onToggleFullscreen != null) ...[
-                  _MapActionButton(
-                    icon: widget.isFullscreen
-                        ? Icons.close_fullscreen_rounded
-                        : Icons.open_in_full_rounded,
-                    onTap: widget.onToggleFullscreen!,
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                _LayerToggle(
-                  isDetail: _showDetail,
-                  onSelect: (value) {
-                    setState(() => _showDetail = value);
-                  },
-                ),
-              ],
-            ),
-          ),
+          _buildTopOverlayControls(context, theme),
           if (_hoveredPoint != null)
             Positioned(
               left: 12,
@@ -232,7 +217,78 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
     );
   }
 
-  Widget _buildStageLegend(BuildContext context, ThemeData theme) {
+  Widget _buildTopOverlayControls(BuildContext context, ThemeData theme) {
+    return Positioned(
+      top: 12,
+      left: 12,
+      right: 12,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 760;
+          if (!isCompact) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildStageLegend(context, theme),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.onToggleFullscreen != null) ...[
+                      _MapActionButton(
+                        icon: widget.isFullscreen
+                            ? Icons.close_fullscreen_rounded
+                            : Icons.open_in_full_rounded,
+                        onTap: widget.onToggleFullscreen!,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    _LayerToggle(
+                      isDetail: _showDetail,
+                      onSelect: (value) {
+                        setState(() => _showDetail = value);
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(
+                flex: 8,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: _buildStageLegend(context, theme, singleLine: true),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: _LayerToggle(
+                    isDetail: _showDetail,
+                    compact: true,
+                    onSelect: (value) {
+                      setState(() => _showDetail = value);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStageLegend(
+    BuildContext context,
+    ThemeData theme, {
+    bool singleLine = false,
+  }) {
     final items = [
       (_TrackStage.taxiBeforeTakeoff, '起飞前滑行'),
       (_TrackStage.climb, '爬升中'),
@@ -240,6 +296,34 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
       (_TrackStage.approach, '进近中'),
       (_TrackStage.taxiAfterLanding, '落地后滑行'),
     ];
+    final legendChildren = items.asMap().entries.map((entry) {
+      final index = entry.key;
+      final item = entry.value;
+      return Padding(
+        padding: EdgeInsets.only(right: index == items.length - 1 ? 0 : 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: _stageColor(item.$1, theme),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              item.$2,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -247,32 +331,9 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.dividerColor.withValues(alpha: 0.2)),
       ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 6,
-        children: items.map((item) {
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 9,
-                height: 9,
-                decoration: BoxDecoration(
-                  color: _stageColor(item.$1, theme),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                item.$2,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          );
-        }).toList(),
-      ),
+      child: singleLine
+          ? Row(mainAxisSize: MainAxisSize.min, children: legendChildren)
+          : Wrap(spacing: 8, runSpacing: 6, children: legendChildren),
     );
   }
 
@@ -382,6 +443,37 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
 
   String _pointKey(FlightLogPoint point) {
     return point.timestamp.millisecondsSinceEpoch.toString();
+  }
+
+  bool _isNearAnyRecordPoint({
+    required LatLng tappedLatLng,
+    required List<FlightLogPoint> sampledPoints,
+    required List<_MapMarkerSpec> specialMarkers,
+  }) {
+    const hitRadiusMeters = 120.0;
+    for (final point in sampledPoints) {
+      final pointLatLng = LatLng(point.latitude, point.longitude);
+      final distanceMeters = const Distance().as(
+        LengthUnit.Meter,
+        tappedLatLng,
+        pointLatLng,
+      );
+      if (distanceMeters <= hitRadiusMeters) {
+        return true;
+      }
+    }
+    for (final marker in specialMarkers) {
+      final markerLatLng = LatLng(marker.point.latitude, marker.point.longitude);
+      final distanceMeters = const Distance().as(
+        LengthUnit.Meter,
+        tappedLatLng,
+        markerLatLng,
+      );
+      if (distanceMeters <= hitRadiusMeters) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Marker _buildSpecialMarker(_MapMarkerSpec spec) {
@@ -768,13 +860,44 @@ class _MapActionButton extends StatelessWidget {
 
 class _LayerToggle extends StatelessWidget {
   final bool isDetail;
+  final bool compact;
   final ValueChanged<bool> onSelect;
 
-  const _LayerToggle({required this.isDetail, required this.onSelect});
+  const _LayerToggle({
+    required this.isDetail,
+    required this.onSelect,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (compact) {
+      return Material(
+        color: theme.colorScheme.surface.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: () => onSelect(!isDetail),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: theme.dividerColor.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Text(
+              isDetail ? '详情' : '简约',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
