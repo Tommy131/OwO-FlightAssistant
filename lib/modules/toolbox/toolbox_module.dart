@@ -68,5 +68,86 @@ class ToolboxModule implements ModuleRegistrar {
         },
       ),
     );
+
+    registry.appBarActions.registerSideMenu(
+      'toolbox_side_menu_calculators',
+      () => AppBarSideMenuEntry(
+        id: 'toolbox_side_menu_calculators',
+        navigationId: 'toolbox',
+        icon: Icons.flight_takeoff_outlined,
+        titleBuilder: (context) =>
+            ToolboxLocalizationKeys.calculatorsTab.tr(context),
+        priority: 30,
+        stateListenable: ToolboxSectionController.instance,
+        isSelected: (_) =>
+            ToolboxSectionController.instance.selectedSection ==
+            ToolboxSection.flightCalculators,
+        onTap: (_) {
+          ToolboxSectionController.instance.select(
+            ToolboxSection.flightCalculators,
+          );
+        },
+      ),
+    );
+
+    registry.appBarActions.registerSideMenu(
+      'toolbox_side_menu_weather',
+      () => AppBarSideMenuEntry(
+        id: 'toolbox_side_menu_weather',
+        navigationId: 'toolbox',
+        icon: Icons.cloud_outlined,
+        titleBuilder: (context) =>
+            ToolboxLocalizationKeys.weatherTab.tr(context),
+        priority: 40,
+        stateListenable: ToolboxSectionController.instance,
+        isSelected: (_) =>
+            ToolboxSectionController.instance.selectedSection ==
+            ToolboxSection.weatherDecode,
+        onTap: (_) {
+          ToolboxSectionController.instance.select(
+            ToolboxSection.weatherDecode,
+          );
+        },
+      ),
+    );
+
+    registry.appBarActions.registerSideMenu(
+      'toolbox_side_menu_performance',
+      () => AppBarSideMenuEntry(
+        id: 'toolbox_side_menu_performance',
+        navigationId: 'toolbox',
+        icon: Icons.speed_outlined,
+        titleBuilder: (context) =>
+            ToolboxLocalizationKeys.performanceTab.tr(context),
+        priority: 50,
+        stateListenable: ToolboxSectionController.instance,
+        isSelected: (_) =>
+            ToolboxSectionController.instance.selectedSection ==
+            ToolboxSection.performanceTools,
+        onTap: (_) {
+          ToolboxSectionController.instance.select(
+            ToolboxSection.performanceTools,
+          );
+        },
+      ),
+    );
+
+    registry.appBarActions.registerSideMenu(
+      'toolbox_side_menu_ops',
+      () => AppBarSideMenuEntry(
+        id: 'toolbox_side_menu_ops',
+        navigationId: 'toolbox',
+        icon: Icons.warning_amber_outlined,
+        titleBuilder: (context) => ToolboxLocalizationKeys.opsTab.tr(context),
+        priority: 60,
+        stateListenable: ToolboxSectionController.instance,
+        isSelected: (_) =>
+            ToolboxSectionController.instance.selectedSection ==
+            ToolboxSection.opsTools,
+        onTap: (_) {
+          ToolboxSectionController.instance.select(ToolboxSection.opsTools);
+        },
+      ),
+    );
   }
 }

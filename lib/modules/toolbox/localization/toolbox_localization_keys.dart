@@ -2,6 +2,10 @@ class ToolboxLocalizationKeys {
   static const String toolboxTitle = 'toolbox.title';
   static const String unitTab = 'toolbox.tab.unit';
   static const String termsTab = 'toolbox.tab.terms';
+  static const String calculatorsTab = 'toolbox.tab.calculators';
+  static const String weatherTab = 'toolbox.tab.weather';
+  static const String performanceTab = 'toolbox.tab.performance';
+  static const String opsTab = 'toolbox.tab.ops';
   static const String unitSectionTitle = 'toolbox.unit.section_title';
   static const String unitTypeLabel = 'toolbox.unit.type_label';
   static const String unitValueLabel = 'toolbox.unit.value_label';
