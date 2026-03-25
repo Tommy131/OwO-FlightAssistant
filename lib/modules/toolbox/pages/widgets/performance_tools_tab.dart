@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
+import '../../localization/toolbox_localization_keys.dart';
 import 'toolbox_section_card.dart';
 
 class PerformanceToolsTab extends StatefulWidget {
@@ -94,7 +97,7 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
 
   double? _v(TextEditingController c) => double.tryParse(c.text.trim());
 
-  void _calculateWeightBalance() {
+  void _calculateWeightBalance(BuildContext context) {
     final bew = _v(_bewController);
     final bewArm = _v(_bewArmController);
     final frontWeight = _v(_frontWeightController);
@@ -123,7 +126,10 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
       cgForward,
       cgAft,
     ].contains(null)) {
-      setState(() => _wbResult = '请输入有效数字');
+      setState(
+        () => _wbResult =
+            ToolboxLocalizationKeys.commonInvalidNumber.tr(context),
+      );
       return;
     }
     final totalWeight = bew! + frontWeight! + rearWeight! + cargoWeight! + fuelWeight!;
@@ -135,29 +141,37 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
     final cg = totalMoment / totalWeight;
     final withinWeight = totalWeight <= mtow!;
     final withinCg = cg >= cgForward! && cg <= cgAft!;
-    final status = withinWeight && withinCg ? '可放行' : '超限';
+    final status = withinWeight && withinCg
+        ? ToolboxLocalizationKeys.perfDispatchable.tr(context)
+        : ToolboxLocalizationKeys.perfOutOfLimit.tr(context);
     setState(() {
       _wbResult =
-          '总重 ${totalWeight.toStringAsFixed(0)} kg\n'
-          '重心位置 ${cg.toStringAsFixed(2)}\n'
-          '重量限制 ${withinWeight ? '满足' : '超出'}\n'
-          '重心限制 ${withinCg ? '满足' : '超出'}\n'
-          '结果：$status';
+          '${ToolboxLocalizationKeys.perfWbTotalWeight.tr(context)} ${totalWeight.toStringAsFixed(0)} kg\n'
+          '${ToolboxLocalizationKeys.perfWbCgPosition.tr(context)} ${cg.toStringAsFixed(2)}\n'
+          '${ToolboxLocalizationKeys.perfWbWeightLimit.tr(context)} ${withinWeight ? ToolboxLocalizationKeys.perfSatisfied.tr(context) : ToolboxLocalizationKeys.perfExceeded.tr(context)}\n'
+          '${ToolboxLocalizationKeys.perfWbCgLimit.tr(context)} ${withinCg ? ToolboxLocalizationKeys.perfSatisfied.tr(context) : ToolboxLocalizationKeys.perfExceeded.tr(context)}\n'
+          '${ToolboxLocalizationKeys.perfWbStatus.tr(context)}：$status';
     });
   }
 
-  void _calculatePerformance() {
+  void _calculatePerformance(BuildContext context) {
     final runwayLength = _v(_runwayLengthController);
     final pressureAltitude = _v(_pressureAltitudeController);
     final oat = _v(_oatController);
     final headwind = _v(_headwindController);
     final aircraftWeight = _v(_aircraftWeightController);
     if ([runwayLength, pressureAltitude, oat, headwind, aircraftWeight].contains(null)) {
-      setState(() => _perfResult = '请输入有效数字');
+      setState(
+        () => _perfResult =
+            ToolboxLocalizationKeys.commonInvalidNumber.tr(context),
+      );
       return;
     }
     if (runwayLength! <= 0 || aircraftWeight! <= 0) {
-      setState(() => _perfResult = '参数范围无效');
+      setState(
+        () =>
+            _perfResult = ToolboxLocalizationKeys.commonInvalidRange.tr(context),
+      );
       return;
     }
     final weightRatio = aircraftWeight / 60000;
@@ -175,24 +189,24 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
     final tkMargin = runwayLength - takeoffRequired;
     final ldMargin = runwayLength - landingRequired;
     final level = tkMargin >= 300 && ldMargin >= 300
-        ? '安全裕度高'
+        ? ToolboxLocalizationKeys.perfMarginHigh.tr(context)
         : tkMargin >= 0 && ldMargin >= 0
-            ? '可接受'
-            : '不满足';
+            ? ToolboxLocalizationKeys.perfAcceptable.tr(context)
+            : ToolboxLocalizationKeys.perfNotMet.tr(context);
     setState(() {
       _perfResult =
-          '起飞距离需求 ${takeoffRequired.toStringAsFixed(0)} m\n'
-          '着陆距离需求 ${landingRequired.toStringAsFixed(0)} m\n'
-          '起飞裕度 ${tkMargin.toStringAsFixed(0)} m\n'
-          '着陆裕度 ${ldMargin.toStringAsFixed(0)} m\n'
-          '评估结果：$level';
+          '${ToolboxLocalizationKeys.perfTakeoffRequired.tr(context)} ${takeoffRequired.toStringAsFixed(0)} m\n'
+          '${ToolboxLocalizationKeys.perfLandingRequired.tr(context)} ${landingRequired.toStringAsFixed(0)} m\n'
+          '${ToolboxLocalizationKeys.perfTakeoffMargin.tr(context)} ${tkMargin.toStringAsFixed(0)} m\n'
+          '${ToolboxLocalizationKeys.perfLandingMargin.tr(context)} ${ldMargin.toStringAsFixed(0)} m\n'
+          '${ToolboxLocalizationKeys.perfRunwayLevel.tr(context)}：$level';
     });
   }
 
   Widget _field(TextEditingController c, String label, IconData icon) {
     return ToolboxTextField(
       label: label,
-      hint: '请输入',
+      hint: ToolboxLocalizationKeys.commonInputHint.tr(context),
       icon: icon,
       controller: c,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -224,79 +238,157 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocalizationService>();
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge),
       child: Column(
         children: [
           ToolboxSectionCard(
-            title: '重量重心估算',
+            title: ToolboxLocalizationKeys.perfWbSectionTitle.tr(context),
             icon: Icons.balance,
             child: Column(
               children: [
-                _field(_bewController, '基础空重(kg)', Icons.inventory_2),
+                _field(
+                  _bewController,
+                  ToolboxLocalizationKeys.perfBew.tr(context),
+                  Icons.inventory_2,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_bewArmController, '基础空重臂位', Icons.straighten),
+                _field(
+                  _bewArmController,
+                  ToolboxLocalizationKeys.perfBewArm.tr(context),
+                  Icons.straighten,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_frontWeightController, '前舱载荷(kg)', Icons.airline_seat_recline_extra),
+                _field(
+                  _frontWeightController,
+                  ToolboxLocalizationKeys.perfFrontWeight.tr(context),
+                  Icons.airline_seat_recline_extra,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_rearWeightController, '后舱载荷(kg)', Icons.airline_seat_legroom_extra),
+                _field(
+                  _rearWeightController,
+                  ToolboxLocalizationKeys.perfRearWeight.tr(context),
+                  Icons.airline_seat_legroom_extra,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_cargoWeightController, '货舱载荷(kg)', Icons.work),
+                _field(
+                  _cargoWeightController,
+                  ToolboxLocalizationKeys.perfCargoWeight.tr(context),
+                  Icons.work,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_fuelWeightController, '燃油重量(kg)', Icons.local_gas_station),
+                _field(
+                  _fuelWeightController,
+                  ToolboxLocalizationKeys.perfFuelWeight.tr(context),
+                  Icons.local_gas_station,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_frontArmController, '前舱臂位', Icons.pin_drop),
+                _field(
+                  _frontArmController,
+                  ToolboxLocalizationKeys.perfFrontArm.tr(context),
+                  Icons.pin_drop,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_rearArmController, '后舱臂位', Icons.pin_drop_outlined),
+                _field(
+                  _rearArmController,
+                  ToolboxLocalizationKeys.perfRearArm.tr(context),
+                  Icons.pin_drop_outlined,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_cargoArmController, '货舱臂位', Icons.pin_drop),
+                _field(
+                  _cargoArmController,
+                  ToolboxLocalizationKeys.perfCargoArm.tr(context),
+                  Icons.pin_drop,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_fuelArmController, '燃油臂位', Icons.pin_drop),
+                _field(
+                  _fuelArmController,
+                  ToolboxLocalizationKeys.perfFuelArm.tr(context),
+                  Icons.pin_drop,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_mtowController, '最大起飞重量(kg)', Icons.monitor_weight),
+                _field(
+                  _mtowController,
+                  ToolboxLocalizationKeys.perfMtow.tr(context),
+                  Icons.monitor_weight,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_cgForwardController, '重心前限', Icons.keyboard_double_arrow_left),
+                _field(
+                  _cgForwardController,
+                  ToolboxLocalizationKeys.perfCgForward.tr(context),
+                  Icons.keyboard_double_arrow_left,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_cgAftController, '重心后限', Icons.keyboard_double_arrow_right),
+                _field(
+                  _cgAftController,
+                  ToolboxLocalizationKeys.perfCgAft.tr(context),
+                  Icons.keyboard_double_arrow_right,
+                ),
                 const SizedBox(height: AppThemeData.spacingMedium),
                 ElevatedButton.icon(
-                  onPressed: _calculateWeightBalance,
+                  onPressed: () => _calculateWeightBalance(context),
                   icon: const Icon(Icons.calculate),
-                  label: const Text('评估重心'),
+                  label: Text(ToolboxLocalizationKeys.perfWbButton.tr(context)),
                 ),
-                _result('重心评估', _wbResult),
+                _result(ToolboxLocalizationKeys.perfWbResultTitle.tr(context), _wbResult),
               ],
             ),
           ),
           const SizedBox(height: AppThemeData.spacingLarge),
           ToolboxSectionCard(
-            title: '起降性能评估',
+            title: ToolboxLocalizationKeys.perfRunwaySectionTitle.tr(context),
             icon: Icons.flight_land,
             child: Column(
               children: [
-                _field(_runwayLengthController, '可用跑道长度(m)', Icons.swap_horiz),
+                _field(
+                  _runwayLengthController,
+                  ToolboxLocalizationKeys.perfRunwayLength.tr(context),
+                  Icons.swap_horiz,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_pressureAltitudeController, '气压高度(ft)', Icons.terrain),
+                _field(
+                  _pressureAltitudeController,
+                  ToolboxLocalizationKeys.perfPressureAltitude.tr(context),
+                  Icons.terrain,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_oatController, '室外温度(°C)', Icons.thermostat),
+                _field(
+                  _oatController,
+                  ToolboxLocalizationKeys.perfOat.tr(context),
+                  Icons.thermostat,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_headwindController, '迎风分量(kt, 顺风填负值)', Icons.air),
+                _field(
+                  _headwindController,
+                  ToolboxLocalizationKeys.perfHeadwind.tr(context),
+                  Icons.air,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _field(_aircraftWeightController, '当前重量(kg)', Icons.monitor_weight_outlined),
+                _field(
+                  _aircraftWeightController,
+                  ToolboxLocalizationKeys.perfAircraftWeight.tr(context),
+                  Icons.monitor_weight_outlined,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
                 SwitchListTile(
                   value: _wetRunway,
                   onChanged: (value) => setState(() => _wetRunway = value),
-                  title: const Text('湿跑道修正'),
+                  title: Text(ToolboxLocalizationKeys.perfWetRunway.tr(context)),
                   contentPadding: EdgeInsets.zero,
                 ),
                 const SizedBox(height: AppThemeData.spacingMedium),
                 ElevatedButton.icon(
-                  onPressed: _calculatePerformance,
+                  onPressed: () => _calculatePerformance(context),
                   icon: const Icon(Icons.calculate),
-                  label: const Text('评估起降性能'),
+                  label: Text(
+                    ToolboxLocalizationKeys.perfRunwayButton.tr(context),
+                  ),
                 ),
-                _result('性能评估', _perfResult),
+                _result(
+                  ToolboxLocalizationKeys.perfRunwayResultTitle.tr(context),
+                  _perfResult,
+                ),
               ],
             ),
           ),

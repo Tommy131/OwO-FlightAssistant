@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme_data.dart';
+import '../../../../core/services/localization_service.dart';
+import '../../localization/toolbox_localization_keys.dart';
 import 'toolbox_section_card.dart';
 
 class FlightCalculatorsTab extends StatefulWidget {
@@ -82,12 +85,16 @@ class _FlightCalculatorsTabState extends State<FlightCalculatorsTab> {
     return double.tryParse(controller.text.trim());
   }
 
-  void _calculateWind() {
+  void _calculateWind(BuildContext context) {
     final runwayHeading = _parse(_runwayHeadingController);
     final windDirection = _parse(_windDirectionController);
     final windSpeed = _parse(_windSpeedController);
     if (runwayHeading == null || windDirection == null || windSpeed == null) {
-      setState(() => _windResult = '请输入有效数字');
+      setState(
+        () => _windResult = ToolboxLocalizationKeys.commonInvalidNumber.tr(
+          context,
+        ),
+      );
       return;
     }
     final delta = ((windDirection - runwayHeading) % 360 + 360) % 360;
@@ -96,21 +103,23 @@ class _FlightCalculatorsTabState extends State<FlightCalculatorsTab> {
     final headwind = windSpeed * math.cos(rad);
     final crosswindRaw = windSpeed * math.sin(delta * math.pi / 180);
     final crosswind = crosswindRaw.abs();
-    final crosswindFrom = crosswindRaw >= 0 ? '右侧' : '左侧';
+    final crosswindFrom = crosswindRaw >= 0
+        ? ToolboxLocalizationKeys.calcWindFromRight.tr(context)
+        : ToolboxLocalizationKeys.calcWindFromLeft.tr(context);
     final level = crosswind <= 10
-        ? '低'
+        ? ToolboxLocalizationKeys.calcWindRiskLow.tr(context)
         : crosswind <= 20
-        ? '中'
-        : '高';
+        ? ToolboxLocalizationKeys.calcWindRiskMedium.tr(context)
+        : ToolboxLocalizationKeys.calcWindRiskHigh.tr(context);
     setState(() {
       _windResult =
-          '迎/顺风分量 ${headwind.toStringAsFixed(1)} kt\n'
-          '侧风分量 ${crosswind.toStringAsFixed(1)} kt（$crosswindFrom）\n'
-          '侧风风险等级：$level';
+          '${ToolboxLocalizationKeys.calcWindHeadwind.tr(context)} ${headwind.toStringAsFixed(1)} kt\n'
+          '${ToolboxLocalizationKeys.calcWindCrosswind.tr(context)} ${crosswind.toStringAsFixed(1)} kt（$crosswindFrom）\n'
+          '${ToolboxLocalizationKeys.calcWindRiskLevel.tr(context)}：$level';
     });
   }
 
-  void _calculateDescent() {
+  void _calculateDescent(BuildContext context) {
     final currentAlt = _parse(_currentAltController);
     final targetAlt = _parse(_targetAltController);
     final groundSpeed = _parse(_groundSpeedController);
@@ -120,12 +129,20 @@ class _FlightCalculatorsTabState extends State<FlightCalculatorsTab> {
         targetAlt == null ||
         groundSpeed == null ||
         descentRate == null) {
-      setState(() => _descentResult = '请输入有效数字');
+      setState(
+        () => _descentResult = ToolboxLocalizationKeys.commonInvalidNumber.tr(
+          context,
+        ),
+      );
       return;
     }
     final altitudeToLose = (currentAlt - targetAlt).clamp(0, 50000).toDouble();
     if (altitudeToLose <= 0 || descentRate <= 0 || groundSpeed <= 0) {
-      setState(() => _descentResult = '参数范围无效');
+      setState(
+        () => _descentResult = ToolboxLocalizationKeys.commonInvalidRange.tr(
+          context,
+        ),
+      );
       return;
     }
     final minutes = altitudeToLose / descentRate;
@@ -136,15 +153,15 @@ class _FlightCalculatorsTabState extends State<FlightCalculatorsTab> {
         : altitudeToLose / ((distanceToGo / groundSpeed) * 60);
     setState(() {
       _descentResult =
-          '需下降高度 ${altitudeToLose.toStringAsFixed(0)} ft\n'
-          '预计下降时间 ${minutes.toStringAsFixed(1)} min\n'
-          'TOD 参考距离 ${todDistance.toStringAsFixed(1)} NM\n'
-          '3:1 规则距离 ${ruleOf3Distance.toStringAsFixed(1)} NM'
-          '${requiredVs == null ? '' : '\n按剩余距离所需下降率 ${requiredVs.toStringAsFixed(0)} fpm'}';
+          '${ToolboxLocalizationKeys.calcDescentAltitudeToLose.tr(context)} ${altitudeToLose.toStringAsFixed(0)} ft\n'
+          '${ToolboxLocalizationKeys.calcDescentTime.tr(context)} ${minutes.toStringAsFixed(1)} min\n'
+          '${ToolboxLocalizationKeys.calcDescentTodDistance.tr(context)} ${todDistance.toStringAsFixed(1)} NM\n'
+          '${ToolboxLocalizationKeys.calcDescentRuleDistance.tr(context)} ${ruleOf3Distance.toStringAsFixed(1)} NM'
+          '${requiredVs == null ? '' : '\n${ToolboxLocalizationKeys.calcDescentRequiredVs.tr(context)} ${requiredVs.toStringAsFixed(0)} fpm'}';
     });
   }
 
-  void _calculateFuel() {
+  void _calculateFuel(BuildContext context) {
     final distanceNm = _parse(_distanceNmController);
     final cruiseSpeed = _parse(_cruiseSpeedController);
     final burnRate = _parse(_burnRateController);
@@ -157,7 +174,11 @@ class _FlightCalculatorsTabState extends State<FlightCalculatorsTab> {
         reserveMin == null ||
         taxiFuel == null ||
         extraPct == null) {
-      setState(() => _fuelResult = '请输入有效数字');
+      setState(
+        () => _fuelResult = ToolboxLocalizationKeys.commonInvalidNumber.tr(
+          context,
+        ),
+      );
       return;
     }
     if (distanceNm < 0 ||
@@ -166,7 +187,11 @@ class _FlightCalculatorsTabState extends State<FlightCalculatorsTab> {
         reserveMin < 0 ||
         taxiFuel < 0 ||
         extraPct < 0) {
-      setState(() => _fuelResult = '参数范围无效');
+      setState(
+        () => _fuelResult = ToolboxLocalizationKeys.commonInvalidRange.tr(
+          context,
+        ),
+      );
       return;
     }
     final tripHours = distanceNm / cruiseSpeed;
@@ -176,11 +201,11 @@ class _FlightCalculatorsTabState extends State<FlightCalculatorsTab> {
     final totalFuel = tripFuel + reserveFuel + taxiFuel + extraFuel;
     setState(() {
       _fuelResult =
-          '航程油量 ${tripFuel.toStringAsFixed(0)} kg\n'
-          '备份油量 ${reserveFuel.toStringAsFixed(0)} kg\n'
-          '滑行油量 ${taxiFuel.toStringAsFixed(0)} kg\n'
-          '额外油量 ${extraFuel.toStringAsFixed(0)} kg\n'
-          '总建议油量 ${totalFuel.toStringAsFixed(0)} kg';
+          '${ToolboxLocalizationKeys.calcFuelTrip.tr(context)} ${tripFuel.toStringAsFixed(0)} kg\n'
+          '${ToolboxLocalizationKeys.calcFuelReserve.tr(context)} ${reserveFuel.toStringAsFixed(0)} kg\n'
+          '${ToolboxLocalizationKeys.calcFuelTaxi.tr(context)} ${taxiFuel.toStringAsFixed(0)} kg\n'
+          '${ToolboxLocalizationKeys.calcFuelExtra.tr(context)} ${extraFuel.toStringAsFixed(0)} kg\n'
+          '${ToolboxLocalizationKeys.calcFuelTotal.tr(context)} ${totalFuel.toStringAsFixed(0)} kg';
     });
   }
 
@@ -216,7 +241,7 @@ class _FlightCalculatorsTabState extends State<FlightCalculatorsTab> {
   ) {
     return ToolboxTextField(
       label: label,
-      hint: '请输入',
+      hint: ToolboxLocalizationKeys.commonInputHint.tr(context),
       icon: icon,
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -225,111 +250,151 @@ class _FlightCalculatorsTabState extends State<FlightCalculatorsTab> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocalizationService>();
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge),
       child: Column(
         children: [
           ToolboxSectionCard(
-            title: '侧风 / 逆风分量计算',
+            title: ToolboxLocalizationKeys.calcWindSectionTitle.tr(context),
             icon: Icons.air,
             child: Column(
               children: [
                 _numberField(
                   _runwayHeadingController,
-                  '跑道航向(°)',
+                  ToolboxLocalizationKeys.calcWindRunwayHeading.tr(context),
                   Icons.explore,
                 ),
                 const SizedBox(height: AppThemeData.spacingSmall),
                 _numberField(
                   _windDirectionController,
-                  '风向(°)',
+                  ToolboxLocalizationKeys.calcWindDirection.tr(context),
                   Icons.navigation,
                 ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _numberField(_windSpeedController, '风速(kt)', Icons.speed),
+                _numberField(
+                  _windSpeedController,
+                  ToolboxLocalizationKeys.calcWindSpeed.tr(context),
+                  Icons.speed,
+                ),
                 const SizedBox(height: AppThemeData.spacingMedium),
                 ElevatedButton.icon(
-                  onPressed: _calculateWind,
+                  onPressed: () => _calculateWind(context),
                   icon: const Icon(Icons.calculate),
-                  label: const Text('计算分量'),
+                  label: Text(
+                    ToolboxLocalizationKeys.calcWindButton.tr(context),
+                  ),
                 ),
-                _resultCard('计算结果', _windResult),
+                _resultCard(
+                  ToolboxLocalizationKeys.calcWindResultTitle.tr(context),
+                  _windResult,
+                ),
               ],
             ),
           ),
           const SizedBox(height: AppThemeData.spacingLarge),
           ToolboxSectionCard(
-            title: '下降规划 / TOD',
+            title: ToolboxLocalizationKeys.calcDescentSectionTitle.tr(context),
             icon: Icons.south,
             child: Column(
               children: [
-                _numberField(_currentAltController, '当前高度(ft)', Icons.height),
+                _numberField(
+                  _currentAltController,
+                  ToolboxLocalizationKeys.calcDescentCurrentAlt.tr(context),
+                  Icons.height,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _numberField(_targetAltController, '目标高度(ft)', Icons.flag),
+                _numberField(
+                  _targetAltController,
+                  ToolboxLocalizationKeys.calcDescentTargetAlt.tr(context),
+                  Icons.flag,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _numberField(_groundSpeedController, '地速(kt)', Icons.route),
+                _numberField(
+                  _groundSpeedController,
+                  ToolboxLocalizationKeys.calcDescentGroundSpeed.tr(context),
+                  Icons.route,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
                 _numberField(
                   _descentRateController,
-                  '下降率(fpm)',
+                  ToolboxLocalizationKeys.calcDescentRate.tr(context),
                   Icons.trending_down,
                 ),
                 const SizedBox(height: AppThemeData.spacingSmall),
                 _numberField(
                   _distanceToGoController,
-                  '当前剩余距离(NM)',
+                  ToolboxLocalizationKeys.calcDescentDistanceToGo.tr(context),
                   Icons.straighten,
                 ),
                 const SizedBox(height: AppThemeData.spacingMedium),
                 ElevatedButton.icon(
-                  onPressed: _calculateDescent,
+                  onPressed: () => _calculateDescent(context),
                   icon: const Icon(Icons.calculate),
-                  label: const Text('计算TOD'),
+                  label: Text(
+                    ToolboxLocalizationKeys.calcDescentButton.tr(context),
+                  ),
                 ),
-                _resultCard('规划结果', _descentResult),
+                _resultCard(
+                  ToolboxLocalizationKeys.calcDescentResultTitle.tr(context),
+                  _descentResult,
+                ),
               ],
             ),
           ),
           const SizedBox(height: AppThemeData.spacingLarge),
           ToolboxSectionCard(
-            title: '燃油快速评估',
+            title: ToolboxLocalizationKeys.calcFuelSectionTitle.tr(context),
             icon: Icons.local_gas_station,
             child: Column(
               children: [
-                _numberField(_distanceNmController, '计划航程(NM)', Icons.map),
+                _numberField(
+                  _distanceNmController,
+                  ToolboxLocalizationKeys.calcFuelDistance.tr(context),
+                  Icons.map,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
                 _numberField(
                   _cruiseSpeedController,
-                  '巡航速度(kt)',
+                  ToolboxLocalizationKeys.calcFuelCruiseSpeed.tr(context),
                   Icons.airplanemode_active,
                 ),
                 const SizedBox(height: AppThemeData.spacingSmall),
                 _numberField(
                   _burnRateController,
-                  '平均耗油(kg/h)',
+                  ToolboxLocalizationKeys.calcFuelBurnRate.tr(context),
                   Icons.local_fire_department,
                 ),
                 const SizedBox(height: AppThemeData.spacingSmall),
-                _numberField(_reserveMinController, '储备时间(min)', Icons.timer),
+                _numberField(
+                  _reserveMinController,
+                  ToolboxLocalizationKeys.calcFuelReserveTime.tr(context),
+                  Icons.timer,
+                ),
                 const SizedBox(height: AppThemeData.spacingSmall),
                 _numberField(
                   _taxiFuelController,
-                  '滑行油量(kg)',
+                  ToolboxLocalizationKeys.calcFuelTaxiFuel.tr(context),
                   Icons.directions_car,
                 ),
                 const SizedBox(height: AppThemeData.spacingSmall),
                 _numberField(
                   _extraPctController,
-                  '额外油量(%)',
+                  ToolboxLocalizationKeys.calcFuelExtraPct.tr(context),
                   Icons.add_circle_outline,
                 ),
                 const SizedBox(height: AppThemeData.spacingMedium),
                 ElevatedButton.icon(
-                  onPressed: _calculateFuel,
+                  onPressed: () => _calculateFuel(context),
                   icon: const Icon(Icons.calculate),
-                  label: const Text('估算油量'),
+                  label: Text(
+                    ToolboxLocalizationKeys.calcFuelButton.tr(context),
+                  ),
                 ),
-                _resultCard('估算结果', _fuelResult),
+                _resultCard(
+                  ToolboxLocalizationKeys.calcFuelResultTitle.tr(context),
+                  _fuelResult,
+                ),
               ],
             ),
           ),

@@ -185,6 +185,21 @@ final Map<String, Map<String, String>> mapTranslations = {
     MapLocalizationKeys.alertOverspeedWarning: '速度接近超限',
     MapLocalizationKeys.alertTerrainPullUpDanger: '地形逼近，立即拉起',
     MapLocalizationKeys.alertTerrainPullUpWarning: '低空下降过快',
+    MapLocalizationKeys.crashTitle: '你 炸 了',
+    MapLocalizationKeys.crashSubtitle: 'CRITICAL MISSION FAILURE',
+    MapLocalizationKeys.crashResetButton: '接受现实 (重置)',
+    MapLocalizationKeys.crashQuote1: '飞机是挺硬的，但地面更硬点。',
+    MapLocalizationKeys.crashQuote2: '你是在练习降落吗？还是在垂直钻井？',
+    MapLocalizationKeys.crashQuote3: '至少你降落在地球上了。',
+    MapLocalizationKeys.crashQuote4: '模拟器的好处就是：你还能再点一次重置。',
+    MapLocalizationKeys.crashQuote5: '这次降落可以打 1 分，满分是 100 分。',
+    MapLocalizationKeys.crashQuote6: '塔台问你是否需要地毯，你给了他们一个坑。',
+    MapLocalizationKeys.crashQuote7: '航空公司可能会对你的续约表示担忧。',
+    MapLocalizationKeys.crashQuote8: '这大概就是所谓的一次性飞行器吧。',
+    MapLocalizationKeys.crashQuote9: 'RIP (Really Interesting Pilot)',
+    MapLocalizationKeys.crashQuote10: '由于你出色的飞行技巧，地面已经成功拦截了你。',
+    MapLocalizationKeys.crashQuote11: '刚才那不是降落，那是受控坠毁。',
+    MapLocalizationKeys.crashQuote12: '恭喜你，你已经成为了大地母亲的一部分。',
   },
   'en_US': {
     MapLocalizationKeys.navTitle: 'Map',
@@ -400,5 +415,30 @@ final Map<String, Map<String, String>> mapTranslations = {
         'Terrain closure, pull up now',
     MapLocalizationKeys.alertTerrainPullUpWarning:
         'Rapid descent at low altitude',
+    MapLocalizationKeys.crashTitle: 'MISSION FAILED',
+    MapLocalizationKeys.crashSubtitle: 'CRITICAL MISSION FAILURE',
+    MapLocalizationKeys.crashResetButton: 'Accept Reality (Reset)',
+    MapLocalizationKeys.crashQuote1:
+        'Aircraft are sturdy, but the ground is sturdier.',
+    MapLocalizationKeys.crashQuote2:
+        'Was that a landing practice or vertical drilling?',
+    MapLocalizationKeys.crashQuote3: 'At least you landed on Earth.',
+    MapLocalizationKeys.crashQuote4:
+        'Good news: in a simulator, reset is always available.',
+    MapLocalizationKeys.crashQuote5:
+        'That landing gets 1 point out of 100.',
+    MapLocalizationKeys.crashQuote6:
+        'Tower asked if you needed carpet; you gave them a crater.',
+    MapLocalizationKeys.crashQuote7:
+        'Your airline might have concerns about contract renewal.',
+    MapLocalizationKeys.crashQuote8:
+        'This may qualify as a single-use aircraft.',
+    MapLocalizationKeys.crashQuote9: 'RIP (Really Interesting Pilot)',
+    MapLocalizationKeys.crashQuote10:
+        'With your flying skills, the ground intercepted you successfully.',
+    MapLocalizationKeys.crashQuote11:
+        'That was not a landing, it was a controlled crash.',
+    MapLocalizationKeys.crashQuote12:
+        'Congratulations, you are now one with Mother Earth.',
   },
 };

@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/services/localization_service.dart';
+import '../../localization/map_localization_keys.dart';
 import '../../models/map_models.dart';
 
 class MapLoadingOverlay extends StatelessWidget {
@@ -249,18 +251,18 @@ class CrashOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final quotes = [
-      '飞机是挺硬的，但地面更硬点。',
-      '你是在练习降落吗？还是在垂直钻井？',
-      '至少你降落在地球上了。',
-      '模拟器的好处就是：你还能再点一次重置。',
-      '这次降落可以打 1 分，满分是 100 分。',
-      '塔台问你是否需要地毯，你给了他们一个坑。',
-      '航空公司可能会对你的续约表示担忧。',
-      '这大概就是所谓的 一次性飞行器 吧。',
-      'RIP (Really Interesting Pilot)',
-      '由于你出色的飞行技巧，地面已经成功拦截了你。',
-      '刚才那不是降落，那是受控坠毁。',
-      '恭喜你，你已经成为了大地母亲的一部分。',
+      MapLocalizationKeys.crashQuote1.tr(context),
+      MapLocalizationKeys.crashQuote2.tr(context),
+      MapLocalizationKeys.crashQuote3.tr(context),
+      MapLocalizationKeys.crashQuote4.tr(context),
+      MapLocalizationKeys.crashQuote5.tr(context),
+      MapLocalizationKeys.crashQuote6.tr(context),
+      MapLocalizationKeys.crashQuote7.tr(context),
+      MapLocalizationKeys.crashQuote8.tr(context),
+      MapLocalizationKeys.crashQuote9.tr(context),
+      MapLocalizationKeys.crashQuote10.tr(context),
+      MapLocalizationKeys.crashQuote11.tr(context),
+      MapLocalizationKeys.crashQuote12.tr(context),
     ];
     final randomQuote = quotes[Random().nextInt(quotes.length)];
 
@@ -280,8 +282,8 @@ class CrashOverlay extends StatelessWidget {
                 color: Colors.redAccent,
               ),
               const SizedBox(height: 20),
-              const Text(
-                '你 炸 了',
+              Text(
+                MapLocalizationKeys.crashTitle.tr(context),
                 style: TextStyle(
                   color: Colors.redAccent,
                   fontSize: 40,
@@ -290,8 +292,8 @@ class CrashOverlay extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
-                'CRITICAL MISSION FAILURE',
+              Text(
+                MapLocalizationKeys.crashSubtitle.tr(context),
                 style: TextStyle(
                   color: Colors.white54,
                   fontSize: 14,
@@ -327,7 +329,7 @@ class CrashOverlay extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text('接受现实 (重置)'),
+                child: Text(MapLocalizationKeys.crashResetButton.tr(context)),
               ),
             ],
           ),

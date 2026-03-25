@@ -2,6 +2,8 @@ import '../models/flight_checklist.dart';
 import '../data/a320_checklist.dart';
 import '../data/b737_checklist.dart';
 import '../data/generic_checklist.dart';
+import '../localization/checklist_localization_keys.dart';
+import '../../../core/services/localization_service.dart';
 
 /// 机型解析器
 /// 负责根据飞行数据中的机型标识符，从已加载的检查单列表中匹配最合适的机型
@@ -63,8 +65,9 @@ class AircraftResolver {
 
   /// 返回所有内建预置检查单列表
   List<AircraftChecklist> getBuiltInChecklists() {
+    final t = LocalizationService().translate;
     return [
-      GenericChecklist.create('通用机型'),
+      GenericChecklist.create(t(ChecklistLocalizationKeys.builtInGenericAircraft)),
       A320Checklist.create('A320-200 / A321 / A319'),
       B737Checklist.create('B737-800 / Max'),
     ];

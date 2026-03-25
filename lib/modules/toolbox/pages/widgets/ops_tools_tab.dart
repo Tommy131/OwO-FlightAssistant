@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
+import '../../localization/toolbox_localization_keys.dart';
 import 'toolbox_section_card.dart';
 
 class OpsToolsTab extends StatefulWidget {
@@ -25,44 +28,50 @@ class _OpsToolsTabState extends State<OpsToolsTab> {
     'CLSD',
   ];
 
-  static const List<_QuickRefItem> _quickRefs = [
-    _QuickRefItem(
-      title: '失速警告',
-      trigger: 'Airspeed 下降并触发失速告警',
-      actions: [
-        '减小迎角，解除抬头趋势',
-        '平稳加油门并保持机翼水平',
-        '按程序逐步收回减阻构型',
-      ],
-    ),
-    _QuickRefItem(
-      title: '风切变逃逸',
-      trigger: '近地面风速或垂直速度突变',
-      actions: [
-        '按风切变口令执行最大持续推力',
-        '保持机翼水平，目标姿态约 15°',
-        '除非撞地风险，不要改变构型',
-      ],
-    ),
-    _QuickRefItem(
-      title: '复飞程序',
-      trigger: '进近不稳定或跑道条件不满足',
-      actions: [
-        '执行 TOGA 推力并建立正爬升',
-        '按标准复飞高度和航向执行',
-        '确认构型并完成复飞检查单',
-      ],
-    ),
-    _QuickRefItem(
-      title: '发动机失效（起飞后）',
-      trigger: '起飞后出现推力不对称',
-      actions: [
-        '方向舵保持航向并控制姿态',
-        '维持安全速度并确认单发程序',
-        '根据场景决定继续爬升或返航',
-      ],
-    ),
-  ];
+  List<_QuickRefItem> _quickRefs(BuildContext context) {
+    return [
+      _QuickRefItem(
+        title: ToolboxLocalizationKeys.opsQuickRefStallTitle.tr(context),
+        trigger: ToolboxLocalizationKeys.opsQuickRefStallTrigger.tr(context),
+        actions: [
+          ToolboxLocalizationKeys.opsQuickRefStallAction1.tr(context),
+          ToolboxLocalizationKeys.opsQuickRefStallAction2.tr(context),
+          ToolboxLocalizationKeys.opsQuickRefStallAction3.tr(context),
+        ],
+      ),
+      _QuickRefItem(
+        title: ToolboxLocalizationKeys.opsQuickRefWindshearTitle.tr(context),
+        trigger: ToolboxLocalizationKeys.opsQuickRefWindshearTrigger.tr(
+          context,
+        ),
+        actions: [
+          ToolboxLocalizationKeys.opsQuickRefWindshearAction1.tr(context),
+          ToolboxLocalizationKeys.opsQuickRefWindshearAction2.tr(context),
+          ToolboxLocalizationKeys.opsQuickRefWindshearAction3.tr(context),
+        ],
+      ),
+      _QuickRefItem(
+        title: ToolboxLocalizationKeys.opsQuickRefGoAroundTitle.tr(context),
+        trigger: ToolboxLocalizationKeys.opsQuickRefGoAroundTrigger.tr(context),
+        actions: [
+          ToolboxLocalizationKeys.opsQuickRefGoAroundAction1.tr(context),
+          ToolboxLocalizationKeys.opsQuickRefGoAroundAction2.tr(context),
+          ToolboxLocalizationKeys.opsQuickRefGoAroundAction3.tr(context),
+        ],
+      ),
+      _QuickRefItem(
+        title: ToolboxLocalizationKeys.opsQuickRefEngineFailTitle.tr(context),
+        trigger: ToolboxLocalizationKeys.opsQuickRefEngineFailTrigger.tr(
+          context,
+        ),
+        actions: [
+          ToolboxLocalizationKeys.opsQuickRefEngineFailAction1.tr(context),
+          ToolboxLocalizationKeys.opsQuickRefEngineFailAction2.tr(context),
+          ToolboxLocalizationKeys.opsQuickRefEngineFailAction3.tr(context),
+        ],
+      ),
+    ];
+  }
 
   @override
   void dispose() {
@@ -93,21 +102,21 @@ class _OpsToolsTabState extends State<OpsToolsTab> {
     if (upper.contains('CLSD') ||
         upper.contains('CLOSED') ||
         upper.contains('UNSERVICEABLE')) {
-      return '高';
+      return 'high';
     }
     if (upper.contains('WIP') ||
         upper.contains('WORK') ||
         upper.contains('LIMITED')) {
-      return '中';
+      return 'medium';
     }
-    return '低';
+    return 'low';
   }
 
   Color _severityColor(String level, ThemeData theme) {
     switch (level) {
-      case '高':
+      case 'high':
         return theme.colorScheme.error;
-      case '中':
+      case 'medium':
         return Colors.orange;
       default:
         return theme.colorScheme.primary;
@@ -116,13 +125,14 @@ class _OpsToolsTabState extends State<OpsToolsTab> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<LocalizationService>();
     final theme = Theme.of(context);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppThemeData.spacingLarge),
       child: Column(
         children: [
           ToolboxSectionCard(
-            title: 'NOTAM 关键筛选',
+            title: ToolboxLocalizationKeys.opsNotamSectionTitle.tr(context),
             icon: Icons.fact_check,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,28 +163,43 @@ class _OpsToolsTabState extends State<OpsToolsTab> {
                   controller: _notamController,
                   minLines: 4,
                   maxLines: 8,
-                  decoration: const InputDecoration(
-                    labelText: 'NOTAM 文本',
-                    hintText: '粘贴多行 NOTAM 文本',
-                    prefixIcon: Icon(Icons.paste),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: ToolboxLocalizationKeys.opsNotamTextLabel.tr(
+                      context,
+                    ),
+                    hintText: ToolboxLocalizationKeys.opsNotamTextHint.tr(
+                      context,
+                    ),
+                    prefixIcon: const Icon(Icons.paste),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: AppThemeData.spacingMedium),
                 ElevatedButton.icon(
                   onPressed: _filterNotam,
                   icon: const Icon(Icons.filter_alt),
-                  label: const Text('筛选关键项'),
+                  label: Text(
+                    ToolboxLocalizationKeys.opsNotamFilterButton.tr(context),
+                  ),
                 ),
                 const SizedBox(height: AppThemeData.spacingMedium),
                 Text(
-                  '匹配结果：${_notamMatches.length} 条',
+                  '${ToolboxLocalizationKeys.opsNotamMatchCount.tr(context)}：${_notamMatches.length}',
                   style: theme.textTheme.titleSmall,
                 ),
                 const SizedBox(height: AppThemeData.spacingSmall),
                 ..._notamMatches.map((line) {
-                  final level = _severity(line);
-                  final color = _severityColor(level, theme);
+                  final severity = _severity(line);
+                  final color = _severityColor(severity, theme);
+                  final level = switch (severity) {
+                    'high' => ToolboxLocalizationKeys.opsSeverityHigh.tr(
+                      context,
+                    ),
+                    'medium' => ToolboxLocalizationKeys.opsSeverityMedium.tr(
+                      context,
+                    ),
+                    _ => ToolboxLocalizationKeys.opsSeverityLow.tr(context),
+                  };
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(10),
@@ -210,10 +235,10 @@ class _OpsToolsTabState extends State<OpsToolsTab> {
           ),
           const SizedBox(height: AppThemeData.spacingLarge),
           ToolboxSectionCard(
-            title: '应急速查卡',
+            title: ToolboxLocalizationKeys.opsQuickRefSectionTitle.tr(context),
             icon: Icons.local_hospital,
             child: Column(
-              children: _quickRefs
+              children: _quickRefs(context)
                   .map(
                     (item) => ExpansionTile(
                       tilePadding: EdgeInsets.zero,

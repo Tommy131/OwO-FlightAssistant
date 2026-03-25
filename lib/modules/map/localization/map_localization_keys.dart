@@ -222,4 +222,19 @@ class MapLocalizationKeys {
       'map.alert.terrain_pull_up_danger';
   static const String alertTerrainPullUpWarning =
       'map.alert.terrain_pull_up_warning';
+  static const String crashTitle = 'map.crash.title';
+  static const String crashSubtitle = 'map.crash.subtitle';
+  static const String crashResetButton = 'map.crash.reset_button';
+  static const String crashQuote1 = 'map.crash.quote_1';
+  static const String crashQuote2 = 'map.crash.quote_2';
+  static const String crashQuote3 = 'map.crash.quote_3';
+  static const String crashQuote4 = 'map.crash.quote_4';
+  static const String crashQuote5 = 'map.crash.quote_5';
+  static const String crashQuote6 = 'map.crash.quote_6';
+  static const String crashQuote7 = 'map.crash.quote_7';
+  static const String crashQuote8 = 'map.crash.quote_8';
+  static const String crashQuote9 = 'map.crash.quote_9';
+  static const String crashQuote10 = 'map.crash.quote_10';
+  static const String crashQuote11 = 'map.crash.quote_11';
+  static const String crashQuote12 = 'map.crash.quote_12';
 }

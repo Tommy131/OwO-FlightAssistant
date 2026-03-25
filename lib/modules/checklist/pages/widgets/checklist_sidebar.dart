@@ -90,7 +90,9 @@ class _ChecklistSidebarState extends State<ChecklistSidebar> {
                 Expanded(
                   child: _StepCard(
                     phase: prev,
-                    roleLabel: '上一步',
+                    roleLabel: ChecklistLocalizationKeys.compactStepPrevious.tr(
+                      context,
+                    ),
                     isCurrent: false,
                     progress: prevProgress,
                     onTap: prev == null ? null : () => _focusByDelta(-1),
@@ -106,7 +108,9 @@ class _ChecklistSidebarState extends State<ChecklistSidebar> {
                 Expanded(
                   child: _StepCard(
                     phase: current,
-                    roleLabel: '当前',
+                    roleLabel: ChecklistLocalizationKeys.compactStepCurrent.tr(
+                      context,
+                    ),
                     isCurrent: true,
                     progress: currentProgress,
                   ),
@@ -121,7 +125,9 @@ class _ChecklistSidebarState extends State<ChecklistSidebar> {
                 Expanded(
                   child: _StepCard(
                     phase: next,
-                    roleLabel: '下一步',
+                    roleLabel: ChecklistLocalizationKeys.compactStepNext.tr(
+                      context,
+                    ),
                     isCurrent: false,
                     progress: nextProgress,
                     onTap: next == null ? null : () => _focusByDelta(1),
