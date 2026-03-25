@@ -4,6 +4,7 @@ import 'package:flex_color_picker/flex_color_picker.dart';
 
 import '../theme/app_theme_data.dart';
 import '../theme/theme_provider.dart';
+import '../widgets/common/overflow_marquee_text.dart';
 import '../widgets/common/snack_bar.dart';
 import '../localization/localization_keys.dart';
 import '../services/localization_service.dart';
@@ -413,35 +414,122 @@ class _PresetThemeGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final currentTheme = context.watch<ThemeProvider>().currentTheme;
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 6,
-        crossAxisSpacing: AppThemeData.spacingSmall,
-        mainAxisSpacing: AppThemeData.spacingSmall,
-        childAspectRatio: 1.1,
-      ),
-      itemCount: AppThemeData.presetThemes.length,
-      itemBuilder: (context, index) {
-        final theme = AppThemeData.presetThemes[index];
-        final isSelected = currentTheme == theme;
-
-        return _ThemeCard(
-          theme: theme,
-          isSelected: isSelected,
-          onTap: () {
-            context.read<ThemeProvider>().setTheme(theme);
-            SnackBarHelper.showSuccess(
-              context,
-              LocalizationKeys.themeChangedTo
-                  .tr(context)
-                  .replaceFirst('{}', theme.name),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 460;
+        if (isCompact) {
+          return Column(
+            children: AppThemeData.presetThemes.map((themeData) {
+              final isSelected = currentTheme == themeData;
+              return Padding(
+                padding: const EdgeInsets.only(
+                  bottom: AppThemeData.spacingSmall,
+                ),
+                child: _ThemeCompactTile(
+                  theme: themeData,
+                  isSelected: isSelected,
+                  onTap: () {
+                    context.read<ThemeProvider>().setTheme(themeData);
+                    SnackBarHelper.showSuccess(
+                      context,
+                      LocalizationKeys.themeChangedTo
+                          .tr(context)
+                          .replaceFirst('{}', themeData.name),
+                    );
+                  },
+                ),
+              );
+            }).toList(),
+          );
+        }
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 6,
+            crossAxisSpacing: AppThemeData.spacingSmall,
+            mainAxisSpacing: AppThemeData.spacingSmall,
+            childAspectRatio: 1.1,
+          ),
+          itemCount: AppThemeData.presetThemes.length,
+          itemBuilder: (context, index) {
+            final theme = AppThemeData.presetThemes[index];
+            final isSelected = currentTheme == theme;
+            return _ThemeCard(
+              theme: theme,
+              isSelected: isSelected,
+              onTap: () {
+                context.read<ThemeProvider>().setTheme(theme);
+                SnackBarHelper.showSuccess(
+                  context,
+                  LocalizationKeys.themeChangedTo
+                      .tr(context)
+                      .replaceFirst('{}', theme.name),
+                );
+              },
             );
           },
         );
       },
+    );
+  }
+}
+
+class _ThemeCompactTile extends StatelessWidget {
+  final AppThemeData theme;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ThemeCompactTile({
+    required this.theme,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: isSelected ? 2 : 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+        side: BorderSide(
+          color: isSelected
+              ? theme.primaryColor
+              : AppThemeData.getBorderColor(Theme.of(context)),
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppThemeData.spacingMedium,
+            vertical: AppThemeData.spacingSmall,
+          ),
+          child: Row(
+            children: [
+              _ThemeColorCircle(
+                color: theme.primaryColor,
+                size: 36,
+                showCheck: isSelected,
+                showShadow: isSelected,
+              ),
+              const SizedBox(width: AppThemeData.spacingMedium),
+              Expanded(
+                child: OverflowMarqueeText(
+                  text: theme.name,
+                  textAlign: TextAlign.right,
+                  alignment: Alignment.centerRight,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

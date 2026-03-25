@@ -49,6 +49,6 @@ class AppConstants {
 
   // ========== License ==========
   static const String copyright = '© 2025 $developerName. All rights reserved.';
-  static const String license =
-      'Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)';
+  // Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+  static const String license = 'CC BY-NC-SA 4.0';
 }

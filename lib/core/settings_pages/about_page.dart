@@ -5,6 +5,7 @@ import '../theme/app_theme_data.dart';
 import '../utils/url_launcher_helper.dart';
 import '../localization/localization_keys.dart';
 import '../services/localization_service.dart';
+import '../widgets/common/overflow_marquee_text.dart';
 
 import '../module_registry/module_registry.dart';
 import '../module_registry/about_page/about_page_item.dart';
@@ -208,7 +209,8 @@ class _AppInfoCard extends StatelessWidget {
             const SizedBox(height: 12),
             _ClickableInfoRow(
               label: LocalizationKeys.versionLabel.tr(context),
-              value: AppConstants.appVersion,
+              value:
+                  '${AppConstants.appVersion} (${AppConstants.appBuildVersion})',
               icon: Icons.history_rounded,
             ),
           ],
@@ -463,17 +465,19 @@ class _ContributorRow extends StatelessWidget {
         children: [
           Expanded(
             flex: 2,
-            child: Text(
-              item.name,
+            child: OverflowMarqueeText(
+              text: item.name,
               style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
+          const SizedBox(width: 8),
           Expanded(
             flex: 3,
-            child: Text(
-              item.contribution,
+            child: OverflowMarqueeText(
+              text: item.contribution,
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.bodyMedium,
+              alignment: Alignment.centerRight,
             ),
           ),
         ],
@@ -501,11 +505,13 @@ class _CardHeader extends StatelessWidget {
       children: [
         Icon(icon, size: 20, color: Theme.of(context).primaryColor),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        Expanded(
+          child: OverflowMarqueeText(
+            text: title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
         ),
       ],
     );
@@ -544,14 +550,25 @@ class _ClickableInfoRow extends StatelessWidget {
                   color: Theme.of(context).textTheme.bodyMedium?.color,
                 ),
                 const SizedBox(width: 12),
-                Text(label, style: Theme.of(context).textTheme.bodyLarge),
-                const Spacer(),
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: onTap != null
-                        ? Theme.of(context).primaryColor
-                        : null,
+                Expanded(
+                  flex: 3,
+                  child: OverflowMarqueeText(
+                    text: label,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 4,
+                  child: OverflowMarqueeText(
+                    text: value,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: onTap != null
+                          ? Theme.of(context).primaryColor
+                          : null,
+                    ),
+                    textAlign: TextAlign.right,
+                    alignment: Alignment.centerRight,
                   ),
                 ),
                 if (onTap != null) ...[
