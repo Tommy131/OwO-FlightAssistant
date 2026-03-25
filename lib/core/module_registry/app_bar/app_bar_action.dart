@@ -9,3 +9,25 @@ abstract class AppBarAction {
 
   Widget build(BuildContext context);
 }
+
+class AppBarSideMenuEntry {
+  final String id;
+  final String navigationId;
+  final IconData icon;
+  final int priority;
+  final String Function(BuildContext) titleBuilder;
+  final bool Function(BuildContext)? isSelected;
+  final Listenable? stateListenable;
+  final void Function(BuildContext) onTap;
+
+  const AppBarSideMenuEntry({
+    required this.id,
+    required this.navigationId,
+    required this.icon,
+    required this.titleBuilder,
+    required this.onTap,
+    this.isSelected,
+    this.stateListenable,
+    this.priority = 100,
+  });
+}

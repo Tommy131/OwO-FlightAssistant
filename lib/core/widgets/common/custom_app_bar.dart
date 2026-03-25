@@ -11,22 +11,35 @@ import '../../services/localization_service.dart';
 class CustomAppBar {
   static PreferredSizeWidget build(
     NavigationItem currentItem,
-    BuildContext context,
-  ) {
+    BuildContext context, {
+    bool hasSideMenu = false,
+  }) {
     final theme = Theme.of(context);
     return AppBar(
+      leading: hasSideMenu
+          ? Builder(
+              builder: (context) {
+                return IconButton(
+                  icon: const Icon(Icons.menu_rounded),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                );
+              },
+            )
+          : null,
       title: Row(
         children: [
-          SizedBox(
-            width: 32,
-            height: 32,
-            child: Icon(
-              currentItem.activeIcon ?? currentItem.icon,
-              color: theme.colorScheme.primary,
-              size: 28,
+          if (!hasSideMenu) ...[
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: Icon(
+                currentItem.activeIcon ?? currentItem.icon,
+                color: theme.colorScheme.primary,
+                size: 28,
+              ),
             ),
-          ),
-          const SizedBox(width: AppThemeData.spacingSmall),
+            const SizedBox(width: AppThemeData.spacingSmall),
+          ],
           Text(currentItem.title),
         ],
       ),

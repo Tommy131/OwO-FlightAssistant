@@ -8,6 +8,7 @@ class AppBarActionRegistry {
   AppBarActionRegistry._internal();
 
   final Map<String, AppBarAction Function()> _actionFactories = {};
+  final Map<String, AppBarSideMenuEntry Function()> _sideMenuFactories = {};
 
   /// 注册操作按钮
   void register(String id, AppBarAction Function() factory) {
@@ -23,8 +24,25 @@ class AppBarActionRegistry {
     return actions;
   }
 
+  void registerSideMenu(
+    String id,
+    AppBarSideMenuEntry Function() factory,
+  ) {
+    _sideMenuFactories[id] = factory;
+  }
+
+  List<AppBarSideMenuEntry> getSideMenus(String navigationId) {
+    final menus = _sideMenuFactories.values
+        .map((factory) => factory())
+        .where((entry) => entry.navigationId == navigationId)
+        .toList();
+    menus.sort((a, b) => a.priority.compareTo(b.priority));
+    return menus;
+  }
+
   /// 清空所有注册
   void clear() {
     _actionFactories.clear();
+    _sideMenuFactories.clear();
   }
 }
