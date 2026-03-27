@@ -164,6 +164,13 @@ class LocalizationKeys {
   static const String bootstrapConfig = 'bootstrap_config';
   static const String bootstrapConfigDesc = 'bootstrap_config_desc';
   static const String openDirectory = 'open_directory';
+  static const String openLogFolder = 'open_log_folder';
+  static const String clearCache = 'clear_cache';
+  static const String clearCacheDesc = 'clear_cache_desc';
+  static const String clearCacheConfirmTitle = 'clear_cache_confirm_title';
+  static const String clearCacheConfirmContent = 'clear_cache_confirm_content';
+  static const String clearCacheSuccess = 'clear_cache_success';
+  static const String cacheSize = 'cache_size';
 
   // Update Check
   static const String updateCheck = 'update_check';

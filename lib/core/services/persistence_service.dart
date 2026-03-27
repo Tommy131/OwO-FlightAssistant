@@ -247,6 +247,50 @@ class PersistenceService {
 
   bool containsKey(String key) => _data.containsKey(key);
 
+  /// 获取缓存大小（字节）
+  Future<int> getCacheSize() async {
+    int totalSize = 0;
+    try {
+      final cacheDir = Directory(getAppCacheRootPath());
+      if (await cacheDir.exists()) {
+        await for (final entity in cacheDir.list(recursive: true)) {
+          if (entity is File) {
+            totalSize += await entity.length();
+          }
+        }
+      }
+    } catch (e) {
+      AppLogger.warning('计算缓存大小失败: $e');
+    }
+    return totalSize;
+  }
+
+  /// 清除缓存
+  Future<void> clearCache() async {
+    try {
+      final cacheDir = Directory(getAppCacheRootPath());
+      if (await cacheDir.exists()) {
+        await for (final entity in cacheDir.list(recursive: false)) {
+          try {
+            if (entity is File) {
+              await entity.delete();
+            } else if (entity is Directory) {
+              await entity.delete(recursive: true);
+            }
+          } catch (e) {
+            AppLogger.warning('清除缓存项失败: ${entity.path}, $e');
+          }
+        }
+      }
+      // 重新初始化日志（因为日志文件夹可能也被删了）
+      await AppLogger.init();
+      AppLogger.info('应用缓存已清除');
+    } catch (e) {
+      AppLogger.error('清除缓存失败: $e');
+      rethrow;
+    }
+  }
+
   /// 重新定位存储路径（用于迁移数据）
   Future<void> migrateTo(String newPath) async {
     final oldPath = _rootPath;

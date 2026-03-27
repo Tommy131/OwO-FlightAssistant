@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
@@ -9,6 +10,7 @@ import '../services/localization_service.dart';
 import '../localization/localization_keys.dart';
 import '../theme/app_theme_data.dart';
 import '../utils/logger.dart';
+import '../utils/url_launcher_helper.dart';
 import '../utils/update_checker.dart';
 import '../widgets/common/snack_bar.dart';
 import '../widgets/common/storage_path_tile.dart';
@@ -28,6 +30,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
   String? _currentPath;
   bool _logEnabled = true;
   double _logMaxSizeMb = 5;
+  int _cacheSize = 0;
 
   @override
   void initState() {
@@ -36,6 +39,23 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     final settings = AppLogger.loadSettings();
     _logEnabled = settings.enabled;
     _logMaxSizeMb = settings.maxFileSizeMb.toDouble();
+    _updateCacheSize();
+  }
+
+  Future<void> _updateCacheSize() async {
+    final size = await PersistenceService().getCacheSize();
+    if (mounted) {
+      setState(() {
+        _cacheSize = size;
+      });
+    }
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = (log(bytes) / log(1024)).floor();
+    return '${(bytes / pow(1024, i)).toStringAsFixed(2)} ${suffixes[i]}';
   }
 
   Future<void> _updatePath(String newPath) async {
@@ -75,6 +95,9 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
       _logEnabled = value;
     });
     await AppLogger.updateSettings(enabled: value);
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _updateLogMaxSize(double value) async {
@@ -115,6 +138,9 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
           const SizedBox(height: AppThemeData.spacingSmall),
 
           _buildLogSection(theme),
+          const SizedBox(height: AppThemeData.spacingSmall),
+
+          _buildCacheSection(theme),
           const SizedBox(height: AppThemeData.spacingSmall),
 
           _buildUpdateCheckSection(theme),
@@ -275,6 +301,103 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     );
   }
 
+  Widget _buildCacheSection(ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(
+                      AppThemeData.borderRadiusSmall,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.cleaning_services_outlined,
+                    color: theme.colorScheme.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: AppThemeData.spacingSmall),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        LocalizationKeys.clearCache.tr(context),
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        LocalizationKeys.clearCacheDesc.tr(context),
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppThemeData.spacingMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    LocalizationKeys.cacheSize
+                        .tr(context)
+                        .replaceFirst('{}', _formatBytes(_cacheSize)),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _handleClearCache,
+                  icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                  label: Text(LocalizationKeys.clearCache.tr(context)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleClearCache() async {
+    final result = await showAdvancedConfirmDialog(
+      context: context,
+      title: LocalizationKeys.clearCacheConfirmTitle.tr(context),
+      content: LocalizationKeys.clearCacheConfirmContent.tr(context),
+      icon: Icons.cleaning_services_outlined,
+      confirmText: LocalizationKeys.confirm.tr(context),
+      cancelText: LocalizationKeys.cancel.tr(context),
+    );
+
+    if (result == true) {
+      try {
+        await PersistenceService().clearCache();
+        await _updateCacheSize();
+        if (mounted) {
+          SnackBarHelper.showSuccess(
+            context,
+            LocalizationKeys.clearCacheSuccess.tr(context),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          SnackBarHelper.showError(context, '清除缓存失败: $e');
+        }
+      }
+    }
+  }
+
   Widget _buildStorageSection(ThemeData theme) {
     return Card(
       child: Padding(
@@ -413,6 +536,22 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                   : null,
               onChangeEnd: _logEnabled ? _updateLogMaxSize : null,
             ),
+            if (_logEnabled && AppLogger.logDirectory != null) ...[
+              const SizedBox(height: AppThemeData.spacingMedium),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    final logDir = AppLogger.logDirectory;
+                    if (logDir != null) {
+                      UrlLauncherHelper.launchURL(Uri.file(logDir).toString());
+                    }
+                  },
+                  icon: const Icon(Icons.folder_open, size: 18),
+                  label: Text(LocalizationKeys.openLogFolder.tr(context)),
+                ),
+              ),
+            ],
           ],
         ),
       ),

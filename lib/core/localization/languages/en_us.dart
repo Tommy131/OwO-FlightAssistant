@@ -146,6 +146,15 @@ final Map<String, String> enUS = {
   LocalizationKeys.bootstrapConfigDesc:
       'The configuration file that guides the app to the data storage path.',
   LocalizationKeys.openDirectory: 'Open Directory',
+  LocalizationKeys.openLogFolder: 'Open Log Folder',
+  LocalizationKeys.clearCache: 'Clear App Cache',
+  LocalizationKeys.clearCacheDesc:
+      'Clear temporary data, logs, and cache generated during app execution.',
+  LocalizationKeys.clearCacheConfirmTitle: 'Confirm Clear Cache?',
+  LocalizationKeys.clearCacheConfirmContent:
+      'This will delete all logs and temporary files, but will not affect your app settings.',
+  LocalizationKeys.clearCacheSuccess: 'Cache cleared successfully',
+  LocalizationKeys.cacheSize: 'Current cache size: {}',
   LocalizationKeys.updateCheck: 'Version Update',
   LocalizationKeys.updateCheckDesc: 'Check if a new version is available',
   LocalizationKeys.checkForUpdates: 'Check for Updates',
