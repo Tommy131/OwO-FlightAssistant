@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../constants/app_constants.dart';
 import '../theme/app_theme_data.dart';
 import '../utils/url_launcher_helper.dart';
+import '../utils/update_checker.dart';
 import '../localization/localization_keys.dart';
 import '../services/localization_service.dart';
 import '../widgets/common/overflow_marquee_text.dart';
@@ -193,6 +194,14 @@ class _AppIconCardState extends State<_AppIconCard> {
     _effectEntry = null;
   }
 
+  Future<void> _checkForUpdates() {
+    return UpdateChecker.checkAndShowUpdate(
+      context,
+      showLoadingSnackBar: true,
+      showNoUpdateSnackBar: true,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -251,9 +260,14 @@ class _AppIconCardState extends State<_AppIconCard> {
             AppConstants.appName,
             style: Theme.of(context).textTheme.displaySmall,
           ),
-          Text(
-            'Version ${AppConstants.appVersion}',
-            style: Theme.of(context).textTheme.bodyMedium,
+          TextButton(
+            onPressed: _checkForUpdates,
+            child: Text(
+              'Version ${AppConstants.appVersion}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
           ),
         ],
       ),
@@ -477,6 +491,11 @@ class _AppInfoCard extends StatelessWidget {
               value:
                   '${AppConstants.appVersion} (${AppConstants.appBuildVersion})',
               icon: Icons.history_rounded,
+              onTap: () => UpdateChecker.checkAndShowUpdate(
+                context,
+                showLoadingSnackBar: true,
+                showNoUpdateSnackBar: true,
+              ),
             ),
           ],
         ),

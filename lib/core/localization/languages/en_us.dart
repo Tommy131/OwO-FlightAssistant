@@ -158,6 +158,7 @@ final Map<String, String> enUS = {
   LocalizationKeys.latestVersionLabel: 'Latest Version',
   LocalizationKeys.updateContent: 'Update Content',
   LocalizationKeys.downloadUpdate: 'Download Update',
+  LocalizationKeys.viewReleasePage: 'View Releases',
   LocalizationKeys.alreadyLatestVersion:
       'You are already using the latest version',
   LocalizationKeys.community: 'Community',

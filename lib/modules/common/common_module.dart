@@ -5,6 +5,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/module_registry/module_registrar.dart';
 import '../../core/module_registry/module_registry.dart';
 import '../../core/module_registry/navigation/navigation_group.dart';
+import '../../core/module_registry/update/update_config.dart';
 import '../../core/services/localization_service.dart';
 import 'localization/common_localization.dart';
 import 'localization/navigation_localization.dart';
@@ -98,6 +99,14 @@ class CommonModule implements ModuleRegistrar {
         title: NavigationLocalizationKeys.navGroupTools.tr(context),
         icon: Icons.construction_outlined,
         priority: 20,
+      ),
+    );
+
+    UpdateConfig.setCustomConfig(
+      const UpdateConfig(
+        versionCheckUrl:
+            'https://api.github.com/repos/Tommy131/OwO-FlightAssistant/releases/latest',
+        timeoutSeconds: 20,
       ),
     );
   }

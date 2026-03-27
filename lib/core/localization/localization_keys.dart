@@ -178,6 +178,7 @@ class LocalizationKeys {
   static const String latestVersionLabel = 'latest_version_label';
   static const String updateContent = 'update_content';
   static const String downloadUpdate = 'download_update';
+  static const String viewReleasePage = 'view_release_page';
   static const String alreadyLatestVersion = 'already_latest_version';
   static const String community = 'community';
   static const String discordCommunityDesc = 'discord_community_desc';

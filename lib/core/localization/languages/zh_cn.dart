@@ -146,6 +146,7 @@ final Map<String, String> zhCN = {
   LocalizationKeys.latestVersionLabel: '最新版本',
   LocalizationKeys.updateContent: '更新内容',
   LocalizationKeys.downloadUpdate: '下载更新',
+  LocalizationKeys.viewReleasePage: '查看发布页',
   LocalizationKeys.alreadyLatestVersion: '您已经在使用最新版本了',
   LocalizationKeys.community: '社区',
   LocalizationKeys.discordCommunityDesc: '加入 Discord 社区与大家交流',
