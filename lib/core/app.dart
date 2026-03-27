@@ -127,7 +127,9 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
           final dir = Directory(configuredPath);
           try {
             if (!await dir.exists()) {
-              AppLogger.warning('存储路径不存在: $configuredPath，准备重置引导流程...');
+              AppLogger.warning(
+                'Storage path does not exist: $configuredPath, resetting boot flow...',
+              );
               if (mounted) {
                 await showAdvancedConfirmDialog(
                   context: context,
@@ -142,7 +144,7 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
               await bootstrap.reset(); // 删除 bootstrap.json 并重置
             }
           } catch (e) {
-            AppLogger.error('检查存储路径访问权限失败: $e');
+            AppLogger.error('Failed to check storage path permissions: $e');
             if (mounted) {
               await showAdvancedConfirmDialog(
                 context: context,
@@ -198,9 +200,9 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
       }
 
       // 模拟加载核心资源和数据（仅用于演示高级加载效果）
-      // AppLogger.info('正在模拟加载业务数据 (5s)...');
+      // AppLogger.info('Simulating loading business data (5s)...');
       // await Future.delayed(const Duration(seconds: 5));
-      // AppLogger.info('业务数据加载完成');
+      // AppLogger.info('Business data loading completed');
 
       if (mounted) {
         setState(() {
@@ -240,20 +242,22 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
   Future<void> _handleAppCleanup() async {
     try {
       // 在这里集中处理所有需要最后保存或清理的操作
-      AppLogger.info('开始执行应用清理操作...');
+      AppLogger.info('Starting app cleanup...');
 
       // 执行模块化注册的清理回调
       await ModuleRegistry().performCleanup();
 
       // 清理通知服务
       ModuleRegistry().registerCleanup(() async {
-        AppLogger.info('[Cleanup] 正在清理通知服务资源...');
+        AppLogger.info(
+          '[Cleanup] Cleaning up notification service resources...',
+        );
         await NotificationService().dispose();
       });
 
-      AppLogger.info('应用清理完成。');
+      AppLogger.info('App cleanup completed.');
     } catch (e) {
-      AppLogger.error('清理过程中出错: $e');
+      AppLogger.error('Error during cleanup: $e');
     }
   }
 

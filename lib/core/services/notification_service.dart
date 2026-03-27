@@ -258,7 +258,7 @@ class NotificationService {
     if (_initialized) return true;
 
     try {
-      AppLogger.info('🔄 开始初始化通知服务...');
+      AppLogger.info('🔄 Initializing notification service...');
 
       // 1. 初始化持久化服务已经由主应用完成，这里只需确保 PersistenceService 已就绪
       if (!PersistenceService().isInitialized) {
@@ -280,7 +280,7 @@ class NotificationService {
       final result = await _initializePluginWithFallback(windowsIconPath);
 
       if (result != true) {
-        AppLogger.warning('通知插件初始化返回 false');
+        AppLogger.warning('Notification plugin initialization returned false');
       }
 
       // 5. 请求各平台权限
@@ -290,11 +290,15 @@ class NotificationService {
       await _loadHistory();
 
       _initialized = true;
-      AppLogger.info('通知服务初始化成功');
+      AppLogger.info('Notification service initialized successfully');
       return true;
     } catch (e, stackTrace) {
-      AppLogger.error('通知服务初始化失败: $e', e, stackTrace);
-      AppLogger.error('堆栈: $stackTrace');
+      AppLogger.error(
+        'Failed to initialize notification service: $e',
+        e,
+        stackTrace,
+      );
+      AppLogger.error('Stack trace: $stackTrace');
       return false;
     }
   }
@@ -328,7 +332,7 @@ class NotificationService {
       if (!shouldFallback) rethrow;
       _resolvedAndroidNotificationIcon = _androidFallbackNotificationIcon;
       AppLogger.warning(
-        '通知图标 $_androidNotificationIcon 无效，回退为 $_androidFallbackNotificationIcon',
+        'Notification icon $_androidNotificationIcon is invalid, falling back to $_androidFallbackNotificationIcon',
       );
       final fallbackSettings = InitializationSettings(
         android: _createAndroidInitSettings(_resolvedAndroidNotificationIcon),
@@ -407,10 +411,12 @@ class NotificationService {
         );
 
         if (await file.exists()) {
-          AppLogger.info('已准备 Windows 通知图标 (绝对路径): ${file.absolute.path}');
+          AppLogger.info(
+            'Windows notification icon prepared (absolute path): ${file.absolute.path}',
+          );
           return file.absolute.path;
         } else {
-          AppLogger.error('Windows 通知图标写入失败');
+          AppLogger.error('Failed to write Windows notification icon');
           return null;
         }
       },
@@ -458,11 +464,11 @@ class NotificationService {
       final alarmGranted = await androidPlugin.requestExactAlarmsPermission();
 
       AppLogger.info(
-        'Android 权限请求完成 - 通知: $notificationGranted, 闹钟: $alarmGranted',
+        'Android permission request completed - Notification: $notificationGranted, Alarm: $alarmGranted',
       );
       return notificationGranted == true;
     } catch (e) {
-      AppLogger.warning('Android 权限请求失败: $e');
+      AppLogger.warning('Failed to request Android permissions: $e');
       return false;
     }
   }
@@ -489,10 +495,12 @@ class NotificationService {
         badge: true,
         sound: true,
       );
-      AppLogger.info('iOS 权限请求完成: ${granted == true ? "已授权" : "已拒绝"}');
+      AppLogger.info(
+        'iOS permission request completed: ${granted == true ? "Authorized" : "Denied"}',
+      );
       return granted;
     } catch (e) {
-      AppLogger.warning('iOS 权限请求失败: $e');
+      AppLogger.warning('Failed to request iOS permissions: $e');
       return null;
     }
   }
@@ -502,7 +510,7 @@ class NotificationService {
   /// 返回 [bool] 是否已授予权限
   Future<bool> checkPermissions() async {
     if (!_initialized) {
-      AppLogger.warning('服务未初始化，无法检查权限');
+      AppLogger.warning('Service not initialized, cannot check permissions');
       return false;
     }
 
@@ -534,7 +542,7 @@ class NotificationService {
       );
       return granted ?? false;
     } catch (e) {
-      AppLogger.warning('检查 iOS 权限失败: $e');
+      AppLogger.warning('Failed to check iOS permissions: $e');
       return false;
     }
   }
@@ -548,7 +556,7 @@ class NotificationService {
   /// 示例:
   /// ```dart
   /// service.registerActionCallback('confirm', (response) {
-  ///   AppLogger.info('用户点击了确认按钮');
+  ///   AppLogger.info('User clicked the confirm button');
   /// });
   /// ```
   void registerActionCallback(
@@ -556,19 +564,19 @@ class NotificationService {
     Function(NotificationResponse) callback,
   ) {
     _actionCallbacks[actionId] = callback;
-    AppLogger.info('注册 Action 回调: $actionId');
+    AppLogger.info('Registered Action callback: $actionId');
   }
 
   /// 移除特定 action 的回调
   void unregisterActionCallback(String actionId) {
     _actionCallbacks.remove(actionId);
-    AppLogger.info('移除 Action 回调: $actionId');
+    AppLogger.info('Removed Action callback: $actionId');
   }
 
   /// 清除所有 action 回调
   void clearActionCallbacks() {
     _actionCallbacks.clear();
-    AppLogger.info('清除所有 Action 回调');
+    AppLogger.info('Cleared all Action callbacks');
   }
 
   /// 通知点击回调
@@ -600,11 +608,11 @@ class NotificationService {
       }
 
       AppLogger.info('''
-📱 通知交互:
+📱 Notification interaction:
    - ID: ${notificationId ?? 'null'}
-   - Action: ${actionId ?? '点击通知'}
-   - Payload: ${payload ?? '无'}
-   - Input: ${response.input?.isEmpty == true ? '无' : response.input ?? '无'}
+   - Action: ${actionId ?? 'Tap notification'}
+   - Payload: ${payload ?? 'None'}
+   - Input: ${response.input?.isEmpty == true ? 'None' : response.input ?? 'None'}
 ''');
 
       // 更新通知状态为已点击
@@ -620,8 +628,8 @@ class NotificationService {
         onNotificationTapped?.call(response);
       }
     } catch (e, stackTrace) {
-      AppLogger.error('处理通知点击失败: $e', e, stackTrace);
-      AppLogger.error('堆栈: $stackTrace');
+      AppLogger.error('Failed to handle notification tap: $e', e, stackTrace);
+      AppLogger.error('Stack trace: $stackTrace');
     }
   }
 
@@ -746,7 +754,7 @@ class NotificationService {
     final lastTime = _lastNotificationTime[id];
     if (lastTime != null && now.difference(lastTime) < _rateLimitDuration) {
       AppLogger.warning(
-        '通知 $id 被限流（距上次发送 ${now.difference(lastTime).inMilliseconds}ms）',
+        'Notification $id rate limited (${now.difference(lastTime).inMilliseconds}ms since last send)',
       );
       return true;
     }
@@ -757,7 +765,9 @@ class NotificationService {
     );
 
     if (_recentNotificationTimes.length >= _maxNotificationsPerMinute) {
-      AppLogger.warning('达到每分钟通知上限（$_maxNotificationsPerMinute 条）');
+      AppLogger.warning(
+        'Reached per-minute notification limit ($_maxNotificationsPerMinute)',
+      );
       return true;
     }
 
@@ -804,7 +814,7 @@ class NotificationService {
     if (state != null && !state.isRead) {
       _notificationStates[id] = state.copyWith(readAt: DateTime.now());
       _saveHistory();
-      AppLogger.info('通知 $id 标记为已读');
+      AppLogger.info('Notification $id marked as read');
     }
   }
 
@@ -817,7 +827,7 @@ class NotificationService {
         readAt: state.readAt ?? DateTime.now(),
       );
       _saveHistory();
-      AppLogger.info('通知 $id 标记为已点击');
+      AppLogger.info('Notification $id marked as clicked');
     }
   }
 
@@ -850,7 +860,7 @@ class NotificationService {
         jsonEncode(historyJson),
       );
     } catch (e) {
-      AppLogger.warning('保存通知历史失败: $e');
+      AppLogger.warning('Failed to save notification history: $e');
     }
   }
 
@@ -866,10 +876,12 @@ class NotificationService {
           final state = NotificationState.fromJson(json);
           _notificationStates[state.id] = state;
         }
-        AppLogger.info('加载通知历史: ${_notificationStates.length} 条');
+        AppLogger.info(
+          'Loaded notification history: ${_notificationStates.length} items',
+        );
       }
     } catch (e) {
-      AppLogger.warning('加载通知历史失败: $e');
+      AppLogger.warning('Failed to load notification history: $e');
     }
   }
 
@@ -877,7 +889,7 @@ class NotificationService {
   Future<void> clearHistory() async {
     _notificationStates.clear();
     await PersistenceService().remove(_notificationHistoryKey);
-    AppLogger.info('清除通知历史');
+    AppLogger.info('Cleared notification history');
   }
 
   /// 清除过期历史（保留最近 30 天）
@@ -887,7 +899,7 @@ class NotificationService {
       (id, state) => state.createdAt.isBefore(cutoffDate),
     );
     await _saveHistory();
-    AppLogger.info('清除 $days 天前的通知历史');
+    AppLogger.info('Cleared notification history from $days days ago');
   }
 
   // ==================== 统计功能 ====================
@@ -1148,13 +1160,13 @@ class NotificationService {
 
         try {
           // 下载图片到临时目录
-          AppLogger.info('📥 开始下载通知图片: $imageUrl');
+          AppLogger.info('📥 Downloading notification image: $imageUrl');
           final response = await http
               .get(Uri.parse(imageUrl))
               .timeout(const Duration(seconds: 10));
 
           if (response.statusCode != 200) {
-            throw Exception('图片下载失败: ${response.statusCode}');
+            throw Exception('Image download failed: ${response.statusCode}');
           }
 
           final tempDir = await getTemporaryDirectory();
@@ -1164,7 +1176,7 @@ class NotificationService {
           final file = File(filePath);
           await file.writeAsBytes(response.bodyBytes);
 
-          AppLogger.info('图片下载成功: $filePath');
+          AppLogger.info('Image downloaded successfully: $filePath');
 
           // 使用本地文件路径显示
           return await showBigPictureNotification(
@@ -1175,7 +1187,9 @@ class NotificationService {
             payload: payload,
           );
         } catch (e) {
-          AppLogger.warning('下载通知图片失败: $e，降级为普通通知');
+          AppLogger.warning(
+            'Failed to download notification image: $e, falling back to standard notification',
+          );
           // 降级为普通通知
           return await showNotification(
             id: id,
@@ -1214,14 +1228,14 @@ class NotificationService {
         await _ensureInitialized();
 
         if (scheduledTime.isBefore(DateTime.now())) {
-          AppLogger.warning('计划时间不能早于当前时间');
+          AppLogger.warning('Scheduled time cannot be in the past');
           return false;
         }
 
         final details = _buildNotificationDetails(
           channelId: _scheduledChannelId,
           channelName: _scheduledChannelName,
-          channelDescription: '定时推送的通知',
+          channelDescription: 'Scheduled notifications',
         );
 
         await _notifications.zonedSchedule(
@@ -1237,10 +1251,10 @@ class NotificationService {
 
         _createNotificationState(id, title, body, payload);
 
-        AppLogger.info('⏰ 设置定时通知: $title，时间: $scheduledTime');
+        AppLogger.info('⏰ Scheduled notification: $title at $scheduledTime');
         return true;
       },
-      '设置定时通知',
+      'Set scheduled notification',
       false,
     );
   }
@@ -1274,7 +1288,7 @@ class NotificationService {
         final details = _buildNotificationDetails(
           channelId: _periodicChannelId,
           channelName: _periodicChannelName,
-          channelDescription: '周期性推送的通知',
+          channelDescription: 'Periodic notifications',
         );
 
         final finalPayload = _wrapPayload(id, payload);
@@ -1290,10 +1304,12 @@ class NotificationService {
 
         _createNotificationState(id, title, body, payload);
 
-        AppLogger.info('🔄 设置周期通知: $title，间隔: $interval');
+        AppLogger.info(
+          '🔄 Set periodic notification: $title, interval: $interval',
+        );
         return true;
       },
-      '设置周期通知',
+      'Set periodic notification',
       false,
     );
   }
@@ -1341,10 +1357,12 @@ class NotificationService {
 
         _createNotificationState(id, title, body, payload);
 
-        AppLogger.info('🔄 设置自定义周期通知: $title，间隔: $interval');
+        AppLogger.info(
+          '🔄 Set custom periodic notification: $title, interval: $interval',
+        );
         return true;
       },
-      '设置自定义周期通知',
+      'Set custom periodic notification',
       false,
     );
   }
@@ -1373,14 +1391,14 @@ class NotificationService {
     const androidDetails = AndroidNotificationDetails(
       _actionChannelId,
       _actionChannelName,
-      channelDescription: '带操作按钮的通知',
+      channelDescription: 'Notifications with action buttons',
       icon: 'ic_launcher',
       largeIcon: DrawableResourceAndroidBitmap('ic_launcher'),
       importance: Importance.high,
       priority: Priority.high,
       actions: [
-        AndroidNotificationAction('confirm', '确认'),
-        AndroidNotificationAction('cancel', '取消'),
+        AndroidNotificationAction('confirm', 'Confirm'),
+        AndroidNotificationAction('cancel', 'Cancel'),
       ],
     );
 
@@ -1402,8 +1420,8 @@ class NotificationService {
       body: body,
       payload: payload,
       details: details,
-      logMessage: '🔘 发送操作通知: $title',
-      operationName: '显示操作通知',
+      logMessage: '🔘 Sent action notification: $title',
+      operationName: 'Show action notification',
     );
   }
 
@@ -1420,7 +1438,7 @@ class NotificationService {
   /// ```dart
   /// service.registerActionCallback('reply', (response) {
   ///   final replyText = response.input;
-  ///   AppLogger.info('用户回复: $replyText');
+  ///   AppLogger.info('User reply: $replyText');
   /// });
   /// ```
   Future<bool> showNotificationWithInlineReply({
@@ -1433,7 +1451,7 @@ class NotificationService {
     const androidDetails = AndroidNotificationDetails(
       _inlineReplyChannelId,
       _inlineReplyChannelName,
-      channelDescription: '支持快速回复的通知',
+      channelDescription: 'Notifications with quick replies',
       icon: 'ic_launcher',
       largeIcon: DrawableResourceAndroidBitmap('ic_launcher'),
       importance: Importance.high,
@@ -1441,8 +1459,8 @@ class NotificationService {
       actions: [
         AndroidNotificationAction(
           'reply',
-          '回复',
-          inputs: [AndroidNotificationActionInput(label: '输入回复内容...')],
+          'Reply',
+          inputs: [AndroidNotificationActionInput(label: 'Enter reply...')],
         ),
       ],
     );
@@ -1465,8 +1483,8 @@ class NotificationService {
       body: body,
       payload: payload,
       details: details,
-      logMessage: '💬 发送回复通知: $title',
-      operationName: '显示回复通知',
+      logMessage: '💬 Sent reply notification: $title',
+      operationName: 'Show reply notification',
     );
   }
 
@@ -1502,7 +1520,7 @@ class NotificationService {
     final androidDetails = AndroidNotificationDetails(
       _groupChannelId,
       _groupChannelName,
-      channelDescription: '分组显示的通知',
+      channelDescription: 'Grouped notifications',
       icon: 'ic_launcher',
       largeIcon: const DrawableResourceAndroidBitmap('ic_launcher'),
       importance: Importance.high,
@@ -1530,8 +1548,8 @@ class NotificationService {
       body: displayBody,
       payload: payload,
       details: details,
-      logMessage: '📂 发送分组通知: $title (分组: $groupKey)',
-      operationName: '显示分组通知',
+      logMessage: '📂 Sent grouped notification: $title (group: $groupKey)',
+      operationName: 'Show grouped notification',
     );
   }
 
@@ -1559,7 +1577,7 @@ class NotificationService {
     final androidDetails = AndroidNotificationDetails(
       _soundChannelId,
       _soundChannelName,
-      channelDescription: '带自定义声音的通知',
+      channelDescription: 'Notifications with custom sounds',
       icon: 'ic_launcher',
       largeIcon: const DrawableResourceAndroidBitmap('ic_launcher'),
       importance: Importance.high,
@@ -1587,8 +1605,8 @@ class NotificationService {
       body: body,
       payload: payload,
       details: details,
-      logMessage: '🔊 发送声音通知: $title',
-      operationName: '显示声音通知',
+      logMessage: '🔊 Sent sound notification: $title',
+      operationName: 'Show sound notification',
     );
   }
 
@@ -1602,7 +1620,7 @@ class NotificationService {
   /// - [body] 通知正文
   /// - [badgeNumber] 徽章数字（iOS 应用图标角标）
   ///
-  /// 注意: Android 徽章由系统自动管理
+  /// 注意: Android 徽章由系统自动 management
   Future<bool> showNotificationWithBadge({
     required int id,
     required String title,
@@ -1627,8 +1645,8 @@ class NotificationService {
       body: body,
       payload: payload,
       details: details,
-      logMessage: '🔢 发送徽章通知: $title, 数字: $badgeNumber',
-      operationName: '显示徽章通知',
+      logMessage: '🔢 Sent badge notification: $title, number: $badgeNumber',
+      operationName: 'Show badge notification',
     );
   }
 
@@ -1677,8 +1695,8 @@ class NotificationService {
       body: body,
       payload: payload,
       details: details,
-      logMessage: '⚡ 发送优先级通知: $title (优先级: $priority)',
-      operationName: '显示优先级通知',
+      logMessage: '⚡ Sent priority notification: $title (priority: $priority)',
+      operationName: 'Show priority notification',
     );
   }
 
@@ -1714,7 +1732,7 @@ class NotificationService {
     }
 
     AppLogger.info(
-      '📮 批量发送 ${notifications.length} 条通知，成功 ${results.where((r) => r).length} 条',
+      '📮 Sent ${notifications.length} bulk notifications, ${results.where((r) => r).length} successful',
     );
     return results;
   }
@@ -1729,10 +1747,10 @@ class NotificationService {
       () async {
         await _notifications.cancel(id);
         _activeNotificationIds.remove(id);
-        AppLogger.warning('取消通知: ID=$id');
+        AppLogger.warning('Canceled notification: ID=$id');
         return true;
       },
-      '取消通知',
+      'Cancel notification',
       false,
     );
   }
@@ -1745,10 +1763,10 @@ class NotificationService {
       () async {
         await _notifications.cancelAll();
         _activeNotificationIds.clear();
-        AppLogger.warning('取消所有通知');
+        AppLogger.warning('Canceled all notifications');
         return true;
       },
-      '取消所有通知',
+      'Cancel all notifications',
       false,
     );
   }
@@ -1761,10 +1779,10 @@ class NotificationService {
     return await _safeExecute(
       () async {
         final pending = await _notifications.pendingNotificationRequests();
-        AppLogger.info('📋 待处理通知数量: ${pending.length}');
+        AppLogger.info('📋 Pending notifications count: ${pending.length}');
         return pending;
       },
-      '获取待处理通知',
+      'Get pending notifications',
       <PendingNotificationRequest>[],
     );
   }
@@ -1788,7 +1806,7 @@ class NotificationService {
             return <ActiveNotification>[];
         }
       },
-      '获取活动通知',
+      'Get active notifications',
       <ActiveNotification>[],
     );
   }
@@ -1802,7 +1820,9 @@ class NotificationService {
 
     if (androidPlugin != null) {
       final notifications = await androidPlugin.getActiveNotifications();
-      AppLogger.info('📱 Android 活动通知数量: ${notifications.length}');
+      AppLogger.info(
+        '📱 Android active notifications: ${notifications.length}',
+      );
       return notifications;
     }
     return [];
@@ -1817,7 +1837,7 @@ class NotificationService {
 
     if (iosPlugin != null) {
       final notifications = await iosPlugin.getActiveNotifications();
-      AppLogger.info('📱 iOS 活动通知数量: ${notifications.length}');
+      AppLogger.info('📱 iOS active notifications: ${notifications.length}');
 
       // 转换为统一的 ActiveNotification 格式
       return notifications
@@ -1854,8 +1874,8 @@ class NotificationService {
     try {
       return await operation();
     } catch (e, stackTrace) {
-      AppLogger.error('$operationName 失败: $e', e, stackTrace);
-      AppLogger.error('堆栈: $stackTrace');
+      AppLogger.error('$operationName failed: $e', e, stackTrace);
+      AppLogger.error('Stack trace: $stackTrace');
       return defaultValue;
     }
   }
@@ -1910,6 +1930,6 @@ class NotificationService {
     _activeNotificationIds.clear();
     _lastNotificationTime.clear();
     _recentNotificationTimes.clear();
-    AppLogger.info('通知服务资源已清理');
+    AppLogger.info('Notification service resources cleaned up');
   }
 }

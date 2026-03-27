@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:path/path.dart' as p;
 import '../../../core/services/persistence_service.dart';
+import '../../../core/utils/logger.dart';
 import '../../airport_search/models/airport_search_models.dart';
 import '../../airport_search/services/airport_search_service.dart';
 import '../models/briefing_record.dart';
@@ -19,12 +20,14 @@ class BriefingService {
   /// 异步获取机场详情及其 METAR 气象打包数据
   Future<BriefingAirportBundle> fetchAirportBundle(String icao) async {
     try {
+      AppLogger.info('Fetching airport bundle for $icao');
       final result = await _airportService.queryAirportAndMetar(icao);
       return BriefingAirportBundle(
         airport: result.airport,
         metar: result.metar,
       );
-    } catch (_) {
+    } catch (e) {
+      AppLogger.warning('Failed to fetch METAR for $icao, falling back to static data: $e');
       // 网络请求失败时回退到纯静态详情加载
       final airport = await _airportService.fetchAirport(icao);
       return BriefingAirportBundle(airport: airport, metar: null);

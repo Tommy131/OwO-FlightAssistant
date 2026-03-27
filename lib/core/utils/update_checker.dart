@@ -33,7 +33,7 @@ class UpdateChecker {
         _showConfigurationWarning(context);
       } else {
         // Release模式：静默，什么也不做
-        AppLogger.info('更新服务未配置，跳过更新检测');
+        AppLogger.info('Update service not configured, skipping update check');
       }
       return;
     }
@@ -46,7 +46,7 @@ class UpdateChecker {
           LocalizationKeys.checkingForUpdates.tr(context),
         );
       } catch (e) {
-        AppLogger.warning('显示SnackBar失败: $e');
+        AppLogger.warning('Failed to show SnackBar: $e');
       }
     }
 
@@ -63,7 +63,9 @@ class UpdateChecker {
           // 只有手动检测时才显示错误
           _handleError(context, result.error!);
         } else {
-          AppLogger.info('自动更新检测失败（静默）: ${result.error}');
+          AppLogger.info(
+            'Automatic update check failed (silent): ${result.error}',
+          );
         }
       } else if (result.hasUpdate && result.versionInfo != null) {
         _showUpdateDialog(context, result);
@@ -75,12 +77,12 @@ class UpdateChecker {
               LocalizationKeys.alreadyLatestVersion.tr(context),
             );
           } catch (e) {
-            AppLogger.warning('显示SnackBar失败: $e');
+            AppLogger.warning('Failed to show SnackBar: $e');
           }
         }
       }
     } catch (e, stackTrace) {
-      AppLogger.error('更新检测异常', e, stackTrace);
+      AppLogger.error('Update check exception', e, stackTrace);
       if (context.mounted && showLoadingSnackBar) {
         // 只有手动检测时才显示错误
         try {
@@ -89,7 +91,7 @@ class UpdateChecker {
             '${LocalizationKeys.updateCheckFailed.tr(context)}: $e',
           );
         } catch (snackBarError) {
-          AppLogger.warning('显示错误SnackBar失败: $snackBarError');
+          AppLogger.warning('Failed to show error SnackBar: $snackBarError');
         }
       }
     }
@@ -234,7 +236,7 @@ class UpdateChecker {
         }
       }
     } catch (e) {
-      AppLogger.error('打开外部链接失败', e);
+      AppLogger.error('Failed to open external link', e);
       if (context.mounted) {
         SnackBarHelper.showError(context, '$failureMessage: $e');
       }

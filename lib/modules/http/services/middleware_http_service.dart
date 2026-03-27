@@ -207,6 +207,9 @@ class MiddlewareHttpService {
         uri: uri,
       );
       if (!result.isSuccess) {
+        AppLogger.warning(
+          'HTTP request failed: $method $path, status: ${result.statusCode}',
+        );
         throw MiddlewareHttpException(
           message: 'HTTP request failed',
           statusCode: result.statusCode,
@@ -216,6 +219,7 @@ class MiddlewareHttpService {
       }
       return result;
     } on TimeoutException catch (e) {
+      AppLogger.warning('HTTP request timeout: $method $path');
       throw MiddlewareHttpException(
         message: 'Request timeout: ${e.message ?? 'timeout'}',
         uri: uri,
@@ -223,7 +227,7 @@ class MiddlewareHttpService {
     } on MiddlewareHttpException {
       rethrow;
     } catch (e, stackTrace) {
-      AppLogger.error('Middleware HTTP request error', e, stackTrace);
+      AppLogger.error('Middleware HTTP request error: $method $path', e, stackTrace);
       throw MiddlewareHttpException(message: 'Request error: $e', uri: uri);
     }
   }

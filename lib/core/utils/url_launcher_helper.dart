@@ -30,7 +30,7 @@ class UrlLauncherHelper {
         AppLogger.warning('Cannot open link: $urlString');
       }
     } catch (e) {
-      AppLogger.error('打开链接失败: $e');
+      AppLogger.error('Failed to open link: $e');
     }
   }
 }

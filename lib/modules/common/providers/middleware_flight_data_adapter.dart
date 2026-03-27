@@ -95,8 +95,11 @@ class MiddlewareFlightDataAdapter implements FlightDataAdapter {
 
     try {
       if (_token != null && _token!.isNotEmpty) {
+        AppLogger.info('Disconnecting existing session before new connection');
         await disconnect();
       }
+
+      AppLogger.info('Connecting to simulator: $simType');
       final response = await _httpService.connectSimulator(type: simType);
       final body = response.decodedBody;
       if (body is! Map<String, dynamic>) {
@@ -319,7 +322,8 @@ class MiddlewareFlightDataAdapter implements FlightDataAdapter {
       await _httpService.getHealth();
       _updateBackendHealth(true);
       return true;
-    } catch (_) {
+    } catch (e) {
+      AppLogger.warning('Backend health check failed: $e');
       _updateBackendHealth(false);
       return false;
     }
@@ -419,6 +423,7 @@ class MiddlewareFlightDataAdapter implements FlightDataAdapter {
       final wsUri = await _httpService.resolveSimulatorWebSocketUri(
         token: token,
       );
+      AppLogger.info('Connecting to WebSocket: $wsUri');
       final channel = WebSocketChannel.connect(wsUri);
       await _wsSubscription?.cancel();
       _wsSubscription = null;
@@ -427,10 +432,17 @@ class MiddlewareFlightDataAdapter implements FlightDataAdapter {
       await _awaitChannelReady(channel);
       _wsSubscription = channel.stream.listen(
         _handleWebSocketEvent,
-        onError: (_) => _handleWebSocketClosed(),
-        onDone: _handleWebSocketClosed,
+        onError: (e) {
+          AppLogger.error('WebSocket stream error: $e');
+          _handleWebSocketClosed();
+        },
+        onDone: () {
+          AppLogger.info('WebSocket connection closed by server');
+          _handleWebSocketClosed();
+        },
         cancelOnError: true,
       );
+      AppLogger.info('WebSocket connection established');
       return true;
     } catch (e, stackTrace) {
       AppLogger.error('FlightData websocket connect failed', e, stackTrace);

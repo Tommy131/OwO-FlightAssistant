@@ -193,7 +193,7 @@ class UpdateService {
     final currentVersion = getCurrentVersionTag();
     try {
       if (UpdateConfig.current == null) {
-        AppLogger.warning('更新配置未初始化');
+        AppLogger.warning('Update configuration not initialized');
         return UpdateCheckResult(
           hasUpdate: false,
           currentVersion: currentVersion,
@@ -203,14 +203,14 @@ class UpdateService {
 
       final config = UpdateConfig.current!;
 
-      AppLogger.info('开始检查更新，当前版本: $currentVersion');
+      AppLogger.info('Starting update check, current version: $currentVersion');
 
       final response = await http
           .get(Uri.parse(config.versionCheckUrl))
           .timeout(Duration(seconds: config.timeoutSeconds));
 
       if (response.statusCode != 200) {
-        AppLogger.warning('版本检查请求失败: ${response.statusCode}');
+        AppLogger.warning('Version check request failed: ${response.statusCode}');
         return UpdateCheckResult(
           hasUpdate: false,
           currentVersion: currentVersion,
@@ -236,7 +236,7 @@ class UpdateService {
       );
 
       AppLogger.info(
-        '版本检查完成: 当前=$currentVersion, 最新=${finalVersionInfo.version}, 有更新=$hasUpdate',
+        'Version check completed: current=$currentVersion, latest=${finalVersionInfo.version}, has update=$hasUpdate',
       );
 
       return UpdateCheckResult(
@@ -245,14 +245,14 @@ class UpdateService {
         currentVersion: currentVersion,
       );
     } on TimeoutException {
-      AppLogger.warning('版本检查超时');
+      AppLogger.warning('Version check timeout');
       return UpdateCheckResult(
         hasUpdate: false,
         currentVersion: currentVersion,
         error: 'timeout',
       );
     } catch (e, stackTrace) {
-      AppLogger.error('版本检查失败', e, stackTrace);
+      AppLogger.error('Version check failed', e, stackTrace);
       return UpdateCheckResult(
         hasUpdate: false,
         currentVersion: currentVersion,
@@ -279,7 +279,7 @@ class UpdateService {
       final versionComparison = _compareNormalizedVersions(remote, current);
       return versionComparison > 0;
     } catch (e) {
-      AppLogger.warning('版本号比较失败: $e');
+      AppLogger.warning('Version comparison failed: $e');
       return false;
     }
   }

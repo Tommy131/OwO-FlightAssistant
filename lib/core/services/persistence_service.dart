@@ -261,7 +261,7 @@ class PersistenceService {
         }
       }
     } catch (e) {
-      AppLogger.warning('计算缓存大小失败: $e');
+      AppLogger.warning('Failed to calculate cache size: $e');
     }
     return totalSize;
   }
@@ -279,15 +279,15 @@ class PersistenceService {
               await entity.delete(recursive: true);
             }
           } catch (e) {
-            AppLogger.warning('清除缓存项失败: ${entity.path}, $e');
+            AppLogger.warning('Failed to clear cache item: ${entity.path}, $e');
           }
         }
       }
       // 重新初始化日志（因为日志文件夹可能也被删了）
       await AppLogger.init();
-      AppLogger.info('应用缓存已清除');
+      AppLogger.info('App cache cleared');
     } catch (e) {
-      AppLogger.error('清除缓存失败: $e');
+      AppLogger.error('Failed to clear cache: $e');
       rethrow;
     }
   }
@@ -309,7 +309,7 @@ class PersistenceService {
         try {
           await _settingsFile!.delete();
         } catch (e) {
-          AppLogger.warning('无法删除配置文件: $e');
+          AppLogger.warning('Failed to delete settings file: $e');
         }
       }
 
@@ -328,17 +328,19 @@ class PersistenceService {
                 }
               } catch (e) {
                 // 静默处理单个文件/目录删除失败
-                AppLogger.warning('无法删除: ${entity.path}');
+                AppLogger.warning('Failed to delete: ${entity.path}');
               }
             }
             // 尝试删除目录本身
             try {
               await rootDir.delete();
             } catch (e) {
-              AppLogger.warning('无法删除数据目录（可能包含同步文件）: $_rootPath');
+              AppLogger.warning(
+                'Failed to delete data directory (may contain synchronized files): $_rootPath',
+              );
             }
           } catch (e) {
-            AppLogger.warning('清除数据目录失败: $e');
+            AppLogger.warning('Failed to clear data directory: $e');
           }
         }
       }
@@ -349,13 +351,13 @@ class PersistenceService {
         if (await appCacheDir.exists()) {
           try {
             await appCacheDir.delete(recursive: true);
-            AppLogger.info('已清除应用缓存');
+            AppLogger.info('App cache cleared');
           } catch (e) {
-            AppLogger.warning('清除应用缓存失败: $e');
+            AppLogger.warning('Failed to clear app cache: $e');
           }
         }
       } catch (e) {
-        AppLogger.warning('访问临时目录失败: $e');
+        AppLogger.warning('Failed to access temporary directory: $e');
       }
 
       // 4. 重置初始化状态
@@ -366,9 +368,9 @@ class PersistenceService {
       // 5. 重置引导配置
       await BootstrapService().reset();
 
-      AppLogger.info('应用已重置');
+      AppLogger.info('App has been reset');
     } catch (e) {
-      AppLogger.error('重置应用失败: $e');
+      AppLogger.error('Failed to reset app: $e');
       rethrow;
     }
   }

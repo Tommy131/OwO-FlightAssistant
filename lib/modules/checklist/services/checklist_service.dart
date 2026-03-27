@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../../../core/services/persistence_service.dart';
+import '../../../core/utils/logger.dart';
 import '../models/flight_checklist.dart';
 import 'aircraft_resolver.dart';
 import 'checklist_parser.dart';
@@ -69,6 +70,7 @@ class ChecklistService {
   /// 支持 .json（JSON 格式）及其他文本格式（管道符 / 纯文本）
   Future<List<AircraftChecklist>> loadFromFile(File file) async {
     try {
+      AppLogger.info('Loading checklist from file: ${file.path}');
       final content = await file.readAsString();
       if (content.trim().isEmpty) return [];
       final sourceHint = p.basenameWithoutExtension(file.path);
@@ -80,8 +82,11 @@ class ChecklistService {
       } else {
         parsed = _parser.parseText(content);
       }
-      return _normalizeImported(parsed, sourceHint: sourceHint);
-    } catch (_) {
+      final normalized = _normalizeImported(parsed, sourceHint: sourceHint);
+      AppLogger.info('Successfully loaded ${normalized.length} aircraft checklists from ${file.path}');
+      return normalized;
+    } catch (e) {
+      AppLogger.error('Failed to load checklist from ${file.path}: $e');
       return [];
     }
   }

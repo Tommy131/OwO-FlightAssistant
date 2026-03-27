@@ -165,7 +165,7 @@ class ThemeProvider extends ChangeNotifier {
       await persistence.setDouble(_lightContrastKey, _lightContrastAdjustment);
       await persistence.setDouble(_darkContrastKey, _darkContrastAdjustment);
     } catch (e) {
-      AppLogger.warning('保存主题设置失败: $e');
+      AppLogger.warning('Failed to save theme settings: $e');
     }
   }
 
