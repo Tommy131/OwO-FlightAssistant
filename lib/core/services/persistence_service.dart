@@ -114,6 +114,7 @@ class PersistenceService {
       );
     } catch (e) {
       AppLogger.error('PersistenceService initialization failed: $e');
+      _initialized = true; // 即使初始化失败也标记为已初始化，防止重复尝试
       _initCompleter?.completeError(e);
     } finally {
       _initCompleter = null;
