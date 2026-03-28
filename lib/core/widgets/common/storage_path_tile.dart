@@ -39,7 +39,8 @@ class StoragePathTile extends StatelessWidget {
     String? result = await FilePicker.platform.getDirectoryPath(
       dialogTitle: LocalizationKeys.storagePathSelectionDialogTitle.tr(context),
     );
-    if (result != null) {
+
+    if (result != null && result.trim().isNotEmpty) {
       onPathSelected(result);
     }
   }

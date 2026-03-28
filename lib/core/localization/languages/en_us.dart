@@ -20,6 +20,10 @@ final Map<String, String> enUS = {
   LocalizationKeys.storageLocation: 'App Storage',
   LocalizationKeys.storageLocationDesc:
       'Set the location to store application data',
+  LocalizationKeys.storageLocationChangeConfirm:
+      'Changing the storage path will migrate app data to the new location. Continue?',
+  LocalizationKeys.storageLocationChangeSuccess:
+      'Storage path updated successfully',
   LocalizationKeys.logSettings: 'App Logs',
   LocalizationKeys.logSettingsDesc:
       'Record the operation process for easy troubleshooting',

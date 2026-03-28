@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'bootstrap_service.dart';
 import '../constants/app_constants.dart';
 import '../utils/logger.dart';
@@ -45,8 +44,55 @@ class PersistenceService {
     return p.dirname(exePath);
   }
 
-  static String getAppCacheRootPath() {
+  static String getDefaultDesktopCacheRootPath() {
     return p.join(getAppRootDir(), 'cache');
+  }
+
+  static Future<String> getDefaultDataBaseDir() async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      final bootstrap = BootstrapService();
+      final configuredPath = bootstrap.getDataPath();
+      if (configuredPath != null && configuredPath.trim().isNotEmpty) {
+        return configuredPath;
+      }
+
+      final bootstrapFilePath = bootstrap.bootstrapFilePath;
+      if (bootstrapFilePath != null && bootstrapFilePath.trim().isNotEmpty) {
+        return p.dirname(bootstrapFilePath);
+      }
+
+      return p.join(
+        Directory.systemTemp.path,
+        sanitizeDirectoryName(AppConstants.appName),
+      );
+    }
+    return getDefaultDesktopCacheRootPath();
+  }
+
+  static Future<String> getDefaultRootPath() async {
+    final baseDir = await getDefaultDataBaseDir();
+    return getProcessedRootPath(baseDir);
+  }
+
+  static Future<String> getAppCacheRootPath({String? rootPath}) async {
+    final effectiveRootPath = rootPath?.trim();
+    final defaultRootPath = await getDefaultRootPath();
+    if (effectiveRootPath != null &&
+        effectiveRootPath.isNotEmpty &&
+        !_isSamePath(effectiveRootPath, defaultRootPath)) {
+      return p.join(effectiveRootPath, 'cache');
+    }
+    return p.join(defaultRootPath, 'cache');
+  }
+
+  static bool _isSamePath(String firstPath, String secondPath) {
+    final normalizedFirstPath = p.normalize(firstPath);
+    final normalizedSecondPath = p.normalize(secondPath);
+    if (Platform.isWindows) {
+      return normalizedFirstPath.toLowerCase() ==
+          normalizedSecondPath.toLowerCase();
+    }
+    return normalizedFirstPath == normalizedSecondPath;
   }
 
   /// 清洗路径名称，去除特殊字符
@@ -69,19 +115,10 @@ class PersistenceService {
   /// 初始化存储系统
   Future<void> init({String? customPath}) async {
     // 处理默认路径
-    String? baseDir = customPath;
-    if (baseDir == null) {
-      if (Platform.isAndroid || Platform.isIOS) {
-        // 移动端：使用应用专属的支持目录
-        final directory = await getApplicationSupportDirectory();
-        baseDir = directory.path;
-      } else {
-        // 桌面端：使用可执行文件所在目录下的 cache 文件夹
-        baseDir = getAppCacheRootPath();
-      }
-    }
+    String baseDir = customPath ?? await getDefaultDataBaseDir();
 
     final targetPath = getProcessedRootPath(baseDir);
+    final previousRootPath = _rootPath;
 
     // 避免重复初始化
     if (_initialized && _rootPath == targetPath) {
@@ -98,6 +135,15 @@ class PersistenceService {
       final directory = Directory(_rootPath!);
       if (!await directory.exists()) {
         await directory.create(recursive: true);
+      }
+
+      if (previousRootPath != null &&
+          !_isSamePath(previousRootPath, _rootPath!)) {
+        try {
+          await _migrateCacheDirectory(previousRootPath, _rootPath!);
+        } catch (e) {
+          AppLogger.warning('Failed to migrate cache directory: $e');
+        }
       }
 
       // 同步路径到引导文件
@@ -252,7 +298,9 @@ class PersistenceService {
   Future<int> getCacheSize() async {
     int totalSize = 0;
     try {
-      final cacheDir = Directory(getAppCacheRootPath());
+      final cacheDir = Directory(
+        await getAppCacheRootPath(rootPath: _rootPath),
+      );
       if (await cacheDir.exists()) {
         await for (final entity in cacheDir.list(recursive: true)) {
           if (entity is File) {
@@ -269,7 +317,9 @@ class PersistenceService {
   /// 清除缓存
   Future<void> clearCache() async {
     try {
-      final cacheDir = Directory(getAppCacheRootPath());
+      final cacheDir = Directory(
+        await getAppCacheRootPath(rootPath: _rootPath),
+      );
       if (await cacheDir.exists()) {
         await for (final entity in cacheDir.list(recursive: false)) {
           try {
@@ -284,7 +334,7 @@ class PersistenceService {
         }
       }
       // 重新初始化日志（因为日志文件夹可能也被删了）
-      await AppLogger.init();
+      await AppLogger.init(force: true);
       AppLogger.info('App cache cleared');
     } catch (e) {
       AppLogger.error('Failed to clear cache: $e');
@@ -295,7 +345,8 @@ class PersistenceService {
   /// 重新定位存储路径（用于迁移数据）
   Future<void> migrateTo(String newPath) async {
     final oldPath = _rootPath;
-    if (oldPath == null || oldPath == newPath) return;
+    final targetPath = getProcessedRootPath(newPath);
+    if (oldPath == null || _isSamePath(oldPath, targetPath)) return;
 
     await init(customPath: newPath);
   }
@@ -347,7 +398,9 @@ class PersistenceService {
 
       // 3. 清除应用专属的临时缓存（仅限 Flutter 应用缓存）
       try {
-        final appCacheDir = Directory(getAppCacheRootPath());
+        final appCacheDir = Directory(
+          await getAppCacheRootPath(rootPath: _rootPath),
+        );
         if (await appCacheDir.exists()) {
           try {
             await appCacheDir.delete(recursive: true);
@@ -373,5 +426,99 @@ class PersistenceService {
       AppLogger.error('Failed to reset app: $e');
       rethrow;
     }
+  }
+
+  Future<void> _migrateCacheDirectory(
+    String? previousRootPath,
+    String targetRootPath,
+  ) async {
+    final sourceCachePath = await getAppCacheRootPath(
+      rootPath: previousRootPath,
+    );
+    final targetCachePath = await getAppCacheRootPath(rootPath: targetRootPath);
+
+    if (_isSamePath(sourceCachePath, targetCachePath)) {
+      return;
+    }
+
+    final sourceDirectory = Directory(sourceCachePath);
+    if (!await sourceDirectory.exists()) {
+      return;
+    }
+
+    final targetDirectory = Directory(targetCachePath);
+    if (!await targetDirectory.exists()) {
+      await targetDirectory.create(recursive: true);
+    }
+
+    await _moveDirectoryContents(sourceDirectory, targetDirectory);
+
+    if (await sourceDirectory.exists()) {
+      final hasRemainingItems = await _directoryHasChildren(sourceDirectory);
+      if (!hasRemainingItems) {
+        try {
+          await sourceDirectory.delete();
+        } catch (_) {}
+      }
+    }
+  }
+
+  Future<void> _moveDirectoryContents(
+    Directory sourceDirectory,
+    Directory targetDirectory,
+  ) async {
+    await for (final entity in sourceDirectory.list(recursive: false)) {
+      final targetEntityPath = p.join(
+        targetDirectory.path,
+        p.basename(entity.path),
+      );
+      if (entity is File) {
+        await _moveFile(entity, File(targetEntityPath));
+        continue;
+      }
+
+      if (entity is Directory) {
+        final targetSubDirectory = Directory(targetEntityPath);
+        if (!await targetSubDirectory.exists()) {
+          await targetSubDirectory.create(recursive: true);
+        }
+        await _moveDirectoryContents(entity, targetSubDirectory);
+        if (await entity.exists()) {
+          final hasRemainingItems = await _directoryHasChildren(entity);
+          if (!hasRemainingItems) {
+            try {
+              await entity.delete();
+            } catch (_) {}
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _moveFile(File sourceFile, File targetFile) async {
+    if (await targetFile.exists()) {
+      await targetFile.delete();
+    } else {
+      final parentDirectory = targetFile.parent;
+      if (!await parentDirectory.exists()) {
+        await parentDirectory.create(recursive: true);
+      }
+    }
+
+    try {
+      await sourceFile.rename(targetFile.path);
+    } catch (_) {
+      await sourceFile.copy(targetFile.path);
+      if (await sourceFile.exists()) {
+        await sourceFile.delete();
+      }
+    }
+  }
+
+  Future<bool> _directoryHasChildren(Directory directory) async {
+    await for (final _ in directory.list(recursive: false)) {
+      return true;
+    }
+    return false;
   }
 }

@@ -32,13 +32,24 @@ class AppLogger {
   static bool _enabled = true;
   static int _maxSizeMb = _defaultMaxSizeMb;
   static String? _logDirectory;
+  static String? _cacheRootPath;
   static bool _initialized = false;
 
-  static Future<void> init() async {
-    if (_initialized) return;
+  static Future<void> init({bool force = false}) async {
     final settings = loadSettings();
-    await _configure(settings);
+    final cacheRootPath = await PersistenceService.getAppCacheRootPath(
+      rootPath: PersistenceService().rootPath,
+    );
+    if (!force &&
+        _initialized &&
+        _enabled == settings.enabled &&
+        _maxSizeMb == settings.maxFileSizeMb &&
+        _isSamePath(_cacheRootPath, cacheRootPath)) {
+      return;
+    }
+    await _configure(settings, cacheRootPath: cacheRootPath);
     _initialized = true;
+    _logger.i('Logger initialized. Directory: ${_logDirectory ?? 'disabled'}');
   }
 
   static LogSettings loadSettings() {
@@ -57,8 +68,12 @@ class AppLogger {
     final nextMaxSizeMb = maxFileSizeMb ?? _maxSizeMb;
     await persistence.setBool(_enabledKey, nextEnabled);
     await persistence.setInt(_maxSizeKey, nextMaxSizeMb);
+    final cacheRootPath = await PersistenceService.getAppCacheRootPath(
+      rootPath: persistence.rootPath,
+    );
     await _configure(
       LogSettings(enabled: nextEnabled, maxFileSizeMb: nextMaxSizeMb),
+      cacheRootPath: cacheRootPath,
     );
   }
 
@@ -73,11 +88,14 @@ class AppLogger {
     _logger.e(message, error: error, stackTrace: stackTrace);
   }
 
-  static Future<void> _configure(LogSettings settings) async {
+  static Future<void> _configure(
+    LogSettings settings, {
+    required String cacheRootPath,
+  }) async {
     _enabled = settings.enabled;
     _maxSizeMb = settings.maxFileSizeMb.clamp(1, 1024);
-
-    _logger = await _buildLogger();
+    _cacheRootPath = cacheRootPath;
+    _logger = await _buildLogger(cacheRootPath: cacheRootPath);
   }
 
   static Logger _createLogger({LogOutput? fileOutput}) {
@@ -112,15 +130,23 @@ class AppLogger {
     );
   }
 
-  static Future<Logger> _buildLogger() async {
+  static Future<Logger> _buildLogger({required String cacheRootPath}) async {
     LogOutput? fileOutput;
 
     if (_enabled) {
-      _logDirectory = p.join(PersistenceService.getAppCacheRootPath(), 'logs');
+      _logDirectory = p.join(cacheRootPath, 'logs');
       try {
         final logDir = Directory(_logDirectory!);
         if (!await logDir.exists()) {
           await logDir.create(recursive: true);
+        }
+        final appLogFile = File(p.join(_logDirectory!, 'app.log'));
+        if (!appLogFile.existsSync()) {
+          appLogFile.createSync(recursive: true);
+        }
+        final errorLogFile = File(p.join(_logDirectory!, 'error.log'));
+        if (!errorLogFile.existsSync()) {
+          errorLogFile.createSync(recursive: true);
         }
         fileOutput = _FileLogOutput(_logDirectory!, _maxSizeMb);
         _print('File logging enabled at: $_logDirectory');
@@ -133,6 +159,19 @@ class AppLogger {
     }
 
     return _createLogger(fileOutput: fileOutput);
+  }
+
+  static bool _isSamePath(String? firstPath, String? secondPath) {
+    if (firstPath == null || secondPath == null) {
+      return firstPath == secondPath;
+    }
+    final normalizedFirstPath = p.normalize(firstPath);
+    final normalizedSecondPath = p.normalize(secondPath);
+    if (Platform.isWindows) {
+      return normalizedFirstPath.toLowerCase() ==
+          normalizedSecondPath.toLowerCase();
+    }
+    return normalizedFirstPath == normalizedSecondPath;
   }
 }
 
@@ -179,9 +218,9 @@ class _FileLogOutput extends LogOutput {
       '',
     );
     final line = cleanContent.endsWith('\n') ? cleanContent : '$cleanContent\n';
-    final isError = event.level.index >= Level.error.index;
 
-    // Determine file name based on error level
+    // Separate logs: debug, info, warning go to app.log; error and fatal go to error.log
+    final isError = event.level.index >= Level.error.index;
     final fileName = isError ? 'error.log' : 'app.log';
     final filePath = p.join(logDirPath, fileName);
 

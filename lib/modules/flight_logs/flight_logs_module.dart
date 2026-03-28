@@ -47,6 +47,7 @@ class FlightLogsModule implements ModuleRegistrar {
         page: const FlightLogsPage(),
         priority: 40,
         groupId: 'flight',
+        defaultEnabled: true,
       ),
     );
   }

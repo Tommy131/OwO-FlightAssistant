@@ -48,7 +48,7 @@ class _SetupWizardState extends State<SetupWizard> with WindowListener {
     // 1. 获取核心步骤
     final coreSteps = [
       LanguageStep(),
-      StoragePathStep(),
+      if (!(Platform.isAndroid || Platform.isIOS)) StoragePathStep(),
       LogSettingsStep(),
       SummaryStep(),
     ];

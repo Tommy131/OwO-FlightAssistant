@@ -18,6 +18,8 @@ final Map<String, String> zhCN = {
   LocalizationKeys.generalSettings: '常规设置',
   LocalizationKeys.storageLocation: '应用存储',
   LocalizationKeys.storageLocationDesc: '设置应用数据的保存位置',
+  LocalizationKeys.storageLocationChangeConfirm: '更改存储路径会将应用数据迁移到新位置，是否继续？',
+  LocalizationKeys.storageLocationChangeSuccess: '存储路径已更新',
   LocalizationKeys.logSettings: '应用日志',
   LocalizationKeys.logSettingsDesc: '记录运行过程，便于排查问题',
   LocalizationKeys.logMaxSize: '日志分割大小',

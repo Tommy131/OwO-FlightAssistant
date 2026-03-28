@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
@@ -10,7 +11,6 @@ import '../services/localization_service.dart';
 import '../localization/localization_keys.dart';
 import '../theme/app_theme_data.dart';
 import '../utils/logger.dart';
-import '../utils/url_launcher_helper.dart';
 import '../utils/update_checker.dart';
 import '../widgets/common/snack_bar.dart';
 import '../widgets/common/storage_path_tile.dart';
@@ -71,10 +71,9 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     );
 
     if (result == true) {
-      await PersistenceService().init(customPath: newPath);
+      await PersistenceService().migrateTo(newPath);
       final finalPath = PersistenceService().rootPath!;
 
-      await PersistenceService().set('data_root_path', finalPath);
       await AppLogger.init();
 
       setState(() {
@@ -447,7 +446,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
               showHeader: false,
               contentPadding: EdgeInsets.zero,
               enableTap: false,
-              showChangeButton: true,
+              showChangeButton: !(Platform.isAndroid || Platform.isIOS),
             ),
           ],
         ),
@@ -541,10 +540,10 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
                     final logDir = AppLogger.logDirectory;
                     if (logDir != null) {
-                      UrlLauncherHelper.launchURL(Uri.file(logDir).toString());
+                      await _openDirectory(logDir);
                     }
                   },
                   icon: const Icon(Icons.folder_open, size: 18),
@@ -832,13 +831,33 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
   Future<void> _openBootstrapDirectory(String? filePath) async {
     if (filePath == null) return;
     final directory = p.dirname(filePath);
-    if (await Directory(directory).exists()) {
+    await _openDirectory(directory);
+  }
+
+  Future<void> _openDirectory(String directory) async {
+    if (!await Directory(directory).exists()) {
+      if (mounted) {
+        SnackBarHelper.showError(context, '目录不存在: $directory');
+      }
+      return;
+    }
+
+    try {
       if (Platform.isWindows) {
         await Process.run('explorer.exe', [directory]);
       } else if (Platform.isMacOS) {
         await Process.run('open', [directory]);
       } else if (Platform.isLinux) {
         await Process.run('xdg-open', [directory]);
+      } else if (Platform.isAndroid || Platform.isIOS) {
+        await FilePicker.platform.getDirectoryPath(
+          dialogTitle: LocalizationKeys.openDirectory.tr(context),
+          initialDirectory: directory,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackBarHelper.showError(context, '打开目录失败: $e');
       }
     }
   }
