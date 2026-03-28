@@ -3,19 +3,20 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'core/app.dart';
+import 'core/constants/app_constants.dart';
+import 'core/services/bootstrap_service.dart';
 import 'core/services/persistence_service.dart';
 import 'core/utils/logger.dart';
 
 class _DelegatingPathProvider extends PathProviderPlatform {
-  _DelegatingPathProvider(this._delegate, this._cacheRootPath);
+  _DelegatingPathProvider(this._delegate, this._cacheRootPathResolver);
 
   final PathProviderPlatform _delegate;
-  final String _cacheRootPath;
+  final Future<String> Function() _cacheRootPathResolver;
 
   Future<String?> _ensureDir(String path) async {
     final dir = Directory(path);
@@ -25,23 +26,30 @@ class _DelegatingPathProvider extends PathProviderPlatform {
     return path;
   }
 
+  Future<String?> _ensureCacheSubdirectory([String? childPath]) async {
+    final cacheRootPath = await _cacheRootPathResolver();
+    final targetPath = childPath == null
+        ? cacheRootPath
+        : p.join(cacheRootPath, childPath);
+    return _ensureDir(targetPath);
+  }
+
   @override
-  Future<String?> getTemporaryPath() =>
-      _ensureDir(p.join(_cacheRootPath, 'temp'));
+  Future<String?> getTemporaryPath() => _ensureCacheSubdirectory('temp');
 
   @override
   Future<String?> getApplicationSupportPath() =>
-      _ensureDir(p.join(_cacheRootPath, 'support'));
+      _ensureCacheSubdirectory('support');
 
   @override
   Future<String?> getLibraryPath() => _delegate.getLibraryPath();
 
   @override
   Future<String?> getApplicationDocumentsPath() =>
-      _ensureDir(p.join(_cacheRootPath, 'documents'));
+      _ensureCacheSubdirectory('documents');
 
   @override
-  Future<String?> getApplicationCachePath() => _ensureDir(_cacheRootPath);
+  Future<String?> getApplicationCachePath() => _ensureCacheSubdirectory();
 
   @override
   Future<String?> getExternalStoragePath() =>
@@ -64,16 +72,15 @@ void main() async {
     // 必须在 path_provider 等平台插件使用前初始化绑定
     WidgetsFlutterBinding.ensureInitialized();
 
-    // 在移动端（Android/iOS）使用 path_provider 获取应用数据目录，
-    // 避免错误地使用 Platform.resolvedExecutable（在安卓上指向只读系统路径）。
-    // 在桌面端（Windows/Linux/macOS）沿用基于可执行文件路径的传统逻辑。
-    final String appCacheRootPath;
-    if (Platform.isAndroid || Platform.isIOS) {
-      final appSupportDir = await getApplicationSupportDirectory();
-      appCacheRootPath = p.join(appSupportDir.path, 'cache');
-    } else {
-      appCacheRootPath = PersistenceService.getAppCacheRootPath();
-    }
+    // 初始化应用常量 (版本号等)
+    await AppConstants.init();
+
+    final bootstrap = BootstrapService();
+    await bootstrap.init();
+    final configuredDataPath = bootstrap.getDataPath();
+    final appCacheRootPath = await PersistenceService.getAppCacheRootPath(
+      rootPath: configuredDataPath,
+    );
 
     final appCacheRootDir = Directory(appCacheRootPath);
     if (!await appCacheRootDir.exists()) {
@@ -83,7 +90,9 @@ void main() async {
     final originalProvider = PathProviderPlatform.instance;
     PathProviderPlatform.instance = _DelegatingPathProvider(
       originalProvider,
-      appCacheRootPath,
+      () => PersistenceService.getAppCacheRootPath(
+        rootPath: PersistenceService().rootPath ?? configuredDataPath,
+      ),
     );
     GoogleFonts.config.allowRuntimeFetching = true;
 

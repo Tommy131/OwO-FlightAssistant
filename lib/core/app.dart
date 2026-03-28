@@ -186,6 +186,7 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
             activeIcon: Icons.settings,
             page: const SettingsPage(),
             priority: 9999,
+            defaultEnabled: true,
           ),
         );
       }

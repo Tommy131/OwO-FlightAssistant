@@ -1,7 +1,7 @@
 name: owo_flight_assistant
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.1.0
+version: 1.0.3-beta+20260327
 
 environment:
   sdk: ^3.9.2
@@ -33,6 +33,7 @@ dependencies:
   google_fonts: ^8.0.1
   path_provider_platform_interface: ^2.1.2
   confetti: ^0.8.0
+  package_info_plus: ^9.0.0
 
 dev_dependencies:
   flutter_test:

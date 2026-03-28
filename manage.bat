@@ -50,14 +50,21 @@ goto MENU
 
 :RUN
 echo.
+call :PRE_BUILD
 echo === Running application on Windows ===
 call flutter run -d windows
 goto MENU
 
 :BUILD_WINDOWS
 echo.
+call :PRE_BUILD
 echo === Building release for Windows ===
 call flutter build windows
+if %errorlevel% equ 0 (
+    echo.
+    echo Opening build folder...
+    start explorer build\windows\x64\runner\Release
+)
 echo.
 echo Finished build process.
 pause
@@ -65,9 +72,23 @@ goto MENU
 
 :BUILD_ANDROID
 echo.
+call :PRE_BUILD
 echo === Building release for Android ===
 call flutter build apk
+if %errorlevel% equ 0 (
+    echo.
+    echo Opening build folder...
+    start explorer build\app\outputs\flutter-apk
+)
 echo.
 echo Finished build process.
 pause
 goto MENU
+
+:PRE_BUILD
+echo.
+echo === Pre-build Tasks: Version Sync ^& Code Format ===
+call dart scripts/sync_version.dart --no-pub-get
+call dart format .
+echo.
+exit /b

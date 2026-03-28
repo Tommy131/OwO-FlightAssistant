@@ -42,9 +42,9 @@ class CommonModule implements ModuleRegistrar {
       ),
     );
 
-    // 导航可用性：仅在后端可达时允许访问业务页面
+    // 导航可用性：根据模块自身的配置决定是否需要连接中间件
     registry.navigationAvailability.register((context, item) {
-      if (item.id == 'home' || item.id == 'settings') return true;
+      if (item.defaultEnabled) return true;
       final provider = context.watch<FlightDataProvider?>();
       return provider?.isBackendReachable ?? false;
     });

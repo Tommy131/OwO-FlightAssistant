@@ -25,6 +25,7 @@ class HomeModule implements ModuleRegistrar {
         page: const HomePage(),
         priority: 10,
         groupId: 'general',
+        defaultEnabled: true,
       ),
     );
 
