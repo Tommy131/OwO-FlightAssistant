@@ -133,8 +133,9 @@ class TaxiwayNodeInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 格式化朝向文本
-    final headingText =
-        headingDeg == null ? '--' : '${headingDeg!.toStringAsFixed(0)}°';
+    final headingText = headingDeg == null
+        ? '--'
+        : '${headingDeg!.toStringAsFixed(0)}°';
 
     // 节点标题：若有名称则拼接，否则仅显示编号
     final titleText = (node.name ?? '').trim().isEmpty

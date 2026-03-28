@@ -49,9 +49,7 @@ Future<void> showTaxiwayAutoLoadDialog({
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // 提示说明文本
-                  Text(
-                    MapLocalizationKeys.taxiwayAutoLoadPrompt.tr(context),
-                  ),
+                  Text(MapLocalizationKeys.taxiwayAutoLoadPrompt.tr(context)),
                   const SizedBox(height: 10),
 
                   // 文件列表
@@ -65,8 +63,9 @@ Future<void> showTaxiwayAutoLoadDialog({
                         final selected = selectedPath == item.filePath;
                         final modifiedText = _formatDateTime(item.lastModified);
                         return ListTile(
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 0),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 0,
+                          ),
                           onTap: () {
                             setModalState(() {
                               selectedPath = item.filePath;

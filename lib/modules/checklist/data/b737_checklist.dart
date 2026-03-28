@@ -102,7 +102,10 @@ class B737Checklist {
             ),
             ChecklistItem(
               id: 'b2_5',
-              task: _l('防撞灯 (ANTI COLLISION)', 'Anti-Collision Light (ANTI COLLISION)'),
+              task: _l(
+                '防撞灯 (ANTI COLLISION)',
+                'Anti-Collision Light (ANTI COLLISION)',
+              ),
               response: _l('开启 (ON)', 'On (ON)'),
             ),
             ChecklistItem(
@@ -157,7 +160,10 @@ class B737Checklist {
             ),
             ChecklistItem(
               id: 'b_taxi_5',
-              task: _l('隔离阀 (ISOLATION VALVE)', 'Isolation Valve (ISOLATION VALVE)'),
+              task: _l(
+                '隔离阀 (ISOLATION VALVE)',
+                'Isolation Valve (ISOLATION VALVE)',
+              ),
               response: _l('自动 (AUTO)', 'Auto (AUTO)'),
             ),
             ChecklistItem(

@@ -70,7 +70,9 @@ class MapTaxiwayFileComponent {
       createdAt: createdAt,
       lastSavedAt: now,
     );
-    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(payload));
+    await file.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(payload),
+    );
     return nodes.length;
   }
 
@@ -110,12 +112,14 @@ class MapTaxiwayFileComponent {
       final data = await _loadTaxiwayFileDataFromPath(entity.path);
       if (data == null || data.nodes.isEmpty) continue;
 
-      summaries.add(MapTaxiwayFileSummary(
-        filePath: entity.path,
-        fileName: fileName,
-        lastModified: stat.modified,
-        nodeCount: data.nodes.length,
-      ));
+      summaries.add(
+        MapTaxiwayFileSummary(
+          filePath: entity.path,
+          fileName: fileName,
+          lastModified: stat.modified,
+          nodeCount: data.nodes.length,
+        ),
+      );
     }
     summaries.sort((a, b) => b.lastModified.compareTo(a.lastModified));
     return summaries;
@@ -161,21 +165,29 @@ class MapTaxiwayFileComponent {
         'last_saved_at': lastSavedAt.toIso8601String(),
       },
       'payload': {
-        'nodes': nodes.map((node) => {
-          'lat': node.latitude,
-          'lon': node.longitude,
-          if (node.name != null) 'name': node.name,
-          if (node.colorHex != null) 'color': node.colorHex,
-          if (node.note != null) 'note': node.note,
-        }).toList(),
-        'segments': segments.map((segment) => {
-          if (segment.name != null) 'name': segment.name,
-          if (segment.colorHex != null) 'color': segment.colorHex,
-          if (segment.note != null) 'note': segment.note,
-          'line_type': segment.lineType.value,
-          'curvature': segment.curvature,
-          'curve_direction': segment.curveDirection.value,
-        }).toList(),
+        'nodes': nodes
+            .map(
+              (node) => {
+                'lat': node.latitude,
+                'lon': node.longitude,
+                if (node.name != null) 'name': node.name,
+                if (node.colorHex != null) 'color': node.colorHex,
+                if (node.note != null) 'note': node.note,
+              },
+            )
+            .toList(),
+        'segments': segments
+            .map(
+              (segment) => {
+                if (segment.name != null) 'name': segment.name,
+                if (segment.colorHex != null) 'color': segment.colorHex,
+                if (segment.note != null) 'note': segment.note,
+                'line_type': segment.lineType.value,
+                'curvature': segment.curvature,
+                'curve_direction': segment.curveDirection.value,
+              },
+            )
+            .toList(),
       },
     };
   }
@@ -248,8 +260,7 @@ class MapTaxiwayFileComponent {
       return MapTaxiwayFileData(
         nodes: importedNodes,
         segments: importedSegments,
-        airportIcao:
-            normalizedIcao?.isEmpty ?? true ? null : normalizedIcao,
+        airportIcao: normalizedIcao?.isEmpty ?? true ? null : normalizedIcao,
         createdAt: createdAt,
       );
     } catch (_) {
@@ -262,11 +273,10 @@ class MapTaxiwayFileComponent {
     final persistence = PersistenceService();
     await persistence.ensureReady();
     final rootPath = persistence.rootPath?.trim();
-    final fallbackPath = PersistenceService.getProcessedRootPath(
-      PersistenceService.getAppCacheRootPath(),
-    );
-    final storageRootPath =
-        (rootPath == null || rootPath.isEmpty) ? fallbackPath : rootPath;
+    final fallbackPath = await PersistenceService.getDefaultRootPath();
+    final storageRootPath = (rootPath == null || rootPath.isEmpty)
+        ? fallbackPath
+        : rootPath;
     final directory = Directory(p.join(storageRootPath, 'taxiway'));
     if (!await directory.exists()) {
       await directory.create(recursive: true);
@@ -299,8 +309,7 @@ class MapTaxiwayFileComponent {
     }
   }
 
-  static bool _isMobilePlatform() =>
-      Platform.isAndroid || Platform.isIOS;
+  static bool _isMobilePlatform() => Platform.isAndroid || Platform.isIOS;
 
   /// 弹出系统文件选择对话框并返回用户选择的结果。
   static Future<FilePickerResult?> _pickTaxiwayFile({
@@ -343,16 +352,14 @@ class MapTaxiwayFileComponent {
   }) {
     final normalizedPath = _normalizeJsonFilePath(filePath);
     final directory = p.dirname(normalizedPath);
-    final baseName =
-        p.basenameWithoutExtension(normalizedPath).trim();
+    final baseName = p.basenameWithoutExtension(normalizedPath).trim();
     final normalizedIcao = airportIcao.trim().toUpperCase();
     final prefix = '${normalizedIcao}_taxiway_';
     final lowerBaseName = baseName.toLowerCase();
     final customName = lowerBaseName.startsWith(prefix)
         ? baseName.substring(prefix.length)
         : baseName;
-    final safeCustomName =
-        customName.trim().isEmpty ? 'custom' : customName;
+    final safeCustomName = customName.trim().isEmpty ? 'custom' : customName;
     return p.join(directory, '$prefix$safeCustomName.json');
   }
 
@@ -422,7 +429,8 @@ class MapTaxiwayFileComponent {
     final map = _asMap(item);
     if (map == null) return null;
     final curvatureRaw = _toDouble(map['curvature']);
-    final curvature = (curvatureRaw != null &&
+    final curvature =
+        (curvatureRaw != null &&
             !curvatureRaw.isNaN &&
             !curvatureRaw.isInfinite)
         ? curvatureRaw.clamp(0.0, 1.0).toDouble()
@@ -437,8 +445,7 @@ class MapTaxiwayFileComponent {
         map['line_type']?.toString() ?? map['lineType']?.toString(),
       ),
       curveDirection: MapTaxiwaySegmentCurveDirectionX.fromValue(
-        map['curve_direction']?.toString() ??
-            map['curveDirection']?.toString(),
+        map['curve_direction']?.toString() ?? map['curveDirection']?.toString(),
       ),
       curvature: curvature,
     );

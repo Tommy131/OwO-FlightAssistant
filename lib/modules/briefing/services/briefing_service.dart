@@ -27,7 +27,9 @@ class BriefingService {
         metar: result.metar,
       );
     } catch (e) {
-      AppLogger.warning('Failed to fetch METAR for $icao, falling back to static data: $e');
+      AppLogger.warning(
+        'Failed to fetch METAR for $icao, falling back to static data: $e',
+      );
       // 网络请求失败时回退到纯静态详情加载
       final airport = await _airportService.fetchAirport(icao);
       return BriefingAirportBundle(airport: airport, metar: null);

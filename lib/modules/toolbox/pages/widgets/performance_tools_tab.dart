@@ -127,13 +127,15 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
       cgAft,
     ].contains(null)) {
       setState(
-        () => _wbResult =
-            ToolboxLocalizationKeys.commonInvalidNumber.tr(context),
+        () =>
+            _wbResult = ToolboxLocalizationKeys.commonInvalidNumber.tr(context),
       );
       return;
     }
-    final totalWeight = bew! + frontWeight! + rearWeight! + cargoWeight! + fuelWeight!;
-    final totalMoment = bew * bewArm! +
+    final totalWeight =
+        bew! + frontWeight! + rearWeight! + cargoWeight! + fuelWeight!;
+    final totalMoment =
+        bew * bewArm! +
         frontWeight * frontArm! +
         rearWeight * rearArm! +
         cargoWeight * cargoArm! +
@@ -160,17 +162,25 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
     final oat = _v(_oatController);
     final headwind = _v(_headwindController);
     final aircraftWeight = _v(_aircraftWeightController);
-    if ([runwayLength, pressureAltitude, oat, headwind, aircraftWeight].contains(null)) {
+    if ([
+      runwayLength,
+      pressureAltitude,
+      oat,
+      headwind,
+      aircraftWeight,
+    ].contains(null)) {
       setState(
-        () => _perfResult =
-            ToolboxLocalizationKeys.commonInvalidNumber.tr(context),
+        () => _perfResult = ToolboxLocalizationKeys.commonInvalidNumber.tr(
+          context,
+        ),
       );
       return;
     }
     if (runwayLength! <= 0 || aircraftWeight! <= 0) {
       setState(
-        () =>
-            _perfResult = ToolboxLocalizationKeys.commonInvalidRange.tr(context),
+        () => _perfResult = ToolboxLocalizationKeys.commonInvalidRange.tr(
+          context,
+        ),
       );
       return;
     }
@@ -191,8 +201,8 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
     final level = tkMargin >= 300 && ldMargin >= 300
         ? ToolboxLocalizationKeys.perfMarginHigh.tr(context)
         : tkMargin >= 0 && ldMargin >= 0
-            ? ToolboxLocalizationKeys.perfAcceptable.tr(context)
-            : ToolboxLocalizationKeys.perfNotMet.tr(context);
+        ? ToolboxLocalizationKeys.perfAcceptable.tr(context)
+        : ToolboxLocalizationKeys.perfNotMet.tr(context);
     setState(() {
       _perfResult =
           '${ToolboxLocalizationKeys.perfTakeoffRequired.tr(context)} ${takeoffRequired.toStringAsFixed(0)} m\n'
@@ -223,7 +233,9 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
       decoration: BoxDecoration(
         color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
-        border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,7 +343,10 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
                   icon: const Icon(Icons.calculate),
                   label: Text(ToolboxLocalizationKeys.perfWbButton.tr(context)),
                 ),
-                _result(ToolboxLocalizationKeys.perfWbResultTitle.tr(context), _wbResult),
+                _result(
+                  ToolboxLocalizationKeys.perfWbResultTitle.tr(context),
+                  _wbResult,
+                ),
               ],
             ),
           ),
@@ -374,7 +389,9 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
                 SwitchListTile(
                   value: _wetRunway,
                   onChanged: (value) => setState(() => _wetRunway = value),
-                  title: Text(ToolboxLocalizationKeys.perfWetRunway.tr(context)),
+                  title: Text(
+                    ToolboxLocalizationKeys.perfWetRunway.tr(context),
+                  ),
                   contentPadding: EdgeInsets.zero,
                 ),
                 const SizedBox(height: AppThemeData.spacingMedium),

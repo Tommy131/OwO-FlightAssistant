@@ -83,7 +83,9 @@ class ChecklistService {
         parsed = _parser.parseText(content);
       }
       final normalized = _normalizeImported(parsed, sourceHint: sourceHint);
-      AppLogger.info('Successfully loaded ${normalized.length} aircraft checklists from ${file.path}');
+      AppLogger.info(
+        'Successfully loaded ${normalized.length} aircraft checklists from ${file.path}',
+      );
       return normalized;
     } catch (e) {
       AppLogger.error('Failed to load checklist from ${file.path}: $e');

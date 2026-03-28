@@ -463,7 +463,10 @@ class _AnalysisTrackMapState extends State<AnalysisTrackMap> {
       }
     }
     for (final marker in specialMarkers) {
-      final markerLatLng = LatLng(marker.point.latitude, marker.point.longitude);
+      final markerLatLng = LatLng(
+        marker.point.latitude,
+        marker.point.longitude,
+      );
       final distanceMeters = const Distance().as(
         LengthUnit.Meter,
         tappedLatLng,

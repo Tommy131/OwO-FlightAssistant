@@ -43,7 +43,10 @@ class ChecklistPage extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppThemeData.spacingMedium,
                         ),
-                        child: ChecklistSidebar(provider: provider, isCompact: true),
+                        child: ChecklistSidebar(
+                          provider: provider,
+                          isCompact: true,
+                        ),
                       ),
                       Expanded(
                         child: _buildChecklistCard(

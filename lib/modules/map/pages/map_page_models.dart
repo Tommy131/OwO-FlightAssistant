@@ -111,8 +111,5 @@ class PlannedRouteLegPoint {
   final double latitude;
   final double longitude;
 
-  const PlannedRouteLegPoint({
-    required this.latitude,
-    required this.longitude,
-  });
+  const PlannedRouteLegPoint({required this.latitude, required this.longitude});
 }

@@ -84,10 +84,7 @@ class MapTaxiwayOperationRecord {
   /// 操作执行之后的状态快照。
   final MapTaxiwayOperationSnapshot after;
 
-  const MapTaxiwayOperationRecord({
-    required this.before,
-    required this.after,
-  });
+  const MapTaxiwayOperationRecord({required this.before, required this.after});
 }
 
 /// 飞机位置与滑行路线线段的最近匹配结果。

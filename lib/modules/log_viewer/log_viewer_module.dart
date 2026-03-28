@@ -28,6 +28,7 @@ class LogViewerModule implements ModuleRegistrar {
         page: const LogViewerPage(),
         priority: 100,
         groupId: 'tools',
+        defaultEnabled: true,
       ),
     );
   }

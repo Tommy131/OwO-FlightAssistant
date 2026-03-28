@@ -24,10 +24,7 @@ class AppBarActionRegistry {
     return actions;
   }
 
-  void registerSideMenu(
-    String id,
-    AppBarSideMenuEntry Function() factory,
-  ) {
+  void registerSideMenu(String id, AppBarSideMenuEntry Function() factory) {
     _sideMenuFactories[id] = factory;
   }
 

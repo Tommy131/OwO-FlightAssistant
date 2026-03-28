@@ -41,16 +41,17 @@ class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
     if (metar.isEmpty) {
       return ToolboxLocalizationKeys.weatherNoMetarInput.tr(context);
     }
-    final windMatch = RegExp(r'(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT').firstMatch(
-      metar,
-    );
-    final visMatch = RegExp(r'\b(\d{4}|P?\d+/\d+SM|P?\d+SM)\b').firstMatch(metar);
+    final windMatch = RegExp(
+      r'(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?KT',
+    ).firstMatch(metar);
+    final visMatch = RegExp(
+      r'\b(\d{4}|P?\d+/\d+SM|P?\d+SM)\b',
+    ).firstMatch(metar);
     final qnhMatch = RegExp(r'\b(Q\d{4}|A\d{4})\b').firstMatch(metar);
     final tempMatch = RegExp(r'\b(M?\d{2})/(M?\d{2})\b').firstMatch(metar);
-    final cloudMatches = RegExp(r'\b(FEW|SCT|BKN|OVC|VV)\d{3}\b')
-        .allMatches(metar)
-        .map((e) => e.group(0)!)
-        .toList();
+    final cloudMatches = RegExp(
+      r'\b(FEW|SCT|BKN|OVC|VV)\d{3}\b',
+    ).allMatches(metar).map((e) => e.group(0)!).toList();
     final visibilitySm = MapWeatherUtils.parseVisibilitySm(visMatch?.group(1));
     final ceilingFt = MapWeatherUtils.parseCeilingFt(cloudMatches.join(' '));
     final rule = _resolveRule(visibilitySm, ceilingFt);
@@ -66,7 +67,8 @@ class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
   }
 
   String _decodeTaf(BuildContext context, String taf) {
-    if (taf.isEmpty) return ToolboxLocalizationKeys.weatherNoTafInput.tr(context);
+    if (taf.isEmpty)
+      return ToolboxLocalizationKeys.weatherNoTafInput.tr(context);
     final tokens = <String>[];
     if (taf.contains('TEMPO')) {
       tokens.add(ToolboxLocalizationKeys.weatherTafTempo.tr(context));
@@ -114,7 +116,8 @@ class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
     if (metarText.contains('G') || tafText.contains('G')) {
       risks.add(ToolboxLocalizationKeys.weatherRiskGust.tr(context));
     }
-    if (risks.isEmpty) return ToolboxLocalizationKeys.weatherRiskNone.tr(context);
+    if (risks.isEmpty)
+      return ToolboxLocalizationKeys.weatherRiskNone.tr(context);
     return risks.map((e) => '• $e').join('\n');
   }
 
@@ -135,10 +138,9 @@ class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
   }
 
   double? _extractWorstVisibility(String raw) {
-    final matches = RegExp(r'(\d{4}|P?\d+/\d+SM|P?\d+SM)')
-        .allMatches(raw)
-        .map((m) => m.group(1)!)
-        .toList();
+    final matches = RegExp(
+      r'(\d{4}|P?\d+/\d+SM|P?\d+SM)',
+    ).allMatches(raw).map((m) => m.group(1)!).toList();
     double? minVis;
     for (final token in matches) {
       final vis = MapWeatherUtils.parseVisibilitySm(token);
@@ -161,7 +163,9 @@ class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
       margin: const EdgeInsets.only(top: AppThemeData.spacingMedium),
       padding: const EdgeInsets.all(AppThemeData.spacingMedium),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.45,
+        ),
         borderRadius: BorderRadius.circular(AppThemeData.borderRadiusMedium),
       ),
       child: Column(
@@ -207,7 +211,9 @@ class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
             ElevatedButton.icon(
               onPressed: () => _decode(context),
               icon: const Icon(Icons.translate),
-              label: Text(ToolboxLocalizationKeys.weatherDecodeButton.tr(context)),
+              label: Text(
+                ToolboxLocalizationKeys.weatherDecodeButton.tr(context),
+              ),
             ),
             if (_metarSummary.isNotEmpty)
               _resultBlock(

@@ -41,12 +41,16 @@ class GenericChecklist {
             ChecklistItem(
               id: 'g2_1',
               task: t(ChecklistLocalizationKeys.genericTaskFlightControls),
-              response: t(ChecklistLocalizationKeys.genericResponseFreeAndCorrect),
+              response: t(
+                ChecklistLocalizationKeys.genericResponseFreeAndCorrect,
+              ),
             ),
             ChecklistItem(
               id: 'g2_2',
               task: t(ChecklistLocalizationKeys.genericTaskFlaps),
-              response: t(ChecklistLocalizationKeys.genericResponseSetAsRequired),
+              response: t(
+                ChecklistLocalizationKeys.genericResponseSetAsRequired,
+              ),
             ),
             ChecklistItem(
               id: 'g2_3',

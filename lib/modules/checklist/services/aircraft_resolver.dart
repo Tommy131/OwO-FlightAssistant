@@ -67,7 +67,9 @@ class AircraftResolver {
   List<AircraftChecklist> getBuiltInChecklists() {
     final t = LocalizationService().translate;
     return [
-      GenericChecklist.create(t(ChecklistLocalizationKeys.builtInGenericAircraft)),
+      GenericChecklist.create(
+        t(ChecklistLocalizationKeys.builtInGenericAircraft),
+      ),
       A320Checklist.create('A320-200 / A321 / A319'),
       B737Checklist.create('B737-800 / Max'),
     ];

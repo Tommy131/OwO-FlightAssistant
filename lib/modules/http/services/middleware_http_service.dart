@@ -227,7 +227,11 @@ class MiddlewareHttpService {
     } on MiddlewareHttpException {
       rethrow;
     } catch (e, stackTrace) {
-      AppLogger.error('Middleware HTTP request error: $method $path', e, stackTrace);
+      AppLogger.error(
+        'Middleware HTTP request error: $method $path',
+        e,
+        stackTrace,
+      );
       throw MiddlewareHttpException(message: 'Request error: $e', uri: uri);
     }
   }

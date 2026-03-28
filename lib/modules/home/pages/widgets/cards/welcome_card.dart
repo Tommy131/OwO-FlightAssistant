@@ -103,7 +103,10 @@ class WelcomeCard extends StatelessWidget {
               padding: const EdgeInsets.all(AppThemeData.spacingLarge),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [theme.colorScheme.primary, theme.colorScheme.secondary],
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary,
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),

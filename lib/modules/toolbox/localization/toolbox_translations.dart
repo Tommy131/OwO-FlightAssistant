@@ -126,29 +126,19 @@ final Map<String, Map<String, String>> toolboxTranslations = {
     ToolboxLocalizationKeys.opsQuickRefStallAction3: '按程序逐步收回减阻构型',
     ToolboxLocalizationKeys.opsQuickRefWindshearTitle: '风切变逃逸',
     ToolboxLocalizationKeys.opsQuickRefWindshearTrigger: '近地面风速或垂直速度突变',
-    ToolboxLocalizationKeys.opsQuickRefWindshearAction1:
-        '按风切变口令执行最大持续推力',
-    ToolboxLocalizationKeys.opsQuickRefWindshearAction2:
-        '保持机翼水平，目标姿态约 15°',
-    ToolboxLocalizationKeys.opsQuickRefWindshearAction3:
-        '除非撞地风险，不要改变构型',
+    ToolboxLocalizationKeys.opsQuickRefWindshearAction1: '按风切变口令执行最大持续推力',
+    ToolboxLocalizationKeys.opsQuickRefWindshearAction2: '保持机翼水平，目标姿态约 15°',
+    ToolboxLocalizationKeys.opsQuickRefWindshearAction3: '除非撞地风险，不要改变构型',
     ToolboxLocalizationKeys.opsQuickRefGoAroundTitle: '复飞程序',
-    ToolboxLocalizationKeys.opsQuickRefGoAroundTrigger:
-        '进近不稳定或跑道条件不满足',
-    ToolboxLocalizationKeys.opsQuickRefGoAroundAction1:
-        '执行 TOGA 推力并建立正爬升',
-    ToolboxLocalizationKeys.opsQuickRefGoAroundAction2:
-        '按标准复飞高度和航向执行',
-    ToolboxLocalizationKeys.opsQuickRefGoAroundAction3:
-        '确认构型并完成复飞检查单',
+    ToolboxLocalizationKeys.opsQuickRefGoAroundTrigger: '进近不稳定或跑道条件不满足',
+    ToolboxLocalizationKeys.opsQuickRefGoAroundAction1: '执行 TOGA 推力并建立正爬升',
+    ToolboxLocalizationKeys.opsQuickRefGoAroundAction2: '按标准复飞高度和航向执行',
+    ToolboxLocalizationKeys.opsQuickRefGoAroundAction3: '确认构型并完成复飞检查单',
     ToolboxLocalizationKeys.opsQuickRefEngineFailTitle: '发动机失效（起飞后）',
     ToolboxLocalizationKeys.opsQuickRefEngineFailTrigger: '起飞后出现推力不对称',
-    ToolboxLocalizationKeys.opsQuickRefEngineFailAction1:
-        '方向舵保持航向并控制姿态',
-    ToolboxLocalizationKeys.opsQuickRefEngineFailAction2:
-        '维持安全速度并确认单发程序',
-    ToolboxLocalizationKeys.opsQuickRefEngineFailAction3:
-        '根据场景决定继续爬升或返航',
+    ToolboxLocalizationKeys.opsQuickRefEngineFailAction1: '方向舵保持航向并控制姿态',
+    ToolboxLocalizationKeys.opsQuickRefEngineFailAction2: '维持安全速度并确认单发程序',
+    ToolboxLocalizationKeys.opsQuickRefEngineFailAction3: '根据场景决定继续爬升或返航',
     ToolboxLocalizationKeys.perfWbSectionTitle: '重量重心估算',
     ToolboxLocalizationKeys.perfBew: '基础空重(kg)',
     ToolboxLocalizationKeys.perfBewArm: '基础空重臂位',
@@ -297,7 +287,8 @@ final Map<String, Map<String, String>> toolboxTranslations = {
     ToolboxLocalizationKeys.weatherWorstVisibility: 'Worst Visibility',
     ToolboxLocalizationKeys.weatherLowestCeiling: 'Lowest Ceiling',
     ToolboxLocalizationKeys.weatherRiskLowVis: 'Current visibility below 3SM',
-    ToolboxLocalizationKeys.weatherRiskLowCeiling: 'Current ceiling below 1000ft',
+    ToolboxLocalizationKeys.weatherRiskLowCeiling:
+        'Current ceiling below 1000ft',
     ToolboxLocalizationKeys.weatherRiskWindShear: 'Wind shear signal detected',
     ToolboxLocalizationKeys.weatherRiskThunder: 'Thunderstorm risk detected',
     ToolboxLocalizationKeys.weatherRiskIcing: 'Icing risk detected',
@@ -311,7 +302,8 @@ final Map<String, Map<String, String>> toolboxTranslations = {
     ToolboxLocalizationKeys.opsSeverityHigh: 'High',
     ToolboxLocalizationKeys.opsSeverityMedium: 'Medium',
     ToolboxLocalizationKeys.opsSeverityLow: 'Low',
-    ToolboxLocalizationKeys.opsQuickRefSectionTitle: 'Emergency Quick Reference',
+    ToolboxLocalizationKeys.opsQuickRefSectionTitle:
+        'Emergency Quick Reference',
     ToolboxLocalizationKeys.opsQuickRefStallTitle: 'Stall Warning',
     ToolboxLocalizationKeys.opsQuickRefStallTrigger:
         'Airspeed drops with stall warning',
@@ -374,7 +366,8 @@ final Map<String, Map<String, String>> toolboxTranslations = {
     ToolboxLocalizationKeys.perfExceeded: 'Exceeded',
     ToolboxLocalizationKeys.perfDispatchable: 'Dispatchable',
     ToolboxLocalizationKeys.perfOutOfLimit: 'Out of Limit',
-    ToolboxLocalizationKeys.perfRunwaySectionTitle: 'Takeoff/Landing Performance',
+    ToolboxLocalizationKeys.perfRunwaySectionTitle:
+        'Takeoff/Landing Performance',
     ToolboxLocalizationKeys.perfRunwayLength: 'Available Runway Length (m)',
     ToolboxLocalizationKeys.perfPressureAltitude: 'Pressure Altitude (ft)',
     ToolboxLocalizationKeys.perfOat: 'Outside Air Temp (°C)',

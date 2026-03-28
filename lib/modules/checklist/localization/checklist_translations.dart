@@ -128,8 +128,7 @@ final Map<String, Map<String, String>> checklistTranslations = {
     ChecklistLocalizationKeys.genericResponseOn: 'On (ON)',
     ChecklistLocalizationKeys.genericResponseChecked: 'Checked',
     ChecklistLocalizationKeys.genericResponseCompleted: 'Completed',
-    ChecklistLocalizationKeys.genericResponseFreeAndCorrect:
-        'Free and Correct',
+    ChecklistLocalizationKeys.genericResponseFreeAndCorrect: 'Free and Correct',
     ChecklistLocalizationKeys.genericResponseSetAsRequired:
         'Set as Required (SET)',
     ChecklistLocalizationKeys.genericResponseBriefed: 'Briefed',

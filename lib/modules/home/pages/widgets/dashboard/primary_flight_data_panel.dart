@@ -34,7 +34,9 @@ class PrimaryFlightDataPanel extends StatelessWidget {
       DataCard(
         icon: Icons.speed,
         label: HomeLocalizationKeys.primaryAirspeed.tr(context),
-        value: data.airspeed != null ? '${data.airspeed!.toStringAsFixed(0)} kt' : 'N/A',
+        value: data.airspeed != null
+            ? '${data.airspeed!.toStringAsFixed(0)} kt'
+            : 'N/A',
         subValue: data.machNumber != null && data.machNumber! > 0.1
             ? 'M ${data.machNumber!.toStringAsFixed(3)}'
             : null,
@@ -43,13 +45,17 @@ class PrimaryFlightDataPanel extends StatelessWidget {
       DataCard(
         icon: Icons.height,
         label: HomeLocalizationKeys.primaryAltitude.tr(context),
-        value: data.altitude != null ? '${data.altitude!.toStringAsFixed(0)} ft' : 'N/A',
+        value: data.altitude != null
+            ? '${data.altitude!.toStringAsFixed(0)} ft'
+            : 'N/A',
         color: Colors.green,
       ),
       DataCard(
         icon: Icons.explore,
         label: HomeLocalizationKeys.primaryHeading.tr(context),
-        value: data.heading != null ? '${data.heading!.toStringAsFixed(0)}°' : 'N/A',
+        value: data.heading != null
+            ? '${data.heading!.toStringAsFixed(0)}°'
+            : 'N/A',
         color: Colors.purple,
       ),
       DataCard(

@@ -425,8 +425,7 @@ final Map<String, Map<String, String>> mapTranslations = {
     MapLocalizationKeys.crashQuote3: 'At least you landed on Earth.',
     MapLocalizationKeys.crashQuote4:
         'Good news: in a simulator, reset is always available.',
-    MapLocalizationKeys.crashQuote5:
-        'That landing gets 1 point out of 100.',
+    MapLocalizationKeys.crashQuote5: 'That landing gets 1 point out of 100.',
     MapLocalizationKeys.crashQuote6:
         'Tower asked if you needed carpet; you gave them a crater.',
     MapLocalizationKeys.crashQuote7:

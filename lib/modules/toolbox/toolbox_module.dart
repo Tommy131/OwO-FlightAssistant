@@ -26,6 +26,7 @@ class ToolboxModule implements ModuleRegistrar {
         page: const ToolboxPage(),
         priority: 35,
         groupId: 'tools',
+        defaultEnabled: true,
       ),
     );
 

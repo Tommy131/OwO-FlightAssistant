@@ -19,8 +19,16 @@ class LogEntry {
 
 class LogViewerService {
   static Future<List<LogEntry>> readLogs(String fileName) async {
-    final logDir = AppLogger.logDirectory ?? 
-        p.join(PersistenceService.getAppCacheRootPath(), 'logs');
+    final persistence = PersistenceService();
+    await persistence.ensureReady();
+    final logDir =
+        AppLogger.logDirectory ??
+        p.join(
+          await PersistenceService.getAppCacheRootPath(
+            rootPath: persistence.rootPath,
+          ),
+          'logs',
+        );
     final logFile = File(p.join(logDir, fileName));
 
     if (!await logFile.exists()) {
@@ -34,7 +42,7 @@ class LogViewerService {
       // Split by the start of a PrettyPrinter block (┌)
       // We use a regex to split while keeping the delimiter
       final blocks = content.split(RegExp(r'(?=┌)'));
-      
+
       final entries = <LogEntry>[];
       for (final block in blocks) {
         if (block.trim().isEmpty) continue;
@@ -64,7 +72,9 @@ class LogViewerService {
 
     // Extract timestamp
     // Example format in PrettyPrinter: "│ 20:32:58.141 (+0:00:52.476112)"
-    final timestampMatch = RegExp(r'│\s(\d{2}:\d{2}:\d{2}\.\d{3}.*?)\s').firstMatch(block);
+    final timestampMatch = RegExp(
+      r'│\s(\d{2}:\d{2}:\d{2}\.\d{3}.*?)\s',
+    ).firstMatch(block);
     final timestamp = timestampMatch?.group(1) ?? '';
 
     // Clean up the block: remove the box-drawing characters for cleaner display

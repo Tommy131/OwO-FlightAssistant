@@ -113,8 +113,9 @@ Future<void> showTaxiwayNodeEditorDialog({
                     TextField(
                       controller: nameController,
                       decoration: InputDecoration(
-                        labelText: MapLocalizationKeys.taxiwayNodeName
-                            .tr(context),
+                        labelText: MapLocalizationKeys.taxiwayNodeName.tr(
+                          context,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -123,8 +124,9 @@ Future<void> showTaxiwayNodeEditorDialog({
                     TextField(
                       controller: noteController,
                       decoration: InputDecoration(
-                        labelText: MapLocalizationKeys.taxiwayNodeNote
-                            .tr(context),
+                        labelText: MapLocalizationKeys.taxiwayNodeNote.tr(
+                          context,
+                        ),
                       ),
                       minLines: 2,
                       maxLines: 3,
@@ -172,11 +174,8 @@ Future<void> showTaxiwayNodeEditorDialog({
                   }
                   Navigator.of(dialogContext).pop();
                 },
-                style:
-                    TextButton.styleFrom(foregroundColor: Colors.redAccent),
-                child: Text(
-                  MapLocalizationKeys.taxiwayDeleteNode.tr(context),
-                ),
+                style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                child: Text(MapLocalizationKeys.taxiwayDeleteNode.tr(context)),
               ),
               // 保存修改
               FilledButton(
@@ -275,8 +274,9 @@ Future<void> showTaxiwaySegmentEditorDialog({
                     TextField(
                       controller: nameController,
                       decoration: InputDecoration(
-                        labelText: MapLocalizationKeys.taxiwayConnectionName
-                            .tr(context),
+                        labelText: MapLocalizationKeys.taxiwayConnectionName.tr(
+                          context,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -285,8 +285,9 @@ Future<void> showTaxiwaySegmentEditorDialog({
                     TextField(
                       controller: noteController,
                       decoration: InputDecoration(
-                        labelText: MapLocalizationKeys.taxiwayConnectionNote
-                            .tr(context),
+                        labelText: MapLocalizationKeys.taxiwayConnectionNote.tr(
+                          context,
+                        ),
                       ),
                       minLines: 2,
                       maxLines: 3,
@@ -314,9 +315,7 @@ Future<void> showTaxiwaySegmentEditorDialog({
 
                     // ── 线型选择 ──────────────────────────────────
                     Text(
-                      MapLocalizationKeys.taxiwayConnectionLineType.tr(
-                        context,
-                      ),
+                      MapLocalizationKeys.taxiwayConnectionLineType.tr(context),
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
@@ -359,7 +358,8 @@ Future<void> showTaxiwaySegmentEditorDialog({
                       max: 1.0,
                       divisions: 20,
                       // 仅曲线模式下启用
-                      onChanged: selectedLineType ==
+                      onChanged:
+                          selectedLineType ==
                               MapTaxiwaySegmentLineType.mapMatching
                           ? (value) {
                               setModalState(() => selectedCurvature = value);
@@ -396,7 +396,8 @@ Future<void> showTaxiwaySegmentEditorDialog({
                         ),
                       ],
                       // 仅曲线模式下启用
-                      onChanged: selectedLineType ==
+                      onChanged:
+                          selectedLineType ==
                               MapTaxiwaySegmentLineType.mapMatching
                           ? (value) {
                               if (value == null) return;
@@ -410,9 +411,7 @@ Future<void> showTaxiwaySegmentEditorDialog({
 
                     // ── 拖动操作提示文本 ──────────────────────────
                     Text(
-                      MapLocalizationKeys.taxiwayConnectionDragHint.tr(
-                        context,
-                      ),
+                      MapLocalizationKeys.taxiwayConnectionDragHint.tr(context),
                       style: const TextStyle(fontSize: 12),
                     ),
                   ],

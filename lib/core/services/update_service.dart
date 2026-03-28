@@ -210,7 +210,9 @@ class UpdateService {
           .timeout(Duration(seconds: config.timeoutSeconds));
 
       if (response.statusCode != 200) {
-        AppLogger.warning('Version check request failed: ${response.statusCode}');
+        AppLogger.warning(
+          'Version check request failed: ${response.statusCode}',
+        );
         return UpdateCheckResult(
           hasUpdate: false,
           currentVersion: currentVersion,
