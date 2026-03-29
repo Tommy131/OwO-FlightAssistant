@@ -1,15 +1,36 @@
 {
     "cSpell.words": [
         "airac",
+        "Airmet",
+        "ATIS",
         "autothrottle",
+        "BECMG",
+        "CIFP",
+        "Datagram",
         "flutterlocalnotifications",
+        "FMCU",
+        "FOQA",
+        "IVAO",
+        "Jeppesen",
+        "KAPT",
         "latlon",
+        "LIFR",
         "metar",
         "metars",
         "msfs",
+        "MVFR",
+        "Navigraph",
+        "NOTAM",
+        "PMDG",
         "POWERON",
         "pushback",
         "QUICKBOOT",
-        "xplane"
+        "RREF",
+        "Sigmet",
+        "Toliss",
+        "Vatsim",
+        "xplane",
+        "ZBAA",
+        "ZSPD"
     ]
 }
