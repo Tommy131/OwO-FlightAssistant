@@ -31,6 +31,7 @@ final Map<String, String> zhCN = {
       '此操作将清除所有配置、缓存、数据，并重新引导您完成初始化。\n\n该操作不可撤销！',
   LocalizationKeys.resetSuccess: '重置完毕，正在重启应用...',
   LocalizationKeys.success: '成功',
+  LocalizationKeys.doubleBackExit: '再次操作以退出程序',
   LocalizationKeys.languageStep: '语言设置',
   LocalizationKeys.storagePathStep: '选择存储路径',
   LocalizationKeys.logSettingsStep: '日志设置',

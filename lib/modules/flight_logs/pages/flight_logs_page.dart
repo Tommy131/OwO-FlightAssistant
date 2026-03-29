@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/services/back_handler_service.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/dialog.dart';
@@ -20,10 +21,27 @@ class _FlightLogsPageState extends State<FlightLogsPage> {
   @override
   void initState() {
     super.initState();
+    BackHandlerService().register(_onBack);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<FlightLogsProvider>().refreshLogs();
     });
+  }
+
+  @override
+  void dispose() {
+    BackHandlerService().unregister(_onBack);
+    super.dispose();
+  }
+
+  bool _onBack() {
+    if (!mounted) return false;
+    final provider = context.read<FlightLogsProvider>();
+    if (provider.selectedLog != null) {
+      provider.clearSelection();
+      return true;
+    }
+    return false;
   }
 
   @override

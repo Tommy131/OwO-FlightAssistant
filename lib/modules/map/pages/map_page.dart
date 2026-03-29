@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/services/back_handler_service.dart';
 import '../../../core/localization/localization_keys.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/widgets/common/dialog.dart';
@@ -77,9 +78,36 @@ class _MapPageState extends State<MapPage> {
   final Set<String> _taxiwayAutoPromptedAirports = <String>{};
 
   @override
+  void initState() {
+    super.initState();
+    BackHandlerService().register(_onBack);
+  }
+
+  @override
   void dispose() {
+    BackHandlerService().unregister(_onBack);
     _airportFetchTimer?.cancel();
     super.dispose();
+  }
+
+  bool _onBack() {
+    if (!mounted) return false;
+    // 1. 如果选中了机场，则先关闭机场详情卡片
+    if (_selectedAirport != null) {
+      setState(() {
+        _selectedAirport = null;
+        _selectedAirportDetail = null;
+      });
+      return true;
+    }
+    // 2. 如果显示了飞机详情面板，则先关闭面板
+    if (_showAircraftInfoPanel) {
+      setState(() {
+        _showAircraftInfoPanel = false;
+      });
+      return true;
+    }
+    return false;
   }
 
   @override

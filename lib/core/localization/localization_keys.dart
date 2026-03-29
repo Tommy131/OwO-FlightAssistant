@@ -30,6 +30,7 @@ class LocalizationKeys {
   static const String resetAppConfirmContent = 'reset_app_confirm_content';
   static const String resetSuccess = 'reset_success';
   static const String success = 'success';
+  static const String doubleBackExit = 'double_back_exit';
 
   // Wizard Steps
   static const String languageStep = 'language_step';

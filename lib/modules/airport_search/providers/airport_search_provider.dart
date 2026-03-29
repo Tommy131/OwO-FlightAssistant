@@ -89,6 +89,14 @@ class AirportSearchProvider extends ChangeNotifier {
     }
   }
 
+  /// 清空当前查询结果，返回初始状态
+  void clearResult() {
+    _latestResult = null;
+    _errorKey = null;
+    _suggestions = [];
+    notifyListeners();
+  }
+
   /// 根据当前输入动态更新搜索建议列表
   /// 配合 UI 层的防抖处理使用，优化 API 请求频率
   Future<void> updateSuggestions(String input) async {

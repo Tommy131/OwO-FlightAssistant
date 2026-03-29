@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -8,6 +9,7 @@ import 'settings_pages/settings_page.dart';
 import 'theme/theme_provider.dart';
 import 'constants/app_constants.dart';
 import 'module_registry/navigation/navigation_item.dart';
+import 'services/back_handler_service.dart';
 import 'services/notification_service.dart';
 import 'utils/logger.dart';
 import 'utils/update_checker.dart';
@@ -15,6 +17,7 @@ import 'layouts/desktop_layout.dart';
 import 'layouts/mobile_layout.dart';
 import 'layouts/responsive.dart';
 import 'widgets/common/dialog.dart';
+import 'widgets/common/snack_bar.dart';
 import 'widgets/desktop/custom_title_bar.dart';
 import 'module_registry/sidebar/sidebar_footer.dart';
 import 'module_registry/sidebar/sidebar_footer_registry.dart';
@@ -95,6 +98,7 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
   bool _isSetupMode = true;
   bool _isInitialized = false;
   int _selectedIndex = 0;
+  DateTime? _lastPopTime;
 
   @override
   void initState() {
@@ -309,6 +313,63 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
     });
   }
 
+  /// 处理 Android 物理返回键
+  void _handlePopInvoked(bool didPop, dynamic result) {
+    if (didPop) return;
+
+    // 优先执行模块注册的自定义返回回调
+    if (BackHandlerService().handleBack()) {
+      return;
+    }
+
+    // 如果 Navigator 还有可以返回的页面，则执行 Navigator 的 pop
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+
+    // 如果在初始化引导模式下，直接进入退出提示逻辑
+    if (_isSetupMode) {
+      _showExitPrompt();
+      return;
+    }
+
+    // 如果当前不在首页（第一个 Tab），则返回到首页
+    if (_selectedIndex != 0) {
+      setState(() {
+        _selectedIndex = 0;
+      });
+      return;
+    }
+
+    // 如果已经在首页，则提示再次操作以退出
+    _showExitPrompt();
+  }
+
+  /// 显示“再次操作以退出”提示或执行退出
+  void _showExitPrompt() {
+    final now = DateTime.now();
+    if (_lastPopTime == null ||
+        now.difference(_lastPopTime!) > const Duration(seconds: 2)) {
+      _lastPopTime = now;
+      if (mounted) {
+        SnackBarHelper.showInfo(
+          context,
+          LocalizationKeys.doubleBackExit.tr(context),
+        );
+      }
+      return;
+    }
+
+    // 连续两次触发，退出程序
+    if (Platform.isAndroid) {
+      SystemNavigator.pop();
+    } else {
+      exit(0);
+    }
+  }
+
   @override
   void onWindowFocus() {
     // Make sure to call once.
@@ -334,85 +395,96 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
               adjustment: themeProvider.lightContrastAdjustment,
             );
 
+      Widget loadingScaffold = Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF121212)
+            : theme.scaffoldBackgroundColor,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // App Logo with subtle glow
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.primaryColor.withValues(alpha: 0.3),
+                      blurRadius: 40,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.asset(
+                    AppConstants.assetIconPath,
+                    width: 100,
+                    height: 100,
+                    errorBuilder: (context, error, stackTrace) =>
+                        Icon(Icons.apps, size: 80, color: theme.primaryColor),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              // App Name with professional styling
+              Text(
+                AppConstants.appName,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontFamily: 'MicrosoftYaHei',
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 48),
+              // Premium Progress Indicator
+              SizedBox(
+                width: 240,
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        minHeight: 6,
+                        backgroundColor: theme.primaryColor.withValues(
+                          alpha: 0.1,
+                        ),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          theme.primaryColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      LocalizationKeys.loading.tr(context),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: (isDark ? Colors.white70 : Colors.black54)
+                            .withValues(alpha: 0.8),
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // 针对 Android 设备在加载界面也提供返回键退出逻辑
+      if (Platform.isAndroid || Platform.isIOS) {
+        loadingScaffold = PopScope(
+          canPop: false,
+          onPopInvokedWithResult: _handlePopInvoked,
+          child: loadingScaffold,
+        );
+      }
+
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: theme,
-        home: Scaffold(
-          backgroundColor: isDark
-              ? const Color(0xFF121212)
-              : theme.scaffoldBackgroundColor,
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // App Logo with subtle glow
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.primaryColor.withValues(alpha: 0.3),
-                        blurRadius: 40,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: Image.asset(
-                      AppConstants.assetIconPath,
-                      width: 100,
-                      height: 100,
-                      errorBuilder: (context, error, stackTrace) =>
-                          Icon(Icons.apps, size: 80, color: theme.primaryColor),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                // App Name with professional styling
-                Text(
-                  AppConstants.appName,
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontFamily: 'MicrosoftYaHei',
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.5,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 48),
-                // Premium Progress Indicator
-                SizedBox(
-                  width: 240,
-                  child: Column(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: LinearProgressIndicator(
-                          minHeight: 6,
-                          backgroundColor: theme.primaryColor.withValues(
-                            alpha: 0.1,
-                          ),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            theme.primaryColor,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        LocalizationKeys.loading.tr(context),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: (isDark ? Colors.white70 : Colors.black54)
-                              .withValues(alpha: 0.8),
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        home: loadingScaffold,
       );
     }
 
@@ -476,7 +548,16 @@ class _MainScreenState extends State<MainScreen> with WindowListener {
           );
 
     if (moduleProviders.isNotEmpty) {
-      return MultiProvider(providers: moduleProviders, child: child);
+      child = MultiProvider(providers: moduleProviders, child: child);
+    }
+
+    // 针对 Android 设备增强返回键处理
+    if (Platform.isAndroid || Platform.isIOS) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: _handlePopInvoked,
+        child: child,
+      );
     }
 
     return child;

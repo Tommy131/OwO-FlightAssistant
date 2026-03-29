@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/back_handler_service.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../localization/briefing_localization_keys.dart';
@@ -56,6 +57,27 @@ class _BriefingPageState extends State<BriefingPage> {
       builder: (onBack) => BriefingHistoryPage(onBack: onBack),
     ),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    BackHandlerService().register(_onBack);
+  }
+
+  @override
+  void dispose() {
+    BackHandlerService().unregister(_onBack);
+    super.dispose();
+  }
+
+  bool _onBack() {
+    if (!mounted) return false;
+    if (_currentPage != BriefingPageType.main) {
+      _navigateBack();
+      return true;
+    }
+    return false;
+  }
 
   /// 导航至指定子视图
   void _navigateToPage(BriefingPageType page) =>

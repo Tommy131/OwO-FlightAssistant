@@ -67,8 +67,9 @@ class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
   }
 
   String _decodeTaf(BuildContext context, String taf) {
-    if (taf.isEmpty)
+    if (taf.isEmpty) {
       return ToolboxLocalizationKeys.weatherNoTafInput.tr(context);
+    }
     final tokens = <String>[];
     if (taf.contains('TEMPO')) {
       tokens.add(ToolboxLocalizationKeys.weatherTafTempo.tr(context));
@@ -116,8 +117,9 @@ class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
     if (metarText.contains('G') || tafText.contains('G')) {
       risks.add(ToolboxLocalizationKeys.weatherRiskGust.tr(context));
     }
-    if (risks.isEmpty)
+    if (risks.isEmpty) {
       return ToolboxLocalizationKeys.weatherRiskNone.tr(context);
+    }
     return risks.map((e) => '• $e').join('\n');
   }
 

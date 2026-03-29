@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/services/back_handler_service.dart';
 import '../../../core/services/localization_service.dart';
 import '../../../core/theme/app_theme_data.dart';
 import '../../../core/widgets/common/snack_bar.dart';
@@ -32,10 +33,30 @@ class _AirportSearchPageState extends State<AirportSearchPage> {
   bool _initialized = false;
 
   @override
+  void initState() {
+    super.initState();
+    BackHandlerService().register(_onBack);
+  }
+
+  @override
   void dispose() {
+    BackHandlerService().unregister(_onBack);
     _suggestionDebounce?.cancel();
     _icaoController.dispose();
     super.dispose();
+  }
+
+  bool _onBack() {
+    if (!mounted) return false;
+    final provider = context.read<AirportSearchProvider>();
+    if (provider.latestResult != null ||
+        provider.suggestions.isNotEmpty ||
+        _icaoController.text.isNotEmpty) {
+      _icaoController.clear();
+      provider.clearResult();
+      return true;
+    }
+    return false;
   }
 
   @override

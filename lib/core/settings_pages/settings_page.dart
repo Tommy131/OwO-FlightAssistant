@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/back_handler_service.dart';
 import '../theme/app_theme_data.dart';
 import '../localization/localization_keys.dart';
 import '../services/localization_service.dart';
@@ -95,6 +96,27 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _currentRoute = 'main';
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    BackHandlerService().register(_onBack);
+  }
+
+  @override
+  void dispose() {
+    BackHandlerService().unregister(_onBack);
+    super.dispose();
+  }
+
+  bool _onBack() {
+    if (!mounted) return false;
+    if (_currentRoute != 'main') {
+      _goBack();
+      return true;
+    }
+    return false;
   }
 
   @override

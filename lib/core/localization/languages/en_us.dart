@@ -36,6 +36,7 @@ final Map<String, String> enUS = {
       'This operation will clear all configurations, cache, and data, and re-guide you through initialization.\n\nThis operation is irreversible!',
   LocalizationKeys.resetSuccess: 'Reset complete, restarting application...',
   LocalizationKeys.success: 'Success',
+  LocalizationKeys.doubleBackExit: 'Press again to exit',
   LocalizationKeys.languageStep: 'Language Settings',
   LocalizationKeys.storagePathStep: 'Select Storage Path',
   LocalizationKeys.logSettingsStep: 'Log Settings',
