@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -76,6 +77,9 @@ class _MapPageState extends State<MapPage> {
   bool _isTaxiwayLoadPromptShowing = false;
   bool _isSavingTaxiwayRoute = false;
   final Set<String> _taxiwayAutoPromptedAirports = <String>{};
+   Map<String, dynamic>? _selectedRestrictedAirspaceZone;
+  Map<String, dynamic>? _hoveredRestrictedAirspaceZone;
+  Offset? _hoveredRestrictedAirspaceGlobalPosition;
 
   @override
   void initState() {
@@ -97,6 +101,12 @@ class _MapPageState extends State<MapPage> {
       setState(() {
         _selectedAirport = null;
         _selectedAirportDetail = null;
+      });
+      return true;
+    }
+    if (_selectedRestrictedAirspaceZone != null) {
+      setState(() {
+        _selectedRestrictedAirspaceZone = null;
       });
       return true;
     }
@@ -128,11 +138,28 @@ class _MapPageState extends State<MapPage> {
             provider.showAirports && zoom >= _nearbyAirportMinZoom;
         final showPressureLayer =
             provider.showWeather && provider.showWeatherPressure;
+        final showWindLayer = provider.showWeather && provider.showWeatherWind;
         final showTemperatureLayer =
             provider.showWeather &&
             provider.showWeatherTemperature &&
             !showPressureLayer;
-        final showWeatherLegend = showPressureLayer || showTemperatureLayer;
+        final showWeatherLegend =
+            showPressureLayer || showTemperatureLayer || showWindLayer;
+        final canUseRadarRainLayer =
+            provider.weatherRadarTileUrlTemplate != null &&
+            !provider.isWeatherRadarCoolingDown;
+        final rainLayerUrlTemplate = canUseRadarRainLayer
+            ? provider.weatherRadarTileUrlTemplate!
+            : provider.weatherRainfallTileUrlTemplate;
+        final restrictedAirspaceCircles = _buildRestrictedAirspaceCircles(
+          provider: provider,
+          center: center,
+          zoom: zoom,
+        );
+        final restrictedAirspaceHitNotifier =
+            ValueNotifier<LayerHitResult<int>?>(null);
+        final selectedAirspaceZone = _resolveSelectedAirspaceZone(provider);
+        final hoverHintLocalOffset = _resolveHoverHintLocalOffset();
         final showAirportIcaoLabel = zoom >= _airportIcaoLabelMinZoom;
         final prioritizedPinnedMarkers = _buildPrioritizedPinnedMarkers(
           provider: provider,
@@ -272,6 +299,17 @@ class _MapPageState extends State<MapPage> {
                       _mapReady = true;
                       _cameraZoom = _mapController.camera.zoom;
                     });
+                    final visibleBounds = _mapController.camera.visibleBounds;
+                    provider.updateMapViewport(
+                      center: MapCoordinate(
+                        latitude: _mapController.camera.center.latitude,
+                        longitude: _mapController.camera.center.longitude,
+                      ),
+                      minLat: visibleBounds.southWest.latitude,
+                      maxLat: visibleBounds.northEast.latitude,
+                      minLon: visibleBounds.southWest.longitude,
+                      maxLon: visibleBounds.northEast.longitude,
+                    );
                     if (provider.showAirports &&
                         _cameraZoom >= _nearbyAirportMinZoom) {
                       _onMapBoundsChanged(
@@ -291,6 +329,18 @@ class _MapPageState extends State<MapPage> {
                       provider.toggleFollowAircraft();
                     }
 
+                    final nextCenter = position.center;
+                    final visibleBounds = position.visibleBounds;
+                    provider.updateMapViewport(
+                      center: MapCoordinate(
+                        latitude: nextCenter.latitude,
+                        longitude: nextCenter.longitude,
+                      ),
+                      minLat: visibleBounds.southWest.latitude,
+                      maxLat: visibleBounds.northEast.latitude,
+                      minLon: visibleBounds.southWest.longitude,
+                      maxLon: visibleBounds.northEast.longitude,
+                    );
                     if (provider.showAirports &&
                         nextZoom >= _nearbyAirportMinZoom) {
                       _onMapBoundsChanged(position.visibleBounds, provider);
@@ -347,25 +397,22 @@ class _MapPageState extends State<MapPage> {
                         errorTileCallback: (tile, error, stackTrace) {},
                       ),
                     ),
-                  if (provider.showWeather &&
-                      provider.showWeatherRainfall &&
-                      provider.weatherRadarTileUrlTemplate != null &&
-                      !provider.isWeatherRadarCoolingDown &&
-                      zoom <= 7.9)
+                  if (provider.showWeather && provider.showWeatherRainfall)
                     Opacity(
                       opacity: 0.6,
                       child: TileLayer(
                         key: ValueKey(
-                          'weather-${provider.weatherRadarTimestamp}-${provider.tileReloadToken}',
+                          'weather-rain-${canUseRadarRainLayer ? 'radar-${provider.weatherRadarTimestamp}' : 'overlay'}-${provider.tileReloadToken}',
                         ),
-                        urlTemplate: provider.weatherRadarTileUrlTemplate!,
+                        urlTemplate: rainLayerUrlTemplate,
                         userAgentPackageName: 'com.owo.flight_assistant',
                         tileUpdateTransformer: _weatherRadarTransformer,
-                        maxNativeZoom: 7,
+                        maxNativeZoom: canUseRadarRainLayer ? 7 : 11,
                         minZoom: 3,
-                        maxZoom: 7.9,
                         errorTileCallback: (tile, error, stackTrace) {
-                          provider.handleWeatherRadarTileError(error);
+                          if (canUseRadarRainLayer) {
+                            provider.handleWeatherRadarTileError(error);
+                          }
                         },
                       ),
                     ),
@@ -401,6 +448,93 @@ class _MapPageState extends State<MapPage> {
                         errorTileCallback: (tile, error, stackTrace) {
                           provider.handleWeatherRadarTileError(error);
                         },
+                      ),
+                    ),
+                  if (showWindLayer)
+                    Opacity(
+                      opacity: 0.5,
+                      child: TileLayer(
+                        key: ValueKey(
+                          'weather-wind-${provider.tileReloadToken}',
+                        ),
+                        urlTemplate: provider.weatherWindTileUrlTemplate,
+                        userAgentPackageName: 'com.owo.flight_assistant',
+                        tileUpdateTransformer: _weatherRadarTransformer,
+                        maxNativeZoom: 11,
+                        minZoom: 3,
+                        errorTileCallback: (tile, error, stackTrace) {
+                          provider.handleWeatherRadarTileError(error);
+                        },
+                      ),
+                    ),
+                  if (showWindLayer)
+                    MarkerLayer(
+                      markers: _buildHighAltitudeWindMarkers(
+                        provider: provider,
+                        scale: scale,
+                      ),
+                    ),
+                  if (provider.showRestrictedAirspace)
+                    MouseRegion(
+                      onHover: (event) {
+                        final hitResult = restrictedAirspaceHitNotifier.value;
+                        final hitIndex = hitResult?.hitValues.isNotEmpty == true
+                            ? hitResult!.hitValues.first
+                            : null;
+                        final zone = _resolveRestrictedAirspaceZoneByHitIndex(
+                          provider,
+                          hitIndex,
+                        );
+                        if (zone == null) {
+                          if (_hoveredRestrictedAirspaceZone != null ||
+                              _hoveredRestrictedAirspaceGlobalPosition !=
+                                  null) {
+                            setState(() {
+                              _hoveredRestrictedAirspaceZone = null;
+                              _hoveredRestrictedAirspaceGlobalPosition = null;
+                            });
+                          }
+                          return;
+                        }
+                        setState(() {
+                          _hoveredRestrictedAirspaceZone = zone;
+                          _hoveredRestrictedAirspaceGlobalPosition =
+                              event.position;
+                        });
+                      },
+                      onExit: (_) {
+                        if (_hoveredRestrictedAirspaceZone != null ||
+                            _hoveredRestrictedAirspaceGlobalPosition != null) {
+                          setState(() {
+                            _hoveredRestrictedAirspaceZone = null;
+                            _hoveredRestrictedAirspaceGlobalPosition = null;
+                          });
+                        }
+                      },
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.deferToChild,
+                        onTapDown: (_) {
+                          final hitResult = restrictedAirspaceHitNotifier.value;
+                          if (hitResult == null ||
+                              hitResult.hitValues.isEmpty) {
+                            return;
+                          }
+                          final hitIndex = hitResult.hitValues.first;
+                          final zone = _resolveRestrictedAirspaceZoneByHitIndex(
+                            provider,
+                            hitIndex,
+                          );
+                          if (zone == null) {
+                            return;
+                          }
+                          setState(() {
+                            _selectedRestrictedAirspaceZone = zone;
+                          });
+                        },
+                        child: CircleLayer<int>(
+                          circles: restrictedAirspaceCircles,
+                          hitNotifier: restrictedAirspaceHitNotifier,
+                        ),
                       ),
                     ),
                   if (provider.showRoute && provider.route.isNotEmpty)
@@ -718,6 +852,13 @@ class _MapPageState extends State<MapPage> {
                       },
                       onNodeHoverEnd: _clearTaxiwayNodeHover,
                     ),
+                  if (provider.showTerrainWarning && aircraft != null)
+                    CircleLayer(
+                      circles: _buildTerrainAwarenessCircles(
+                        aircraft: aircraft,
+                        activeAlerts: activeAlerts,
+                      ),
+                    ),
                   if (aircraft != null)
                     _buildPlayerAircraftLayer(
                       context: context,
@@ -808,8 +949,11 @@ class _MapPageState extends State<MapPage> {
                   onToggleCompass: provider.toggleCompass,
                   onToggleWeather: provider.toggleWeather,
                   onToggleWeatherRainfall: provider.toggleWeatherRainfall,
+                  onToggleWeatherWind: provider.toggleWeatherWind,
                   onToggleWeatherPressure: provider.toggleWeatherPressure,
                   onToggleWeatherTemperature: provider.toggleWeatherTemperature,
+                  onToggleRestrictedAirspace: provider.toggleRestrictedAirspace,
+                  onToggleTerrainWarning: provider.toggleTerrainWarning,
                   onToggleCustomTaxiway: provider.toggleCustomTaxiway,
                   onToggleTaxiwayDrawing: provider.toggleTaxiwayDrawing,
                   showRoute: provider.showRoute,
@@ -819,8 +963,11 @@ class _MapPageState extends State<MapPage> {
                   showCompass: provider.showCompass,
                   showWeather: provider.showWeather,
                   showWeatherRainfall: provider.showWeatherRainfall,
+                  showWeatherWind: provider.showWeatherWind,
                   showWeatherPressure: provider.showWeatherPressure,
                   showWeatherTemperature: provider.showWeatherTemperature,
+                  showRestrictedAirspace: provider.showRestrictedAirspace,
+                  showTerrainWarning: provider.showTerrainWarning,
                   showCustomTaxiway: provider.showCustomTaxiwayRoute,
                   isTaxiwayDrawingActive: provider.isTaxiwayDrawingActive,
                   showTaxiwayControls: showTaxiwayControls,
@@ -972,12 +1119,28 @@ class _MapPageState extends State<MapPage> {
                                 title: showPressureLayer
                                     ? MapLocalizationKeys.toggleWeatherPressure
                                           .tr(context)
-                                    : MapLocalizationKeys
+                                    : showTemperatureLayer
+                                    ? MapLocalizationKeys
                                           .toggleWeatherTemperature
-                                          .tr(context),
-                                unit: showPressureLayer ? 'hPa' : '°C',
-                                startLabel: showPressureLayer ? '970' : '-35',
-                                endLabel: showPressureLayer ? '1045' : '45',
+                                          .tr(context)
+                                    : MapLocalizationKeys.toggleWeatherWind.tr(
+                                        context,
+                                      ),
+                                unit: showPressureLayer
+                                    ? 'hPa'
+                                    : showTemperatureLayer
+                                    ? '°C'
+                                    : 'kt',
+                                startLabel: showPressureLayer
+                                    ? '970'
+                                    : showTemperatureLayer
+                                    ? '-35'
+                                    : '0',
+                                endLabel: showPressureLayer
+                                    ? '1045'
+                                    : showTemperatureLayer
+                                    ? '45'
+                                    : '120',
                                 colors: showPressureLayer
                                     ? const [
                                         Color(0xFF462080),
@@ -985,12 +1148,20 @@ class _MapPageState extends State<MapPage> {
                                         Color(0xFF4AA85E),
                                         Color(0xFFEDC948),
                                       ]
-                                    : const [
+                                    : showTemperatureLayer
+                                    ? const [
                                         Color(0xFF3252B9),
                                         Color(0xFF3DA7D8),
                                         Color(0xFF7BD06F),
                                         Color(0xFFF5C44B),
                                         Color(0xFFE0574A),
+                                      ]
+                                    : const [
+                                        Color(0xFF173B8F),
+                                        Color(0xFF2D7FC9),
+                                        Color(0xFF5BC4CC),
+                                        Color(0xFF7AD37C),
+                                        Color(0xFFD6DE55),
                                       ],
                               ),
                             if (showWeatherLegend && showPlannedRouteChip)
@@ -1043,6 +1214,44 @@ class _MapPageState extends State<MapPage> {
                         _isAirportDetailExpanded = value;
                       });
                     },
+                  ),
+                ),
+              if (provider.showRestrictedAirspace &&
+                  selectedAirspaceZone != null)
+                Positioned.fill(
+                  child: _RestrictedAirspaceDraggablePanel(
+                    key: ValueKey(
+                      selectedAirspaceZone['id']?.toString() ??
+                          '${selectedAirspaceZone['center_lat']},${selectedAirspaceZone['center_lon']}',
+                    ),
+                    zone: selectedAirspaceZone,
+                    scale: scale,
+                    viewportSize: size,
+                    anchorOffset: _resolveAirspaceZoneScreenOffset(
+                      selectedAirspaceZone,
+                    ),
+                    onClose: () {
+                      setState(() {
+                        _selectedRestrictedAirspaceZone = null;
+                      });
+                    },
+                  ),
+                ),
+              if (provider.showRestrictedAirspace &&
+                  _hoveredRestrictedAirspaceZone != null &&
+                  hoverHintLocalOffset != null)
+                Positioned(
+                  left: (hoverHintLocalOffset.dx + 14 * scale).clamp(
+                    8.0,
+                    size.width - 250 * scale,
+                  ),
+                  top: (hoverHintLocalOffset.dy - 52 * scale).clamp(
+                    8.0,
+                    size.height - 40 * scale,
+                  ),
+                  child: _RestrictedAirspaceHoverHint(
+                    zone: _hoveredRestrictedAirspaceZone!,
+                    scale: scale,
                   ),
                 ),
               if (_hoveredTaxiwayNodeIndex != null &&
@@ -2372,14 +2581,18 @@ class _MapPageState extends State<MapPage> {
   Marker _buildHomeAirportMarker({
     required MapAirportMarker airport,
     required double scale,
+    required VoidCallback onTap,
   }) {
     return Marker(
       point: LatLng(airport.position.latitude, airport.position.longitude),
       width: 138 * scale,
       height: 88 * scale,
-      child: HomeAirportPin(
-        code: _normalizeAirportCode(airport.code),
-        scale: scale,
+      child: GestureDetector(
+        onTap: onTap,
+        child: HomeAirportPin(
+          code: _normalizeAirportCode(airport.code),
+          scale: scale,
+        ),
       ),
     );
   }
@@ -2459,6 +2672,13 @@ class _MapPageState extends State<MapPage> {
     final markers = <Marker>[];
     final homeColor = Theme.of(context).colorScheme.tertiary;
     for (final bundle in bundles.values) {
+      final pinnedAirport = MapAirportMarker(
+        code: bundle.code,
+        position: MapCoordinate(
+          latitude: bundle.latitude,
+          longitude: bundle.longitude,
+        ),
+      );
       final tags = <AirportPinTag>[];
       if (bundle.isHome) {
         tags.add(
@@ -2504,6 +2724,7 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
             scale: scale,
+            onTap: () => _handleSelectAirport(provider, pinnedAirport),
           ),
         );
         continue;
@@ -2516,12 +2737,15 @@ class _MapPageState extends State<MapPage> {
             point: LatLng(bundle.latitude, bundle.longitude),
             width: 138 * scale,
             height: 88 * scale,
-            child: AirportRolePin(
-              code: displayCode,
-              title: rolePin.title,
-              icon: rolePin.icon,
-              color: rolePin.color,
-              scale: scale,
+            child: GestureDetector(
+              onTap: () => _handleSelectAirport(provider, pinnedAirport),
+              child: AirportRolePin(
+                code: displayCode,
+                title: rolePin.title,
+                icon: rolePin.icon,
+                color: rolePin.color,
+                scale: scale,
+              ),
             ),
           ),
         );
@@ -2535,12 +2759,15 @@ class _MapPageState extends State<MapPage> {
           point: LatLng(bundle.latitude, bundle.longitude),
           width: 138 * scale,
           height: markerHeight,
-          child: CombinedAirportPin(
-            code: displayCode,
-            tags: tags,
-            icon: combinedPin.icon,
-            color: combinedPin.color,
-            scale: scale,
+          child: GestureDetector(
+            onTap: () => _handleSelectAirport(provider, pinnedAirport),
+            child: CombinedAirportPin(
+              code: displayCode,
+              tags: tags,
+              icon: combinedPin.icon,
+              color: combinedPin.color,
+              scale: scale,
+            ),
           ),
         ),
       );
@@ -2779,6 +3006,272 @@ class _MapPageState extends State<MapPage> {
     }).toList();
   }
 
+  List<CircleMarker<int>> _buildRestrictedAirspaceCircles({
+    required MapProvider provider,
+    required LatLng center,
+    required double zoom,
+  }) {
+    final zones = provider.restrictedAirspaceZones;
+    if (zones.isNotEmpty) {
+      return zones
+          .asMap()
+          .entries
+          .map((entry) {
+            final zone = entry.value;
+            final latitude = (zone['center_lat'] as num?)?.toDouble();
+            final longitude = (zone['center_lon'] as num?)?.toDouble();
+            final radiusMeters = (zone['radius_meters'] as num?)?.toDouble();
+            final severity =
+                zone['severity']?.toString().trim().toLowerCase() ?? '';
+            if (latitude == null || longitude == null || radiusMeters == null) {
+              return null;
+            }
+            Color borderColor;
+            Color fillColor;
+            double borderWidth;
+            switch (severity) {
+              case 'critical':
+                borderColor = Colors.redAccent.withValues(alpha: 0.94);
+                fillColor = Colors.red.withValues(alpha: 0.16);
+                borderWidth = 2.6;
+                break;
+              case 'warning':
+                borderColor = Colors.orangeAccent.withValues(alpha: 0.9);
+                fillColor = Colors.orange.withValues(alpha: 0.14);
+                borderWidth = 2.0;
+                break;
+              default:
+                borderColor = Colors.amberAccent.withValues(alpha: 0.86);
+                fillColor = Colors.amber.withValues(alpha: 0.1);
+                borderWidth = 1.5;
+                break;
+            }
+            return CircleMarker<int>(
+              point: LatLng(latitude, longitude),
+              useRadiusInMeter: true,
+              radius: radiusMeters.clamp(1200.0, 18000.0),
+              borderColor: borderColor,
+              borderStrokeWidth: borderWidth,
+              color: fillColor,
+              hitValue: entry.key,
+            );
+          })
+          .whereType<CircleMarker<int>>()
+          .toList(growable: false);
+    }
+    if (provider.airports.isEmpty) {
+      return const [];
+    }
+    final maxCount = zoom >= 9 ? 6 : 3;
+    final sorted = [...provider.airports]
+      ..sort((a, b) {
+        final dA = const Distance().as(
+          LengthUnit.Meter,
+          center,
+          LatLng(a.position.latitude, a.position.longitude),
+        );
+        final dB = const Distance().as(
+          LengthUnit.Meter,
+          center,
+          LatLng(b.position.latitude, b.position.longitude),
+        );
+        return dA.compareTo(dB);
+      });
+    final circles = <CircleMarker<int>>[];
+    for (var i = 0; i < sorted.length && i < maxCount; i += 1) {
+      final airport = sorted[i];
+      final radiusMeters = airport.isPrimary
+          ? 12000.0
+          : i == 0
+          ? 9000.0
+          : 6500.0;
+      circles.add(
+        CircleMarker<int>(
+          point: LatLng(airport.position.latitude, airport.position.longitude),
+          useRadiusInMeter: true,
+          radius: radiusMeters,
+          borderColor: airport.isPrimary
+              ? Colors.redAccent.withValues(alpha: 0.9)
+              : Colors.orangeAccent.withValues(alpha: 0.85),
+          borderStrokeWidth: airport.isPrimary ? 2.2 : 1.6,
+          color: airport.isPrimary
+              ? Colors.red.withValues(alpha: 0.1)
+              : Colors.orange.withValues(alpha: 0.08),
+        ),
+      );
+    }
+    return circles;
+  }
+
+  Map<String, dynamic>? _resolveSelectedAirspaceZone(MapProvider provider) {
+    if (_selectedRestrictedAirspaceZone == null ||
+        !provider.showRestrictedAirspace) {
+      return null;
+    }
+    final selected = _selectedRestrictedAirspaceZone!;
+    final selectedId = selected['id']?.toString().trim() ?? '';
+    final selectedLat = (selected['center_lat'] as num?)?.toDouble();
+    final selectedLon = (selected['center_lon'] as num?)?.toDouble();
+    final selectedRadius = (selected['radius_meters'] as num?)?.toDouble();
+    for (final zone in provider.restrictedAirspaceZones) {
+      final zoneId = zone['id']?.toString().trim() ?? '';
+      if (selectedId.isNotEmpty && zoneId == selectedId) {
+        return zone;
+      }
+      final lat = (zone['center_lat'] as num?)?.toDouble();
+      final lon = (zone['center_lon'] as num?)?.toDouble();
+      final radius = (zone['radius_meters'] as num?)?.toDouble();
+      if (selectedLat != null &&
+          selectedLon != null &&
+          selectedRadius != null &&
+          lat != null &&
+          lon != null &&
+          radius != null &&
+          (lat - selectedLat).abs() < 0.0001 &&
+          (lon - selectedLon).abs() < 0.0001 &&
+          (radius - selectedRadius).abs() < 1.0) {
+        return zone;
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _resolveRestrictedAirspaceZoneByHitIndex(
+    MapProvider provider,
+    int? hitIndex,
+  ) {
+    if (hitIndex == null) {
+      return null;
+    }
+    final zones = provider.restrictedAirspaceZones;
+    if (zones.isEmpty || hitIndex < 0 || hitIndex >= zones.length) {
+      return null;
+    }
+    return zones[hitIndex];
+  }
+
+  Offset? _resolveHoverHintLocalOffset() {
+    final globalPosition = _hoveredRestrictedAirspaceGlobalPosition;
+    if (globalPosition == null) {
+      return null;
+    }
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox) {
+      return null;
+    }
+    return renderObject.globalToLocal(globalPosition);
+  }
+
+  Offset? _resolveAirspaceZoneScreenOffset(Map<String, dynamic> zone) {
+    if (!_mapReady) {
+      return null;
+    }
+    final lat = (zone['center_lat'] as num?)?.toDouble();
+    final lon = (zone['center_lon'] as num?)?.toDouble();
+    if (lat == null || lon == null) {
+      return null;
+    }
+    return _mapController.camera.latLngToScreenOffset(LatLng(lat, lon));
+  }
+
+  List<Marker> _buildHighAltitudeWindMarkers({
+    required MapProvider provider,
+    required double scale,
+  }) {
+    final profile = provider.highAltitudeWindProfile;
+    if (profile == null) {
+      return const [];
+    }
+    final latitude = (profile['latitude'] as num?)?.toDouble();
+    final longitude = (profile['longitude'] as num?)?.toDouble();
+    final speedKt = (profile['estimated_speed_kt'] as num?)?.toDouble();
+    final directionDeg = (profile['estimated_direction_deg'] as num?)
+        ?.toDouble();
+    if (latitude == null ||
+        longitude == null ||
+        speedKt == null ||
+        directionDeg == null) {
+      return const [];
+    }
+    final rotationRad = ((directionDeg + 180.0) % 360.0) * math.pi / 180.0;
+    return [
+      Marker(
+        point: LatLng(latitude, longitude),
+        width: 164 * scale,
+        height: 52 * scale,
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: 8 * scale,
+            vertical: 6 * scale,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.52),
+            borderRadius: BorderRadius.circular(10 * scale),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.26)),
+          ),
+          child: Row(
+            children: [
+              Transform.rotate(
+                angle: rotationRad,
+                child: Icon(
+                  Icons.navigation,
+                  size: 15 * scale,
+                  color: Colors.lightBlueAccent,
+                ),
+              ),
+              SizedBox(width: 6 * scale),
+              Text(
+                '${speedKt.toStringAsFixed(0)}KT  ${directionDeg.toStringAsFixed(0)}°',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: (11 * scale).clamp(9, 13),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
+  List<CircleMarker> _buildTerrainAwarenessCircles({
+    required MapAircraftState aircraft,
+    required List<MapFlightAlert> activeAlerts,
+  }) {
+    final radioAltitude = aircraft.radioAltitude;
+    if (radioAltitude == null || !radioAltitude.isFinite) {
+      return const [];
+    }
+    final isDanger = activeAlerts.any(
+      (alert) => alert.id.trim().toLowerCase() == 'terrain_pull_up_danger',
+    );
+    final isWarning = activeAlerts.any(
+      (alert) => alert.id.trim().toLowerCase() == 'terrain_pull_up_warning',
+    );
+    final ringRadiusMeters = (radioAltitude * 0.48).clamp(120.0, 1200.0);
+    final borderColor = isDanger
+        ? Colors.redAccent.withValues(alpha: 0.94)
+        : isWarning
+        ? Colors.orangeAccent.withValues(alpha: 0.9)
+        : Colors.lightGreenAccent.withValues(alpha: 0.85);
+    final fillColor = isDanger
+        ? Colors.red.withValues(alpha: 0.22)
+        : isWarning
+        ? Colors.orange.withValues(alpha: 0.16)
+        : Colors.green.withValues(alpha: 0.12);
+    return [
+      CircleMarker(
+        point: LatLng(aircraft.position.latitude, aircraft.position.longitude),
+        useRadiusInMeter: true,
+        radius: ringRadiusMeters,
+        borderColor: borderColor,
+        borderStrokeWidth: isDanger ? 2.8 : 2.2,
+        color: fillColor,
+      ),
+    ];
+  }
+
   bool _isValidCoordinate(double latitude, double longitude) {
     return latitude.isFinite &&
         longitude.isFinite &&
@@ -2917,6 +3410,666 @@ class _PlannedRouteLegLabel extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _RestrictedAirspaceHoverHint extends StatelessWidget {
+  final Map<String, dynamic> zone;
+  final double scale;
+
+  const _RestrictedAirspaceHoverHint({required this.zone, required this.scale});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 10 * scale,
+        vertical: 7 * scale,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(11 * scale),
+        border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.65)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 8 * scale,
+            offset: Offset(0, 2 * scale),
+          ),
+        ],
+      ),
+      child: Text(
+        '${_RestrictedAirspaceDraggablePanelState._airspaceType(zone) ?? '空域'} · 点击查看更多信息',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 11 * scale,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _RestrictedAirspaceDraggablePanel extends StatefulWidget {
+  final Map<String, dynamic> zone;
+  final double scale;
+  final Size viewportSize;
+  final Offset? anchorOffset;
+  final VoidCallback onClose;
+
+  const _RestrictedAirspaceDraggablePanel({
+    super.key,
+    required this.zone,
+    required this.scale,
+    required this.viewportSize,
+    required this.anchorOffset,
+    required this.onClose,
+  });
+
+  @override
+  State<_RestrictedAirspaceDraggablePanel> createState() =>
+      _RestrictedAirspaceDraggablePanelState();
+}
+
+class _RestrictedAirspaceDraggablePanelState
+    extends State<_RestrictedAirspaceDraggablePanel> {
+  Offset _relativeOffset = const Offset(78, -108);
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = widget.scale;
+    final panelWidth = (296.0 * scale).clamp(248.0, 360.0);
+    final panelHeight = (212.0 * scale).clamp(178.0, 260.0);
+    final margin = 10.0 * scale;
+    final anchor =
+        widget.anchorOffset ??
+        Offset(
+          widget.viewportSize.width * 0.36,
+          widget.viewportSize.height * 0.72,
+        );
+    final panelLeft = (anchor.dx + _relativeOffset.dx)
+        .clamp(margin, widget.viewportSize.width - panelWidth - margin)
+        .toDouble();
+    final panelTop = (anchor.dy + _relativeOffset.dy)
+        .clamp(margin, widget.viewportSize.height - panelHeight - margin)
+        .toDouble();
+    final panelCenter = Offset(
+      panelLeft + panelWidth / 2,
+      panelTop + panelHeight / 2,
+    );
+    final lineEnd = panelCenter.dx >= anchor.dx
+        ? Offset(panelLeft, panelCenter.dy)
+        : Offset(panelLeft + panelWidth, panelCenter.dy);
+    final detailRows = _buildDetailRows(widget.zone);
+    final description = _buildDescription(widget.zone);
+    final chips = _buildTagChips(widget.zone);
+
+    return Stack(
+      children: [
+        IgnorePointer(
+          child: CustomPaint(
+            size: widget.viewportSize,
+            painter: _AirspaceConnectorPainter(
+              start: anchor,
+              end: lineEnd,
+              color: Colors.white.withValues(alpha: 0.3),
+              strokeWidth: (1.3 * scale).clamp(1.0, 2.0),
+            ),
+          ),
+        ),
+        Positioned(
+          left: panelLeft,
+          top: panelTop,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanUpdate: (details) {
+              setState(() {
+                _relativeOffset += details.delta;
+              });
+            },
+            child: Container(
+              width: panelWidth,
+              height: panelHeight,
+              padding: EdgeInsets.fromLTRB(
+                10 * scale,
+                8 * scale,
+                10 * scale,
+                8 * scale,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.82),
+                borderRadius: BorderRadius.circular(10 * scale),
+                border: Border.all(
+                  color: Colors.orangeAccent.withValues(alpha: 0.7),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 12 * scale,
+                    offset: Offset(0, 4 * scale),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _airspaceTitle(widget.zone),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12 * scale,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: widget.onClose,
+                        visualDensity: VisualDensity.compact,
+                        iconSize: 15 * scale,
+                        padding: EdgeInsets.zero,
+                        color: Colors.white70,
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4 * scale),
+                  if (chips.isNotEmpty)
+                    Wrap(
+                      spacing: 4 * scale,
+                      runSpacing: 4 * scale,
+                      children: chips
+                          .map(
+                            (text) => Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 6 * scale,
+                                vertical: 3 * scale,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6 * scale),
+                              ),
+                              child: Text(
+                                text,
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 9.8 * scale,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  SizedBox(height: 6 * scale),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ...detailRows.map(
+                            (entry) => Padding(
+                              padding: EdgeInsets.only(bottom: 5 * scale),
+                              child: RichText(
+                                text: TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: '${entry.$1}: ',
+                                      style: TextStyle(
+                                        color: Colors.cyanAccent.withValues(
+                                          alpha: 0.88,
+                                        ),
+                                        fontSize: 9.8 * scale,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: entry.$2,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9.8 * scale,
+                                        fontWeight: FontWeight.w500,
+                                        height: 1.32,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (description != null) ...[
+                            SizedBox(height: 4 * scale),
+                            Text(
+                              description,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.95),
+                                fontSize: 10 * scale,
+                                height: 1.35,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 4 * scale),
+                  Text(
+                    '拖动卡片可移动位置',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 10 * scale,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static String _airspaceTitle(Map<String, dynamic> zone) {
+    return _firstNonEmpty([
+          zone['name']?.toString(),
+          zone['title']?.toString(),
+          zone['id']?.toString(),
+        ]) ??
+        'Restricted Airspace';
+  }
+
+  static String? _airspaceType(Map<String, dynamic> zone) {
+    return _firstNonEmpty([
+      zone['type']?.toString(),
+      zone['zone_type']?.toString(),
+      zone['airspace_type']?.toString(),
+      zone['category']?.toString(),
+    ]);
+  }
+
+  static String? _airspaceClass(Map<String, dynamic> zone) {
+    return _firstNonEmpty([
+      zone['classification']?.toString(),
+      zone['class']?.toString(),
+      zone['airspace_class']?.toString(),
+    ]);
+  }
+
+  static String? _buildDescription(Map<String, dynamic> zone) {
+    return _firstNonEmpty([
+      zone['description']?.toString(),
+      zone['remark']?.toString(),
+      zone['notes']?.toString(),
+      zone['restriction_reason']?.toString(),
+      zone['advisory']?.toString(),
+    ]);
+  }
+
+  static List<String> _buildTagChips(Map<String, dynamic> zone) {
+    final seen = <String>{};
+    final chips = <String>[];
+    final classification = _airspaceClass(zone);
+    final type = _airspaceType(zone);
+    final status = _firstNonEmpty([
+      zone['status']?.toString(),
+      zone['active']?.toString(),
+      zone['state']?.toString(),
+    ]);
+    void addChip(String prefix, String? value) {
+      if (value == null) {
+        return;
+      }
+      final normalized = value.trim().toLowerCase();
+      if (normalized.isEmpty || seen.contains(normalized)) {
+        return;
+      }
+      seen.add(normalized);
+      chips.add('$prefix: $value');
+    }
+
+    addChip('等级', classification);
+    addChip('类型', type);
+    addChip('状态', status);
+    return chips;
+  }
+
+  static List<(String, String)> _buildDetailRows(Map<String, dynamic> zone) {
+    String? numField(List<String> keys, {String suffix = ''}) {
+      for (final key in keys) {
+        final value = (zone[key] as num?)?.toDouble();
+        if (value != null) {
+          if (value % 1 == 0) {
+            return '${value.toStringAsFixed(0)}$suffix';
+          }
+          return '${value.toStringAsFixed(2)}$suffix';
+        }
+      }
+      return null;
+    }
+
+    String? textField(List<String> keys) {
+      for (final key in keys) {
+        final value = zone[key]?.toString().trim();
+        if (value != null && value.isNotEmpty) {
+          return value;
+        }
+      }
+      return null;
+    }
+
+    final rows = <(String, String)>[];
+    final seenRows = <String>{};
+    final id = textField(['id', 'zone_id', 'identifier']);
+    final authority = textField(['authority', 'issuer', 'provider', 'source']);
+    final country = textField(['country', 'country_code', 'region']);
+    final city = textField(['city', 'area', 'district']);
+    final upperLimit = textField([
+      'upper_limit',
+      'upper_altitude',
+      'max_altitude',
+      'max_altitude_ft',
+      'ceiling',
+    ]);
+    final lowerLimit = textField([
+      'lower_limit',
+      'lower_altitude',
+      'min_altitude',
+      'min_altitude_ft',
+      'floor',
+    ]);
+    final frequency = textField([
+      'frequency',
+      'contact_frequency',
+      'tower_frequency',
+    ]);
+    final startTime = textField(['start_time', 'effective_from', 'valid_from']);
+    final endTime = textField(['end_time', 'effective_to', 'valid_to']);
+    final schedule = textField(['schedule', 'active_time', 'time_window']);
+    final radiusMeters = numField(['radius_meters'], suffix: ' m');
+    final centerLat = numField(['center_lat', 'latitude']);
+    final centerLon = numField(['center_lon', 'longitude']);
+    final minAltFt = numField(['min_altitude_ft', 'min_alt_ft'], suffix: ' ft');
+    final maxAltFt = numField(['max_altitude_ft', 'max_alt_ft'], suffix: ' ft');
+    final risk = textField(['risk_level', 'threat_level']);
+    final geometry = textField(['geometry_type', 'shape', 'polygon_type']);
+    final restriction = textField([
+      'restriction',
+      'restriction_type',
+      'advisory_level',
+    ]);
+    final controllingUnit = textField([
+      'controlling_unit',
+      'control_center',
+      'atc_unit',
+    ]);
+    final handledKeys = <String>{
+      'id',
+      'zone_id',
+      'identifier',
+      'type',
+      'zone_type',
+      'airspace_type',
+      'category',
+      'classification',
+      'class',
+      'airspace_class',
+      'risk_level',
+      'threat_level',
+      'restriction',
+      'restriction_type',
+      'advisory_level',
+      'authority',
+      'issuer',
+      'provider',
+      'source',
+      'controlling_unit',
+      'control_center',
+      'atc_unit',
+      'country',
+      'country_code',
+      'region',
+      'city',
+      'area',
+      'district',
+      'radius_meters',
+      'upper_limit',
+      'upper_altitude',
+      'max_altitude',
+      'max_altitude_ft',
+      'ceiling',
+      'lower_limit',
+      'lower_altitude',
+      'min_altitude',
+      'min_altitude_ft',
+      'floor',
+      'min_alt_ft',
+      'max_alt_ft',
+      'geometry_type',
+      'shape',
+      'polygon_type',
+      'center_lat',
+      'latitude',
+      'center_lon',
+      'longitude',
+      'frequency',
+      'contact_frequency',
+      'tower_frequency',
+      'start_time',
+      'effective_from',
+      'valid_from',
+      'end_time',
+      'effective_to',
+      'valid_to',
+      'schedule',
+      'active_time',
+      'time_window',
+      'warning',
+      'pilot_notice',
+      'guidance',
+      'description',
+      'remark',
+      'notes',
+      'restriction_reason',
+      'advisory',
+      'status',
+      'active',
+      'state',
+      'remarks',
+      'metadata',
+      'operation_rule',
+      'entry_requirement',
+      'exit_requirement',
+      'exception',
+      'penalty',
+    };
+
+    void addRow(String label, String? value) {
+      if (value == null) {
+        return;
+      }
+      final normalized = value.trim().toLowerCase();
+      final dedupeKey = '$label|$normalized';
+      if (normalized.isEmpty || seenRows.contains(dedupeKey)) {
+        return;
+      }
+      seenRows.add(dedupeKey);
+      rows.add((label, value));
+    }
+
+    addRow('空域ID', id);
+    addRow('空域类型', _airspaceType(zone));
+    addRow('空域分级', _airspaceClass(zone));
+    addRow('风险等级', risk);
+    addRow('限制属性', restriction);
+    addRow('发布来源', authority);
+    addRow('管制单位', controllingUnit);
+    if (country != null || city != null) {
+      addRow('区域范围', [country, city].whereType<String>().join(' / '));
+    }
+    addRow('影响半径', radiusMeters);
+    if (lowerLimit != null || upperLimit != null) {
+      addRow('高度范围', '${lowerLimit ?? '-'} ~ ${upperLimit ?? '-'}');
+    } else if (minAltFt != null || maxAltFt != null) {
+      addRow('高度范围', '${minAltFt ?? '-'} ~ ${maxAltFt ?? '-'}');
+    }
+    addRow('几何形态', geometry);
+    if (centerLat != null && centerLon != null) {
+      addRow('中心坐标', '$centerLat, $centerLon');
+    }
+    addRow('通信频率', frequency);
+    if (startTime != null || endTime != null) {
+      addRow('生效时段', '${startTime ?? '-'} ~ ${endTime ?? '-'}');
+    }
+    addRow('活动周期', schedule);
+    final warning = textField(['warning', 'pilot_notice', 'guidance']);
+    addRow('飞行建议', warning);
+
+    final dynamicKeys = [
+      'remarks',
+      'metadata',
+      'operation_rule',
+      'entry_requirement',
+      'exit_requirement',
+      'exception',
+      'penalty',
+    ];
+    for (final key in dynamicKeys) {
+      final text = textField([key]);
+      if (text != null) {
+        addRow(key, text);
+      }
+    }
+    for (final entry in zone.entries) {
+      final key = entry.key.trim();
+      if (key.isEmpty) {
+        continue;
+      }
+      final normalizedKey = key.toLowerCase();
+      if (handledKeys.contains(normalizedKey)) {
+        continue;
+      }
+      final display = _formatZoneExtraValue(entry.value);
+      if (display == null) {
+        continue;
+      }
+      addRow(_formatZoneExtraLabel(key), display);
+    }
+    return rows;
+  }
+
+  static String _formatZoneExtraLabel(String rawKey) {
+    final words = rawKey
+        .replaceAll(RegExp(r'[_\-]+'), ' ')
+        .replaceAllMapped(
+          RegExp(r'([a-z])([A-Z])'),
+          (match) => '${match.group(1)} ${match.group(2)}',
+        )
+        .trim();
+    if (words.isEmpty) {
+      return rawKey;
+    }
+    return words;
+  }
+
+  static String? _formatZoneExtraValue(dynamic raw) {
+    if (raw == null) {
+      return null;
+    }
+    if (raw is String) {
+      final text = raw.trim();
+      return text.isEmpty ? null : text;
+    }
+    if (raw is num || raw is bool) {
+      return '$raw';
+    }
+    if (raw is List) {
+      if (raw.isEmpty) {
+        return null;
+      }
+      final texts = raw
+          .map((item) => _formatZoneExtraValue(item))
+          .whereType<String>()
+          .where((item) => item.trim().isNotEmpty)
+          .take(6)
+          .toList(growable: false);
+      if (texts.isEmpty) {
+        return null;
+      }
+      return texts.join(' / ');
+    }
+    if (raw is Map) {
+      if (raw.isEmpty) {
+        return null;
+      }
+      final parts = <String>[];
+      for (final entry in raw.entries.take(6)) {
+        final value = _formatZoneExtraValue(entry.value);
+        if (value == null) {
+          continue;
+        }
+        parts.add('${entry.key}: $value');
+      }
+      if (parts.isEmpty) {
+        return null;
+      }
+      return parts.join(' ; ');
+    }
+    final text = raw.toString().trim();
+    return text.isEmpty ? null : text;
+  }
+
+  static String? _firstNonEmpty(List<String?> values) {
+    for (final value in values) {
+      final text = value?.trim();
+      if (text != null && text.isNotEmpty) {
+        return text;
+      }
+    }
+    return null;
+  }
+}
+
+class _AirspaceConnectorPainter extends CustomPainter {
+  final Offset start;
+  final Offset end;
+  final Color color;
+  final double strokeWidth;
+
+  const _AirspaceConnectorPainter({
+    required this.start,
+    required this.end,
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final control = Offset(
+      (start.dx + end.dx) / 2,
+      (start.dy + end.dy) / 2 - 14,
+    );
+    final path = ui.Path()
+      ..moveTo(start.dx, start.dy)
+      ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _AirspaceConnectorPainter oldDelegate) {
+    return oldDelegate.start != start ||
+        oldDelegate.end != end ||
+        oldDelegate.color != color ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }
 

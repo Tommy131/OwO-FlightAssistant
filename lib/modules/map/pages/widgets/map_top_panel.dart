@@ -27,8 +27,11 @@ class MapTopPanel extends StatelessWidget {
   final VoidCallback onToggleCompass;
   final VoidCallback onToggleWeather;
   final VoidCallback onToggleWeatherRainfall;
+  final VoidCallback onToggleWeatherWind;
   final VoidCallback onToggleWeatherPressure;
   final VoidCallback onToggleWeatherTemperature;
+  final VoidCallback onToggleRestrictedAirspace;
+  final VoidCallback onToggleTerrainWarning;
   final VoidCallback onToggleCustomTaxiway;
   final VoidCallback onToggleTaxiwayDrawing;
   final bool showRoute;
@@ -38,8 +41,11 @@ class MapTopPanel extends StatelessWidget {
   final bool showCompass;
   final bool showWeather;
   final bool showWeatherRainfall;
+  final bool showWeatherWind;
   final bool showWeatherPressure;
   final bool showWeatherTemperature;
+  final bool showRestrictedAirspace;
+  final bool showTerrainWarning;
   final bool showCustomTaxiway;
   final bool isTaxiwayDrawingActive;
   final bool showTaxiwayControls;
@@ -74,8 +80,11 @@ class MapTopPanel extends StatelessWidget {
     required this.onToggleCompass,
     required this.onToggleWeather,
     required this.onToggleWeatherRainfall,
+    required this.onToggleWeatherWind,
     required this.onToggleWeatherPressure,
     required this.onToggleWeatherTemperature,
+    required this.onToggleRestrictedAirspace,
+    required this.onToggleTerrainWarning,
     required this.onToggleCustomTaxiway,
     required this.onToggleTaxiwayDrawing,
     required this.showRoute,
@@ -85,8 +94,11 @@ class MapTopPanel extends StatelessWidget {
     required this.showCompass,
     required this.showWeather,
     required this.showWeatherRainfall,
+    required this.showWeatherWind,
     required this.showWeatherPressure,
     required this.showWeatherTemperature,
+    required this.showRestrictedAirspace,
+    required this.showTerrainWarning,
     required this.showCustomTaxiway,
     required this.isTaxiwayDrawingActive,
     required this.showTaxiwayControls,
@@ -302,6 +314,19 @@ class MapTopPanel extends StatelessWidget {
                                     activeColor: Colors.lightBlueAccent,
                                     scale: scale,
                                   ),
+                                  if (isConnected) ...[
+                                    SizedBox(width: 8 * scale),
+                                    FilterToggleButton(
+                                      label: MapLocalizationKeys
+                                          .toggleWeatherWind
+                                          .tr(context),
+                                      value: showWeatherWind,
+                                      onChanged: (value) =>
+                                          onToggleWeatherWind(),
+                                      activeColor: Colors.cyanAccent,
+                                      scale: scale,
+                                    ),
+                                  ],
                                   SizedBox(width: 8 * scale),
                                   FilterToggleButton(
                                     label: MapLocalizationKeys
@@ -322,6 +347,30 @@ class MapTopPanel extends StatelessWidget {
                                     onChanged: (value) =>
                                         onToggleWeatherTemperature(),
                                     activeColor: Colors.deepOrangeAccent,
+                                    scale: scale,
+                                  ),
+                                ],
+                                SizedBox(width: 8 * scale),
+                                FilterToggleButton(
+                                  label: MapLocalizationKeys
+                                      .toggleRestrictedAirspace
+                                      .tr(context),
+                                  value: showRestrictedAirspace,
+                                  onChanged: (value) =>
+                                      onToggleRestrictedAirspace(),
+                                  activeColor: Colors.orangeAccent,
+                                  scale: scale,
+                                ),
+                                if (isConnected) ...[
+                                  SizedBox(width: 8 * scale),
+                                  FilterToggleButton(
+                                    label: MapLocalizationKeys
+                                        .toggleTerrainWarning
+                                        .tr(context),
+                                    value: showTerrainWarning,
+                                    onChanged: (value) =>
+                                        onToggleTerrainWarning(),
+                                    activeColor: Colors.redAccent,
                                     scale: scale,
                                   ),
                                 ],

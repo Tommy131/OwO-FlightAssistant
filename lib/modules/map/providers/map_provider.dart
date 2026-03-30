@@ -45,6 +45,7 @@ typedef _TaxiwaySegmentMatchResult = MapTaxiwaySegmentMatchResult;
 class MapProvider extends ChangeNotifier {
   MapProvider({MapDataAdapter? adapter}) : _adapter = adapter {
     _subscribeAdapter();
+    _syncTelemetryRefreshTimer();
     unawaited(_loadHomeAirport());
     unawaited(_loadAutoTimerSettings());
     unawaited(_loadAlertSettings());
@@ -76,6 +77,15 @@ class MapProvider extends ChangeNotifier {
   static const int _lowPerformanceRefreshIntervalMs = 500;
   static const int _maxTaxiwayHistorySize = 20;
   static const double _taxiwayMatchMaxDistanceMeters = 28.0;
+  static const Duration _windProfileFetchInterval = Duration(seconds: 50);
+  static const Duration _windProfileReportInterval = Duration(seconds: 75);
+  static const Duration _airspaceFetchInterval = Duration(seconds: 35);
+  static const Duration _airspaceReportInterval = Duration(seconds: 60);
+  static const Duration _terrainWarningReportInterval = Duration(seconds: 12);
+  static const Duration _telemetrySyncTickInterval = Duration(seconds: 6);
+  static const Duration _airspaceViewportForceSyncMinInterval = Duration(
+    seconds: 4,
+  );
 
   static const Map<String, String> _backendAlertMessageMap = {
     'pitch_up_danger': MapLocalizationKeys.alertPitchUpDanger,
@@ -137,8 +147,11 @@ class MapProvider extends ChangeNotifier {
   bool _showCompass = true;
   bool _showWeather = false;
   bool _showWeatherRainfall = false;
+  bool _showWeatherWind = false;
   bool _showWeatherPressure = false;
   bool _showWeatherTemperature = false;
+  bool _showRestrictedAirspace = false;
+  bool _showTerrainWarning = true;
   bool _showCustomTaxiwayRoute = true;
   bool _isTaxiwayDrawingActive = false;
   bool _isLoading = false;
@@ -150,6 +163,7 @@ class MapProvider extends ChangeNotifier {
   String? _weatherRadarHost;
   String? _weatherRadarPath;
   Timer? _radarRefreshTimer;
+  Timer? _telemetrySyncTimer;
   DateTime? _lastRadarFetch;
   DateTime? _lastRadarTileErrorAt;
   DateTime? _weatherRadarCooldownUntil;
@@ -176,7 +190,13 @@ class MapProvider extends ChangeNotifier {
   bool _isHudTimerRunning = false;
   bool _hasHudTimerStarted = false;
   MapCoordinate? _lastMovementSamplePosition;
+  MapCoordinate? _mapViewportCenter;
   DateTime? _lastMovementSampleAt;
+  double? _airspaceViewportMinLat;
+  double? _airspaceViewportMaxLat;
+  double? _airspaceViewportMinLon;
+  double? _airspaceViewportMaxLon;
+  DateTime? _lastViewportAirspaceSyncAt;
   bool _autoHudTimerEnabled = false;
   MapAutoTimerStartMode _autoTimerStartMode =
       MapAutoTimerStartMode.runwayMovement;
@@ -196,6 +216,18 @@ class MapProvider extends ChangeNotifier {
   bool _lowPerformanceMode = false;
   int _uiRefreshIntervalMs = _defaultUiRefreshIntervalMs;
   DateTime? _lastUiNotifyAt;
+  List<Map<String, dynamic>> _restrictedAirspaceZones = const [];
+  Map<String, dynamic>? _highAltitudeWindProfile;
+  bool _isWindProfileSyncing = false;
+  bool _isAirspaceSyncing = false;
+  DateTime? _lastWindProfileFetchAt;
+  DateTime? _lastWindReportAt;
+  DateTime? _lastAirspaceFetchAt;
+  DateTime? _lastAirspaceReportAt;
+  String _restrictedAirspaceZonesSignature = '';
+  String _windProfileReportSignature = '';
+  String _airspaceReportSignature = '';
+  final Map<String, DateTime> _terrainWarningReportedAt = {};
   // ── 滑行路线状态 ─────────────────────────────────────────────
   /// 当前路线节点列表。
   List<MapTaxiwayNode> _taxiwayNodes = const [];
@@ -237,8 +269,11 @@ class MapProvider extends ChangeNotifier {
   bool get showCompass => _showCompass;
   bool get showWeather => _showWeather;
   bool get showWeatherRainfall => _showWeatherRainfall;
+  bool get showWeatherWind => _showWeatherWind;
   bool get showWeatherPressure => _showWeatherPressure;
   bool get showWeatherTemperature => _showWeatherTemperature;
+  bool get showRestrictedAirspace => _showRestrictedAirspace;
+  bool get showTerrainWarning => _showTerrainWarning;
   bool get showCustomTaxiwayRoute => _showCustomTaxiwayRoute;
   bool get isTaxiwayDrawingActive => _isTaxiwayDrawingActive;
   String? get currentNearestAirportIcao => _currentNearestAirportIcao;
@@ -294,6 +329,11 @@ class MapProvider extends ChangeNotifier {
     return '$baseUrl/api/v1/weather/overlay/tile?layer=pressure&z={z}&x={x}&y={y}';
   }
 
+  String get weatherWindTileUrlTemplate {
+    final baseUrl = HttpModule.client.baseUrl;
+    return '$baseUrl/api/v1/weather/overlay/tile?layer=wind&z={z}&x={x}&y={y}';
+  }
+
   String get weatherTemperatureTileUrlTemplate {
     final baseUrl = HttpModule.client.baseUrl;
     return '$baseUrl/api/v1/weather/overlay/tile?layer=temp&z={z}&x={x}&y={y}';
@@ -328,6 +368,9 @@ class MapProvider extends ChangeNotifier {
   int get climbRateDangerFpm => _climbRateDangerFpm;
   int get descentRateWarningFpm => _descentRateWarningFpm;
   int get descentRateDangerFpm => _descentRateDangerFpm;
+  List<Map<String, dynamic>> get restrictedAirspaceZones =>
+      _restrictedAirspaceZones;
+  Map<String, dynamic>? get highAltitudeWindProfile => _highAltitudeWindProfile;
   List<String> get configurableAlertIds =>
       _backendAlertMessageMap.keys.toList(growable: false);
 
@@ -538,6 +581,20 @@ class MapProvider extends ChangeNotifier {
     _isConnected = snapshot.isConnected;
     if (!wasConnected && _isConnected) {
       _connectionEpoch += 1;
+    } else if (wasConnected && !_isConnected) {
+      var shouldNotify = false;
+      if (_showWeatherWind) {
+        _showWeatherWind = false;
+        shouldNotify = true;
+      }
+      if (_showTerrainWarning) {
+        _showTerrainWarning = false;
+        shouldNotify = true;
+      }
+      _syncTelemetryRefreshTimer();
+      if (shouldNotify) {
+        notifyListeners();
+      }
     }
     final wasSimulatorPaused = _isPaused;
     _isPaused = snapshot.isPaused == true && _isConnected;
@@ -595,6 +652,9 @@ class MapProvider extends ChangeNotifier {
         bank: flightData.bank,
         angleOfAttack: flightData.angleOfAttack,
         verticalSpeed: flightData.verticalSpeed,
+        windSpeed: flightData.windSpeed,
+        windDirection: flightData.windDirection,
+        radioAltitude: flightData.radioAltitude,
         stallWarning: flightData.stallWarning,
         onGround: flightData.onGround,
         parkingBrake: flightData.parkingBrake,
@@ -614,8 +674,327 @@ class MapProvider extends ChangeNotifier {
       _clearAircraftVisualState();
     }
     _evaluateFlightAlerts(flightData);
+    unawaited(_syncMiddlewareMapTelemetry());
     if (_shouldNotifyUi()) {
       notifyListeners();
+    }
+  }
+
+  Future<void> _syncMiddlewareMapTelemetry({bool forceAirspace = false}) async {
+    final telemetryPosition = _resolveTelemetryPosition();
+    if (telemetryPosition == null) {
+      return;
+    }
+    try {
+      await HttpModule.client.init();
+    } catch (_) {
+      return;
+    }
+    if (_showWeather && _showWeatherWind) {
+      await _syncWindProfileAndReport(
+        position: telemetryPosition,
+        altitudeFt: _resolveTelemetryAltitudeFt(),
+      );
+    } else if (_highAltitudeWindProfile != null) {
+      _highAltitudeWindProfile = null;
+      notifyListeners();
+    }
+    if (_showRestrictedAirspace) {
+      await _syncRestrictedAirspaceAndReport(
+        telemetryPosition,
+        force: forceAirspace,
+      );
+    }
+    final aircraftState = _aircraft;
+    if (_showTerrainWarning && aircraftState != null && _isConnected) {
+      await _reportTerrainWarningIfNeeded(aircraftState);
+    }
+  }
+
+  MapCoordinate? _resolveTelemetryPosition() {
+    final aircraftState = _aircraft;
+    if (aircraftState != null &&
+        _isValidCoordinate(
+          aircraftState.position.latitude,
+          aircraftState.position.longitude,
+        )) {
+      return aircraftState.position;
+    }
+    if (_mapViewportCenter != null &&
+        _isValidCoordinate(
+          _mapViewportCenter!.latitude,
+          _mapViewportCenter!.longitude,
+        )) {
+      return _mapViewportCenter;
+    }
+    if (_route.isNotEmpty) {
+      final point = _route.last;
+      if (_isValidCoordinate(point.latitude, point.longitude)) {
+        return MapCoordinate(
+          latitude: point.latitude,
+          longitude: point.longitude,
+        );
+      }
+    }
+    if (_homeAirport != null) {
+      final point = _homeAirport!.position;
+      if (_isValidCoordinate(point.latitude, point.longitude)) {
+        return point;
+      }
+    }
+    if (_airports.isNotEmpty) {
+      final point = _airports.first.position;
+      if (_isValidCoordinate(point.latitude, point.longitude)) {
+        return point;
+      }
+    }
+    return null;
+  }
+
+  double _resolveTelemetryAltitudeFt() {
+    final aircraftAltitude = _aircraft?.altitude;
+    if (aircraftAltitude != null && aircraftAltitude.isFinite) {
+      return aircraftAltitude.clamp(0.0, 45000.0);
+    }
+    final requested = _asFiniteDouble(
+      _highAltitudeWindProfile?['requested_altitude_ft'],
+    );
+    if (requested != null) {
+      return requested.clamp(0.0, 45000.0);
+    }
+    return 3000.0;
+  }
+
+  Future<void> _syncWindProfileAndReport({
+    required MapCoordinate position,
+    required double altitudeFt,
+  }) async {
+    if (_isWindProfileSyncing) {
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastWindProfileFetchAt != null &&
+        now.difference(_lastWindProfileFetchAt!) < _windProfileFetchInterval) {
+      return;
+    }
+    final latitude = position.latitude;
+    final longitude = position.longitude;
+    if (!_isValidCoordinate(latitude, longitude)) {
+      return;
+    }
+    _isWindProfileSyncing = true;
+    _lastWindProfileFetchAt = now;
+    try {
+      final response = await HttpModule.client.getWindProfile(
+        latitude: latitude,
+        longitude: longitude,
+        altitudeFt: altitudeFt,
+      );
+      final root = _asMap(response.decodedBody);
+      final result = _asMap(root?['result']) ?? root;
+      if (result == null) {
+        return;
+      }
+      final speedKt = _asFiniteDouble(result['estimated_speed_kt']);
+      final directionDeg = _asFiniteDouble(result['estimated_direction_deg']);
+      if (speedKt == null || directionDeg == null) {
+        return;
+      }
+      final levels = _asList(result['levels']) ?? const [];
+      final profile = <String, dynamic>{
+        ...result,
+        'estimated_speed_kt': speedKt,
+        'estimated_direction_deg': directionDeg,
+        'sample_count': levels.length,
+      };
+      final profileSignature = jsonEncode(profile);
+      if (_highAltitudeWindProfile == null ||
+          jsonEncode(_highAltitudeWindProfile) != profileSignature) {
+        _highAltitudeWindProfile = profile;
+        notifyListeners();
+      }
+      final reportSignature =
+          '${speedKt.toStringAsFixed(1)}|${directionDeg.toStringAsFixed(1)}|${levels.length}';
+      final canReportByTime =
+          _lastWindReportAt == null ||
+          now.difference(_lastWindReportAt!) >= _windProfileReportInterval;
+      if (canReportByTime || reportSignature != _windProfileReportSignature) {
+        await HttpModule.client.reportMapWind(
+          latitude: latitude,
+          longitude: longitude,
+          altitudeFt: altitudeFt,
+          speedKt: speedKt,
+          directionDeg: directionDeg,
+          sampleCount: levels.length,
+        );
+        _lastWindReportAt = now;
+        _windProfileReportSignature = reportSignature;
+      }
+    } catch (_) {
+      return;
+    } finally {
+      _isWindProfileSyncing = false;
+    }
+  }
+
+  Future<void> _syncRestrictedAirspaceAndReport(
+    MapCoordinate position, {
+    bool force = false,
+  }) async {
+    if (_isAirspaceSyncing) {
+      return;
+    }
+    final now = DateTime.now();
+    if (!force &&
+        _lastAirspaceFetchAt != null &&
+        now.difference(_lastAirspaceFetchAt!) < _airspaceFetchInterval) {
+      return;
+    }
+    final latitude = position.latitude;
+    final longitude = position.longitude;
+    if (!_isValidCoordinate(latitude, longitude)) {
+      return;
+    }
+    final hasViewportBounds =
+        _airspaceViewportMinLat != null &&
+        _airspaceViewportMaxLat != null &&
+        _airspaceViewportMinLon != null &&
+        _airspaceViewportMaxLon != null &&
+        _airspaceViewportMinLat! < _airspaceViewportMaxLat! &&
+        _airspaceViewportMinLon! < _airspaceViewportMaxLon!;
+    final minLat = hasViewportBounds
+        ? _airspaceViewportMinLat!.clamp(-90.0, 90.0)
+        : (latitude - 0.8).clamp(-90.0, 90.0);
+    final maxLat = hasViewportBounds
+        ? _airspaceViewportMaxLat!.clamp(-90.0, 90.0)
+        : (latitude + 0.8).clamp(-90.0, 90.0);
+    final minLon = hasViewportBounds
+        ? _airspaceViewportMinLon!.clamp(-180.0, 180.0)
+        : (longitude - 0.8).clamp(-180.0, 180.0);
+    final maxLon = hasViewportBounds
+        ? _airspaceViewportMaxLon!.clamp(-180.0, 180.0)
+        : (longitude + 0.8).clamp(-180.0, 180.0);
+    _isAirspaceSyncing = true;
+    _lastAirspaceFetchAt = now;
+    try {
+      final response = await HttpModule.client.getRestrictedAirspaceByBounds(
+        minLat: minLat,
+        maxLat: maxLat,
+        minLon: minLon,
+        maxLon: maxLon,
+        limit: 36,
+      );
+      final root = _asMap(response.decodedBody);
+      final result = _asMap(root?['result']) ?? root;
+      if (result == null) {
+        return;
+      }
+      final zonesRaw = _asList(result['zones']) ?? const [];
+      final zones = zonesRaw
+          .whereType<Map>()
+          .map((item) => item.map((k, v) => MapEntry('$k', v)))
+          .where((item) {
+            final zoneLat = _asFiniteDouble(item['center_lat']);
+            final zoneLon = _asFiniteDouble(item['center_lon']);
+            final radius = _asFiniteDouble(item['radius_meters']);
+            return zoneLat != null &&
+                zoneLon != null &&
+                radius != null &&
+                radius > 0 &&
+                _isValidCoordinate(zoneLat, zoneLon);
+          })
+          .toList(growable: false);
+      final zonesSignature = jsonEncode(zones);
+      if (_restrictedAirspaceZonesSignature != zonesSignature) {
+        _restrictedAirspaceZones = zones;
+        _restrictedAirspaceZonesSignature = zonesSignature;
+        notifyListeners();
+      }
+      final source =
+          (result['database_source']?.toString().trim().isNotEmpty ?? false)
+          ? result['database_source'].toString().trim()
+          : 'middleware';
+      var nearestZoneId = '';
+      var insideRestricted = false;
+      var minDistanceMeters = double.infinity;
+      for (final zone in zones) {
+        final zoneLat = _asFiniteDouble(zone['center_lat']);
+        final zoneLon = _asFiniteDouble(zone['center_lon']);
+        final radiusMeters = _asFiniteDouble(zone['radius_meters']);
+        if (zoneLat == null || zoneLon == null || radiusMeters == null) {
+          continue;
+        }
+        final distance = _distanceInMeters(
+          latitude,
+          longitude,
+          zoneLat,
+          zoneLon,
+        );
+        if (distance <= radiusMeters) {
+          insideRestricted = true;
+        }
+        if (distance < minDistanceMeters) {
+          minDistanceMeters = distance;
+          nearestZoneId = zone['id']?.toString().trim() ?? '';
+        }
+      }
+      final reportSignature =
+          '$nearestZoneId|$insideRestricted|${zones.length}|${latitude.toStringAsFixed(3)}|${longitude.toStringAsFixed(3)}';
+      final canReportByTime =
+          _lastAirspaceReportAt == null ||
+          now.difference(_lastAirspaceReportAt!) >= _airspaceReportInterval;
+      if (canReportByTime || reportSignature != _airspaceReportSignature) {
+        await HttpModule.client.reportMapAirspace(
+          latitude: latitude,
+          longitude: longitude,
+          nearestZoneId: nearestZoneId,
+          insideRestricted: insideRestricted,
+          visibleZones: zones.length,
+          source: source,
+        );
+        _lastAirspaceReportAt = now;
+        _airspaceReportSignature = reportSignature;
+      }
+    } catch (_) {
+      return;
+    } finally {
+      _isAirspaceSyncing = false;
+    }
+  }
+
+  Future<void> _reportTerrainWarningIfNeeded(
+    MapAircraftState aircraftState,
+  ) async {
+    final terrainAlerts = _activeAlerts
+        .where((alert) => alert.id.trim().toLowerCase().startsWith('terrain_'))
+        .toList(growable: false);
+    if (terrainAlerts.isEmpty) {
+      return;
+    }
+    terrainAlerts.sort((a, b) => b.level.index.compareTo(a.level.index));
+    final alert = terrainAlerts.first;
+    final now = DateTime.now();
+    final alertKey = '${alert.id}|${alert.level.name}';
+    final lastSentAt = _terrainWarningReportedAt[alertKey];
+    if (lastSentAt != null &&
+        now.difference(lastSentAt) < _terrainWarningReportInterval) {
+      return;
+    }
+    try {
+      await HttpModule.client.reportTerrainWarning(
+        alertId: alert.id,
+        alertLevel: alert.level.name,
+        radioAltitudeFt: aircraftState.radioAltitude ?? 0.0,
+        verticalSpeedFpm: aircraftState.verticalSpeed ?? 0.0,
+        latitude: aircraftState.position.latitude,
+        longitude: aircraftState.position.longitude,
+      );
+      _terrainWarningReportedAt[alertKey] = now;
+      _terrainWarningReportedAt.removeWhere(
+        (_, timestamp) => now.difference(timestamp).inMinutes >= 5,
+      );
+    } catch (_) {
+      return;
     }
   }
 
@@ -921,6 +1300,7 @@ class MapProvider extends ChangeNotifier {
     _showWeather = !_showWeather;
     if (_showWeather) {
       if (!_showWeatherRainfall &&
+          !_showWeatherWind &&
           !_showWeatherPressure &&
           !_showWeatherTemperature) {
         _showWeatherRainfall = true;
@@ -929,11 +1309,15 @@ class MapProvider extends ChangeNotifier {
         _showWeatherTemperature = false;
       }
       _syncRadarRefreshTimer();
+      _syncTelemetryRefreshTimer();
+      unawaited(_syncMiddlewareMapTelemetry());
     } else {
       _showWeatherRainfall = false;
+      _showWeatherWind = false;
       _showWeatherPressure = false;
       _showWeatherTemperature = false;
       _stopRadarRefreshTimer();
+      _syncTelemetryRefreshTimer();
     }
     notifyListeners();
   }
@@ -944,6 +1328,16 @@ class MapProvider extends ChangeNotifier {
     }
     _showWeatherRainfall = !_showWeatherRainfall;
     _syncRadarRefreshTimer();
+    notifyListeners();
+  }
+
+  void toggleWeatherWind() {
+    if (!_showWeather || !_isConnected) {
+      return;
+    }
+    _showWeatherWind = !_showWeatherWind;
+    _syncTelemetryRefreshTimer();
+    unawaited(_syncMiddlewareMapTelemetry());
     notifyListeners();
   }
 
@@ -959,6 +1353,25 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void toggleRestrictedAirspace() {
+    _showRestrictedAirspace = !_showRestrictedAirspace;
+    _syncTelemetryRefreshTimer();
+    if (_showRestrictedAirspace) {
+      unawaited(_syncMiddlewareMapTelemetry(forceAirspace: true));
+    }
+    notifyListeners();
+  }
+
+  void toggleTerrainWarning() {
+    if (!_isConnected) {
+      return;
+    }
+    _showTerrainWarning = !_showTerrainWarning;
+    _syncTelemetryRefreshTimer();
+    unawaited(_syncMiddlewareMapTelemetry());
+    notifyListeners();
+  }
+
   void toggleWeatherTemperature() {
     if (!_showWeather) {
       return;
@@ -968,7 +1381,75 @@ class MapProvider extends ChangeNotifier {
     if (nextValue) {
       _showWeatherPressure = false;
     }
+    _syncTelemetryRefreshTimer();
+    unawaited(_syncMiddlewareMapTelemetry());
     notifyListeners();
+  }
+
+  void _syncTelemetryRefreshTimer() {
+    final shouldRun =
+        (_showWeather && _showWeatherWind) || _showRestrictedAirspace;
+    if (!shouldRun) {
+      _telemetrySyncTimer?.cancel();
+      _telemetrySyncTimer = null;
+      return;
+    }
+    if (_telemetrySyncTimer?.isActive == true) {
+      return;
+    }
+    _telemetrySyncTimer = Timer.periodic(_telemetrySyncTickInterval, (_) {
+      unawaited(_syncMiddlewareMapTelemetry());
+    });
+  }
+
+  void updateMapViewportCenter(MapCoordinate center) {
+    if (!_isValidCoordinate(center.latitude, center.longitude)) {
+      return;
+    }
+    _mapViewportCenter = center;
+  }
+
+  void updateMapViewport({
+    required MapCoordinate center,
+    required double minLat,
+    required double maxLat,
+    required double minLon,
+    required double maxLon,
+  }) {
+    if (!_isValidCoordinate(center.latitude, center.longitude)) {
+      return;
+    }
+    final normalizedMinLat = math.min(minLat, maxLat).clamp(-90.0, 90.0);
+    final normalizedMaxLat = math.max(minLat, maxLat).clamp(-90.0, 90.0);
+    final normalizedMinLon = math.min(minLon, maxLon).clamp(-180.0, 180.0);
+    final normalizedMaxLon = math.max(minLon, maxLon).clamp(-180.0, 180.0);
+    final hasPreviousBounds =
+        _airspaceViewportMinLat != null &&
+        _airspaceViewportMaxLat != null &&
+        _airspaceViewportMinLon != null &&
+        _airspaceViewportMaxLon != null;
+    final movedEnough =
+        !hasPreviousBounds ||
+        (normalizedMinLat - (_airspaceViewportMinLat ?? 0.0)).abs() > 0.05 ||
+        (normalizedMaxLat - (_airspaceViewportMaxLat ?? 0.0)).abs() > 0.05 ||
+        (normalizedMinLon - (_airspaceViewportMinLon ?? 0.0)).abs() > 0.05 ||
+        (normalizedMaxLon - (_airspaceViewportMaxLon ?? 0.0)).abs() > 0.05;
+    _mapViewportCenter = center;
+    _airspaceViewportMinLat = normalizedMinLat;
+    _airspaceViewportMaxLat = normalizedMaxLat;
+    _airspaceViewportMinLon = normalizedMinLon;
+    _airspaceViewportMaxLon = normalizedMaxLon;
+    if (!_showRestrictedAirspace || !movedEnough) {
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastViewportAirspaceSyncAt != null &&
+        now.difference(_lastViewportAirspaceSyncAt!) <
+            _airspaceViewportForceSyncMinInterval) {
+      return;
+    }
+    _lastViewportAirspaceSyncAt = now;
+    unawaited(_syncMiddlewareMapTelemetry(forceAirspace: true));
   }
 
   void _syncRadarRefreshTimer() {
@@ -2006,6 +2487,7 @@ class MapProvider extends ChangeNotifier {
     _isAircraftMoving = false;
     _lastMovementSamplePosition = null;
     _lastMovementSampleAt = null;
+    _terrainWarningReportedAt.clear();
     _resetAutoTimerRuntimeState();
   }
 
@@ -2277,6 +2759,7 @@ class MapProvider extends ChangeNotifier {
     _activeAlerts = _alertComponent.evaluateFlightAlerts(
       isConnected: _isConnected,
       alertsEnabled: _alertsEnabled,
+      terrainWarningEnabled: _showTerrainWarning,
       disabledAlertIds: _disabledAlertIds,
       climbRateWarningFpm: _climbRateWarningFpm,
       climbRateDangerFpm: _climbRateDangerFpm,
@@ -2305,6 +2788,21 @@ class MapProvider extends ChangeNotifier {
 
   /// 见 [MapWeatherUtils.asMap]
   Map<String, dynamic>? _asMap(dynamic v) => MapWeatherUtils.asMap(v);
+
+  double? _asFiniteDouble(dynamic value) {
+    if (value is num) {
+      final number = value.toDouble();
+      return number.isFinite ? number : null;
+    }
+    if (value is String) {
+      final parsed = double.tryParse(value.trim());
+      if (parsed == null || !parsed.isFinite) {
+        return null;
+      }
+      return parsed;
+    }
+    return null;
+  }
 
   List<dynamic>? _asList(dynamic v) {
     if (v is List<dynamic>) return v;
@@ -2357,6 +2855,7 @@ class MapProvider extends ChangeNotifier {
   void dispose() {
     _subscription?.cancel();
     _radarRefreshTimer?.cancel();
+    _telemetrySyncTimer?.cancel();
     _radarCooldownTimer?.cancel();
     _hudTimer?.cancel();
     super.dispose();

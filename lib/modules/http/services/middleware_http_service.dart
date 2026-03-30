@@ -292,6 +292,103 @@ class MiddlewareHttpService {
     );
   }
 
+  Future<MiddlewareHttpResponse> getRestrictedAirspaceByBounds({
+    required double minLat,
+    required double maxLat,
+    required double minLon,
+    required double maxLon,
+    int limit = 18,
+  }) {
+    return get(
+      '/api/v1/airspace/restricted',
+      queryParameters: {
+        'min_lat': minLat,
+        'max_lat': maxLat,
+        'min_lon': minLon,
+        'max_lon': maxLon,
+        'limit': limit,
+      },
+    );
+  }
+
+  Future<MiddlewareHttpResponse> getWindProfile({
+    required double latitude,
+    required double longitude,
+    required double altitudeFt,
+  }) {
+    return get(
+      '/api/v1/weather/wind/profile',
+      queryParameters: {
+        'lat': latitude,
+        'lon': longitude,
+        'altitude_ft': altitudeFt,
+      },
+    );
+  }
+
+  Future<MiddlewareHttpResponse> reportMapWind({
+    required double latitude,
+    required double longitude,
+    required double altitudeFt,
+    required double speedKt,
+    required double directionDeg,
+    required int sampleCount,
+  }) {
+    return post(
+      '/api/v1/map/report/wind',
+      body: {
+        'latitude': latitude,
+        'longitude': longitude,
+        'altitude_ft': altitudeFt,
+        'speed_kt': speedKt,
+        'direction_deg': directionDeg,
+        'sample_count': sampleCount,
+      },
+    );
+  }
+
+  Future<MiddlewareHttpResponse> reportMapAirspace({
+    required double latitude,
+    required double longitude,
+    required String nearestZoneId,
+    required bool insideRestricted,
+    required int visibleZones,
+    required String source,
+  }) {
+    return post(
+      '/api/v1/map/report/airspace',
+      body: {
+        'latitude': latitude,
+        'longitude': longitude,
+        'nearest_zone_id': nearestZoneId,
+        'inside_restricted': insideRestricted,
+        'visible_zones': visibleZones,
+        'source': source,
+      },
+    );
+  }
+
+  Future<MiddlewareHttpResponse> reportTerrainWarning({
+    required String alertId,
+    required String alertLevel,
+    required double radioAltitudeFt,
+    required double verticalSpeedFpm,
+    required double latitude,
+    required double longitude,
+  }) {
+    return post(
+      '/api/v1/map/report/terrain-warning',
+      body: {
+        'alert_id': alertId,
+        'alert_level': alertLevel,
+        'radio_altitude_ft': radioAltitudeFt,
+        'vertical_speed_fpm': verticalSpeedFpm,
+        'latitude': latitude,
+        'longitude': longitude,
+      },
+    );
+  }
+
   Future<MiddlewareHttpResponse> getSimulatorState({required String type}) {
     return post(
       '/api/v1/simulator/state',

@@ -55,6 +55,15 @@ class MapAircraftState {
   /// 垂直速度（英尺/分钟，正值为爬升，可选）
   final double? verticalSpeed;
 
+  /// 环境风速（节，可选）
+  final double? windSpeed;
+
+  /// 环境风向（度，可选）
+  final double? windDirection;
+
+  /// 无线电高度（英尺，可选）
+  final double? radioAltitude;
+
   /// 失速警告是否激活（可选）
   final bool? stallWarning;
 
@@ -75,6 +84,9 @@ class MapAircraftState {
     this.bank,
     this.angleOfAttack,
     this.verticalSpeed,
+    this.windSpeed,
+    this.windDirection,
+    this.radioAltitude,
     this.stallWarning,
     this.onGround,
     this.parkingBrake,

@@ -18,6 +18,7 @@ class MapAlertComponent {
   List<MapFlightAlert> evaluateFlightAlerts({
     required bool isConnected,
     required bool alertsEnabled,
+    required bool terrainWarningEnabled,
     required Set<String> disabledAlertIds,
     required int climbRateWarningFpm,
     required int climbRateDangerFpm,
@@ -37,6 +38,9 @@ class MapAlertComponent {
       descentRateWarningFpm: descentRateWarningFpm,
       descentRateDangerFpm: descentRateDangerFpm,
       verticalSpeedFpm: flightData.verticalSpeed,
+      radioAltitudeFt: flightData.radioAltitude,
+      onGround: flightData.onGround,
+      terrainWarningEnabled: terrainWarningEnabled,
     );
   }
 
@@ -70,6 +74,9 @@ class MapAlertComponent {
     required int descentRateWarningFpm,
     required int descentRateDangerFpm,
     required double? verticalSpeedFpm,
+    required double? radioAltitudeFt,
+    required bool? onGround,
+    required bool terrainWarningEnabled,
   }) {
     final next = <MapFlightAlert>[];
     final shownMessages = <String>{};
@@ -99,6 +106,20 @@ class MapAlertComponent {
       if (!disabledAlertIds.contains(normalizedId) &&
           shownMessages.add(verticalRateAlert.message)) {
         next.add(verticalRateAlert);
+      }
+    }
+    if (terrainWarningEnabled) {
+      final terrainAlert = _buildTerrainProximityAlert(
+        verticalSpeedFpm: verticalSpeedFpm,
+        radioAltitudeFt: radioAltitudeFt,
+        onGround: onGround,
+      );
+      if (terrainAlert != null) {
+        final normalizedId = terrainAlert.id.trim().toLowerCase();
+        if (!disabledAlertIds.contains(normalizedId) &&
+            shownMessages.add(terrainAlert.message)) {
+          next.add(terrainAlert);
+        }
       }
     }
     return next;
@@ -141,6 +162,35 @@ class MapAlertComponent {
         id: 'descent_rate_warning',
         level: MapFlightAlertLevel.warning,
         message: MapLocalizationKeys.alertDescentRateWarning,
+      );
+    }
+    return null;
+  }
+
+  MapFlightAlert? _buildTerrainProximityAlert({
+    required double? verticalSpeedFpm,
+    required double? radioAltitudeFt,
+    required bool? onGround,
+  }) {
+    if (onGround == true || radioAltitudeFt == null) {
+      return null;
+    }
+    if (radioAltitudeFt.isNaN || radioAltitudeFt.isInfinite) {
+      return null;
+    }
+    final sinkRate = -(verticalSpeedFpm ?? 0);
+    if (radioAltitudeFt <= 250 && sinkRate >= 1200) {
+      return const MapFlightAlert(
+        id: 'terrain_pull_up_danger',
+        level: MapFlightAlertLevel.danger,
+        message: MapLocalizationKeys.alertTerrainPullUpDanger,
+      );
+    }
+    if (radioAltitudeFt <= 600 && sinkRate >= 700) {
+      return const MapFlightAlert(
+        id: 'terrain_pull_up_warning',
+        level: MapFlightAlertLevel.warning,
+        message: MapLocalizationKeys.alertTerrainPullUpWarning,
       );
     }
     return null;
