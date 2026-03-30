@@ -892,7 +892,7 @@ class MapProvider extends ChangeNotifier {
       final zonesRaw = _asList(result['zones']) ?? const [];
       final zones = zonesRaw
           .whereType<Map>()
-          .map((item) => item.map((k, v) => MapEntry('$k', v)))
+          .map((item) => _normalizeRestrictedAirspaceZone(item))
           .where((item) {
             final zoneLat = _asFiniteDouble(item['center_lat']);
             final zoneLon = _asFiniteDouble(item['center_lon']);
@@ -2808,6 +2808,36 @@ class MapProvider extends ChangeNotifier {
     if (v is List<dynamic>) return v;
     if (v is List) return v.cast<dynamic>();
     return null;
+  }
+
+  Map<String, dynamic> _normalizeRestrictedAirspaceZone(Map raw) {
+    final zone = raw.map((k, v) => MapEntry('$k', v));
+    final properties = _asMap(zone['properties']) ?? _asMap(zone['meta']);
+    if (properties != null) {
+      for (final entry in properties.entries) {
+        zone.putIfAbsent(entry.key, () => entry.value);
+      }
+    }
+    final center = _asMap(zone['center']);
+    if (center != null) {
+      zone.putIfAbsent('center_lat', () => center['lat'] ?? center['latitude']);
+      zone.putIfAbsent(
+        'center_lon',
+        () => center['lon'] ?? center['lng'] ?? center['longitude'],
+      );
+    }
+    zone['center_lat'] = _asFiniteDouble(
+      zone['center_lat'] ?? zone['latitude'] ?? zone['lat'],
+    );
+    zone['center_lon'] = _asFiniteDouble(
+      zone['center_lon'] ?? zone['longitude'] ?? zone['lon'] ?? zone['lng'],
+    );
+    zone['radius_meters'] = _asFiniteDouble(
+      zone['radius_meters'] ?? zone['radius'] ?? zone['radius_meter'],
+    );
+    zone.putIfAbsent('risk_level', () => zone['severity']);
+    zone.putIfAbsent('classification', () => zone['airspace_class']);
+    return zone;
   }
 
   /// 委托给 [MapAirportApiParser.normalizeRunwayIdent]

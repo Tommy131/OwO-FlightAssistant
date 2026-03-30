@@ -77,7 +77,7 @@ class _MapPageState extends State<MapPage> {
   bool _isTaxiwayLoadPromptShowing = false;
   bool _isSavingTaxiwayRoute = false;
   final Set<String> _taxiwayAutoPromptedAirports = <String>{};
-   Map<String, dynamic>? _selectedRestrictedAirspaceZone;
+  Map<String, dynamic>? _selectedRestrictedAirspaceZone;
   Map<String, dynamic>? _hoveredRestrictedAirspaceZone;
   Offset? _hoveredRestrictedAirspaceGlobalPosition;
 
@@ -3678,6 +3678,7 @@ class _RestrictedAirspaceDraggablePanelState
     return _firstNonEmpty([
           zone['name']?.toString(),
           zone['title']?.toString(),
+          zone['icao']?.toString(),
           zone['id']?.toString(),
         ]) ??
         'Restricted Airspace';
@@ -3688,6 +3689,7 @@ class _RestrictedAirspaceDraggablePanelState
       zone['type']?.toString(),
       zone['zone_type']?.toString(),
       zone['airspace_type']?.toString(),
+      zone['zone_kind']?.toString(),
       zone['category']?.toString(),
     ]);
   }
@@ -3697,6 +3699,7 @@ class _RestrictedAirspaceDraggablePanelState
       zone['classification']?.toString(),
       zone['class']?.toString(),
       zone['airspace_class']?.toString(),
+      zone['airspace_grade']?.toString(),
     ]);
   }
 
@@ -3720,6 +3723,11 @@ class _RestrictedAirspaceDraggablePanelState
       zone['active']?.toString(),
       zone['state']?.toString(),
     ]);
+    final risk = _firstNonEmpty([
+      zone['risk_level']?.toString(),
+      zone['threat_level']?.toString(),
+      zone['severity']?.toString(),
+    ]);
     void addChip(String prefix, String? value) {
       if (value == null) {
         return;
@@ -3734,14 +3742,27 @@ class _RestrictedAirspaceDraggablePanelState
 
     addChip('等级', classification);
     addChip('类型', type);
+    addChip('风险', risk);
     addChip('状态', status);
     return chips;
   }
 
   static List<(String, String)> _buildDetailRows(Map<String, dynamic> zone) {
+    final zoneLower = <String, dynamic>{};
+    for (final entry in zone.entries) {
+      zoneLower.putIfAbsent(entry.key.toLowerCase(), () => entry.value);
+    }
+    dynamic valueByKey(String key) {
+      if (zone.containsKey(key)) {
+        return zone[key];
+      }
+      return zoneLower[key.toLowerCase()];
+    }
+
     String? numField(List<String> keys, {String suffix = ''}) {
       for (final key in keys) {
-        final value = (zone[key] as num?)?.toDouble();
+        final raw = valueByKey(key);
+        final value = raw is num ? raw.toDouble() : double.tryParse('$raw');
         if (value != null) {
           if (value % 1 == 0) {
             return '${value.toStringAsFixed(0)}$suffix';
@@ -3754,7 +3775,7 @@ class _RestrictedAirspaceDraggablePanelState
 
     String? textField(List<String> keys) {
       for (final key in keys) {
-        final value = zone[key]?.toString().trim();
+        final value = _formatZoneExtraValue(valueByKey(key))?.trim();
         if (value != null && value.isNotEmpty) {
           return value;
         }
@@ -3765,7 +3786,10 @@ class _RestrictedAirspaceDraggablePanelState
     final rows = <(String, String)>[];
     final seenRows = <String>{};
     final id = textField(['id', 'zone_id', 'identifier']);
+    final icao = textField(['icao', 'icao_code', 'airport_icao']);
+    final name = textField(['name', 'title']);
     final authority = textField(['authority', 'issuer', 'provider', 'source']);
+    final status = textField(['status', 'active', 'state']);
     final country = textField(['country', 'country_code', 'region']);
     final city = textField(['city', 'area', 'district']);
     final upperLimit = textField([
@@ -3795,7 +3819,7 @@ class _RestrictedAirspaceDraggablePanelState
     final centerLon = numField(['center_lon', 'longitude']);
     final minAltFt = numField(['min_altitude_ft', 'min_alt_ft'], suffix: ' ft');
     final maxAltFt = numField(['max_altitude_ft', 'max_alt_ft'], suffix: ' ft');
-    final risk = textField(['risk_level', 'threat_level']);
+    final risk = textField(['risk_level', 'threat_level', 'severity']);
     final geometry = textField(['geometry_type', 'shape', 'polygon_type']);
     final restriction = textField([
       'restriction',
@@ -3811,6 +3835,11 @@ class _RestrictedAirspaceDraggablePanelState
       'id',
       'zone_id',
       'identifier',
+      'icao',
+      'icao_code',
+      'airport_icao',
+      'name',
+      'title',
       'type',
       'zone_type',
       'airspace_type',
@@ -3820,6 +3849,7 @@ class _RestrictedAirspaceDraggablePanelState
       'airspace_class',
       'risk_level',
       'threat_level',
+      'severity',
       'restriction',
       'restriction_type',
       'advisory_level',
@@ -3902,9 +3932,12 @@ class _RestrictedAirspaceDraggablePanelState
     }
 
     addRow('空域ID', id);
+    addRow('ICAO', icao);
+    addRow('名称', name);
     addRow('空域类型', _airspaceType(zone));
     addRow('空域分级', _airspaceClass(zone));
     addRow('风险等级', risk);
+    addRow('当前状态', status);
     addRow('限制属性', restriction);
     addRow('发布来源', authority);
     addRow('管制单位', controllingUnit);
