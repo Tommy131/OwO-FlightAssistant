@@ -26,6 +26,9 @@ class MapTopPanel extends StatelessWidget {
   final VoidCallback onToggleParkings;
   final VoidCallback onToggleCompass;
   final VoidCallback onToggleWeather;
+  final VoidCallback onToggleWeatherRainfall;
+  final VoidCallback onToggleWeatherPressure;
+  final VoidCallback onToggleWeatherTemperature;
   final VoidCallback onToggleCustomTaxiway;
   final VoidCallback onToggleTaxiwayDrawing;
   final bool showRoute;
@@ -34,6 +37,9 @@ class MapTopPanel extends StatelessWidget {
   final bool showParkings;
   final bool showCompass;
   final bool showWeather;
+  final bool showWeatherRainfall;
+  final bool showWeatherPressure;
+  final bool showWeatherTemperature;
   final bool showCustomTaxiway;
   final bool isTaxiwayDrawingActive;
   final bool showTaxiwayControls;
@@ -67,6 +73,9 @@ class MapTopPanel extends StatelessWidget {
     required this.onToggleParkings,
     required this.onToggleCompass,
     required this.onToggleWeather,
+    required this.onToggleWeatherRainfall,
+    required this.onToggleWeatherPressure,
+    required this.onToggleWeatherTemperature,
     required this.onToggleCustomTaxiway,
     required this.onToggleTaxiwayDrawing,
     required this.showRoute,
@@ -75,6 +84,9 @@ class MapTopPanel extends StatelessWidget {
     required this.showParkings,
     required this.showCompass,
     required this.showWeather,
+    required this.showWeatherRainfall,
+    required this.showWeatherPressure,
+    required this.showWeatherTemperature,
     required this.showCustomTaxiway,
     required this.isTaxiwayDrawingActive,
     required this.showTaxiwayControls,
@@ -278,6 +290,41 @@ class MapTopPanel extends StatelessWidget {
                                   onChanged: (value) => onToggleWeather(),
                                   scale: scale,
                                 ),
+                                if (showWeather) ...[
+                                  SizedBox(width: 8 * scale),
+                                  FilterToggleButton(
+                                    label: MapLocalizationKeys
+                                        .toggleWeatherRainfall
+                                        .tr(context),
+                                    value: showWeatherRainfall,
+                                    onChanged: (value) =>
+                                        onToggleWeatherRainfall(),
+                                    activeColor: Colors.lightBlueAccent,
+                                    scale: scale,
+                                  ),
+                                  SizedBox(width: 8 * scale),
+                                  FilterToggleButton(
+                                    label: MapLocalizationKeys
+                                        .toggleWeatherPressure
+                                        .tr(context),
+                                    value: showWeatherPressure,
+                                    onChanged: (value) =>
+                                        onToggleWeatherPressure(),
+                                    activeColor: Colors.purpleAccent,
+                                    scale: scale,
+                                  ),
+                                  SizedBox(width: 8 * scale),
+                                  FilterToggleButton(
+                                    label: MapLocalizationKeys
+                                        .toggleWeatherTemperature
+                                        .tr(context),
+                                    value: showWeatherTemperature,
+                                    onChanged: (value) =>
+                                        onToggleWeatherTemperature(),
+                                    activeColor: Colors.deepOrangeAccent,
+                                    scale: scale,
+                                  ),
+                                ],
                                 SizedBox(width: 8 * scale),
                                 TaxiwayDrawControls(
                                   showCustomTaxiwayButton: showTaxiwayControls,

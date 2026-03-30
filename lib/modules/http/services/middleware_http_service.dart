@@ -324,6 +324,33 @@ class MiddlewareHttpService {
     return get('/api/v1/simulator/ws');
   }
 
+  Future<MiddlewareHttpResponse> getPerformanceAircraftProfiles() {
+    return get('/api/v1/performance/aircraft-profiles');
+  }
+
+  Future<MiddlewareHttpResponse> calculatePerformance({
+    required String aircraftId,
+    required double runwayLength,
+    required double pressureAltitude,
+    required double oat,
+    required double headwind,
+    required double aircraftWeight,
+    required bool wetRunway,
+  }) {
+    return post(
+      '/api/v1/performance/calculate',
+      body: {
+        'aircraft_id': aircraftId.trim(),
+        'runway_length': runwayLength,
+        'pressure_altitude': pressureAltitude,
+        'oat': oat,
+        'headwind': headwind,
+        'aircraft_weight': aircraftWeight,
+        'wet_runway': wetRunway,
+      },
+    );
+  }
+
   Future<Uri> resolveSimulatorWebSocketUri({required String token}) async {
     String base = _webSocketBaseUrl;
     try {

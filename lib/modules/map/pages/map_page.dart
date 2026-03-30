@@ -126,6 +126,13 @@ class _MapPageState extends State<MapPage> {
         final aviationOverlayUrl = _aviationOverlayUrl(provider.layerStyle);
         final showNearbyAirportMarkers =
             provider.showAirports && zoom >= _nearbyAirportMinZoom;
+        final showPressureLayer =
+            provider.showWeather && provider.showWeatherPressure;
+        final showTemperatureLayer =
+            provider.showWeather &&
+            provider.showWeatherTemperature &&
+            !showPressureLayer;
+        final showWeatherLegend = showPressureLayer || showTemperatureLayer;
         final showAirportIcaoLabel = zoom >= _airportIcaoLabelMinZoom;
         final prioritizedPinnedMarkers = _buildPrioritizedPinnedMarkers(
           provider: provider,
@@ -341,6 +348,7 @@ class _MapPageState extends State<MapPage> {
                       ),
                     ),
                   if (provider.showWeather &&
+                      provider.showWeatherRainfall &&
                       provider.weatherRadarTileUrlTemplate != null &&
                       !provider.isWeatherRadarCoolingDown &&
                       zoom <= 7.9)
@@ -356,6 +364,40 @@ class _MapPageState extends State<MapPage> {
                         maxNativeZoom: 7,
                         minZoom: 3,
                         maxZoom: 7.9,
+                        errorTileCallback: (tile, error, stackTrace) {
+                          provider.handleWeatherRadarTileError(error);
+                        },
+                      ),
+                    ),
+                  if (showPressureLayer)
+                    Opacity(
+                      opacity: 0.42,
+                      child: TileLayer(
+                        key: ValueKey(
+                          'weather-pressure-${provider.tileReloadToken}',
+                        ),
+                        urlTemplate: provider.weatherPressureTileUrlTemplate,
+                        userAgentPackageName: 'com.owo.flight_assistant',
+                        tileUpdateTransformer: _weatherRadarTransformer,
+                        maxNativeZoom: 11,
+                        minZoom: 3,
+                        errorTileCallback: (tile, error, stackTrace) {
+                          provider.handleWeatherRadarTileError(error);
+                        },
+                      ),
+                    ),
+                  if (showTemperatureLayer)
+                    Opacity(
+                      opacity: 0.36,
+                      child: TileLayer(
+                        key: ValueKey(
+                          'weather-temp-${provider.tileReloadToken}',
+                        ),
+                        urlTemplate: provider.weatherTemperatureTileUrlTemplate,
+                        userAgentPackageName: 'com.owo.flight_assistant',
+                        tileUpdateTransformer: _weatherRadarTransformer,
+                        maxNativeZoom: 11,
+                        minZoom: 3,
                         errorTileCallback: (tile, error, stackTrace) {
                           provider.handleWeatherRadarTileError(error);
                         },
@@ -765,6 +807,9 @@ class _MapPageState extends State<MapPage> {
                   onToggleParkings: provider.toggleParkings,
                   onToggleCompass: provider.toggleCompass,
                   onToggleWeather: provider.toggleWeather,
+                  onToggleWeatherRainfall: provider.toggleWeatherRainfall,
+                  onToggleWeatherPressure: provider.toggleWeatherPressure,
+                  onToggleWeatherTemperature: provider.toggleWeatherTemperature,
                   onToggleCustomTaxiway: provider.toggleCustomTaxiway,
                   onToggleTaxiwayDrawing: provider.toggleTaxiwayDrawing,
                   showRoute: provider.showRoute,
@@ -773,6 +818,9 @@ class _MapPageState extends State<MapPage> {
                   showParkings: provider.showParkings,
                   showCompass: provider.showCompass,
                   showWeather: provider.showWeather,
+                  showWeatherRainfall: provider.showWeatherRainfall,
+                  showWeatherPressure: provider.showWeatherPressure,
+                  showWeatherTemperature: provider.showWeatherTemperature,
                   showCustomTaxiway: provider.showCustomTaxiwayRoute,
                   isTaxiwayDrawingActive: provider.isTaxiwayDrawingActive,
                   showTaxiwayControls: showTaxiwayControls,
@@ -827,7 +875,9 @@ class _MapPageState extends State<MapPage> {
                     onImport: () => _importCustomTaxiwayRoute(provider),
                   ),
                 ),
-              if (showTaxiwayEditStatus || showPlannedRouteChip)
+              if (showTaxiwayEditStatus ||
+                  showPlannedRouteChip ||
+                  showWeatherLegend)
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutCubic,
@@ -908,13 +958,50 @@ class _MapPageState extends State<MapPage> {
                             ],
                           ),
                         ),
-                      if (showTaxiwayEditStatus && showPlannedRouteChip)
+                      if (showTaxiwayEditStatus &&
+                          (showWeatherLegend || showPlannedRouteChip))
                         SizedBox(width: 8 * scale),
-                      if (showPlannedRouteChip)
-                        _PlannedRouteTotalChip(
-                          scale: scale,
-                          text:
-                              '${MapLocalizationKeys.plannedRouteTotal.tr(context)}: ${plannedRouteTotalNm.toStringAsFixed(1)} NM',
+                      if (showWeatherLegend || showPlannedRouteChip)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (showWeatherLegend)
+                              _WeatherLegendChip(
+                                scale: scale,
+                                title: showPressureLayer
+                                    ? MapLocalizationKeys.toggleWeatherPressure
+                                          .tr(context)
+                                    : MapLocalizationKeys
+                                          .toggleWeatherTemperature
+                                          .tr(context),
+                                unit: showPressureLayer ? 'hPa' : '°C',
+                                startLabel: showPressureLayer ? '970' : '-35',
+                                endLabel: showPressureLayer ? '1045' : '45',
+                                colors: showPressureLayer
+                                    ? const [
+                                        Color(0xFF462080),
+                                        Color(0xFF2B77AA),
+                                        Color(0xFF4AA85E),
+                                        Color(0xFFEDC948),
+                                      ]
+                                    : const [
+                                        Color(0xFF3252B9),
+                                        Color(0xFF3DA7D8),
+                                        Color(0xFF7BD06F),
+                                        Color(0xFFF5C44B),
+                                        Color(0xFFE0574A),
+                                      ],
+                              ),
+                            if (showWeatherLegend && showPlannedRouteChip)
+                              SizedBox(height: 8 * scale),
+                            if (showPlannedRouteChip)
+                              _PlannedRouteTotalChip(
+                                scale: scale,
+                                text:
+                                    '${MapLocalizationKeys.plannedRouteTotal.tr(context)}: ${plannedRouteTotalNm.toStringAsFixed(1)} NM',
+                              ),
+                          ],
                         ),
                     ],
                   ),
@@ -2828,6 +2915,87 @@ class _PlannedRouteLegLabel extends StatelessWidget {
           fontSize: 12 * scale,
           fontWeight: FontWeight.w600,
         ),
+      ),
+    );
+  }
+}
+
+class _WeatherLegendChip extends StatelessWidget {
+  final double scale;
+  final String title;
+  final String unit;
+  final String startLabel;
+  final String endLabel;
+  final List<Color> colors;
+
+  const _WeatherLegendChip({
+    required this.scale,
+    required this.title,
+    required this.unit,
+    required this.startLabel,
+    required this.endLabel,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 10 * scale,
+        vertical: 8 * scale,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(10 * scale),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$title ($unit)',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 11 * scale,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: 6 * scale),
+          Container(
+            width: 140 * scale,
+            height: 10 * scale,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6 * scale),
+              gradient: LinearGradient(colors: colors),
+            ),
+          ),
+          SizedBox(height: 4 * scale),
+          SizedBox(
+            width: 140 * scale,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  startLabel,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10 * scale,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  endLabel,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10 * scale,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

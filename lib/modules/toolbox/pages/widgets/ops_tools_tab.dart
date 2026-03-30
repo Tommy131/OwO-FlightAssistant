@@ -19,6 +19,7 @@ class _OpsToolsTabState extends State<OpsToolsTab> {
 
   static const List<String> _tags = [
     'RWY',
+    'ILS',
     'TWY',
     'NAV',
     'OBST',
@@ -26,6 +27,7 @@ class _OpsToolsTabState extends State<OpsToolsTab> {
     'FUEL',
     'LIGHT',
     'CLSD',
+    'CLOSED',
   ];
 
   List<_QuickRefItem> _quickRefs(BuildContext context) {
@@ -99,6 +101,16 @@ class _OpsToolsTabState extends State<OpsToolsTab> {
 
   String _severity(String line) {
     final upper = line.toUpperCase();
+    if (upper.contains('RWY') &&
+        (upper.contains('CLSD') || upper.contains('CLOSED'))) {
+      return 'high';
+    }
+    if (upper.contains('ILS') &&
+        (upper.contains('U/S') ||
+            upper.contains('UNSERVICEABLE') ||
+            upper.contains('OUT OF SERVICE'))) {
+      return 'high';
+    }
     if (upper.contains('CLSD') ||
         upper.contains('CLOSED') ||
         upper.contains('UNSERVICEABLE')) {

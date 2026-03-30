@@ -136,6 +136,9 @@ class MapProvider extends ChangeNotifier {
   bool _showParkings = true;
   bool _showCompass = true;
   bool _showWeather = false;
+  bool _showWeatherRainfall = false;
+  bool _showWeatherPressure = false;
+  bool _showWeatherTemperature = false;
   bool _showCustomTaxiwayRoute = true;
   bool _isTaxiwayDrawingActive = false;
   bool _isLoading = false;
@@ -233,6 +236,9 @@ class MapProvider extends ChangeNotifier {
   bool get showParkings => _showParkings;
   bool get showCompass => _showCompass;
   bool get showWeather => _showWeather;
+  bool get showWeatherRainfall => _showWeatherRainfall;
+  bool get showWeatherPressure => _showWeatherPressure;
+  bool get showWeatherTemperature => _showWeatherTemperature;
   bool get showCustomTaxiwayRoute => _showCustomTaxiwayRoute;
   bool get isTaxiwayDrawingActive => _isTaxiwayDrawingActive;
   String? get currentNearestAirportIcao => _currentNearestAirportIcao;
@@ -273,7 +279,24 @@ class MapProvider extends ChangeNotifier {
     if (host == null || host.isEmpty || path == null || path.isEmpty) {
       return null;
     }
-    return '$host$path/256/{z}/{x}/{y}/4/1_1.png';
+    // 使用中间件代理请求气象瓦片，以解决 RainViewer 429 错误并提供服务端缓存
+    final baseUrl = HttpModule.client.baseUrl;
+    return '$baseUrl/api/v1/weather/radar/tile?host=$host&path=$path&z={z}&x={x}&y={y}';
+  }
+
+  String get weatherRainfallTileUrlTemplate {
+    final baseUrl = HttpModule.client.baseUrl;
+    return '$baseUrl/api/v1/weather/overlay/tile?layer=rain&z={z}&x={x}&y={y}';
+  }
+
+  String get weatherPressureTileUrlTemplate {
+    final baseUrl = HttpModule.client.baseUrl;
+    return '$baseUrl/api/v1/weather/overlay/tile?layer=pressure&z={z}&x={x}&y={y}';
+  }
+
+  String get weatherTemperatureTileUrlTemplate {
+    final baseUrl = HttpModule.client.baseUrl;
+    return '$baseUrl/api/v1/weather/overlay/tile?layer=temp&z={z}&x={x}&y={y}';
   }
 
   bool get isWeatherRadarCoolingDown =>
@@ -897,6 +920,59 @@ class MapProvider extends ChangeNotifier {
   void toggleWeather() {
     _showWeather = !_showWeather;
     if (_showWeather) {
+      if (!_showWeatherRainfall &&
+          !_showWeatherPressure &&
+          !_showWeatherTemperature) {
+        _showWeatherRainfall = true;
+      }
+      if (_showWeatherPressure && _showWeatherTemperature) {
+        _showWeatherTemperature = false;
+      }
+      _syncRadarRefreshTimer();
+    } else {
+      _showWeatherRainfall = false;
+      _showWeatherPressure = false;
+      _showWeatherTemperature = false;
+      _stopRadarRefreshTimer();
+    }
+    notifyListeners();
+  }
+
+  void toggleWeatherRainfall() {
+    if (!_showWeather) {
+      return;
+    }
+    _showWeatherRainfall = !_showWeatherRainfall;
+    _syncRadarRefreshTimer();
+    notifyListeners();
+  }
+
+  void toggleWeatherPressure() {
+    if (!_showWeather) {
+      return;
+    }
+    final nextValue = !_showWeatherPressure;
+    _showWeatherPressure = nextValue;
+    if (nextValue) {
+      _showWeatherTemperature = false;
+    }
+    notifyListeners();
+  }
+
+  void toggleWeatherTemperature() {
+    if (!_showWeather) {
+      return;
+    }
+    final nextValue = !_showWeatherTemperature;
+    _showWeatherTemperature = nextValue;
+    if (nextValue) {
+      _showWeatherPressure = false;
+    }
+    notifyListeners();
+  }
+
+  void _syncRadarRefreshTimer() {
+    if (_showWeather && _showWeatherRainfall) {
       if (_weatherRadarTimestamp == null ||
           _lastRadarFetch == null ||
           DateTime.now().difference(_lastRadarFetch!).inMinutes >= 15) {
@@ -907,14 +983,17 @@ class MapProvider extends ChangeNotifier {
         const Duration(minutes: 15),
         (timer) => _updateWeatherRadarTimestamp(),
       );
-    } else {
-      _radarRefreshTimer?.cancel();
-      _radarRefreshTimer = null;
-      _radarCooldownTimer?.cancel();
-      _radarCooldownTimer = null;
-      _weatherRadarCooldownUntil = null;
+      return;
     }
-    notifyListeners();
+    _stopRadarRefreshTimer();
+  }
+
+  void _stopRadarRefreshTimer() {
+    _radarRefreshTimer?.cancel();
+    _radarRefreshTimer = null;
+    _radarCooldownTimer?.cancel();
+    _radarCooldownTimer = null;
+    _weatherRadarCooldownUntil = null;
   }
 
   void toggleCustomTaxiway() {
@@ -1608,16 +1687,20 @@ class MapProvider extends ChangeNotifier {
 
   void handleWeatherRadarTileError(Object error) {
     final message = error.toString();
-    if (message.contains('statusCode: 429')) {
+    // 检查是否触发了 429 错误（无论是直接来自 RainViewer 还是来自我们的中间件）
+    if (message.contains('statusCode: 429') ||
+        message.contains('rate_limited_by_upstream')) {
       handleWeatherRadarRateLimit();
       return;
     }
-    if (!message.contains('statusCode: 404')) {
+    // 忽略 404 错误（某些瓦片在远端可能确实不存在）
+    if (message.contains('statusCode: 404')) {
       return;
     }
+    // 其他错误，尝试强制刷新时间戳（可能是时间戳过期导致的）
     final now = DateTime.now();
     if (_lastRadarTileErrorAt != null &&
-        now.difference(_lastRadarTileErrorAt!).inSeconds < 20) {
+        now.difference(_lastRadarTileErrorAt!).inSeconds < 30) {
       return;
     }
     _lastRadarTileErrorAt = now;
@@ -1631,8 +1714,9 @@ class MapProvider extends ChangeNotifier {
       return;
     }
     try {
+      final baseUrl = HttpModule.client.baseUrl;
       final response = await http.get(
-        Uri.parse('https://api.rainviewer.com/public/weather-maps.json'),
+        Uri.parse('$baseUrl/api/v1/weather/radar/metadata'),
       );
       if (response.statusCode == 200) {
         final root = _asMap(json.decode(response.body));

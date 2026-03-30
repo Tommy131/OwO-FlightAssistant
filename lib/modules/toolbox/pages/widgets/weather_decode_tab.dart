@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
+import '../../../../core/utils/url_launcher_helper.dart';
 import '../../localization/toolbox_localization_keys.dart';
 import '../../../map/providers/map_weather_utils.dart';
 import 'toolbox_section_card.dart';
@@ -16,14 +17,28 @@ class WeatherDecodeTab extends StatefulWidget {
 class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
   final TextEditingController _metarController = TextEditingController();
   final TextEditingController _tafController = TextEditingController();
+  final TextEditingController _sigmetController = TextEditingController();
+  final TextEditingController _airmetController = TextEditingController();
   String _metarSummary = '';
   String _tafSummary = '';
   String _riskSummary = '';
+  String _sigmetSummary = '';
+  String _airmetSummary = '';
+  String _radarRegionKey = 'global';
+
+  static const Map<String, String> _radarLinks = {
+    'global': 'https://www.windy.com/-Weather-radar-radar',
+    'east_asia': 'https://www.windy.com/35.8/104.1?radar,26.2,104.1,4',
+    'europe': 'https://www.windy.com/50.0/10.0?radar,50.0,10.0,5',
+    'north_america': 'https://www.windy.com/39.0/-98.0?radar,39.0,-98.0,4',
+  };
 
   @override
   void dispose() {
     _metarController.dispose();
     _tafController.dispose();
+    _sigmetController.dispose();
+    _airmetController.dispose();
     super.dispose();
   }
 
@@ -34,7 +49,57 @@ class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
       _metarSummary = _decodeMetar(context, metar);
       _tafSummary = _decodeTaf(context, taf);
       _riskSummary = _buildRisk(context, metar, taf);
+      _sigmetSummary = _decodeAdvisory(
+        context,
+        _sigmetController.text.trim().toUpperCase(),
+        ToolboxLocalizationKeys.weatherNoSigmetInput,
+      );
+      _airmetSummary = _decodeAdvisory(
+        context,
+        _airmetController.text.trim().toUpperCase(),
+        ToolboxLocalizationKeys.weatherNoAirmetInput,
+      );
     });
+  }
+
+  String _decodeAdvisory(BuildContext context, String raw, String noInputKey) {
+    if (raw.isEmpty) {
+      return noInputKey.tr(context);
+    }
+    final features = <String>[];
+    final period = RegExp(r'(\d{6})/(\d{6})').firstMatch(raw);
+    final flightLevel = RegExp(
+      r'\bFL\d{2,3}(?:/\d{2,3})?\b',
+    ).allMatches(raw).map((m) => m.group(0)!).toList();
+    final area = RegExp(
+      r'\b[A-Z]{4}\b',
+    ).allMatches(raw).map((m) => m.group(0)!).toSet();
+    if (raw.contains('TS') || raw.contains('CB')) {
+      features.add(ToolboxLocalizationKeys.weatherAdvisoryThunder.tr(context));
+    }
+    if (raw.contains('TURB') || raw.contains('CAT')) {
+      features.add(ToolboxLocalizationKeys.weatherAdvisoryTurb.tr(context));
+    }
+    if (raw.contains('ICE') || raw.contains('FZ')) {
+      features.add(ToolboxLocalizationKeys.weatherAdvisoryIcing.tr(context));
+    }
+    if (raw.contains('MTW') || raw.contains('MTN')) {
+      features.add(
+        ToolboxLocalizationKeys.weatherAdvisoryMountainWave.tr(context),
+      );
+    }
+    if (raw.contains('VA') || raw.contains('ASH')) {
+      features.add(ToolboxLocalizationKeys.weatherAdvisoryVolcanic.tr(context));
+    }
+    if (raw.contains('TC')) {
+      features.add(ToolboxLocalizationKeys.weatherAdvisoryCyclone.tr(context));
+    }
+    return [
+      '${ToolboxLocalizationKeys.weatherAdvisoryPeriod.tr(context)}：${period == null ? '--' : '${period.group(1)}-${period.group(2)}'}',
+      '${ToolboxLocalizationKeys.weatherAdvisoryArea.tr(context)}：${area.isEmpty ? '--' : area.take(3).join(', ')}',
+      '${ToolboxLocalizationKeys.weatherAdvisoryFlightLevel.tr(context)}：${flightLevel.isEmpty ? '--' : flightLevel.join(', ')}',
+      '${ToolboxLocalizationKeys.weatherAdvisoryHazards.tr(context)}：${features.isEmpty ? ToolboxLocalizationKeys.weatherRiskNone.tr(context) : features.join(' / ')}',
+    ].join('\n');
   }
 
   String _decodeMetar(BuildContext context, String metar) {
@@ -232,6 +297,127 @@ class _WeatherDecodeTabState extends State<WeatherDecodeTab> {
                 ToolboxLocalizationKeys.weatherRiskResultTitle.tr(context),
                 _riskSummary,
               ),
+            const SizedBox(height: AppThemeData.spacingLarge),
+            TextField(
+              controller: _sigmetController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: ToolboxLocalizationKeys.weatherSigmetLabel.tr(
+                  context,
+                ),
+                hintText: ToolboxLocalizationKeys.weatherSigmetHint.tr(context),
+                prefixIcon: const Icon(Icons.warning_amber),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: AppThemeData.spacingSmall),
+            TextField(
+              controller: _airmetController,
+              minLines: 2,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: ToolboxLocalizationKeys.weatherAirmetLabel.tr(
+                  context,
+                ),
+                hintText: ToolboxLocalizationKeys.weatherAirmetHint.tr(context),
+                prefixIcon: const Icon(Icons.flight_takeoff),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            if (_sigmetSummary.isNotEmpty)
+              _resultBlock(
+                ToolboxLocalizationKeys.weatherSigmetResultTitle.tr(context),
+                _sigmetSummary,
+              ),
+            if (_airmetSummary.isNotEmpty)
+              _resultBlock(
+                ToolboxLocalizationKeys.weatherAirmetResultTitle.tr(context),
+                _airmetSummary,
+              ),
+            const SizedBox(height: AppThemeData.spacingLarge),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppThemeData.spacingMedium),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(
+                  AppThemeData.borderRadiusMedium,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ToolboxLocalizationKeys.weatherRadarSectionTitle.tr(
+                      context,
+                    ),
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: AppThemeData.spacingSmall),
+                  DropdownButtonFormField<String>(
+                    initialValue: _radarRegionKey,
+                    items: [
+                      DropdownMenuItem(
+                        value: 'global',
+                        child: Text(
+                          ToolboxLocalizationKeys.weatherRadarGlobal.tr(
+                            context,
+                          ),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'east_asia',
+                        child: Text(
+                          ToolboxLocalizationKeys.weatherRadarEastAsia.tr(
+                            context,
+                          ),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'europe',
+                        child: Text(
+                          ToolboxLocalizationKeys.weatherRadarEurope.tr(
+                            context,
+                          ),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'north_america',
+                        child: Text(
+                          ToolboxLocalizationKeys.weatherRadarNorthAmerica.tr(
+                            context,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => _radarRegionKey = value);
+                    },
+                    decoration: InputDecoration(
+                      labelText: ToolboxLocalizationKeys.weatherRadarRegionLabel
+                          .tr(context),
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: AppThemeData.spacingMedium),
+                  ElevatedButton.icon(
+                    onPressed: () => UrlLauncherHelper.launchURL(
+                      _radarLinks[_radarRegionKey]!,
+                    ),
+                    icon: const Icon(Icons.radar),
+                    label: Text(
+                      ToolboxLocalizationKeys.weatherRadarOpenButton.tr(
+                        context,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

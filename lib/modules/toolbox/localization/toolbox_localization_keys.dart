@@ -124,6 +124,43 @@ class ToolboxLocalizationKeys {
   static const String weatherRiskIcing = 'toolbox.weather.risk_icing';
   static const String weatherRiskGust = 'toolbox.weather.risk_gust';
   static const String weatherRiskNone = 'toolbox.weather.risk_none';
+  static const String weatherSigmetLabel = 'toolbox.weather.sigmet_label';
+  static const String weatherSigmetHint = 'toolbox.weather.sigmet_hint';
+  static const String weatherAirmetLabel = 'toolbox.weather.airmet_label';
+  static const String weatherAirmetHint = 'toolbox.weather.airmet_hint';
+  static const String weatherSigmetResultTitle =
+      'toolbox.weather.sigmet_result_title';
+  static const String weatherAirmetResultTitle =
+      'toolbox.weather.airmet_result_title';
+  static const String weatherNoSigmetInput = 'toolbox.weather.no_sigmet_input';
+  static const String weatherNoAirmetInput = 'toolbox.weather.no_airmet_input';
+  static const String weatherAdvisoryPeriod = 'toolbox.weather.advisory_period';
+  static const String weatherAdvisoryArea = 'toolbox.weather.advisory_area';
+  static const String weatherAdvisoryFlightLevel =
+      'toolbox.weather.advisory_flight_level';
+  static const String weatherAdvisoryHazards =
+      'toolbox.weather.advisory_hazards';
+  static const String weatherAdvisoryThunder =
+      'toolbox.weather.advisory_thunder';
+  static const String weatherAdvisoryTurb = 'toolbox.weather.advisory_turb';
+  static const String weatherAdvisoryIcing = 'toolbox.weather.advisory_icing';
+  static const String weatherAdvisoryMountainWave =
+      'toolbox.weather.advisory_mountain_wave';
+  static const String weatherAdvisoryVolcanic =
+      'toolbox.weather.advisory_volcanic';
+  static const String weatherAdvisoryCyclone =
+      'toolbox.weather.advisory_cyclone';
+  static const String weatherRadarSectionTitle =
+      'toolbox.weather.radar.section_title';
+  static const String weatherRadarRegionLabel =
+      'toolbox.weather.radar.region_label';
+  static const String weatherRadarOpenButton =
+      'toolbox.weather.radar.open_button';
+  static const String weatherRadarGlobal = 'toolbox.weather.radar.global';
+  static const String weatherRadarEastAsia = 'toolbox.weather.radar.east_asia';
+  static const String weatherRadarEurope = 'toolbox.weather.radar.europe';
+  static const String weatherRadarNorthAmerica =
+      'toolbox.weather.radar.north_america';
   static const String opsNotamSectionTitle = 'toolbox.ops.notam.section_title';
   static const String opsNotamTextLabel = 'toolbox.ops.notam.text_label';
   static const String opsNotamTextHint = 'toolbox.ops.notam.text_hint';
@@ -221,4 +258,16 @@ class ToolboxLocalizationKeys {
   static const String perfMarginHigh = 'toolbox.perf.runway.margin_high';
   static const String perfAcceptable = 'toolbox.perf.runway.acceptable';
   static const String perfNotMet = 'toolbox.perf.runway.not_met';
+  static const String perfAircraftType = 'toolbox.perf.runway.aircraft_type';
+  static const String perfAircraftTolissA320 =
+      'toolbox.perf.runway.aircraft_toliss_a320';
+  static const String perfAircraftPmdgB737 =
+      'toolbox.perf.runway.aircraft_pmdg_b737';
+  static const String perfV1 = 'toolbox.perf.runway.v1';
+  static const String perfVr = 'toolbox.perf.runway.vr';
+  static const String perfV2 = 'toolbox.perf.runway.v2';
+  static const String perfFlexTemp = 'toolbox.perf.runway.flex_temp';
+  static const String perfFlexNotRecommended =
+      'toolbox.perf.runway.flex_not_recommended';
+  static const String perfWeightRangeHint = 'toolbox.perf.runway.weight_range';
 }

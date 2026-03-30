@@ -78,6 +78,10 @@ class MapLocalizationKeys {
   static const String toggleRunways = 'map.control.runways';
   static const String toggleParkings = 'map.control.parkings';
   static const String toggleWeather = 'map.control.weather';
+  static const String toggleWeatherRainfall = 'map.control.weather_rainfall';
+  static const String toggleWeatherPressure = 'map.control.weather_pressure';
+  static const String toggleWeatherTemperature =
+      'map.control.weather_temperature';
   static const String toggleCompass = 'map.control.compass';
   static const String toggleCustomTaxiway = 'map.control.custom_taxiway';
   static const String toggleTaxiwayDrawing = 'map.control.taxiway_drawing';

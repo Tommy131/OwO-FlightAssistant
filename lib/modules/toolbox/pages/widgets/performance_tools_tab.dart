@@ -1,8 +1,9 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/services/localization_service.dart';
 import '../../../../core/theme/app_theme_data.dart';
+import '../../../http/models/http_exception.dart';
+import '../../../http/services/middleware_http_service.dart';
 import '../../localization/toolbox_localization_keys.dart';
 import 'toolbox_section_card.dart';
 
@@ -14,6 +15,7 @@ class PerformanceToolsTab extends StatefulWidget {
 }
 
 class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
+  final MiddlewareHttpService _httpService = MiddlewareHttpService();
   final TextEditingController _bewController = TextEditingController(
     text: '42000',
   );
@@ -71,6 +73,17 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
   );
   bool _wetRunway = false;
   String _perfResult = '';
+  bool _perfCalculating = false;
+  String _selectedAircraft = '';
+  List<_AircraftProfile> _aircraftProfiles = const [];
+  bool _aircraftProfilesLoading = false;
+  String _aircraftProfilesError = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAircraftProfiles();
+  }
 
   @override
   void dispose() {
@@ -96,6 +109,78 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
   }
 
   double? _v(TextEditingController c) => double.tryParse(c.text.trim());
+
+  _AircraftProfile? get _selectedAircraftProfile {
+    for (final profile in _aircraftProfiles) {
+      if (profile.id == _selectedAircraft) {
+        return profile;
+      }
+    }
+    return null;
+  }
+
+  String _aircraftName(BuildContext context, _AircraftProfile profile) {
+    switch (profile.id) {
+      case 'toliss_a320':
+        return ToolboxLocalizationKeys.perfAircraftTolissA320.tr(context);
+      case 'pmdg_737':
+        return ToolboxLocalizationKeys.perfAircraftPmdgB737.tr(context);
+      default:
+        return profile.displayName;
+    }
+  }
+
+  Future<void> _loadAircraftProfiles() async {
+    if (!mounted) return;
+    setState(() {
+      _aircraftProfilesLoading = true;
+      _aircraftProfilesError = '';
+    });
+    try {
+      await _httpService.init();
+      final response = await _httpService.getPerformanceAircraftProfiles();
+      final body = response.decodedBody;
+      if (body is! Map<String, dynamic>) {
+        throw StateError('Invalid aircraft profile response');
+      }
+      final rawProfiles = body['profiles'];
+      if (rawProfiles is! List) {
+        throw StateError('Missing aircraft profiles');
+      }
+      final profiles = rawProfiles
+          .whereType<Map>()
+          .map(
+            (item) =>
+                _AircraftProfile.fromMap(item.map((k, v) => MapEntry('$k', v))),
+          )
+          .toList();
+      if (profiles.isEmpty) {
+        throw StateError('Aircraft profiles unavailable');
+      }
+      final selected = profiles.any((p) => p.id == _selectedAircraft)
+          ? _selectedAircraft
+          : profiles.first.id;
+      final selectedProfile = profiles.firstWhere((p) => p.id == selected);
+      if (!mounted) return;
+      setState(() {
+        _aircraftProfiles = profiles;
+        _selectedAircraft = selected;
+        _aircraftWeightController.text = selectedProfile.referenceWeight
+            .toStringAsFixed(0);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _aircraftProfilesError = '$e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _aircraftProfilesLoading = false;
+        });
+      }
+    }
+  }
 
   void _calculateWeightBalance(BuildContext context) {
     final bew = _v(_bewController);
@@ -156,7 +241,28 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
     });
   }
 
-  void _calculatePerformance(BuildContext context) {
+  String _runwayLevelText(BuildContext context, String code) {
+    switch (code) {
+      case 'high':
+        return ToolboxLocalizationKeys.perfMarginHigh.tr(context);
+      case 'acceptable':
+        return ToolboxLocalizationKeys.perfAcceptable.tr(context);
+      default:
+        return ToolboxLocalizationKeys.perfNotMet.tr(context);
+    }
+  }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('$value') ?? 0;
+  }
+
+  Future<void> _calculatePerformance(BuildContext context) async {
+    final profile = _selectedAircraftProfile;
+    if (profile == null) {
+      setState(() => _perfResult = 'Aircraft profiles unavailable');
+      return;
+    }
     final runwayLength = _v(_runwayLengthController);
     final pressureAltitude = _v(_pressureAltitudeController);
     final oat = _v(_oatController);
@@ -184,33 +290,78 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
       );
       return;
     }
-    final weightRatio = aircraftWeight / 60000;
-    final takeoffBase = 1200 * math.pow(weightRatio, 1.05);
-    final landingBase = 1000 * math.pow(weightRatio, 1.03);
-    final altFactor = 1 + (pressureAltitude! / 10000) * 0.12;
-    final tempFactor = 1 + math.max(oat! - 15, -30) / 100 * 0.1;
-    final takeoffWindFactor = (1 - headwind! * 0.01).clamp(0.75, 1.4);
-    final landingWindFactor = (1 - headwind * 0.008).clamp(0.78, 1.4);
-    final wetFactor = _wetRunway ? 1.15 : 1.0;
-    final takeoffRequired =
-        takeoffBase * altFactor * tempFactor * takeoffWindFactor * wetFactor;
-    final landingRequired =
-        landingBase * altFactor * tempFactor * landingWindFactor * wetFactor;
-    final tkMargin = runwayLength - takeoffRequired;
-    final ldMargin = runwayLength - landingRequired;
-    final level = tkMargin >= 300 && ldMargin >= 300
-        ? ToolboxLocalizationKeys.perfMarginHigh.tr(context)
-        : tkMargin >= 0 && ldMargin >= 0
-        ? ToolboxLocalizationKeys.perfAcceptable.tr(context)
-        : ToolboxLocalizationKeys.perfNotMet.tr(context);
     setState(() {
-      _perfResult =
-          '${ToolboxLocalizationKeys.perfTakeoffRequired.tr(context)} ${takeoffRequired.toStringAsFixed(0)} m\n'
-          '${ToolboxLocalizationKeys.perfLandingRequired.tr(context)} ${landingRequired.toStringAsFixed(0)} m\n'
-          '${ToolboxLocalizationKeys.perfTakeoffMargin.tr(context)} ${tkMargin.toStringAsFixed(0)} m\n'
-          '${ToolboxLocalizationKeys.perfLandingMargin.tr(context)} ${ldMargin.toStringAsFixed(0)} m\n'
-          '${ToolboxLocalizationKeys.perfRunwayLevel.tr(context)}：$level';
+      _perfCalculating = true;
     });
+    try {
+      final response = await _httpService.calculatePerformance(
+        aircraftId: profile.id,
+        runwayLength: runwayLength,
+        pressureAltitude: pressureAltitude!,
+        oat: oat!,
+        headwind: headwind!,
+        aircraftWeight: aircraftWeight,
+        wetRunway: _wetRunway,
+      );
+      final body = response.decodedBody;
+      if (body is! Map<String, dynamic>) {
+        throw StateError('Invalid performance response');
+      }
+      final v1 = _toDouble(body['v1']);
+      final vr = _toDouble(body['vr']);
+      final v2 = _toDouble(body['v2']);
+      final takeoffRequired = _toDouble(body['takeoff_required']);
+      final landingRequired = _toDouble(body['landing_required']);
+      final tkMargin = _toDouble(body['takeoff_margin']);
+      final ldMargin = _toDouble(body['landing_margin']);
+      final flexRecommended = body['flex_recommended'] == true;
+      final flexTemperature = _toDouble(body['flex_temperature']);
+      final runwayLevelCode = (body['runway_level_code'] ?? '').toString();
+      final flexText = flexRecommended
+          ? '${flexTemperature.toStringAsFixed(0)}°C'
+          : ToolboxLocalizationKeys.perfFlexNotRecommended.tr(context);
+      if (!mounted) return;
+      setState(() {
+        _perfResult =
+            '${ToolboxLocalizationKeys.perfAircraftType.tr(context)} ${_aircraftName(context, profile)}\n'
+            '${ToolboxLocalizationKeys.perfV1.tr(context)} ${v1.toStringAsFixed(0)} kt\n'
+            '${ToolboxLocalizationKeys.perfVr.tr(context)} ${vr.toStringAsFixed(0)} kt\n'
+            '${ToolboxLocalizationKeys.perfV2.tr(context)} ${v2.toStringAsFixed(0)} kt\n'
+            '${ToolboxLocalizationKeys.perfFlexTemp.tr(context)} $flexText\n'
+            '${ToolboxLocalizationKeys.perfTakeoffRequired.tr(context)} ${takeoffRequired.toStringAsFixed(0)} m\n'
+            '${ToolboxLocalizationKeys.perfLandingRequired.tr(context)} ${landingRequired.toStringAsFixed(0)} m\n'
+            '${ToolboxLocalizationKeys.perfTakeoffMargin.tr(context)} ${tkMargin.toStringAsFixed(0)} m\n'
+            '${ToolboxLocalizationKeys.perfLandingMargin.tr(context)} ${ldMargin.toStringAsFixed(0)} m\n'
+            '${ToolboxLocalizationKeys.perfRunwayLevel.tr(context)}：${_runwayLevelText(context, runwayLevelCode)}';
+      });
+    } on MiddlewareHttpException catch (e) {
+      String message = e.message;
+      final data = e.data;
+      if (data is Map<String, dynamic>) {
+        final errorCode = (data['error'] ?? '').toString().trim();
+        if (errorCode == 'weight_out_of_range') {
+          message =
+              '${ToolboxLocalizationKeys.perfWeightRangeHint.tr(context)} ${profile.minWeight.toStringAsFixed(0)}-${profile.maxWeight.toStringAsFixed(0)} kg';
+        } else if (errorCode == 'invalid_range') {
+          message = ToolboxLocalizationKeys.commonInvalidRange.tr(context);
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _perfResult = message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _perfResult = '$e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _perfCalculating = false;
+        });
+      }
+    }
   }
 
   Widget _field(TextEditingController c, String label, IconData icon) {
@@ -356,6 +507,57 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
             icon: Icons.flight_land,
             child: Column(
               children: [
+                if (_aircraftProfilesLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: AppThemeData.spacingSmall),
+                    child: LinearProgressIndicator(),
+                  ),
+                if (_aircraftProfilesError.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: AppThemeData.spacingSmall,
+                    ),
+                    child: Text(
+                      _aircraftProfilesError,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedAircraft.isEmpty
+                      ? null
+                      : _selectedAircraft,
+                  items: _aircraftProfiles
+                      .map(
+                        (profile) => DropdownMenuItem(
+                          value: profile.id,
+                          child: Text(_aircraftName(context, profile)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _aircraftProfiles.isEmpty
+                      ? null
+                      : (value) {
+                          if (value == null) return;
+                          final profile = _aircraftProfiles.firstWhere(
+                            (item) => item.id == value,
+                          );
+                          setState(() {
+                            _selectedAircraft = value;
+                            _aircraftWeightController.text = profile
+                                .referenceWeight
+                                .toStringAsFixed(0);
+                          });
+                        },
+                  decoration: InputDecoration(
+                    labelText: ToolboxLocalizationKeys.perfAircraftType.tr(
+                      context,
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: AppThemeData.spacingSmall),
                 _field(
                   _runwayLengthController,
                   ToolboxLocalizationKeys.perfRunwayLength.tr(context),
@@ -396,7 +598,9 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
                 ),
                 const SizedBox(height: AppThemeData.spacingMedium),
                 ElevatedButton.icon(
-                  onPressed: () => _calculatePerformance(context),
+                  onPressed: _aircraftProfilesLoading || _perfCalculating
+                      ? null
+                      : () => _calculatePerformance(context),
                   icon: const Icon(Icons.calculate),
                   label: Text(
                     ToolboxLocalizationKeys.perfRunwayButton.tr(context),
@@ -412,5 +616,78 @@ class _PerformanceToolsTabState extends State<PerformanceToolsTab> {
         ],
       ),
     );
+  }
+}
+
+class _AircraftProfile {
+  final String id;
+  final String sourceProfile;
+  final String manufacturer;
+  final String family;
+  final String model;
+  final double referenceWeight;
+  final double minWeight;
+  final double maxWeight;
+  final double takeoffBaseDistance;
+  final double landingBaseDistance;
+  final double v1Base;
+  final double vrBase;
+  final double v2Base;
+  final double speedPerTon;
+
+  String get displayName {
+    final raw = [
+      manufacturer,
+      model,
+    ].where((e) => e.trim().isNotEmpty).join(' ');
+    if (raw.trim().isNotEmpty) {
+      return raw.trim();
+    }
+    final source = sourceProfile.trim();
+    if (source.isNotEmpty) {
+      return source;
+    }
+    return id;
+  }
+
+  const _AircraftProfile({
+    required this.id,
+    required this.sourceProfile,
+    required this.manufacturer,
+    required this.family,
+    required this.model,
+    required this.referenceWeight,
+    required this.minWeight,
+    required this.maxWeight,
+    required this.takeoffBaseDistance,
+    required this.landingBaseDistance,
+    required this.v1Base,
+    required this.vrBase,
+    required this.v2Base,
+    required this.speedPerTon,
+  });
+
+  factory _AircraftProfile.fromMap(Map<String, dynamic> map) {
+    return _AircraftProfile(
+      id: (map['id'] ?? '').toString().trim(),
+      sourceProfile: (map['source_profile'] ?? '').toString().trim(),
+      manufacturer: (map['manufacturer'] ?? '').toString().trim(),
+      family: (map['family'] ?? '').toString().trim(),
+      model: (map['model'] ?? '').toString().trim(),
+      referenceWeight: _toDouble(map['reference_weight']),
+      minWeight: _toDouble(map['min_weight']),
+      maxWeight: _toDouble(map['max_weight']),
+      takeoffBaseDistance: _toDouble(map['takeoff_base_distance']),
+      landingBaseDistance: _toDouble(map['landing_base_distance']),
+      v1Base: _toDouble(map['v1_base']),
+      vrBase: _toDouble(map['vr_base']),
+      v2Base: _toDouble(map['v2_base']),
+      speedPerTon: _toDouble(map['speed_per_ton']),
+    );
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('$value') ?? 0;
   }
 }
