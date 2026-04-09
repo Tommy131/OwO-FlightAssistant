@@ -1,5 +1,7 @@
 import '../setup_wizard/wizard_step_registry.dart';
+import '../utils/logger.dart';
 import 'app_bar/app_bar_action_registry.dart';
+import 'clearable.dart';
 import 'module_registrar.dart';
 import 'navigation/navigation_registry.dart';
 import 'settings_page/settings_page_registry.dart';
@@ -20,6 +22,21 @@ class ModuleRegistry {
   final List<Future<void> Function()> _cleanupCallbacks = [];
   bool _initialized = false;
   bool get isInitialized => _initialized;
+
+  /// 所有子注册表，统一管理清理
+  final List<Clearable> _registries = [
+    WizardStepRegistry(),
+    AboutPageRegistry(),
+    SettingsPageRegistry(),
+    AppBarActionRegistry(),
+    NavigationRegistry(),
+    NavigationAvailabilityRegistry(),
+    SidebarFooterRegistry(),
+    SidebarMiniCardRegistry(),
+    SidebarTitleRegistry(),
+    SidebarTitleBadgeRegistry(),
+    ProviderRegistry(),
+  ];
 
   /// 注册模块
   void registerModule(ModuleRegistrar module) {
@@ -51,7 +68,7 @@ class ModuleRegistry {
       try {
         await callback();
       } catch (e) {
-        // 捕获异常防止中断后续清理
+        AppLogger.warning('[ModuleRegistry] Cleanup callback failed: $e');
       }
     }
   }
@@ -95,16 +112,9 @@ class ModuleRegistry {
   void clear() {
     _modules.clear();
     _initialized = false;
-    WizardStepRegistry().clear();
-    AboutPageRegistry().clear();
-    SettingsPageRegistry().clear();
-    AppBarActionRegistry().clear();
-    NavigationRegistry().clear();
-    NavigationAvailabilityRegistry().clear();
-    SidebarFooterRegistry().clear();
-    SidebarMiniCardRegistry().clear();
-    SidebarTitleRegistry().clear();
-    SidebarTitleBadgeRegistry().clear();
+    for (final registry in _registries) {
+      registry.clear();
+    }
     _cleanupCallbacks.clear();
   }
 }

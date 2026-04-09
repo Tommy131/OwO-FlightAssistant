@@ -1,8 +1,10 @@
 import 'package:provider/single_child_widget.dart';
 
+import '../clearable.dart';
+
 /// Provider 注册管理器
 /// 允许模块注册全局或局部的 Provider
-class ProviderRegistry {
+class ProviderRegistry implements Clearable {
   static final ProviderRegistry _instance = ProviderRegistry._internal();
   factory ProviderRegistry() => _instance;
   ProviderRegistry._internal();
@@ -24,6 +26,7 @@ class ProviderRegistry {
   }
 
   /// 清空注册表（仅用于测试）
+  @override
   void clear() {
     _providers.clear();
   }

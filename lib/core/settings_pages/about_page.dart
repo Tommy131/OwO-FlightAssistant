@@ -408,7 +408,7 @@ class _RibbonPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final totalSec = 3.6;
+    const totalSec = 3.6;
     final nowSec = progress * totalSec;
     final fadeGlobal = progress > 0.76 ? 1 - ((progress - 0.76) / 0.24) : 1.0;
     for (final particle in particles) {
@@ -682,9 +682,6 @@ class _ContributorsCard extends StatelessWidget {
         name: 'HanskiJay (Tommy131)',
         contribution: '最肝的开发者',
       ),
-      const _ContributorEntry(name: 'Flynn Zhang', contribution: '功能提议&测试反馈'),
-      const _ContributorEntry(name: '狗狗星星', contribution: '测试反馈'),
-      const _ContributorEntry(name: '小哈朋友', contribution: '功能提议&测试反馈'),
     ];
     return Card(
       child: Padding(

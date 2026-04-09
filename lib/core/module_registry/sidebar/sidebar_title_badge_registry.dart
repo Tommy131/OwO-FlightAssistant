@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'sidebar_title_badge.dart';
+import '../clearable.dart';
 
-class SidebarTitleBadgeRegistry {
+class SidebarTitleBadgeRegistry implements Clearable {
   static final SidebarTitleBadgeRegistry _instance =
       SidebarTitleBadgeRegistry._internal();
   factory SidebarTitleBadgeRegistry() => _instance;
@@ -25,6 +26,7 @@ class SidebarTitleBadgeRegistry {
     return null;
   }
 
+  @override
   void clear() {
     _badgeFactories.clear();
   }

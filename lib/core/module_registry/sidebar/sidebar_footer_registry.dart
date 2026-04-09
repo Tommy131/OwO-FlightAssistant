@@ -1,7 +1,8 @@
 import 'sidebar_footer.dart';
+import '../clearable.dart';
 
 /// 侧边栏页脚注册表
-class SidebarFooterRegistry {
+class SidebarFooterRegistry implements Clearable {
   static final SidebarFooterRegistry _instance =
       SidebarFooterRegistry._internal();
   factory SidebarFooterRegistry() => _instance;
@@ -24,6 +25,7 @@ class SidebarFooterRegistry {
   }
 
   /// 清空所有注册
+  @override
   void clear() {
     _footerFactories.clear();
   }

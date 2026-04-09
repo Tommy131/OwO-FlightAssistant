@@ -14,6 +14,9 @@ Future<bool?> showAdvancedConfirmDialog({
   Color confirmColor = Colors.blue,
   String confirmText = 'Yes',
   String cancelText = 'Cancel',
+  double? dialogWidth,
+  TextAlign contentTextAlign = TextAlign.center,
+  TextStyle? contentTextStyle,
 }) {
   switch (style) {
     case ConfirmDialogStyle.cupertino:
@@ -42,6 +45,9 @@ Future<bool?> showAdvancedConfirmDialog({
         icon: icon,
         confirmText: confirmText,
         cancelText: cancelText,
+        dialogWidth: dialogWidth,
+        contentTextAlign: contentTextAlign,
+        contentTextStyle: contentTextStyle,
       );
     default:
       return showMaterialConfirmDialog(
@@ -333,6 +339,9 @@ Future<bool?> showDarkNeonConfirmDialog({
   required IconData icon,
   required String confirmText,
   required String cancelText,
+  double? dialogWidth,
+  TextAlign contentTextAlign = TextAlign.center,
+  TextStyle? contentTextStyle,
 }) {
   final bool hasConfirm = confirmText.isNotEmpty;
   final bool hasCancel = cancelText.isNotEmpty;
@@ -342,10 +351,22 @@ Future<bool?> showDarkNeonConfirmDialog({
     barrierColor: Colors.black87,
     barrierDismissible: false,
     transitionDuration: const Duration(milliseconds: 300),
-    pageBuilder: (_, _, _) {
+    pageBuilder: (dialogContext, _, _) {
+      final screenSize = MediaQuery.sizeOf(dialogContext);
+      final targetWidth = dialogWidth ?? 300;
+      final effectiveWidth = targetWidth.clamp(300.0, screenSize.width - 32);
+      final effectiveContentStyle =
+          contentTextStyle ??
+          const TextStyle(
+            fontSize: 16,
+            color: Colors.white70,
+            fontWeight: FontWeight.w400,
+            decoration: TextDecoration.none,
+          );
       return Center(
         child: Container(
-          width: 300,
+          width: effectiveWidth,
+          constraints: BoxConstraints(maxHeight: screenSize.height * 0.8),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: const Color(0xFF0F172A),
@@ -373,13 +394,16 @@ Future<bool?> showDarkNeonConfirmDialog({
               ),
               if (content.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Text(
-                  content,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                    decoration: TextDecoration.none,
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: screenSize.height * 0.45,
+                  ),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      content,
+                      textAlign: contentTextAlign,
+                      style: effectiveContentStyle,
+                    ),
                   ),
                 ),
               ],
@@ -393,7 +417,7 @@ Future<bool?> showDarkNeonConfirmDialog({
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Colors.white24),
                           ),
-                          onPressed: () => Navigator.pop(context, false),
+                          onPressed: () => Navigator.pop(dialogContext, false),
                           child: Text(
                             cancelText,
                             style: const TextStyle(color: Colors.white70),
@@ -408,7 +432,7 @@ Future<bool?> showDarkNeonConfirmDialog({
                             backgroundColor: Colors.cyanAccent,
                             foregroundColor: Colors.black,
                           ),
-                          onPressed: () => Navigator.pop(context, true),
+                          onPressed: () => Navigator.pop(dialogContext, true),
                           child: Text(confirmText),
                         ),
                       ),

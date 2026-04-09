@@ -1,7 +1,8 @@
 import 'app_bar_action.dart';
+import '../clearable.dart';
 
 /// App Bar 操作按钮注册表
-class AppBarActionRegistry {
+class AppBarActionRegistry implements Clearable {
   static final AppBarActionRegistry _instance =
       AppBarActionRegistry._internal();
   factory AppBarActionRegistry() => _instance;
@@ -38,6 +39,7 @@ class AppBarActionRegistry {
   }
 
   /// 清空所有注册
+  @override
   void clear() {
     _actionFactories.clear();
     _sideMenuFactories.clear();

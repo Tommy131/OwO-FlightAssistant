@@ -1,7 +1,8 @@
 import 'settings_page_item.dart';
+import '../clearable.dart';
 
 /// 设置页面注册表
-class SettingsPageRegistry {
+class SettingsPageRegistry implements Clearable {
   static final SettingsPageRegistry _instance =
       SettingsPageRegistry._internal();
   factory SettingsPageRegistry() => _instance;
@@ -28,6 +29,7 @@ class SettingsPageRegistry {
   }
 
   /// 清空所有注册
+  @override
   void clear() {
     _pageFactories.clear();
   }

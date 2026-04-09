@@ -1,7 +1,8 @@
 import 'about_page_item.dart';
+import '../clearable.dart';
 
 /// 关于页面卡片注册表
-class AboutPageRegistry {
+class AboutPageRegistry implements Clearable {
   static final AboutPageRegistry _instance = AboutPageRegistry._internal();
   factory AboutPageRegistry() => _instance;
   AboutPageRegistry._internal();
@@ -27,6 +28,7 @@ class AboutPageRegistry {
   }
 
   /// 清空注册表
+  @override
   void clear() {
     _items.clear();
   }

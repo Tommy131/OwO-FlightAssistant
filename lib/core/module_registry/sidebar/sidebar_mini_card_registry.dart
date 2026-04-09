@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'sidebar_mini_card.dart';
+import '../clearable.dart';
 
-class SidebarMiniCardRegistry {
+class SidebarMiniCardRegistry implements Clearable {
   static final SidebarMiniCardRegistry _instance =
       SidebarMiniCardRegistry._internal();
   factory SidebarMiniCardRegistry() => _instance;
@@ -27,6 +28,7 @@ class SidebarMiniCardRegistry {
     return null;
   }
 
+  @override
   void clear() {
     _cardFactories.clear();
   }

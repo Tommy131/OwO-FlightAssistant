@@ -1,7 +1,8 @@
 import 'wizard_step.dart';
+import '../module_registry/clearable.dart';
 
 /// 向导步骤注册表
-class WizardStepRegistry {
+class WizardStepRegistry implements Clearable {
   static final WizardStepRegistry _instance = WizardStepRegistry._internal();
   factory WizardStepRegistry() => _instance;
   WizardStepRegistry._internal();
@@ -27,6 +28,7 @@ class WizardStepRegistry {
   }
 
   /// 清空所有注册
+  @override
   void clear() {
     _stepFactories.clear();
   }

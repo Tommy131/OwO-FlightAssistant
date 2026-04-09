@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'navigation_item.dart';
 import 'navigation_group.dart';
+import '../clearable.dart';
 
 class NavigationCommandBus {
   static final NavigationCommandBus _instance =
@@ -22,7 +23,7 @@ class NavigationCommandBus {
 typedef NavigationAvailabilityResolver =
     bool Function(BuildContext context, NavigationItem item);
 
-class NavigationAvailabilityRegistry {
+class NavigationAvailabilityRegistry implements Clearable {
   static final NavigationAvailabilityRegistry _instance =
       NavigationAvailabilityRegistry._internal();
   factory NavigationAvailabilityRegistry() => _instance;
@@ -43,6 +44,7 @@ class NavigationAvailabilityRegistry {
     return true;
   }
 
+  @override
   void clear() {
     _resolvers.clear();
   }
@@ -63,7 +65,7 @@ class NavigationElement {
 }
 
 /// 导航项注册表
-class NavigationRegistry {
+class NavigationRegistry implements Clearable {
   static final NavigationRegistry _instance = NavigationRegistry._internal();
   factory NavigationRegistry() => _instance;
   NavigationRegistry._internal();
@@ -124,6 +126,7 @@ class NavigationRegistry {
   }
 
   /// 清空所有注册
+  @override
   void clear() {
     _itemFactories.clear();
     _groupFactories.clear();

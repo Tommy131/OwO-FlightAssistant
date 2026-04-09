@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../clearable.dart';
+
 typedef SidebarTitleResolver = String? Function(BuildContext context);
 
-class SidebarTitleRegistry {
+class SidebarTitleRegistry implements Clearable {
   static final SidebarTitleRegistry _instance =
       SidebarTitleRegistry._internal();
   factory SidebarTitleRegistry() => _instance;
@@ -25,6 +27,7 @@ class SidebarTitleRegistry {
     return fallbackTitle;
   }
 
+  @override
   void clear() {
     _resolvers.clear();
   }
