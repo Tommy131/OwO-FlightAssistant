@@ -8,6 +8,7 @@ import 'theme_settings_page.dart';
 import 'about_page.dart';
 import 'general_settings_page.dart';
 import '../module_registry/settings_page/settings_page_registry.dart';
+import '../widgets/common/overflow_marquee_text.dart';
 
 /// 设置项配置模型
 class SettingsItem {
@@ -278,7 +279,12 @@ class _CustomPageWrapper extends StatelessWidget {
               onPressed: onBack,
             ),
             const SizedBox(width: AppThemeData.spacingSmall),
-            Text(page.getTitle(context), style: theme.textTheme.headlineMedium),
+            Expanded(
+              child: OverflowMarqueeText(
+                text: page.getTitle(context),
+                style: theme.textTheme.headlineMedium,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: AppThemeData.spacingLarge),

@@ -107,7 +107,7 @@ class SidebarPanelContainer extends StatelessWidget {
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (topSlot != null) topSlot!,
+        ?topSlot,
         Expanded(
           child: ListView(
             padding: const EdgeInsets.only(bottom: 8),

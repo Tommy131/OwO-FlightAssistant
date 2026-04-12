@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../localization/localization_keys.dart';
 import '../../services/localization_service.dart';
+import 'overflow_marquee_text.dart';
 
 class StoragePathTile extends StatelessWidget {
   final String? currentPath;
@@ -76,19 +77,26 @@ class StoragePathTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        displayTitle,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        displaySubtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.outline,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            OverflowMarqueeText(
+                              text: displayTitle,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            OverflowMarqueeText(
+                              text: displaySubtitle,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

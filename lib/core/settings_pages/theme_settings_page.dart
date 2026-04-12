@@ -23,26 +23,30 @@ class ThemeSettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(AppThemeData.spacingMedium),
         children: [
-          Flex(
-            direction: Axis.horizontal,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Row(
             children: [
-              Row(
-                children: [
-                  if (onBack != null)
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      tooltip: LocalizationKeys.back.tr(context),
-                      onPressed: onBack,
+              Expanded(
+                child: Row(
+                  children: [
+                    if (onBack != null)
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        tooltip: LocalizationKeys.back.tr(context),
+                        onPressed: onBack,
+                      ),
+                    if (onBack != null)
+                      const SizedBox(width: AppThemeData.spacingSmall),
+                    Expanded(
+                      child: OverflowMarqueeText(
+                        text: LocalizationKeys.themeSettings.tr(context),
+                        style: theme.textTheme.headlineMedium,
+                      ),
                     ),
-                  const SizedBox(width: AppThemeData.spacingSmall),
-                  Text(
-                    LocalizationKeys.themeSettings.tr(context),
-                    style: theme.textTheme.headlineMedium,
-                  ),
-                ],
+                  ],
+                ),
               ),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _QuickThemeMenu(),
                   IconButton(
@@ -108,9 +112,11 @@ class _ContrastAdjustmentSection extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text(
-                  LocalizationKeys.contrastAdjustment.tr(context),
-                  style: theme.textTheme.headlineMedium,
+                Expanded(
+                  child: OverflowMarqueeText(
+                    text: LocalizationKeys.contrastAdjustment.tr(context),
+                    style: theme.textTheme.headlineMedium,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Container(

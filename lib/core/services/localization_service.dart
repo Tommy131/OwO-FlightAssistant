@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../localization/languages/zh_cn.dart';
 import '../localization/languages/en_us.dart';
+import '../localization/languages/de_de.dart';
 import 'persistence_service.dart';
 
 class LocalizationService extends ChangeNotifier {
@@ -13,6 +14,7 @@ class LocalizationService extends ChangeNotifier {
   final Map<String, Map<String, String>> _coreLocalizedValues = {
     'zh_CN': zhCN,
     'en_US': enUS,
+    'de_DE': deDE,
   };
   final Map<String, Map<String, String>> _moduleLocalizedValues = {};
 
@@ -24,6 +26,7 @@ class LocalizationService extends ChangeNotifier {
   List<Map<String, String>> get supportedLanguages => [
     {'code': 'zh_CN', 'name': '简体中文'},
     {'code': 'en_US', 'name': 'English'},
+    {'code': 'de_DE', 'name': 'Deutsch'},
   ];
 
   Future<void> init() async {

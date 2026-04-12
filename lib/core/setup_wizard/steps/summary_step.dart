@@ -5,6 +5,7 @@ import '../wizard_step.dart';
 import '../wizard_controller.dart';
 import '../../localization/localization_keys.dart';
 import '../../services/localization_service.dart';
+import '../../widgets/common/overflow_marquee_text.dart';
 import 'dart:io';
 
 /// 配置确认步骤
@@ -39,9 +40,14 @@ class SummaryStep extends WizardStep {
               size: 28,
             ),
             const SizedBox(width: 12),
-            Text(
-              LocalizationKeys.configSummary.tr(context),
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Expanded(
+              child: OverflowMarqueeText(
+                text: LocalizationKeys.configSummary.tr(context),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -52,36 +58,42 @@ class SummaryStep extends WizardStep {
               .replaceFirst('{}', controller.currentStep.toString()),
           style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
         ),
-        const SizedBox(height: 32),
+        // const SizedBox(height: 32),
         Expanded(
           child: ListView.separated(
-            itemCount: summaryItems.length,
+            itemCount: summaryItems.length + 1,
             separatorBuilder: (context, index) => const SizedBox(height: 16),
             itemBuilder: (context, index) {
+              if (index == summaryItems.length) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.green.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.green.shade700),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          LocalizationKeys.finishSetupHint.tr(context),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
               final item = summaryItems[index];
               return _buildSummaryCard(context, item);
             },
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.green.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.info_outline, color: Colors.green.shade700),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  LocalizationKeys.finishSetupHint.tr(context),
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-                ),
-              ),
-            ],
           ),
         ),
       ],
@@ -230,11 +242,13 @@ class SummaryStep extends WizardStep {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                item.stepTitle,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: OverflowMarqueeText(
+                  text: item.stepTitle,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],

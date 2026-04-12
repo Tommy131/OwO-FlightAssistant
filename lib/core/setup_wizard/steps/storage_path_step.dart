@@ -33,20 +33,22 @@ class StoragePathStep extends WizardStep {
   Widget build(BuildContext context) {
     final controller = context.watch<WizardController>();
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        StoragePathTile(
-          currentPath: controller.previewPath,
-          onPathSelected: (path) => controller.setSelectedPath(path),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          LocalizationKeys.storagePathHint.tr(context),
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.grey, fontSize: 12),
-        ),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          StoragePathTile(
+            currentPath: controller.previewPath,
+            onPathSelected: (path) => controller.setSelectedPath(path),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            LocalizationKeys.storagePathHint.tr(context),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+        ],
+      ),
     );
   }
 }

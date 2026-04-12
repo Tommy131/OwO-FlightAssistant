@@ -16,6 +16,7 @@ import 'steps/summary_step.dart';
 import 'wizard_step_registry.dart';
 import '../services/localization_service.dart';
 import '../localization/localization_keys.dart';
+import '../widgets/common/overflow_marquee_text.dart';
 
 class SetupWizard extends StatefulWidget {
   final VoidCallback? onCompleted;
@@ -272,102 +273,105 @@ class _SetupWizardState extends State<SetupWizard> with WindowListener {
 
   /// 构建欢迎页面
   Widget _buildWelcomePage(BuildContext context) {
+    final isSmallScreen = MediaQuery.of(context).size.width < 600;
+
     return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 600),
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // App 图标
-            Container(
-              padding: const EdgeInsets.all(16),
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).primaryColor,
-                      Theme.of(context).colorScheme.secondary,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Theme.of(
-                        context,
-                      ).primaryColor.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                      offset: const Offset(0, 8),
+      child: SingleChildScrollView(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 600),
+          padding: EdgeInsets.all(isSmallScreen ? 24 : 48),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // App 图标
+              Container(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  width: isSmallScreen ? 100 : 120,
+                  height: isSmallScreen ? 100 : 120,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Theme.of(context).primaryColor,
+                        Theme.of(context).colorScheme.secondary,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: Semantics(
-                    image: true,
-                    label: LocalizationKeys.appLogo.tr(context),
-                    child: ExcludeSemantics(
-                      child: Image.asset(
-                        AppConstants.assetIconPath,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(
-                              Icons.dashboard_rounded,
-                              size: 60,
-                              color: Colors.white,
-                            ),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(
+                          context,
+                        ).primaryColor.withValues(alpha: 0.3),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: Semantics(
+                      image: true,
+                      label: LocalizationKeys.appLogo.tr(context),
+                      child: ExcludeSemantics(
+                        child: Image.asset(
+                          AppConstants.assetIconPath,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) => Icon(
+                            Icons.dashboard_rounded,
+                            size: isSmallScreen ? 50 : 60,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 32),
-            // 欢迎标题
-            Text(
-              LocalizationKeys.welcomeTitle
-                  .tr(context)
-                  .replaceFirst('{}', AppConstants.appName),
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            // 描述文本
-            Text(
-              LocalizationKeys.welcomeDesc.tr(context),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey, height: 1.5),
-            ),
-            const SizedBox(height: 48),
-            // 开始按钮
-            FilledButton.icon(
-              onPressed: _startConfiguration,
-              icon: const Icon(Icons.arrow_forward),
-              label: Text(LocalizationKeys.startConfig.tr(context)),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
+              SizedBox(height: isSmallScreen ? 24 : 32),
+              // 欢迎标题
+              Text(
+                LocalizationKeys.welcomeTitle
+                    .tr(context)
+                    .replaceFirst('{}', AppConstants.appName),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-                textStyle: const TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              LocalizationKeys.letsStart.tr(context),
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontStyle: FontStyle.italic,
+              const SizedBox(height: 16),
+              // 描述文本
+              Text(
+                LocalizationKeys.welcomeDesc.tr(context),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey, height: 1.5),
               ),
-            ),
-          ],
+              SizedBox(height: isSmallScreen ? 32 : 48),
+              // 开始按钮
+              FilledButton.icon(
+                onPressed: _startConfiguration,
+                icon: const Icon(Icons.arrow_forward),
+                label: Text(LocalizationKeys.startConfig.tr(context)),
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSmallScreen ? 24 : 32,
+                    vertical: 16,
+                  ),
+                  textStyle: const TextStyle(fontSize: 16),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                LocalizationKeys.letsStart.tr(context),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -380,14 +384,19 @@ class _SetupWizardContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<WizardController>();
+    final isSmallScreen = MediaQuery.of(context).size.width < 600;
 
     return Center(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 800, maxHeight: 600),
-        padding: const EdgeInsets.all(32),
+        constraints: BoxConstraints(
+          maxWidth: 800,
+          maxHeight: isSmallScreen ? double.infinity : 600,
+        ),
+        margin: EdgeInsets.all(isSmallScreen ? 16 : 0),
+        padding: EdgeInsets.all(isSmallScreen ? 20 : 32),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(isSmallScreen ? 16 : 24),
           border: Border.all(
             color: Theme.of(
               context,
@@ -396,22 +405,22 @@ class _SetupWizardContent extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 40,
-              offset: const Offset(0, 20),
+              blurRadius: isSmallScreen ? 20 : 40,
+              offset: Offset(0, isSmallScreen ? 10 : 20),
             ),
           ],
         ),
         child: Column(
           children: [
             _buildHeader(context, controller),
-            const SizedBox(height: 32),
+            SizedBox(height: isSmallScreen ? 24 : 32),
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 child: _buildCurrentStep(context, controller),
               ),
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: isSmallScreen ? 24 : 32),
             _buildFooter(context, controller),
           ],
         ),
@@ -424,24 +433,31 @@ class _SetupWizardContent extends StatelessWidget {
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  LocalizationKeys.setupGuide.tr(context),
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: OverflowMarqueeText(
+                      text: LocalizationKeys.setupGuide.tr(context),
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
                   ),
-                ),
-                Text(
-                  controller.currentStepTitle.tr(context),
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
-                ),
-              ],
+                  Expanded(
+                    child: OverflowMarqueeText(
+                      text: controller.currentStepTitle.tr(context),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(width: 16),
             Text(
               LocalizationKeys.remainingItems
                   .tr(context)
@@ -480,25 +496,41 @@ class _SetupWizardContent extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         if (controller.currentStep > 0)
-          TextButton.icon(
-            onPressed: controller.previousStep,
-            icon: const Icon(Icons.arrow_back),
-            label: Text(LocalizationKeys.previousStep.tr(context)),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: controller.previousStep,
+                icon: const Icon(Icons.arrow_back),
+                label: Text(LocalizationKeys.previousStep.tr(context)),
+              ),
+            ),
           )
         else
           const SizedBox(),
-        ElevatedButton(
-          onPressed: controller.canGoNext ? controller.nextStep : null,
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+        const SizedBox(width: 16),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: ElevatedButton(
+              onPressed: controller.canGoNext ? controller.nextStep : null,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                controller.currentStep == controller.totalSteps - 1
+                    ? LocalizationKeys.finishInitialization.tr(context)
+                    : LocalizationKeys.nextStep.tr(context),
+              ),
             ),
-          ),
-          child: Text(
-            controller.currentStep == controller.totalSteps - 1
-                ? LocalizationKeys.finishInitialization.tr(context)
-                : LocalizationKeys.nextStep.tr(context),
           ),
         ),
       ],

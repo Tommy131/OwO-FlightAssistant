@@ -18,6 +18,8 @@ import '../widgets/common/dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../widgets/common/overflow_marquee_text.dart';
+
 class GeneralSettingsPage extends StatefulWidget {
   final VoidCallback onBack;
   const GeneralSettingsPage({super.key, required this.onBack});
@@ -122,9 +124,11 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                 onPressed: widget.onBack,
               ),
               const SizedBox(width: AppThemeData.spacingSmall),
-              Text(
-                LocalizationKeys.generalSettings.tr(context),
-                style: theme.textTheme.headlineMedium,
+              Expanded(
+                child: OverflowMarqueeText(
+                  text: LocalizationKeys.generalSettings.tr(context),
+                  style: theme.textTheme.headlineMedium,
+                ),
               ),
             ],
           ),

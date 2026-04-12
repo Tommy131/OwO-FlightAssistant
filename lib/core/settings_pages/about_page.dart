@@ -10,7 +10,6 @@ import '../utils/update_checker.dart';
 import '../localization/localization_keys.dart';
 import '../services/localization_service.dart';
 import '../widgets/common/overflow_marquee_text.dart';
-
 import '../module_registry/module_registry.dart';
 import '../module_registry/about_page/about_page_item.dart';
 
@@ -104,9 +103,11 @@ class AboutPage extends StatelessWidget {
                     onPressed: onBack,
                   ),
                 const SizedBox(width: AppThemeData.spacingSmall),
-                Text(
-                  LocalizationKeys.aboutApp.tr(context),
-                  style: theme.textTheme.headlineMedium,
+                Expanded(
+                  child: OverflowMarqueeText(
+                    text: LocalizationKeys.aboutApp.tr(context),
+                    style: theme.textTheme.headlineMedium,
+                  ),
                 ),
               ],
             );
