@@ -9,6 +9,31 @@
 
 ---
 
+## 未发布
+
+### 新增
+
+- **后端响应解析器单测**（24 例）：覆盖字段大小写混用、脏坐标剔除、`SFC` 语义、
+  `hasDme` 严格布尔判定。已用变异测试确认 5 处关键行为被改坏后测试确实会红。
+
+### 调整
+
+- **`map-store.ts` 抽出纯解析层**：9 个解析函数移入
+  `modules/map/services/map-response-parsers.ts`，`map-store.ts` 由 1726 行降到 1524 行。
+  解析器不再依赖 store，可被直接调用与测试，并纳入架构门禁的「纯计算」白名单。
+
+### 删除
+
+- 无。
+
+### 修复
+
+- **架构门禁漏判副作用导入**：`scripts/check-architecture.mjs` 原先只匹配
+  `from 'x'`，`import 'leaflet';` 这类副作用导入完全看不见 —— 铁律形同虚设。
+  改为统一用 `importPattern()` 生成正则，同时覆盖 `from` / 裸 `import` / `require`。
+
+---
+
 ## v1.0.3-beta — 2026-08-04
 
 首个 Web 版本。由 Flutter 桌面版（277 个 Dart 文件 / 61597 行）完整移植而来。

@@ -6,8 +6,20 @@
  * import modules/ 的情况，而文档同时声称这是铁律。所以把规则写成可执行的检查，
  * 让 CI 来守。
  *
+ * ⚠️ 匹配时必须同时覆盖三种写法，否则会漏：
+ *   import x from 'y'      具名/默认导入
+ *   import 'y'             **副作用导入**（曾漏掉过：只匹配 `from` 的话完全看不见）
+ *   require('y') / import('y')  动态引入
+ *
  * 退出码非零即失败。
  */
+
+/** 生成能匹配上述三种写法的正则 */
+function importPattern(moduleExpression) {
+  return new RegExp(
+    String.raw`(?:from\s*|import\s*|require\s*\(\s*)['"]${moduleExpression}['"]`,
+  );
+}
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
@@ -21,7 +33,7 @@ const rules = [
     name: 'core 层不得依赖业务模块',
     // 框架层一旦绑死某个模块，模块就没法独立裁剪了
     appliesTo: (path) => path.startsWith('src/core/'),
-    forbidden: /from\s+['"][^'"]*\/modules\//,
+    forbidden: importPattern(String.raw`[^'"]*\/modules\/[^'"]*`),
     hint: '改用依赖倒置：在 core 里声明接口，由模块在注册期注入实现（参考 core/services/backend-transport.ts）',
   },
   {
@@ -29,16 +41,20 @@ const rules = [
     // 这些是领域层：必须能脱离 React/Leaflet/store 被直接调用与测试
     appliesTo: (path) =>
       /^src\/modules\/[^/]+\/services\//.test(path) &&
-      /(approach-beam|holding-geometry|papi-guidance|airport-outline|map-airport-parser)\.ts$/.test(
+      /(approach-beam|holding-geometry|papi-guidance|airport-outline|map-airport-parser|map-response-parsers)\.ts$/.test(
         path,
       ),
-    forbidden: /from\s+['"](react|leaflet|zustand)['"]|from\s+['"][^'"]*\/providers\//,
+    forbidden: new RegExp(
+      importPattern(String.raw`react|leaflet|zustand`).source +
+        '|' +
+        importPattern(String.raw`[^'"]*\/providers\/[^'"]*`).source,
+    ),
     hint: '把框架相关的部分留在调用方，service 只做纯计算',
   },
   {
     name: 'models 不得依赖框架',
     appliesTo: (path) => /^src\/modules\/[^/]+\/models\//.test(path),
-    forbidden: /from\s+['"](react|leaflet|zustand)['"]/,
+    forbidden: importPattern(String.raw`react|leaflet|zustand`),
     hint: '数据模型应是纯类型与常量',
   },
 ];
