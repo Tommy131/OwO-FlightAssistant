@@ -43,6 +43,10 @@ jobs:
       - name: 类型检查（零错误）
         run: npm run typecheck
 
+      # 纯计算部分的单测：进近波束 / 等待航线 / PAPI / 机场轮廓
+      - name: 单元测试
+        run: npm run test
+
       - name: 生产构建
         run: npm run build
 
