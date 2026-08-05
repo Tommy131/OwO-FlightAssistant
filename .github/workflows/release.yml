@@ -1,25 +1,30 @@
-name: Release
+name: Release Gate
 
-# 打 v* tag 触发：构建前端产物 → 从 CHANGELOG 取本版本段落作发行说明 → 建 Release。
+# ⚠️ 本工作流**不创建 Release**，只做发布前的前端校验。
 #
-# 闭源的中间件可执行文件不由 CI 构建（源码不在本仓库），
-# 需在 Release 建好后手动上传，或用：
-#   gh release upload v<版本> "OwO! FlightAssistant Middleware.exe"
+# 真正的 Release 由**中间件仓库**（闭源）的 release 工作流驱动：
+# 它拿不到本仓库以外的 Go 源码，反过来说本仓库的 CI 也构建不出中间件 exe。
+# 所以由那边统一构建「前端 + 后端」，再把两样产物一起传到本仓库的 Release。
+#
+#   发布流程：在中间件仓库打 v* tag
+#     → 它检出本仓库的前端源码并构建 dist
+#     → 把 dist 嵌进 exe、跑冒烟测试
+#     → 在本仓库创建 Release，上传 exe + 开箱即用 zip + 前端 dist zip
+#
+# 这里只保证「打了 tag 的这份前端确实构建得出来」，
+# 免得等到那边构建时才发现前端是坏的。
+
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
-    inputs:
-      tag:
-        description: '要发布的 tag（如 v1.0.3-beta）'
-        required: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
-    name: 构建并发布
+  verify:
+    name: 发布前前端校验
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,45 +46,17 @@ jobs:
       - name: 生产构建
         run: npm run build
 
-      # 中间件按约定从 web/dist 读取静态资源，所以打包时保留这层目录
-      - name: 打包前端产物
+      - name: 确认 tag 与 package.json 版本一致
+        shell: bash
         run: |
-          mkdir -p package/web
-          cp -r dist package/web/dist
-          cd package && zip -qr ../owo-flight-assistant-web-dist.zip web
-
-      - name: 提取本版本的 CHANGELOG 段落
-        id: notes
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          # 取 "## v<版本>" 到下一个 "## " 之间的内容
-          awk -v ver="$VERSION" '
-            $0 ~ "^## v" ver " " { found=1; next }
-            found && /^## / { exit }
-            found { print }
-          ' docs/CHANGELOG.md > release-notes.md
-          if [ ! -s release-notes.md ]; then
-            echo "docs/CHANGELOG.md 里找不到 v$VERSION 的段落，发布中止" >&2
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "tag ($TAG_VERSION) 与 package.json ($PKG_VERSION) 版本不一致" >&2
             exit 1
           fi
-          {
-            echo ""
-            echo "---"
-            echo ""
-            echo "### 使用方式"
-            echo ""
-            echo "1. 下载本页的中间件可执行文件与 \`owo-flight-assistant-web-dist.zip\`；"
-            echo "2. 解压后让 \`web/dist\` 与可执行文件同级；"
-            echo "3. 启动中间件，浏览器打开它监听的地址即可访问前端页面。"
-            echo ""
-            echo "> 中间件为闭源组件，仅以编译产物分发。"
-          } >> release-notes.md
+          echo "版本一致：$PKG_VERSION"
 
-      - name: 创建 Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ github.ref_name }}
-          body_path: release-notes.md
-          files: owo-flight-assistant-web-dist.zip
-          draft: false
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
+      - name: 提示后续步骤
+        run: |
+          echo "前端校验通过。请在中间件仓库打同名 tag 以产出并发布完整 Release。"
