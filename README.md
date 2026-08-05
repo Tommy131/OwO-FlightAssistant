@@ -15,24 +15,20 @@
 
 ---
 
-## 0. 直接使用（不需要装 Node）
+## 0. 直接使用：下载一个文件，双击即用
 
-到 [Releases](https://github.com/Tommy131/OwO-FlightAssistant/releases) 下载：
+到 [Releases](https://github.com/Tommy131/OwO-FlightAssistant/releases) 下载
+`OwO! FlightAssistant Middleware.exe` 并运行，**就这一步**。
 
-1. 中间件可执行文件（`OwO! FlightAssistant Middleware.exe`）；
-2. `owo-flight-assistant-web-dist.zip`。
+- 前端已**编译进可执行文件**，不必另外下载产物、不必摆目录、不必装 Node；
+- 启动后**自动打开浏览器**到 <http://127.0.0.1:18080>，前端同源托管，无跨域问题；
+- 前端每次资源请求都会记进 `resources/cache/logs/http.log`，排障时能看到完整加载过程。
 
-解压后让 `web/dist` 与可执行文件同级：
+不想自动弹浏览器就设环境变量 `OWO_NO_BROWSER=1`。
 
-```
-OwO! FlightAssistant Middleware.exe
-web/
-└─ dist/          ← 解压得到
-```
-
-启动中间件，浏览器打开它监听的地址（默认 <http://127.0.0.1:18080>）即可 ——
-前端由中间件同源托管，不存在跨域问题。
-
+> Release 里的 `owo-flight-assistant-web-dist.zip` 仅供需要单独部署前端
+> （例如放到自己的 Web 服务器）的用户，普通用户不需要下载。
+>
 > 中间件为闭源组件，仅以编译产物分发；本仓库只含前端源码。
 
 ---

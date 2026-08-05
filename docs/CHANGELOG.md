@@ -29,6 +29,9 @@
 - **持久化**：飞行日志与简报落盘到中间件；前端设置存后端 SQLite，首启向导只跑一次。
 - **工程规范**：本文件、`docs/DESIGN.md`、ADR、`.editorconfig`/`.gitattributes`、
   CI 质量门禁与 tag 触发发布。
+- **单文件分发**：前端产物用 `go:embed` 编译进中间件可执行文件，用户下载一个 exe
+  双击即用；启动后自动打开浏览器（`OWO_NO_BROWSER=1` 可关），前端的静态资源请求
+  与 SPA 兜底一并记入后端 HTTP 日志。
 
 ### 调整
 
