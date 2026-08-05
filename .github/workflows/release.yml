@@ -1,0 +1,85 @@
+name: Release
+
+# 打 v* tag 触发：构建前端产物 → 从 CHANGELOG 取本版本段落作发行说明 → 建 Release。
+#
+# 闭源的中间件可执行文件不由 CI 构建（源码不在本仓库），
+# 需在 Release 建好后手动上传，或用：
+#   gh release upload v<版本> "OwO! FlightAssistant Middleware.exe"
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的 tag（如 v1.0.3-beta）'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: 构建并发布
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 版本同步校验
+        run: node scripts/check-version-sync.mjs
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 生产构建
+        run: npm run build
+
+      # 中间件按约定从 web/dist 读取静态资源，所以打包时保留这层目录
+      - name: 打包前端产物
+        run: |
+          mkdir -p package/web
+          cp -r dist package/web/dist
+          cd package && zip -qr ../owo-flight-assistant-web-dist.zip web
+
+      - name: 提取本版本的 CHANGELOG 段落
+        id: notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # 取 "## v<版本>" 到下一个 "## " 之间的内容
+          awk -v ver="$VERSION" '
+            $0 ~ "^## v" ver " " { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' docs/CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "docs/CHANGELOG.md 里找不到 v$VERSION 的段落，发布中止" >&2
+            exit 1
+          fi
+          {
+            echo ""
+            echo "---"
+            echo ""
+            echo "### 使用方式"
+            echo ""
+            echo "1. 下载本页的中间件可执行文件与 \`owo-flight-assistant-web-dist.zip\`；"
+            echo "2. 解压后让 \`web/dist\` 与可执行文件同级；"
+            echo "3. 启动中间件，浏览器打开它监听的地址即可访问前端页面。"
+            echo ""
+            echo "> 中间件为闭源组件，仅以编译产物分发。"
+          } >> release-notes.md
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: owo-flight-assistant-web-dist.zip
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}

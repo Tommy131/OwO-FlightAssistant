@@ -1,0 +1,66 @@
+/*
+ * 溢出跑马灯
+ *
+ * 只有文字真的放不下时才滚动；放得下就当普通文本渲染，
+ * 免得静止的短标题也在那儿动来动去。
+ */
+
+.viewport {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  /* 量宽用的影子副本按它定位 */
+  position: relative;
+}
+
+/* 不溢出：正常显示，超长兜底省略号 */
+.static {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 溢出：把内容复制一份首尾相接，位移一个「内容 + 间隙」的距离后归零，
+ * 视觉上就是无缝循环。
+ */
+.track {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+  animation: marquee-scroll linear infinite;
+}
+
+.segment {
+  flex-shrink: 0;
+}
+
+/* 两份内容之间的空隙，避免首尾直接黏在一起 */
+.gap {
+  flex-shrink: 0;
+  width: var(--marquee-gap);
+}
+
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--marquee-distance)));
+  }
+}
+
+/* 悬停时暂停，方便看清完整内容 */
+.viewport:hover .track {
+  animation-play-state: paused;
+}
+
+/* 跟随系统「减少动态效果」偏好：停掉滚动，退回省略号 */
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    animation: none;
+  }
+}

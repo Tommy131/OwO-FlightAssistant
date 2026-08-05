@@ -1,0 +1,468 @@
+/* 检查单页面：左阶段导航 + 右检查单卡片；<900px 折叠为顶部步进条 */
+
+.page {
+  display: flex;
+  height: 100%;
+  background: var(--color-background);
+}
+
+.pageCompact {
+  flex-direction: column;
+}
+
+.centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--color-primary-a20);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: boot-spin 0.85s linear infinite;
+}
+
+/* ── 阶段侧栏 ── */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 232px;
+  flex-shrink: 0;
+  padding: var(--space-md) 0 var(--space-md) var(--space-md);
+}
+
+.sidebarTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-a40);
+  padding: 0 4px 10px;
+}
+
+.phaseList {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 4px;
+}
+
+.phaseItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 11px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  text-align: left;
+  overflow: hidden;
+  transition:
+    background var(--anim-duration) ease,
+    border-color var(--anim-duration) ease,
+    color var(--anim-duration) ease;
+}
+
+.phaseItem:hover {
+  background: var(--color-on-surface-a04);
+  color: var(--color-text-primary);
+}
+
+.phaseItemSelected {
+  background: var(--color-primary-a10);
+  border-color: var(--color-primary-a30);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.phaseIconWrap {
+  display: flex;
+}
+
+.phaseLabel {
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phasePercent {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.phaseProgressTrack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-on-surface-a08);
+}
+
+.phaseProgressFill {
+  display: block;
+  height: 100%;
+  transition: width var(--anim-duration) ease;
+}
+
+/* ── 折叠态步进条 ── */
+
+.compactStepper {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin: var(--space-md) var(--space-md) 0;
+  padding: 5px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.stepperSide {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  min-width: 0;
+  max-width: 30%;
+  transition: background var(--anim-duration) ease;
+}
+
+.stepperSide:hover:not(:disabled) {
+  background: var(--color-on-surface-a08);
+}
+
+.stepperSide:disabled {
+  opacity: 0.35;
+}
+
+.stepperSideLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepperCurrent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-a10);
+}
+
+.stepperCurrentLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepperProgress {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* ── 检查单卡片 ── */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.pageCompact .card {
+  margin: var(--space-md);
+}
+
+/* ── 头部 ── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 12px var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.headerPhase {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.headerPhaseText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.headerPhaseLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-a40);
+}
+
+.headerPhaseName {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerProgress {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.headerProgressValue {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+}
+
+.headerProgressTrack {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-on-surface-a08);
+  overflow: hidden;
+}
+
+.headerProgressFill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--color-primary);
+  transition: width var(--anim-duration) ease;
+}
+
+.headerSelect {
+  width: 220px;
+  flex-shrink: 0;
+}
+
+/* ── 条目列表 ── */
+
+.items {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* 响应列宽度：够放下最长的「可用/接通 (AVAIL/ON)」这类口令 */
+  --checklist-response-col: 150px;
+}
+
+.itemsEmpty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.itemTile {
+  display: grid;
+  /*
+   * 第 4 列（响应值）必须是**定宽**：每个条目各自是一个独立的 grid，
+   * 用 auto 的话列宽跟着本行内容走，各行右边缘参差不齐。
+   * 定宽后所有行共享同一个右边界，读起来才是一栏。
+   */
+  grid-template-columns: 20px auto minmax(0, 1fr) var(--checklist-response-col);
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  transition:
+    background var(--anim-duration) ease,
+    border-color var(--anim-duration) ease,
+    opacity var(--anim-duration) ease;
+}
+
+.itemTile:hover {
+  background: var(--color-on-surface-a04);
+}
+
+.itemTileChecked {
+  background: color-mix(in srgb, var(--color-success) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-success) 25%, transparent);
+}
+
+.itemIndex {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-on-surface-a40);
+  font-variant-numeric: tabular-nums;
+  min-width: 20px;
+}
+
+.itemBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.itemTask {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+/* 遥测自动勾选的标记 */
+.autoBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--color-primary-a10);
+  color: var(--color-primary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  /* 勾掉的条目整行会加删除线，标签本身不该被划掉 */
+  text-decoration: none;
+}
+
+.itemTileChecked .itemTask {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.itemDetail {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.itemResponse {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-align: right;
+  /*
+   * 响应值是「照着念」的操作口令，截断了就没有意义，必须完整显示。
+   *
+   * 这里原本写的是 max-width: 42% —— 但栅格子项的百分比是按**自己的
+   * grid area** 解析的，而那一列又是 auto、宽度正好等于内容宽，
+   * 于是 42% 永远把文字裁掉一多半（实测 58px 的列被裁到 24px），
+   * 与可用空间多少无关。定宽列 + 换行才是对的做法。
+   */
+  overflow-wrap: break-word;
+  line-height: 1.35;
+}
+
+.itemTileChecked .itemResponse {
+  color: var(--color-success);
+}
+
+/* 末列：手动接管角标叠在响应值上方，共用同一格 */
+.itemTrailing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  min-width: 0;
+}
+
+.manualBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px 1px 4px;
+  border: 1px solid var(--color-warning);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  color: var(--color-warning);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition: background var(--anim-duration) ease;
+}
+
+.manualBadge:hover {
+  background: color-mix(in srgb, var(--color-warning) 24%, transparent);
+}
+
+/* ── 底部操作栏 ── */
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px var(--space-sm);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.footerSpacer {
+  flex: 1;
+}
+
+@media (max-width: 649px) {
+  /* 窄屏放不下四列，响应值换到任务下面单独一行 */
+  .itemTile {
+    grid-template-columns: 20px auto minmax(0, 1fr);
+    row-gap: 4px;
+  }
+
+  .itemResponse {
+    grid-column: 3;
+    text-align: left;
+  }
+
+  .headerSelect {
+    width: 100%;
+  }
+}

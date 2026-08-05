@@ -1,0 +1,446 @@
+.page {
+  height: 100%;
+  background: var(--color-background);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+}
+
+@media (max-width: 649px) {
+  .content {
+    padding: var(--space-md);
+  }
+}
+
+/* ── 头部 ── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.headerTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.headerSubtitle {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* ── 告警横幅 ── */
+
+.warningStack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.warningBanner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+.warningDanger {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+
+.warningCaution {
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 35%, transparent);
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+}
+
+/* ── 上排：罗盘 + 系统状态 ── */
+
+.topRow {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) 1fr;
+  gap: var(--space-md);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .topRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── 罗盘 ── */
+
+.compassWrap {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0;
+}
+
+.compass {
+  position: relative;
+  width: 196px;
+  height: 196px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-on-surface-a04);
+}
+
+.compassRing {
+  position: absolute;
+  inset: 0;
+  transition: transform 220ms linear;
+}
+
+.compassTick,
+.compassTickMajor {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 0;
+  height: 100%;
+  transform-origin: 50% 50%;
+}
+
+.compassTick::before,
+.compassTickMajor::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 6px;
+  width: 2px;
+  background: var(--color-on-surface-a40);
+}
+
+.compassTick::before {
+  height: 7px;
+}
+
+.compassTickMajor::before {
+  height: 12px;
+  background: var(--color-primary);
+}
+
+.compassLabel {
+  position: absolute;
+  left: -8px;
+  top: 22px;
+  width: 16px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+/* 固定指针：始终指向正上方 */
+.compassNeedle {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 12px solid var(--color-primary);
+}
+
+.compassReadout {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.compassValue {
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: 0.04em;
+}
+
+.compassUnit {
+  font-size: 15px;
+  color: var(--color-text-secondary);
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+/* ── 系统状态 ── */
+
+.systemRows {
+  display: flex;
+  flex-direction: column;
+}
+
+.systemRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 10px 2px;
+}
+
+.systemRow + .systemRow {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+}
+
+.systemLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.systemValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 起落架面板 ── */
+
+.gearPanel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xl);
+  padding: var(--space-sm) 0;
+  flex-wrap: wrap;
+}
+
+.gearLights {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.gearColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.gearLabel {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  margin-bottom: 2px;
+}
+
+/* 仿真灯箱：黑底、灰框，亮起时发光 */
+.gearLight {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 32px;
+  border: 2px solid #4a4a4a;
+  border-radius: 4px;
+  background: #0a0a0a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.22);
+  transition:
+    color var(--anim-duration) ease,
+    box-shadow var(--anim-duration) ease;
+}
+
+.gearLightRed.gearLightOn {
+  color: #ff5252;
+  box-shadow:
+    0 0 12px rgba(255, 82, 82, 0.6),
+    inset 0 0 10px rgba(255, 82, 82, 0.25);
+}
+
+.gearLightGreen.gearLightOn {
+  color: #2ecc71;
+  box-shadow:
+    0 0 12px rgba(46, 204, 113, 0.6),
+    inset 0 0 10px rgba(46, 204, 113, 0.25);
+}
+
+/* ── 起落架手柄 ── */
+
+.gearHandleWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.gearHandleLabel,
+.gearHandleValue {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.gearHandleValue {
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.gearHandle {
+  position: relative;
+  width: 34px;
+  height: 96px;
+  border: 2px solid #4a4a4a;
+  border-radius: 17px;
+  background: #101010;
+}
+
+.gearHandleKnob {
+  position: absolute;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #e8e8e8, #9a9a9a);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.55);
+  transform: translateX(-50%);
+  transition: top 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gearHandle_up .gearHandleKnob {
+  top: 5px;
+}
+
+.gearHandle_off .gearHandleKnob {
+  top: 37px;
+}
+
+.gearHandle_down .gearHandleKnob {
+  top: 69px;
+}
+
+/* ── 趋势图 ── */
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(288px, 1fr));
+  gap: var(--space-md);
+}
+
+.chartCard {
+  overflow: hidden;
+}
+
+.chartHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 10px 13px 4px;
+}
+
+.chartTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.chartValue {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── 未连接占位 ── */
+
+.emptyPage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-lg);
+  background: var(--color-background);
+  overflow: auto;
+}
+
+.emptyCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(440px, 100%);
+  padding: var(--space-xl) var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.emptyTitle {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.emptySubtitle {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.emptySteps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.emptyStep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  font-size: 13px;
+  color: var(--color-text-primary);
+  text-align: left;
+}
+
+.emptyStepIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}

@@ -1,0 +1,220 @@
+/* 通用「面」类组件样式，对应 Flutter cardTheme：0 elevation + 1px 描边 + 12 圆角 */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  text-align: left;
+  width: 100%;
+  transition:
+    border-color var(--anim-duration) ease,
+    box-shadow var(--anim-duration) ease,
+    transform var(--anim-duration) ease;
+}
+
+.cardInteractive {
+  cursor: pointer;
+}
+
+.cardInteractive:hover {
+  border-color: var(--color-primary-a30);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.cardInteractive:active {
+  transform: translateY(0);
+}
+
+/* ── SectionCard ── */
+
+.sectionCard {
+  padding: 0;
+  overflow: hidden;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 12px var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sectionTitles {
+  flex: 1;
+  min-width: 0;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sectionSubtitle {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+.sectionTrailing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sectionBody {
+  padding: var(--space-md);
+}
+
+/* ── DataCard ── */
+
+.dataCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--color-on-surface-a04);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.dataCardHead {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.dataCardLabel {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataCardValueRow {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dataCardValue {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataCardUnit {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.dataCardHint {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  opacity: 0.8;
+}
+
+/* ── Chip ── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chipClickable {
+  cursor: pointer;
+  transition: filter var(--anim-duration) ease;
+}
+
+.chipClickable:hover {
+  filter: brightness(1.1);
+}
+
+/* ── StatusBadge ── */
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.statusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.statusDotPulsing {
+  animation: pulse-soft 1.4s ease-in-out infinite;
+}
+
+/* ── EmptyState ── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: var(--space-xl) var(--space-md);
+  text-align: center;
+}
+
+.emptyTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.emptyDescription {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  max-width: 380px;
+}
+
+/* ── Divider ── */
+
+.divider {
+  height: 1px;
+  width: 100%;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+.dividerVertical {
+  width: 1px;
+  align-self: stretch;
+  background: var(--color-border);
+  flex-shrink: 0;
+}

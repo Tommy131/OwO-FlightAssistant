@@ -1,0 +1,168 @@
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.stepDesc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+/* ── 选项列表（语言选择）── */
+
+.optionList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.optionTile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  text-align: left;
+  transition:
+    border-color var(--anim-duration) ease,
+    background var(--anim-duration) ease;
+}
+
+.optionTile:hover {
+  border-color: var(--color-primary-a30);
+}
+
+.optionTileSelected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-a10);
+}
+
+.optionFlag {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.optionLabel {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+/* ── 设置行 ── */
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.settingBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.settingText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settingTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.settingDesc {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+/* ── 摘要 ── */
+
+.summaryCard {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.summaryHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--color-on-surface-a04);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.summaryCount {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.summaryList {
+  margin: 0;
+  padding: 4px 0;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 9px 14px;
+}
+
+.summaryRow + .summaryRow {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+}
+
+.summaryKey {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.summaryValue {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.readyBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-success) 35%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-success) 10%, transparent);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-success);
+}

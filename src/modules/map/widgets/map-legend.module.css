@@ -1,0 +1,154 @@
+/* 图层图例：悬浮在地图右下角，让用户能把颜色对回数值 */
+
+.legendStack {
+  position: absolute;
+  right: 64px;
+  bottom: var(--space-md);
+  z-index: 520;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  /* 七个图层全开时会顶到顶部搜索栏，超出就内部滚动 */
+  max-height: calc(100% - 2 * var(--space-md) - 52px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  /* 不挡地图拖拽，只有卡片本身可交互 */
+  pointer-events: none;
+}
+
+.legendStack::-webkit-scrollbar {
+  display: none;
+}
+
+.card {
+  pointer-events: auto;
+  width: 168px;
+  padding: 7px 9px 8px;
+  background: color-mix(in srgb, var(--color-surface) 93%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(6px);
+  animation: slide-up 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--color-text-primary);
+}
+
+.unit {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  letter-spacing: 0;
+}
+
+/* ── 连续色带 ── */
+
+.ramp {
+  height: 9px;
+  border-radius: 2px;
+  /* 深色主题下纯色块容易和背景糊在一起，加一圈描边 */
+  border: 1px solid var(--color-on-surface-a10);
+}
+
+.ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+/* 首尾刻度贴住色带两端，中间的居中 */
+.tick {
+  flex: 1;
+  text-align: center;
+}
+
+.tick:first-child {
+  text-align: left;
+}
+
+.tick:last-child {
+  text-align: right;
+}
+
+/* ── 离散色块 ── */
+
+.swatchList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.swatchRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+
+.swatch {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  border: 1px solid var(--color-on-surface-a10);
+}
+
+/* ── 折叠 ── */
+
+.collapseButton {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--color-surface) 93%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(6px);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  transition: color var(--anim-duration) ease;
+}
+
+.collapseButton:hover {
+  color: var(--color-primary);
+}
+
+/* ── 窄屏：图例让位给地图，缩到一列小卡 ── */
+
+@media (max-width: 649px) {
+  .legendStack {
+    right: 56px;
+    bottom: var(--space-sm);
+    /* 图层开满时不至于顶到屏幕外 */
+    max-height: 58%;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .legendStack::-webkit-scrollbar {
+    display: none;
+  }
+
+  .card {
+    width: 132px;
+    padding: 5px 7px 6px;
+  }
+}

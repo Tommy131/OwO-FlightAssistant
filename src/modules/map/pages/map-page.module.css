@@ -1,0 +1,816 @@
+/* 地图页面：Leaflet 画布铺满，其余控件绝对定位悬浮其上 */
+
+.page {
+  position: relative;
+  height: 100%;
+  background: var(--color-background);
+  overflow: hidden;
+}
+
+/* Leaflet 默认字体与配色跟随主题 */
+.page :global(.leaflet-container) {
+  font-family: inherit;
+  background: var(--color-background);
+}
+
+/*
+ * 自建 pane 里的 SVG 必须手动解除全局 `svg { max-width: 100% }`。
+ *
+ * leaflet.css 只给 `.leaflet-overlay-pane svg` 写了 max-width/max-height: none，
+ * createPane 出来的 pane 不在那条规则里；而 pane 是绝对定位、自身宽度为 0，
+ * `max-width: 100%` 算出来就是 0 —— 矢量照常生成、getBoundingClientRect
+ * 也有值，但一个像素都画不出来。
+ */
+.page :global(.leaflet-aeroway-pane svg) {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+/*
+ * 宽度自适应的地图标签（停机位名、机场 ICAO）
+ *
+ * Leaflet 的 divIcon 一旦给了 iconSize 就会把宽高写死在 style 上，
+ * 于是只能事先按字符数估宽 —— 短名字白留空、宽字符又装不下。
+ * 这里让标记本体尺寸归零、由内层元素自己 translate(-50%,-50%) 居中，
+ * 宽度就完全由文字内容决定。
+ *
+ * 注意别在标记本体上写 transform：Leaflet 用它来定位标记（translate3d）。
+ */
+.page :global(.owo-map-autolabel) {
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.page :global(.leaflet-control-attribution) {
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+
+.page :global(.leaflet-control-attribution a) {
+  color: var(--color-primary);
+}
+
+.page :global(.leaflet-tooltip) {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-size: 11px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── 顶部面板 ── */
+
+.topPanel {
+  position: absolute;
+  top: var(--space-md);
+  left: var(--space-md);
+  right: 64px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.searchBar {
+  position: relative;
+  width: min(320px, 100%);
+  pointer-events: auto;
+}
+
+/* ── 搜索联想 ── */
+
+.suggestionList {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  animation: slide-up 0.14s ease-out;
+}
+
+.suggestionItem {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-align: left;
+  transition: background var(--anim-duration) ease;
+}
+
+.suggestionItem:hover {
+  background: var(--color-primary-a10);
+}
+
+.suggestionIcao {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.suggestionLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchBar > div {
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.statusChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  pointer-events: auto;
+}
+
+.statusChips > * {
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── HUD ── */
+
+.hud {
+  position: absolute;
+  left: var(--space-md);
+  bottom: var(--space-md);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(6px);
+}
+
+.hudTimer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hudTime {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: 0.05em;
+}
+
+.hudTimerActions {
+  display: flex;
+  gap: 2px;
+}
+
+.hudRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hudLabel {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 告警浮层 ── */
+
+.alertOverlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.alertBanner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 18px;
+  border: 2px solid;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  box-shadow: var(--shadow-lg);
+  animation: pulse-soft 1.1s ease-in-out infinite;
+}
+
+/* ── 右侧控制栏 ── */
+
+.rightControls {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px;
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(6px);
+  /*
+   * ⚠️ 这里**不能**加 overflow（原来是 overflow-y: auto）。
+   * CSS 规定 overflow-x/y 只要有一个不是 visible，另一个的 visible 就会被
+   * 当成 auto —— 于是向左弹出的子面板会被整个裁掉：DOM 里在、尺寸也对，
+   * 就是一个像素都看不见。
+   * 分组之后这一列只有 7 个按钮，本来也不需要滚动。
+   */
+}
+
+.controlDivider {
+  height: 1px;
+  margin: 3px 4px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
+
+/* ── 控制栏分组 ── */
+
+.controlGroup {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+}
+
+/* 常驻展开的组打个小点，和「只是鼠标划过」区分开 */
+.groupPinnedDot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  pointer-events: none;
+}
+
+/*
+ * 展开的子开关面板
+ *
+ * 往左弹出（控制栏本身贴着右边缘）。用 ::before 在左侧补一段透明区域，
+ * 鼠标从组图标移到面板的路上不会因为经过缝隙而触发 mouseleave 收起。
+ */
+.groupFlyout {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 6px);
+  transform: translateY(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(6px);
+  animation: fade-in 0.12s ease-out;
+}
+
+.groupFlyout::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 8px;
+}
+
+@media (max-width: 649px) {
+  /* 窄屏横向弹出会顶出屏幕，改成竖着排 */
+  .groupFlyout {
+    flex-direction: column;
+  }
+}
+
+/* 工具条里的分隔线是竖直的 */
+.taxiwayToolbar .controlDivider {
+  width: 1px;
+  height: 20px;
+  margin: 0 3px;
+}
+
+/* ── 图层选择器 ── */
+
+.pickerScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  animation: fade-in 0.16s ease-out;
+}
+
+.pickerCard {
+  width: min(400px, calc(100% - 2 * var(--space-lg)));
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pickerHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-md);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.pickerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.pickerItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: var(--space-md) 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  transition:
+    border-color var(--anim-duration) ease,
+    background var(--anim-duration) ease,
+    color var(--anim-duration) ease;
+}
+
+.pickerItem:hover {
+  border-color: var(--color-primary-a30);
+}
+
+.pickerItemActive {
+  border-color: var(--color-primary);
+  background: var(--color-primary-a10);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* ── 滑行道工具条 ── */
+
+.taxiwayToolbar {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-md);
+  transform: translateX(-50%);
+  z-index: 550;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 9px;
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  border: 1px solid var(--color-primary-a30);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(6px);
+}
+
+.taxiwayHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+.unsavedDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-warning);
+  animation: pulse-soft 1.4s ease-in-out infinite;
+}
+
+/* ── 选中机场底卡（毛玻璃，对齐桌面版 SelectedAirportBottomCard）── */
+
+.airportCard {
+  position: absolute;
+  left: var(--space-md);
+  bottom: var(--space-md);
+  z-index: 560;
+  width: min(430px, calc(100% - 2 * var(--space-md)));
+  max-height: 62%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 22px;
+  /* 桌面版是 BackdropFilter(blur 16)，这里等价实现 */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface) 78%, transparent),
+    color-mix(in srgb, var(--color-background) 82%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--color-warning) 32%, transparent);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  animation: slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.airportHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px 12px 14px;
+  flex-shrink: 0;
+}
+
+.airportTitleWrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.airportCode {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.45px;
+  color: var(--color-warning);
+  flex-shrink: 0;
+}
+
+.airportName {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 数据来源角标（XPlane11 / MSFS…） */
+.airportSource {
+  flex-shrink: 0;
+  padding: 3px 6px;
+  border-radius: 7px;
+  background: var(--color-on-surface-a10);
+  border: 1px solid var(--color-on-surface-a20);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.runwayCountBadge {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 55%, transparent);
+  color: var(--color-warning);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* 飞行等级 VFR / MVFR / IFR / LIFR */
+.approachBadge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.airportBody {
+  flex: 1;
+  min-height: 0;
+  padding: 0 var(--space-md) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 概览行：跑道数 / 机位数 / 经纬度 */
+.airportMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.airportMetaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.airportMetaItem > span:first-child {
+  color: var(--color-on-surface-a40);
+}
+
+.airportSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.airportSectionTitle {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-a40);
+}
+
+.airportChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+/* 跑道一行：编号 + 长度 + 道面类型，两端的进近设施另起一行 */
+.runwayRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  font-size: 11px;
+}
+
+.runwayIdent {
+  font-weight: 800;
+  color: var(--color-text-primary);
+  letter-spacing: 0.04em;
+  min-width: 66px;
+}
+
+.runwayLength {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.runwaySurface {
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-primary-a10);
+  border: 1px solid var(--color-primary-a30);
+  color: var(--color-primary);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+/* ── 跑道进近设施（ILS / LOC / GS / DME）── */
+
+.runwaySectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.glideslopeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition:
+    color var(--anim-duration) ease,
+    border-color var(--anim-duration) ease,
+    background var(--anim-duration) ease;
+}
+
+.glideslopeToggleOn {
+  color: var(--color-primary);
+  border-color: var(--color-primary-a30);
+  background: var(--color-primary-a10);
+}
+
+/* 一条跑道两端的设施各占一行，端号左对齐便于纵向扫视 */
+.runwayEnds {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 1px;
+}
+
+.runwayEnd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.runwayEndIdent {
+  min-width: 30px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.navaidCategory {
+  padding: 1px 6px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.navaidChip {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  color: var(--color-text-secondary);
+  font-size: 9px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.navaidGlideslope {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.navaidNone {
+  font-size: 9px;
+  color: var(--color-on-surface-a40);
+  font-style: italic;
+}
+
+/* ── METAR ── */
+
+.metarBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.metarText {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.metarToggleWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.metarToggleLabel {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* 小号开关，对应桌面版 MetarMiniToggle */
+.metarToggle {
+  width: 28px;
+  height: 15px;
+  padding: 2px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  background: var(--color-on-surface-a10);
+  border: 1px solid var(--color-on-surface-a20);
+  transition:
+    background var(--anim-duration) ease,
+    border-color var(--anim-duration) ease;
+}
+
+.metarToggleOn {
+  background: color-mix(in srgb, var(--color-primary) 40%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 80%, transparent);
+}
+
+.metarToggleKnob {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+  transition:
+    transform var(--anim-duration) ease,
+    background var(--anim-duration) ease;
+}
+
+.metarToggleOn .metarToggleKnob {
+  transform: translateX(13px);
+  background: var(--color-primary);
+}
+
+/* ── 移动端：控件让位给地图 ── */
+
+@media (max-width: 649px) {
+  .topPanel {
+    top: var(--space-sm);
+    left: var(--space-sm);
+    right: 56px;
+  }
+
+  .hud {
+    left: var(--space-sm);
+    bottom: var(--space-sm);
+    padding: 8px 10px;
+  }
+
+  .hudTime {
+    font-size: 18px;
+  }
+
+  .rightControls {
+    top: var(--space-sm);
+    right: var(--space-sm);
+    bottom: auto;
+    max-height: calc(100% - 2 * var(--space-sm));
+  }
+
+  .airportCard {
+    left: var(--space-sm);
+    right: var(--space-sm);
+    bottom: var(--space-sm);
+    width: auto;
+    max-height: 58%;
+  }
+}

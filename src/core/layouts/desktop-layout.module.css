@@ -1,0 +1,29 @@
+/* 桌面端布局：整体最小宽度 1000px，不足时横向滚动（与 Flutter 版一致） */
+
+.scroller {
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.shell {
+  display: flex;
+  height: 100%;
+  min-width: 1000px;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: var(--color-background);
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}

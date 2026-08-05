@@ -1,0 +1,135 @@
+.navbar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 2px;
+  padding: 6px var(--space-sm);
+  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  background: var(--color-surface);
+  border-top: 0.5px solid var(--color-border);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+}
+
+.slot {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 5px 2px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  transition:
+    color var(--anim-duration) ease,
+    background var(--anim-duration) ease;
+}
+
+.slotSelected {
+  color: var(--color-primary);
+  background: var(--color-primary-a10);
+}
+
+.slotDisabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.slotIconWrap {
+  position: relative;
+  display: flex;
+}
+
+.slotBadge {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+
+.slotLabel {
+  font-size: 10px;
+  font-weight: 500;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 「更多」底部抽屉 ── */
+
+.moreSheetScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  animation: fade-in 0.16s ease-out;
+}
+
+.moreSheet {
+  width: 100%;
+  padding: 10px var(--space-md) calc(var(--space-lg) + env(safe-area-inset-bottom, 0px));
+  background: var(--color-surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg);
+  animation: slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.moreHandle {
+  width: 38px;
+  height: 4px;
+  margin: 0 auto var(--space-md);
+  border-radius: 2px;
+  background: var(--color-on-surface-a40);
+}
+
+.moreGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: var(--space-sm);
+}
+
+.moreItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: var(--space-md) 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  transition:
+    background var(--anim-duration) ease,
+    border-color var(--anim-duration) ease,
+    color var(--anim-duration) ease;
+}
+
+.moreItemSelected {
+  background: var(--color-primary-a10);
+  border-color: var(--color-primary-a30);
+  color: var(--color-primary);
+}
+
+.moreItemLabel {
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}

@@ -1,0 +1,17 @@
+# 统一换行：仓库内一律 LF，避免跨平台协作时整份文件都算改动
+* text=auto eol=lf
+
+# 二进制资源不做换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+
+# 锁文件在 diff 里折叠，评审时不占版面
+package-lock.json linguist-generated=true -diff

@@ -1,0 +1,169 @@
+/* 飞行日志分析组件样式 */
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.countBadge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-primary-a10);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 指标选择器 ── */
+
+.metricPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: var(--space-md);
+}
+
+/* ── 小倍数图表 ── */
+
+.smallMultiples {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.metricRow {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-on-surface-a04);
+}
+
+.metricRowHead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 7px 12px 0;
+}
+
+.metricRowLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.metricRowUnit {
+  font-size: 10px;
+  color: var(--color-on-surface-a40);
+}
+
+/* ── 黑匣子 ── */
+
+.blackBoxControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.blackBoxSearch {
+  flex: 1;
+  min-width: 180px;
+}
+
+/* 表格宽度可能超出容器，横向滚动交给这一层，页面本身不横滚 */
+.blackBoxTableWrap {
+  max-height: 460px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.blackBoxTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.blackBoxTable thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.blackBoxTable tbody td {
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.blackBoxTable tbody tr:hover td {
+  background: var(--color-on-surface-a04);
+}
+
+.blackBoxRowAlert td {
+  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+}
+
+.blackBoxNoAlert {
+  color: var(--color-on-surface-a40);
+}
+
+.blackBoxAlerts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.blackBoxAlert {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: normal;
+}
+
+/* ── 分页器 ── */
+
+.blackBoxPager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.blackBoxPageInfo {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 74px;
+  text-align: center;
+}
+
+.blackBoxJump {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.blackBoxJumpInput {
+  width: 120px;
+}

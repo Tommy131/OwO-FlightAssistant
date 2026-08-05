@@ -1,0 +1,204 @@
+/* 浮层宿主样式：四种对话框风格 + 提示条堆栈 */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: rgba(0, 0, 0, 0.45);
+  animation: fade-in 0.18s ease-out;
+}
+
+/* glass 风格：遮罩带背景模糊 */
+.scrim_glass {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.scrim_darkNeon {
+  background: rgba(4, 6, 18, 0.72);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(420px, 100%);
+  max-height: calc(100vh - 2 * var(--space-lg));
+  overflow-y: auto;
+  padding: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* cupertino：更窄、无图标、按钮通栏 */
+.dialog_cupertino {
+  width: min(300px, 100%);
+  gap: 10px;
+  padding: var(--space-md);
+  border-radius: 14px;
+}
+
+/* glass：半透明毛玻璃 */
+.dialog_glass {
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border-color: color-mix(in srgb, #ffffff 22%, transparent);
+}
+
+/* darkNeon：深色底 + 主色霓虹描边 */
+.dialog_darkNeon {
+  background: #0d1024;
+  border: 1px solid var(--color-primary);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-primary) 40%, transparent),
+    0 0 28px color-mix(in srgb, var(--color-primary) 35%, transparent),
+    var(--shadow-lg);
+  color: #e8ecff;
+}
+
+.dialog_darkNeon .dialogTitle,
+.dialog_darkNeon .dialogContent {
+  color: #e8ecff;
+}
+
+.dialogIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dialogTitle {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-align: center;
+}
+
+.dialogContent {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  white-space: pre-wrap;
+  width: 100%;
+}
+
+.dialogActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  width: 100%;
+  margin-top: 4px;
+}
+
+.dialog_cupertino .dialogActions {
+  justify-content: stretch;
+  border-top: 1px solid var(--color-border);
+  padding-top: 10px;
+}
+
+.dialog_cupertino .dialogActions > * {
+  flex: 1;
+}
+
+/* ── 加载对话框 ── */
+
+.dialogLoading {
+  width: min(280px, 100%);
+}
+
+.loadingRing {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-primary-a20);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: boot-spin 0.85s linear infinite;
+}
+
+/* ── 提示条 ── */
+
+.snackStack {
+  position: fixed;
+  bottom: var(--space-lg);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(440px, calc(100vw - 2 * var(--space-md)));
+  pointer-events: none;
+}
+
+.snackBar {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  pointer-events: auto;
+  animation: slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.snackBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.snackTitle {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.snackMessage {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  word-break: break-word;
+}
+
+.snackClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.snackClose:hover {
+  background: var(--color-on-surface-a08);
+  color: var(--color-text-primary);
+}
+
+/* 移动端提示条贴底通栏 */
+@media (max-width: 649px) {
+  .snackStack {
+    bottom: calc(var(--space-sm) + 68px);
+    width: calc(100vw - 2 * var(--space-sm));
+  }
+}

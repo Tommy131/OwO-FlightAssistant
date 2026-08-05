@@ -1,0 +1,258 @@
+/* 桌面端侧边栏：宽度 200 ↔ 60，动画 300ms（与 AppThemeData 常量一致） */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-expanded);
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  transition: width var(--anim-duration) cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.sidebarCollapsed {
+  width: var(--sidebar-collapsed);
+}
+
+/* ── 头部 ── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 56px;
+  padding: 0 var(--space-sm);
+  flex-shrink: 0;
+}
+
+.sidebarCollapsed .header {
+  justify-content: center;
+  padding: 0;
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #fff;
+  object-fit: contain;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.logoButton {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.logoBadge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+}
+
+.headerTitles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  animation: fade-in var(--anim-duration) ease;
+}
+
+.greeting {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collapseButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.collapseButton:hover {
+  background: var(--color-on-surface-a08);
+}
+
+/* ── 导航列表 ── */
+
+.navList {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebarCollapsed .navList {
+  padding: var(--space-sm) 6px;
+}
+
+/* ── 分组 ── */
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  margin: 12px 4px 4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--anim-duration) ease;
+}
+
+.groupHeader:hover {
+  background: var(--color-on-surface-a04);
+}
+
+.groupHeaderCollapsed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.groupTitle {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--color-on-surface-a40);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevronCollapsed {
+  transform: rotate(-90deg);
+  transition: transform var(--anim-duration) ease;
+}
+
+.groupChildren {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows var(--anim-duration) ease,
+    opacity var(--anim-duration) ease;
+  opacity: 1;
+}
+
+.groupChildren > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.groupChildrenHidden {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── 导航项 ── */
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 10px var(--space-sm);
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  text-align: left;
+  transition:
+    background var(--anim-duration) ease,
+    color var(--anim-duration) ease,
+    border-color var(--anim-duration) ease,
+    opacity var(--anim-duration) ease;
+}
+
+.navItem:hover:not(:disabled) {
+  background: var(--color-on-surface-a04);
+  color: var(--color-text-primary);
+}
+
+.navItemCollapsed {
+  justify-content: center;
+  padding: 10px 6px;
+}
+
+.navItemSub {
+  margin-left: 12px;
+  width: calc(100% - 12px);
+}
+
+.navItemSelected {
+  background: var(--color-primary-a10);
+  border-color: var(--color-primary-a30);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.navItemSelected:hover {
+  background: var(--color-primary-a20);
+  color: var(--color-primary);
+}
+
+/* 后端未连通时置灰但仍可见（与桌面版一致） */
+.navItemDisabled {
+  opacity: 0.5;
+  background: color-mix(in srgb, var(--color-surface-container-highest) 20%, transparent);
+  border-color: var(--color-border);
+  color: var(--color-on-surface-a40);
+  cursor: not-allowed;
+}
+
+.navItemTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navItemBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--color-surface);
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ── 迷你卡片与页脚 ── */
+
+.miniCardSlot {
+  padding: 0 var(--space-sm) var(--space-sm);
+  flex-shrink: 0;
+}
+
+.sidebarCollapsed .miniCardSlot {
+  padding: 0 6px var(--space-sm);
+}
+
+.footerSlot {
+  flex-shrink: 0;
+}

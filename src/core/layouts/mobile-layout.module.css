@@ -1,0 +1,143 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-background);
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── 二级菜单抽屉（对应桌面版 Drawer）── */
+
+.drawerScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 850;
+  background: rgba(0, 0, 0, 0.42);
+  animation: fade-in 0.16s ease-out;
+}
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  width: min(300px, 84vw);
+  height: 100%;
+  padding: 12px 16px 20px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  animation: drawer-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+  border: 1px solid var(--color-primary-a30);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-primary) 18%, transparent),
+    color-mix(in srgb, var(--color-primary) 8%, transparent)
+  );
+  flex-shrink: 0;
+}
+
+.drawerHeaderIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-a20);
+  flex-shrink: 0;
+}
+
+.drawerHeaderTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawerBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawerItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-outline) 20%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface-container-highest) 20%, transparent);
+  color: color-mix(in srgb, var(--color-on-surface) 90%, transparent);
+  font-weight: 500;
+  text-align: left;
+  transition:
+    background var(--anim-duration) ease,
+    border-color var(--anim-duration) ease,
+    box-shadow var(--anim-duration) ease;
+  flex-shrink: 0;
+}
+
+.drawerItemSelected {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-primary) 95%, transparent),
+    color-mix(in srgb, var(--color-primary) 72%, transparent)
+  );
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 700;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+
+.drawerItemIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.drawerItemSelected .drawerItemIcon {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.drawerItemLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

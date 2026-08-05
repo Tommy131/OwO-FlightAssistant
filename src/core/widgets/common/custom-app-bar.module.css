@@ -1,0 +1,47 @@
+.appBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 56px;
+  padding: 0 var(--space-md);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.actionSlot {
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (max-width: 649px) {
+  .appBar {
+    padding: 0 var(--space-sm);
+  }
+
+  .title {
+    font-size: 17px;
+  }
+
+  .actions {
+    gap: 2px;
+  }
+}

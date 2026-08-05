@@ -1,45 +1,24 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+# ── 依赖与构建产物 ──
+node_modules/
+dist/
+*.tsbuildinfo
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
+# 构建产物不入库：由 CI 在打 tag 时构建并随 Release 分发
+# （后端启动时从 web/dist 读取，本地开发用 npm run build 自行生成）
+
+# ── 本地环境 ──
+.env
+.env.local
+.env.*.local
+
+# ── 编辑器 / 工具 ──
+.vscode/
 .idea/
+.DS_Store
+Thumbs.db
+.claude/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# ── 日志 ──
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*

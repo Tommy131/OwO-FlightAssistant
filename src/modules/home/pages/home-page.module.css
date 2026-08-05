@@ -1,0 +1,88 @@
+.page {
+  position: relative;
+  height: 100%;
+  background: var(--color-background);
+}
+
+.scroll {
+  height: 100%;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+}
+
+/* 首页状态行：连接卡片 + 检查单阶段卡片等高并排；<760px 时只留连接卡片一列 */
+.statusRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  .statusRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 649px) {
+  .content {
+    padding: var(--space-md);
+    gap: var(--space-md);
+  }
+}
+
+/* ── 后端离线遮罩 ── */
+
+.mask {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  background: color-mix(in srgb, var(--color-background) 62%, transparent);
+  backdrop-filter: blur(9px) saturate(1.1);
+  -webkit-backdrop-filter: blur(9px) saturate(1.1);
+  transition: opacity 420ms ease;
+}
+
+.maskCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(460px, 100%);
+  padding: var(--space-xl) var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  animation: slide-up 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.maskTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.maskSubtitle {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.maskActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-top: 4px;
+}

@@ -1,0 +1,260 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-background);
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+}
+
+.spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--color-primary-a20);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: boot-spin 0.85s linear infinite;
+}
+
+/* ── 工具栏 ── */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.pageTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.toolbarSpacer {
+  flex: 1;
+}
+
+/* ── 列表 ── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--space-lg);
+}
+
+@media (max-width: 649px) {
+  .toolbar {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .list {
+    padding: var(--space-md);
+  }
+}
+
+.listItem {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 4px 8px 4px 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--anim-duration) ease,
+    box-shadow var(--anim-duration) ease;
+}
+
+.listItem:hover {
+  border-color: var(--color-primary-a30);
+  box-shadow: var(--shadow-sm);
+}
+
+.listMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px var(--space-md);
+  text-align: left;
+}
+
+.listRoute {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.listIcao {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: 0.04em;
+}
+
+.listMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.listAircraft {
+  font-weight: 500;
+}
+
+.listFlightNo,
+.listSim {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-on-surface-a08);
+  font-size: 11px;
+}
+
+.listStats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.listStat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.listTime {
+  font-size: 11px;
+  color: var(--color-on-surface-a40);
+  font-variant-numeric: tabular-nums;
+}
+
+.listActions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* ── 详情 ── */
+
+.detailTitleWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.detailRoute {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: 0.03em;
+}
+
+.detailSubtitle {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailTabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.detailTabs::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 649px) {
+  .detailTabs {
+    padding: 0 var(--space-sm);
+  }
+}
+
+.detailTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 14px;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    color var(--anim-duration) ease,
+    border-color var(--anim-duration) ease;
+}
+
+.detailTab:hover {
+  color: var(--color-text-primary);
+}
+
+.detailTabActive {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.detailContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+}
+
+@media (max-width: 649px) {
+  .detailContent {
+    padding: var(--space-md);
+  }
+}
+
+/* ── 起降报告 ── */
+
+.reportGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.reportMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+  gap: 8px;
+}

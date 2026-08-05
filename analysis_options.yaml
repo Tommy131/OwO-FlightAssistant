@@ -1,5 +1,0 @@
-analyzer:
-  errors:
-    unintended_html_in_doc_comment: ignore
-    use_build_context_synchronously: ignore
-include: package:flutter_lints/flutter.yaml

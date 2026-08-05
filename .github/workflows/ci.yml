@@ -1,0 +1,47 @@
+name: CI
+
+# 合并门禁：编译通过 + 类型零错误 + 版本同步。任一不过不得合并。
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支的新推送取消上一次仍在跑的任务，省 runner 时间
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    name: 质量门禁
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # 用 lockfile 精确还原依赖，保证可复现
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 版本号跨文件同步校验
+        run: node scripts/check-version-sync.mjs
+
+      - name: 类型检查（零错误）
+        run: npm run typecheck
+
+      - name: 生产构建
+        run: npm run build
+
+      # 构建产物留存，方便直接下载验证这次改动
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist-${{ github.sha }}
+          path: dist/
+          retention-days: 7

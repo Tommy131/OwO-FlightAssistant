@@ -1,0 +1,150 @@
+/* 实时飞行数据仪表盘 */
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.panelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-md);
+}
+
+.primaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+}
+
+.panelGridInner {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+  gap: 8px;
+}
+
+/* ── 风向指示 ── */
+
+.windIndicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-primary-a10);
+}
+
+/* ── METAR ── */
+
+.metarBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.metarRaw {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  word-break: break-word;
+}
+
+.metarChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.metarUpdated {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.metarError {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid color-mix(in srgb, var(--color-error) 30%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+}
+
+.metarErrorTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-error);
+}
+
+.metarErrorText {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  word-break: break-word;
+}
+
+/* ── 系统状态 ── */
+
+.systemSections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-md);
+}
+
+.systemSection {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.systemSectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-a40);
+}
+
+.systemChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-on-surface-a04);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background var(--anim-duration) ease,
+    border-color var(--anim-duration) ease;
+}
+
+.statusPillOn {
+  border-color: currentColor;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-weight: 600;
+}
+
+.statusPillDanger {
+  animation: pulse-soft 1.3s ease-in-out infinite;
+}
+
+.statusPillDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

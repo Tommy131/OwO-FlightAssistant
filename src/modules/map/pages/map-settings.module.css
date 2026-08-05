@@ -1,0 +1,128 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* ── 通用设置行 ── */
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 4px 0 var(--space-md);
+}
+
+.settingLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.subsectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-a40);
+}
+
+/* ── 本场机场 ── */
+
+.currentHome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  margin-bottom: var(--space-md);
+  border: 1px solid color-mix(in srgb, #fab219 35%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, #fab219 10%, transparent);
+}
+
+.currentHomeText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inlineForm {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.inlineField {
+  flex: 1;
+  min-width: 160px;
+}
+
+/* ── 计时器 ── */
+
+.selectGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-sm);
+}
+
+/* ── 告警 ── */
+
+.alertList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-sm) 0 var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.alertRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 7px 2px;
+  cursor: pointer;
+}
+
+.alertRow + .alertRow {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 45%, transparent);
+}
+
+.alertName {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-text-primary);
+}
+
+.disabledHint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.thresholdBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.thresholdHint {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.thresholdGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-sm);
+}

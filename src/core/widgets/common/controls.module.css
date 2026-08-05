@@ -1,0 +1,504 @@
+/* 通用交互控件样式，对应 Flutter 主题中的 button/switch/slider/input 定义 */
+
+/* ── Button ── */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition:
+    background var(--anim-duration) ease,
+    border-color var(--anim-duration) ease,
+    opacity var(--anim-duration) ease,
+    filter var(--anim-duration) ease;
+}
+
+.button:disabled {
+  opacity: 0.45;
+}
+
+.buttonSm {
+  padding: 6px 13px;
+  font-size: 12px;
+  gap: 5px;
+}
+
+.buttonBlock {
+  width: 100%;
+}
+
+.buttonLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ElevatedButton：主色底 */
+.button_elevated {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.button_elevated:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+/* OutlinedButton：1.8px 次色描边 + 16 圆角 */
+.button_outlined {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  border: 1.8px solid var(--color-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.button_outlined:hover:not(:disabled) {
+  background: var(--color-primary-a10);
+}
+
+.button_text {
+  background: transparent;
+  color: var(--color-primary);
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.button_text:hover:not(:disabled) {
+  background: var(--color-primary-a10);
+}
+
+.button_tonal {
+  background: var(--color-primary-a10);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary-a20);
+}
+
+.button_tonal:hover:not(:disabled) {
+  background: var(--color-primary-a20);
+}
+
+.button_danger {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.button_danger:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: boot-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── IconButton ── */
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  transition:
+    background var(--anim-duration) ease,
+    color var(--anim-duration) ease;
+  flex-shrink: 0;
+}
+
+.iconButton:hover:not(:disabled) {
+  background: var(--color-on-surface-a08);
+  color: var(--color-text-primary);
+}
+
+.iconButton:disabled {
+  opacity: 0.4;
+}
+
+.iconButtonActive {
+  background: var(--color-primary-a10);
+  color: var(--color-primary);
+}
+
+/* ── Switch ── */
+
+.switch {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--color-on-surface-a08);
+  border: 1px solid var(--color-border);
+  transition: background var(--anim-duration) ease;
+  flex-shrink: 0;
+}
+
+.switchOn {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.switch:disabled {
+  opacity: 0.45;
+}
+
+.switchThumb {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transform: translateY(-50%);
+  transition: left var(--anim-duration) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.switchOn .switchThumb {
+  left: 21px;
+}
+
+/* ── Slider ── */
+
+.sliderWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.slider {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  appearance: none;
+  outline: none;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: 2px solid var(--color-surface);
+  cursor: pointer;
+}
+
+.slider:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sliderValue {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  min-width: 46px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── TextField / Select ── */
+
+.fieldWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  height: 38px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--anim-duration) ease;
+}
+
+.field:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-a10);
+}
+
+.fieldError {
+  border-color: var(--color-error);
+}
+
+.fieldDisabled {
+  opacity: 0.55;
+}
+
+.fieldInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.fieldInput::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 0.65;
+}
+
+.fieldHint {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.fieldErrorText {
+  font-size: 11px;
+  color: var(--color-error);
+}
+
+.select {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  appearance: none;
+}
+
+.select option {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+/* ── SegmentedControl ── */
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-on-surface-a04);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  scrollbar-width: none;
+  max-width: 100%;
+}
+
+.segmented::-webkit-scrollbar {
+  display: none;
+}
+
+.segmentedBlock {
+  display: flex;
+  width: 100%;
+}
+
+.segmentedBlock .segmentedItem {
+  flex: 1;
+}
+
+.segmentedItem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  transition:
+    background var(--anim-duration) ease,
+    color var(--anim-duration) ease;
+}
+
+.segmentedItemSm {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.segmentedItem:hover {
+  color: var(--color-text-primary);
+}
+
+.segmentedItemActive {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Checkbox ── */
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkboxDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.checkboxInput {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.checkboxBox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border: 1.8px solid var(--color-on-surface-a40);
+  border-radius: 4px;
+  transition:
+    background var(--anim-duration) ease,
+    border-color var(--anim-duration) ease;
+  flex-shrink: 0;
+}
+
+.checkboxInput:focus-visible + .checkboxBox {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.checkboxLabel {
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+/* ── PopupMenu ── */
+
+.popupWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.popupScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+}
+
+.popupMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 901;
+  min-width: 190px;
+  padding: 5px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: slide-up 0.16s ease-out;
+}
+
+.popupMenuLeft {
+  right: auto;
+  left: 0;
+}
+
+.popupItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  text-align: left;
+  transition: background var(--anim-duration) ease;
+}
+
+.popupItem:hover {
+  background: var(--color-on-surface-a08);
+}
+
+.popupItemSelected {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.popupItemDanger {
+  color: var(--color-danger);
+}
+
+.popupItemLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── ProgressBar ── */
+
+.progressTrack {
+  width: 100%;
+  background: var(--color-on-surface-a08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width var(--anim-duration) ease;
+}
+
+.progressIndeterminate {
+  height: 100%;
+  width: 35%;
+  border-radius: 999px;
+  animation: progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}

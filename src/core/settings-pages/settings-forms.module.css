@@ -1,0 +1,437 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* ── 通用设置行 ── */
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settingRow:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.settingBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settingBlock:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.settingText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settingLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.settingHint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.rangeHint {
+  font-size: 10px;
+  color: var(--color-on-surface-a40);
+}
+
+.activeModeHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: var(--space-sm);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+/* ── 语言选项 ── */
+
+.optionList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.optionTile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  transition:
+    border-color var(--anim-duration) ease,
+    background var(--anim-duration) ease;
+}
+
+.optionTile:hover {
+  border-color: var(--color-primary-a30);
+}
+
+.optionTileSelected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-a10);
+}
+
+.optionFlag {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.optionLabel {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+/* ── 存储位置 ── */
+
+.storageRows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: var(--space-md);
+}
+
+.storageRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-md);
+}
+
+/* ── 主题模式 ── */
+
+.modeRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.modeTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: var(--space-md) 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  transition:
+    border-color var(--anim-duration) ease,
+    background var(--anim-duration) ease,
+    color var(--anim-duration) ease;
+}
+
+.modeTile:hover {
+  border-color: var(--color-primary-a30);
+}
+
+.modeTileActive {
+  border-color: var(--color-primary);
+  background: var(--color-primary-a10);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* ── 主题配色 ── */
+
+.themeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.themeTile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--anim-duration) ease,
+    background var(--anim-duration) ease;
+}
+
+.themeTile:hover {
+  border-color: var(--color-primary-a30);
+}
+
+.themeTileSelected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-a10);
+}
+
+.swatchRow {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.swatchSmall {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.themeName {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* ── 自定义配色 ── */
+
+.customRow {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.pickerWrap {
+  flex-shrink: 0;
+}
+
+/* react-colorful 默认 200px，稍微收一点更贴合卡片 */
+.pickerWrap :global(.react-colorful) {
+  width: 184px;
+  height: 168px;
+}
+
+.customForm {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.previewRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.previewSwatch {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.previewLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* ── 设计常量 ── */
+
+.constantGrid {
+  display: flex;
+  flex-direction: column;
+}
+
+.constantRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 9px 2px;
+}
+
+.constantRow + .constantRow {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+}
+
+.constantLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.constantValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+/* ── 关于页 ── */
+
+.aboutHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-primary) 12%, var(--color-surface)),
+    var(--color-surface)
+  );
+}
+
+.aboutLogo {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: #fff;
+  object-fit: contain;
+  box-shadow: var(--shadow-sm);
+}
+
+.aboutTitles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.aboutName {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.aboutVersion {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.infoList {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: 9px 2px;
+}
+
+.infoRow + .infoRow {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+}
+
+.infoLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.infoValue {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  text-align: right;
+  word-break: break-all;
+}
+
+.linkGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.linkTile {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  transition:
+    border-color var(--anim-duration) ease,
+    background var(--anim-duration) ease;
+}
+
+.linkTile:hover {
+  border-color: var(--color-primary-a30);
+  background: var(--color-primary-a10);
+  text-decoration: none;
+}
+
+.linkLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copyright {
+  margin-top: var(--space-sm);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.disclaimer {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--color-warning);
+}

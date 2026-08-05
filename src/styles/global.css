@@ -1,0 +1,299 @@
+/**
+ * 全局基础样式
+ *
+ * 设计令牌（--color-* / --radius-* / --space-*）由 theme-store 在运行时注入 :root，
+ * 见 core/theme/app-theme-data.ts 的 generateThemeTokens()。
+ * 这里只放重置、排版基线与跨模块复用的原子类。
+ */
+
+/*
+ * ── Material Symbols 图标字体（自托管，无外部请求）──
+ * 只引 Rounded 一套：`.mi` 全部使用 Rounded，多引 Outlined 会白白多打包 3.4MB。
+ * 描边/实心两态由变量字体的 FILL 轴切换，不需要第二套字体。
+ */
+@import 'material-symbols/rounded.css';
+
+/* ── Reset ── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    'Noto Sans SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-primary, #2d3436);
+  background: var(--color-background, #f5f6fa);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 页面本身永不横向滚动，横向滚动交给内部容器 */
+  overflow: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+figure {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* ── 排版层级（对应 Flutter TextTheme）── */
+.text-display-lg {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+.text-display-md {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+.text-display-sm {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.text-headline {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.text-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.text-body-lg {
+  font-size: 16px;
+  color: var(--color-text-primary);
+}
+.text-body {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+.text-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.text-caption {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+/* 数值等宽显示（仪表盘/黑匣子数据用） */
+.text-mono {
+  font-family: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 滚动条 ── */
+.scroll-area {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-on-surface-a40) transparent;
+}
+
+.scroll-area::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-area::-webkit-scrollbar-thumb {
+  background: var(--color-on-surface-a40);
+  border-radius: 4px;
+}
+
+.scroll-area::-webkit-scrollbar-thumb:hover {
+  background: var(--color-on-surface-a60);
+}
+
+/* ── Material Symbols 图标基类 ── */
+.mi {
+  font-family: 'Material Symbols Rounded';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  flex-shrink: 0;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+  user-select: none;
+}
+
+/* 填充态（对应 Flutter 的 Icons.xxx 实心图标） */
+.mi--filled {
+  font-variation-settings:
+    'FILL' 1,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+/* ── 焦点可见性（键盘导航无障碍）── */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── 首屏骨架（index.html 内联使用）── */
+.boot-splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  height: 100%;
+  background: #1a1a2e;
+  color: #dfe6e9;
+}
+
+.boot-splash__ring {
+  width: 42px;
+  height: 42px;
+  border: 3px solid rgba(108, 92, 231, 0.25);
+  border-top-color: #6c5ce7;
+  border-radius: 50%;
+  animation: boot-spin 0.9s linear infinite;
+}
+
+.boot-splash__text {
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+
+@keyframes boot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── 通用动画 ── */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* 尊重系统的「减少动态效果」偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── 仅供屏幕阅读器 ── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,154 @@
+.screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-lg);
+  background:
+    radial-gradient(
+      1000px 520px at 12% -8%,
+      color-mix(in srgb, var(--color-primary) 20%, transparent),
+      transparent
+    ),
+    radial-gradient(
+      900px 460px at 108% 108%,
+      color-mix(in srgb, var(--color-secondary) 18%, transparent),
+      transparent
+    ),
+    var(--color-background);
+  overflow: auto;
+}
+
+/* ── 欢迎页 ── */
+
+.welcomeCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  width: min(460px, 100%);
+  padding: var(--space-xl);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.welcomeLogo {
+  width: 76px;
+  height: 76px;
+  border-radius: var(--radius-lg);
+  background: #fff;
+  object-fit: contain;
+  box-shadow: var(--shadow-sm);
+}
+
+.welcomeTitle {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.welcomeDesc {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--color-text-secondary);
+  max-width: 340px;
+}
+
+.welcomeHint {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  opacity: 0.75;
+}
+
+/* ── 向导卡片 ── */
+
+.wizardCard {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 2 * var(--space-lg));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.headerTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headerTitle {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.headerCounter {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.stepDots {
+  display: flex;
+  gap: 6px;
+}
+
+.stepDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-on-surface-a08);
+  transition: background var(--anim-duration) ease;
+}
+
+.stepDotDone {
+  background: var(--color-primary-a30);
+}
+
+.stepDotActive {
+  background: var(--color-primary);
+  transform: scale(1.25);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.stepTitle {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 12px var(--space-lg);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}

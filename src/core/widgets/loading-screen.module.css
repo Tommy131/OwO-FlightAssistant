@@ -1,0 +1,47 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  height: 100%;
+  background: var(--color-background);
+}
+
+.logoWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+}
+
+.logo {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  border: 3px solid;
+  border-radius: 50%;
+  animation: boot-spin 1s linear infinite;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: 0.02em;
+}
+
+.message {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
