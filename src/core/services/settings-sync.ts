@@ -1,4 +1,4 @@
-import { MiddlewareHttpService } from '../../modules/http/services/middleware-http-service';
+import { getBackendTransport } from './backend-transport';
 import { AppLogger } from '../utils/logger';
 
 /**
@@ -27,11 +27,11 @@ let backendReachable = true;
  * @returns 键值对；后端不可达时返回 null（与「后端有但为空」区分开）
  */
 export async function pullSettings(): Promise<Record<string, unknown> | null> {
+  const transport = getBackendTransport();
+  if (!transport) return null;
   try {
-    await MiddlewareHttpService.init();
-    const response = await MiddlewareHttpService.getAllSettings();
-    const body = response.objectBody;
-    const entries = body?.entries;
+    await transport.init();
+    const entries = await transport.getAllSettings();
     if (!entries || typeof entries !== 'object' || Array.isArray(entries)) return {};
 
     backendReachable = true;
@@ -47,9 +47,14 @@ export async function pullSettings(): Promise<Record<string, unknown> | null> {
 
 /** 写入单条设置；后端不可达时入队待补传 */
 export async function pushSetting(key: string, value: unknown): Promise<void> {
+  const transport = getBackendTransport();
+  if (!transport) {
+    pendingWrites.set(key, value);
+    return;
+  }
   try {
-    await MiddlewareHttpService.init();
-    await MiddlewareHttpService.setSetting(key, value);
+    await transport.init();
+    await transport.setSetting(key, value);
     backendReachable = true;
     pendingDeletes.delete(key);
   } catch (e) {
@@ -61,9 +66,15 @@ export async function pushSetting(key: string, value: unknown): Promise<void> {
 
 /** 删除单条设置 */
 export async function removeSetting(key: string): Promise<void> {
+  const transport = getBackendTransport();
+  if (!transport) {
+    pendingDeletes.add(key);
+    pendingWrites.delete(key);
+    return;
+  }
   try {
-    await MiddlewareHttpService.init();
-    await MiddlewareHttpService.deleteSetting(key);
+    await transport.init();
+    await transport.deleteSetting(key);
     backendReachable = true;
     pendingWrites.delete(key);
   } catch {
@@ -77,9 +88,11 @@ export async function removeSetting(key: string): Promise<void> {
 export async function resetSettings(): Promise<void> {
   pendingWrites.clear();
   pendingDeletes.clear();
+  const transport = getBackendTransport();
+  if (!transport) return;
   try {
-    await MiddlewareHttpService.init();
-    await MiddlewareHttpService.resetSettings();
+    await transport.init();
+    await transport.resetSettings();
   } catch (e) {
     AppLogger.warning(`[SettingsSync] reset failed: ${String(e)}`);
   }
@@ -88,9 +101,14 @@ export async function resetSettings(): Promise<void> {
 /** 批量写入，首启向导一次提交全部配置时使用 */
 export async function pushSettingsBulk(entries: Record<string, unknown>): Promise<boolean> {
   if (Object.keys(entries).length === 0) return true;
+  const transport = getBackendTransport();
+  if (!transport) {
+    for (const [key, value] of Object.entries(entries)) pendingWrites.set(key, value);
+    return false;
+  }
   try {
-    await MiddlewareHttpService.init();
-    await MiddlewareHttpService.setSettingsBulk(entries);
+    await transport.init();
+    await transport.setSettingsBulk(entries);
     backendReachable = true;
     return true;
   } catch (e) {

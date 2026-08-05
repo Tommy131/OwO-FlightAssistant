@@ -10,7 +10,11 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "mock": "node tools/mock-middleware.mjs"
+    "mock": "node tools/mock-middleware.mjs",
+    "check:arch": "node scripts/check-architecture.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "check:version": "node scripts/check-version-sync.mjs",
+    "check": "npm run check:version && npm run check:arch && npm run check:i18n && npm run typecheck"
   },
   "dependencies": {
     "echarts": "^5.5.1",

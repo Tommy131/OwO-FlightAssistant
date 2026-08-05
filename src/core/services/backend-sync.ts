@@ -1,6 +1,6 @@
 import { AppLogger } from '../utils/logger';
 import { toJsonMap, type JsonMap } from '../utils/parse-utils';
-import { MiddlewareHttpService } from '../../modules/http/services/middleware-http-service';
+import { getBackendTransport } from './backend-transport';
 
 /**
  * 后端存储同步
@@ -31,10 +31,11 @@ export async function pushRecord(
   id: string,
   record: unknown,
 ): Promise<SyncResult> {
+  const transport = getBackendTransport();
+  if (!transport) return { ok: false, offline: true };
   try {
-    await MiddlewareHttpService.init();
-    if (kind === 'flightLog') await MiddlewareHttpService.saveFlightLog(id, record);
-    else await MiddlewareHttpService.saveBriefing(id, record);
+    await transport.init();
+    await transport.saveRecord(kind, id, record);
     return { ok: true, offline: false };
   } catch (e) {
     AppLogger.warning(`[BackendSync] push ${kind} ${id} failed: ${String(e)}`);
@@ -44,10 +45,11 @@ export async function pushRecord(
 
 /** 从后端删除一条记录 */
 export async function removeRecord(kind: SyncKind, id: string): Promise<SyncResult> {
+  const transport = getBackendTransport();
+  if (!transport) return { ok: false, offline: true };
   try {
-    await MiddlewareHttpService.init();
-    if (kind === 'flightLog') await MiddlewareHttpService.deleteFlightLog(id);
-    else await MiddlewareHttpService.deleteBriefing(id);
+    await transport.init();
+    await transport.deleteRecord(kind, id);
     return { ok: true, offline: false };
   } catch (e) {
     AppLogger.warning(`[BackendSync] delete ${kind} ${id} failed: ${String(e)}`);
@@ -60,15 +62,11 @@ export async function removeRecord(kind: SyncKind, id: string): Promise<SyncResu
  * 后端不可达返回 null（与「后端有但为空」区分开，避免误判为需要清空本地）
  */
 export async function pullRecords(kind: SyncKind): Promise<JsonMap[] | null> {
+  const transport = getBackendTransport();
+  if (!transport) return null;
   try {
-    await MiddlewareHttpService.init();
-    const response =
-      kind === 'flightLog'
-        ? await MiddlewareHttpService.listFlightLogs()
-        : await MiddlewareHttpService.listBriefings();
-
-    const body = response.objectBody;
-    const records = body?.records;
+    await transport.init();
+    const records = await transport.listRecords(kind);
     if (!Array.isArray(records)) return [];
 
     return records

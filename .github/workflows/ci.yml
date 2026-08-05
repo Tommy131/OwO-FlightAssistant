@@ -30,7 +30,15 @@ jobs:
         run: npm ci
 
       - name: 版本号跨文件同步校验
-        run: node scripts/check-version-sync.mjs
+        run: npm run check:version
+
+      # 依赖方向铁律：core 不得反向依赖 modules，纯计算 service 不得碰框架
+      - name: 架构约束校验
+        run: npm run check:arch
+
+      # 键集一致 / 无重复键 / 占位符对齐，并报告各语言覆盖率
+      - name: i18n 校验
+        run: npm run check:i18n
 
       - name: 类型检查（零错误）
         run: npm run typecheck

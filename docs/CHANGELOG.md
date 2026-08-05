@@ -35,6 +35,11 @@
 
 ### 调整
 
+- **依赖方向修正**：`core/services/{backend-sync,settings-sync}` 原本反向 import
+  `modules/http`，违反「core 不得依赖业务模块」的铁律。改为依赖倒置 ——
+  core 声明 `BackendTransport` 端口，由 `modules/http` 在注册期注入实现。
+- 新增可执行的门禁脚本：`check-architecture`（依赖方向）、`check-i18n`
+  （键集一致 / 重复键 / 占位符对齐 / 覆盖率），并接入 CI；`npm run check` 一键全跑。
 - 右侧控制栏由 18 个平铺开关重组为 6 个分组，悬停展开、点击常驻；图标去重（25 个全互异）。
 - 地图底图改用带完整注记的样式，机场地面结构由 aeroway 矢量单独绘制。
 - 跑道渲染从「蓝色发光条」改为深色沥青道面 + 白色虚线中线，并脱离滑行道开关独立控制。
@@ -42,6 +47,9 @@
 ### 删除
 
 - 桌面专属能力：无边框标题栏、启动向导中的「选择存储路径」步骤（Web 无对应能力）。
+- 清理死代码：`core/widgets/common/overflow-marquee-text`、
+  `core/widgets/navigation/module-side-nav` 及其 CSS module —— 全部导出符号
+  在代码库中零引用。
 
 ### 修复
 
