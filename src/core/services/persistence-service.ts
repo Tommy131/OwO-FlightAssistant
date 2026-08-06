@@ -36,6 +36,8 @@ class PersistenceServiceImpl {
   private readyPromise: Promise<void> | null = null;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingSave: Promise<void> | null = null;
+  /** 与 pendingSave 配套的 resolve —— 必须与 Promise 的创建分开持有，见 scheduleSave */
+  private pendingSaveResolve: (() => void) | null = null;
   /** 后端设置是否可达（设置页展示存储位置时用） */
   private backendAvailable = false;
 
@@ -270,6 +272,10 @@ class PersistenceServiceImpl {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
+    // 取消待落盘时必须把等在上面的调用方放行，否则它们会永远挂着
+    this.pendingSaveResolve?.();
+    this.pendingSave = null;
+    this.pendingSaveResolve = null;
     await idbClear();
     await resetSettings();
     AppLogger.info('[Persistence] app reset (local + backend)');
@@ -279,15 +285,38 @@ class PersistenceServiceImpl {
   // 落盘（防抖合并，对应桌面版的保存队列）
   // ──────────────────────────────────────────────────────────────────────────
 
+  /**
+   * 防抖落盘：300ms 内的连续写入合并成一次。
+   *
+   * ⚠️ 这里曾有一个会**永久挂死所有调用方**的写法：
+   *
+   *     if (this.saveTimer !== null) clearTimeout(this.saveTimer);
+   *     this.pendingSave ??= new Promise((resolve) => {
+   *       this.saveTimer = setTimeout(...);   // ← 只在 Promise 新建时才排定时器
+   *     });
+   *
+   * 第二次调用会 clearTimeout 掉定时器，而 `??=` 见 pendingSave 非空便不再新建，
+   * 于是**新的定时器压根没排**：resolve 永远不会被调用，pendingSave 也永远不会
+   * 复位 —— 之后每一次 `await setModuleData(...)` 都拿到同一个死 Promise。
+   * 表现是「点了保存，界面就此不动，也不报错」。
+   *
+   * 修法：Promise 的创建与定时器的排定分开 —— resolve 单独存起来，
+   * 每次调用都重新排定时器。
+   */
   private scheduleSave(): Promise<void> {
     if (this.saveTimer !== null) clearTimeout(this.saveTimer);
     this.pendingSave ??= new Promise<void>((resolve) => {
-      this.saveTimer = setTimeout(() => {
-        this.saveTimer = null;
-        this.pendingSave = null;
-        void this.flush().finally(resolve);
-      }, 300);
+      this.pendingSaveResolve = resolve;
     });
+
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      const resolve = this.pendingSaveResolve;
+      this.pendingSave = null;
+      this.pendingSaveResolve = null;
+      void this.flush().finally(() => resolve?.());
+    }, 300);
+
     return this.pendingSave;
   }
 

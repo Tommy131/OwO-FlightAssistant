@@ -1,4 +1,7 @@
 import { pickDouble, pickString, toJsonMap, toText } from '../../../core/utils/parse-utils';
+// 坐标校验收在 core，这里再导出以免改动一串既有调用点
+export { isValidCoordinate } from '../../../core/utils/coordinates';
+import { isValidCoordinate } from '../../../core/utils/coordinates';
 import type {
   MapAerowayFeature,
   MapCoordinate,
@@ -19,17 +22,6 @@ const AEROWAY_KINDS: readonly string[] = [
   'helipad',
 ];
 
-export function isValidCoordinate(lat: number, lon: number): boolean {
-  return (
-    Number.isFinite(lat) &&
-    Number.isFinite(lon) &&
-    lat >= -90 &&
-    lat <= 90 &&
-    lon >= -180 &&
-    lon <= 180 &&
-    !(lat === 0 && lon === 0)
-  );
-}
 
 /**
  * 后端响应 → 领域模型

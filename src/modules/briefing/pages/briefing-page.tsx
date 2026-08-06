@@ -1,3 +1,9 @@
+import { PersistenceService } from '../../../core/services/persistence-service';
+import { usePlannedRouteStore } from '../../common/providers/planned-route-store';
+
+/** SimBrief 身份存在简报模块的命名空间下 */
+const SIMBRIEF_MODULE = 'briefing';
+const SIMBRIEF_IDENTITY_KEY = 'simbrief_identity';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslate } from '../../../core/localization/use-translate';
 import {
@@ -120,6 +126,68 @@ function GenerateView() {
   });
   const [errors, setErrors] = useState<Partial<Record<keyof typeof form, string>>>({});
 
+  // SimBrief 身份（用户名或 Pilot ID）。**这不是密钥** ——
+  // SimBrief 的 API key 是给「生成航路」用的，读取已有 OFP 不需要，
+  // 所以按普通设置项存即可
+  const [simbriefIdentity, setSimbriefIdentity] = useState('');
+  const importFromSimBrief = usePlannedRouteStore((s) => s.importFromSimBrief);
+  const isImportingPlan = usePlannedRouteStore((s) => s.isImporting);
+
+  useEffect(() => {
+    // getModuleData 是同步的（读的是已加载到内存的设置）
+    const saved = PersistenceService.getModuleData<string>(
+      SIMBRIEF_MODULE,
+      SIMBRIEF_IDENTITY_KEY,
+    );
+    if (saved) setSimbriefIdentity(saved);
+  }, []);
+
+  const runSimBriefImport = async () => {
+    const identity = simbriefIdentity.trim();
+    if (identity.length === 0) {
+      SnackBarHelper.showWarning(t(K.simbriefNeedIdentity));
+      return;
+    }
+    // 纯数字当 Pilot ID，否则当用户名
+    const plan = await importFromSimBrief(
+      /^[0-9]+$/.test(identity) ? { userId: identity } : { username: identity },
+    );
+    if (!plan) {
+      const reason = usePlannedRouteStore.getState().lastError;
+      SnackBarHelper.showWarning(reason ? `${t(K.simbriefFailed)}（${reason}）` : t(K.simbriefFailed));
+      return;
+    }
+    // 记住这个身份，但**不要 await** —— 保存偏好只是附带效果，
+    // 不该挡住填表与提示（曾因为 await 在这里，落盘一挂整个导入就没了反应）
+    void PersistenceService.setModuleData(SIMBRIEF_MODULE, SIMBRIEF_IDENTITY_KEY, identity).catch(
+      () => {
+        /* 存不下就算了，下次重填即可 */
+      },
+    );
+
+    // 只填 OFP 里真有的字段，空值不要覆盖用户已经手填的内容
+    setForm((current) => ({
+      ...current,
+      departure: plan.origin.code,
+      arrival: plan.destination.code,
+      alternate: plan.alternate?.code ?? current.alternate,
+      flightNumber: plan.flightNumber ?? current.flightNumber,
+      route: plan.routeText ?? current.route,
+      cruiseAltitude:
+        plan.cruiseAltitudeFt !== undefined
+          ? String(Math.round(plan.cruiseAltitudeFt))
+          : current.cruiseAltitude,
+      // 跑道随机场变化，旧值必然失效，直接清掉让用户重选
+      departureRunway: '',
+      arrivalRunway: '',
+      alternateRunway: '',
+    }));
+    setErrors({});
+    SnackBarHelper.showSuccess(
+      t(K.simbriefSuccess, plan.origin.code, plan.destination.code),
+    );
+  };
+
   // 三个机场各自实时解析：拿到名称供核对，拿到跑道供下拉选择
   const departureAirport = useAirportResolution(form.departure);
   const arrivalAirport = useAirportResolution(form.arrival);
@@ -212,6 +280,29 @@ function GenerateView() {
 
   return (
     <div className={styles.generateGrid}>
+      <SectionCard
+        title={t(K.simbriefTitle)}
+        icon="cloud_download"
+        subtitle={t(K.simbriefHint)}
+      >
+        <div className={styles.simbriefRow}>
+          <TextField
+            value={simbriefIdentity}
+            onChange={setSimbriefIdentity}
+            label={t(K.simbriefIdentity)}
+            monospace
+          />
+          <Button
+            icon="download"
+            loading={isImportingPlan}
+            disabled={isImportingPlan}
+            onClick={() => void runSimBriefImport()}
+          >
+            {t(isImportingPlan ? K.simbriefImporting : K.simbriefImport)}
+          </Button>
+        </div>
+      </SectionCard>
+
       <SectionCard title={t(K.inputTitle)} icon="edit_note" subtitle={t(K.generateSubtitle)}>
         <div className={styles.formGrid}>
           <AirportField

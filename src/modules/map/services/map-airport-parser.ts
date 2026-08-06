@@ -1,3 +1,4 @@
+import { isValidCoordinate } from '../../../core/utils/coordinates';
 import { pickMap, type JsonMap } from '../../../core/utils/parse-utils';
 import {
   airportDetailFromApi,
@@ -102,14 +103,3 @@ function toParkingSpots(detail: AirportDetailData): MapParkingSpot[] {
     }));
 }
 
-function isValidCoordinate(lat: number, lon: number): boolean {
-  return (
-    Number.isFinite(lat) &&
-    Number.isFinite(lon) &&
-    lat >= -90 &&
-    lat <= 90 &&
-    lon >= -180 &&
-    lon <= 180 &&
-    !(lat === 0 && lon === 0)
-  );
-}

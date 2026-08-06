@@ -64,6 +64,13 @@ export function MapRightControls({ onOpenLayerPicker }: { onOpenLayerPicker: () 
           onClick: state.toggleRoute,
         },
         {
+          // 计划航路（SimBrief 导入）—— 与「航迹」区分：那是飞过的，这是要飞的
+          icon: 'route',
+          label: t(K.tooltipPlannedRoute),
+          active: state.showPlannedRoute,
+          onClick: state.togglePlannedRoute,
+        },
+        {
           icon: 'explore',
           label: t(K.toggleCompass),
           active: state.showCompass,

@@ -35,6 +35,8 @@ import {
   renderApproachBeams,
   renderHoldings,
 } from './layers/airport-detail-layer';
+import { usePlannedRouteStore } from '../../common/providers/planned-route-store';
+import { renderPlannedRoute } from './layers/planned-route-layer';
 import { AIRSPACE_SEVERITY_COLOR } from './layers/layer-style';
 
 /**
@@ -120,6 +122,7 @@ export function MapCanvas({
     nearbyGroup?: L.LayerGroup;
     aerowayGroup?: L.LayerGroup;
     procedureGroup?: L.LayerGroup;
+    plannedGroup?: L.LayerGroup;
   }>({ overlays: {} });
 
   // 回调放 ref，避免因 props 变化重建地图
@@ -171,6 +174,8 @@ export function MapCanvas({
     layersRef.current.airportDetailGroup = L.layerGroup().addTo(map);
     // 进近波束与等待航线：压在机场细节之上、标记之下
     layersRef.current.procedureGroup = L.layerGroup().addTo(map);
+    // 计划航路：压在实际航迹之下，两者同屏时以实际航迹为主
+    layersRef.current.plannedGroup = L.layerGroup().addTo(map);
     layersRef.current.aiGroup = L.layerGroup().addTo(map);
     layersRef.current.airportGroup = L.layerGroup().addTo(map);
     layersRef.current.taxiwayGroup = L.layerGroup().addTo(map);
@@ -183,6 +188,12 @@ export function MapCanvas({
     // 跑道端点标签与停机位按缩放级别显隐，缩放后需要重画
     map.on('zoomend', () => {
       renderAirportDetail(map, layersRef.current.airportDetailGroup);
+      renderPlannedRoute(
+        map,
+        layersRef.current.plannedGroup,
+        usePlannedRouteStore.getState().plan,
+        useMapStore.getState().showPlannedRoute,
+      );
     });
 
     // 视野变化后按新边界拉取限制空域
@@ -533,6 +544,33 @@ export function MapCanvas({
       }
     }),
   []);
+
+  // ── 计划航路（SimBrief 导入）──
+  //
+  // 航路数据在 common store（简报也要用），是否显示在 map store，
+  // 所以这里要订阅两处
+  useEffect(() => {
+    const redraw = () => {
+      const map = mapRef.current;
+      if (!map) return;
+      renderPlannedRoute(
+        map,
+        layersRef.current.plannedGroup,
+        usePlannedRouteStore.getState().plan,
+        useMapStore.getState().showPlannedRoute,
+      );
+    };
+    const unsubscribePlan = usePlannedRouteStore.subscribe((state, previous) => {
+      if (state.plan !== previous.plan) redraw();
+    });
+    const unsubscribeToggle = useMapStore.subscribe((state, previous) => {
+      if (state.showPlannedRoute !== previous.showPlannedRoute) redraw();
+    });
+    return () => {
+      unsubscribePlan();
+      unsubscribeToggle();
+    };
+  }, []);
 
   // ── 航迹 ──
   useEffect(() =>

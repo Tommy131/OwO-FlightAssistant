@@ -594,6 +594,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   toggleFollowAircraft: () => set((s) => ({ followAircraft: !s.followAircraft })),
   toggleRoute: () => set((s) => ({ showRoute: !s.showRoute })),
   togglePlannedRoute: () => set((s) => ({ showPlannedRoute: !s.showPlannedRoute })),
+
   toggleAirports: () => set((s) => ({ showAirports: !s.showAirports })),
   toggleRunways: () => set((s) => ({ showRunways: !s.showRunways })),
   toggleParkings: () => set((s) => ({ showParkings: !s.showParkings })),

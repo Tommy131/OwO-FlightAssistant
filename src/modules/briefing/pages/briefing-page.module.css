@@ -162,3 +162,16 @@
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── SimBrief 导入行 ── */
+.simbriefRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.simbriefRow > *:first-child {
+  flex: 1;
+  min-width: 200px;
+}

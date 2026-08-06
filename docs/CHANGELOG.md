@@ -9,6 +9,46 @@
 
 ---
 
+## 未发布
+
+### 新增
+
+- **SimBrief 飞行计划导入**：简报页填 SimBrief 用户名或 Pilot ID 即可导入最新 OFP，
+  自动回填起降/备降、航班号、航路串与巡航高度；身份记在本地，下次自动带出。
+  **读取已有 OFP 不需要 API key**（那个 key 是给「生成航路」用的）。
+- **地图显示计划航路**：右侧控制栏「飞行」组新增开关。SID/STAR 段与巡航段分色
+  （紫 / 青），悬停给出该点的计划高度、所经航路与阶段。与「航迹」区分开 ——
+  那是飞过的实线，这是要飞的虚线。
+- **计划航路解析单测**（12 例）+ **落盘防抖单测**（5 例）。
+
+### 调整
+
+- **`isValidCoordinate` 从两处收敛到 core**：`map-response-parsers` 与
+  `map-airport-parser` 各有一份逐字符相同的实现，且 `common/` 的新解析器需要它 ——
+  留在 map 里就得反过来 import。已移入 `core/utils/coordinates.ts`。
+- **计划航路的数据落在 `common/` 而非 `map/`**：地图与简报两个模块都要用它。
+  全库约定功能模块之间零互引，跨模块共享的状态一律落在 `common/`
+  （`flight-data-store` 是先例）—— 否则删掉 map 模块，简报就编不过了。
+  地图只保留「是否显示」这个开关。
+
+### 删除
+
+- 无。
+
+### 修复
+
+- **落盘防抖会永久挂死所有等待落盘的调用方**（core，影响面远超本次功能）：
+  `scheduleSave` 里 `clearTimeout` 取消了旧定时器，但 `pendingSave ??= new Promise(...)`
+  见 Promise 非空就不再进入回调 —— **新的定时器压根没排**。于是 `resolve` 永不调用、
+  `pendingSave` 永不复位，此后每一次 `await PersistenceService.setModuleData(...)`
+  都拿到同一个死 Promise。300ms 内写两次即可触发，`map-store` 里多处 await 同样中招。
+  表现是「点了保存，界面就此不动，也不报错」—— 我正是在 SimBrief 导入时撞上它：
+  表单不填、提示不弹、控制台干净。已把 Promise 的创建与定时器的排定解耦，
+  `resetApp` 取消待落盘时也补上放行。
+- 简报页保存 SimBrief 身份改为**不阻塞**：偏好写入只是附带效果，不该挡住填表与提示。
+
+---
+
 ## v1.0.4-beta — 2026-08-06
 
 ### 新增

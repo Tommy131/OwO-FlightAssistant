@@ -252,6 +252,26 @@ class MiddlewareHttpServiceImpl {
     });
   }
 
+  /**
+   * 拉取 SimBrief 上该用户最新的飞行计划
+   *
+   * 传用户名或数字 Pilot ID 均可。**这两者都不是密钥** ——
+   * SimBrief 的 API key 是给「生成航路」用的，读取已有 OFP 不需要，
+   * 所以它按普通设置项存即可。
+   */
+  fetchSimBriefPlan(identity: {
+    username?: string;
+    userId?: string;
+  }): Promise<MiddlewareHttpResponse> {
+    const queryParameters: Record<string, string> = {};
+    const userId = identity.userId?.trim();
+    const username = identity.username?.trim();
+    // 数字 ID 更稳（用户名可改），两者都给时优先用它
+    if (userId) queryParameters.userid = userId;
+    else if (username) queryParameters.username = username;
+    return this.get('/api/v1/simbrief/fetch', { queryParameters });
+  }
+
   /** 机场跑道/滑行道/停机坪矢量（后端代 Overpass 查询并缓存） */
   getAirportAeroway(
     icao: string,
