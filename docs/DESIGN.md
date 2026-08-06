@@ -151,8 +151,8 @@ flowchart TD
 | M3 | 后端对齐：存储、设置、天气、空域接口 | 完成 |
 | M4 | 航空要素增强：进近设施、波束、等待航线、PAPI | 完成 |
 | M5 | 工程规范化 + CI/CD + 中间件同源托管 | 进行中 |
-| M6 | 纯计算与解析单测（59 例）+ 架构/i18n 门禁 | 完成 |
-| M7 | UI 与 store 测试、ESLint 门禁、超大文件拆分 | 进行中 |
+| M6 | 纯计算与解析单测（86 例）+ 架构/i18n/ESLint 门禁 | 完成 |
+| M7 | UI 与 store 测试、超大文件拆分 | 进行中 |
 
 ---
 
@@ -163,11 +163,20 @@ flowchart TD
 | 差距 | 现状 | 为什么先不动 |
 |---|---|---|
 | §5.1 单文件 ~400 行 | 17 个文件超标，最大 `map-store.ts` 1524 行、`map-canvas.tsx` 1474 行 | 按「先测试后重构」的顺序推进中：`map-store` 的纯解析部分已抽到 `services/map-response-parsers.ts` 并锁上单测（1726 → 1524 行）。剩余部分是 Zustand 状态与副作用，拆分前需要 store 级测试 |
-| §10 测试 | 纯计算、响应解析与报文解码已覆盖（Vitest，74 例）；**UI 与 store 编排仍无测试** | 组件测试要引 jsdom 与 testing-library，成本高于收益；先把最容易出错的几何与解析锁住 |
+| §10 测试 | 纯计算、响应解析、报文解码与解析工具已覆盖（Vitest，86 例）；**UI 与 store 编排仍无测试** | 组件测试要引 jsdom 与 testing-library，成本高于收益；先把最容易出错的几何与解析锁住 |
 | §7 i18n 覆盖 | de_DE **0/987**，11 个模块全部只有 zh/en | 有「当前语言 → en_US → key」回退链兜底，界面显示英文而非崩坏。航空术语机翻质量不可控，宁可留空也不要错译 |
-| §4.1 警告即错误 | 无 ESLint | `tsc --noEmit`（strict）已是有效门禁；半配一套 ESLint 不如不配 |
 
-`npm run check` 可一次跑完现有全部门禁（版本同步 / 架构 / i18n / 类型 / 单测）。
+`npm run check` 可一次跑完全部门禁（版本同步 / 架构 / i18n / ESLint / 类型 / 单测）。
+
+### ESLint 的取舍
+
+只开能抓**真实缺陷**的规则，风格交给 `.editorconfig`；`--max-warnings=0`，警告即错误。
+两条规则被明确关掉，理由记在 `eslint.config.mjs` 里：
+
+- `react-hooks/rules-of-hooks` —— 模块注册表工厂在 render 期求值调用 hooks，
+  是 §3.3 写明的有意设计，不是缺陷；
+- `@typescript-eslint/require-await` —— 同步实现返回 `Promise` 的接口方法是正当的，
+  为消警告去掉 `async` 反而要手写 `Promise.resolve()`。
 
 ## 7. 开放问题
 

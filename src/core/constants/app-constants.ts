@@ -23,8 +23,8 @@ export const AppConstants = {
   // ========== 应用信息 ==========
   appName: 'OwO! FlightAssistant',
   appPackageName: 'com.owoblog.owo_flight_assistant',
-  appVersion: (import.meta.env.VITE_APP_VERSION as string | undefined) ?? '1.0.3-beta',
-  appBuildVersion: (import.meta.env.VITE_APP_BUILD as string | undefined) ?? '20260330',
+  appVersion: import.meta.env.VITE_APP_VERSION ?? '1.0.3-beta',
+  appBuildVersion: import.meta.env.VITE_APP_BUILD ?? '20260330',
 
   // ========== 资源路径 ==========
   assetIconPath: '/icons/app-icon.png',

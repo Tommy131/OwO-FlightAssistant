@@ -20,7 +20,9 @@ export class MiddlewareHttpResponse {
   get decodedBody(): unknown {
     if (this.body.length === 0) return null;
     try {
-      return JSON.parse(this.body);
+      // JSON.parse 的返回类型是 any，显式收敛成 unknown，
+      // 否则调用方拿到 any 就绕过了后续所有类型检查
+      return JSON.parse(this.body) as unknown;
     } catch {
       return this.body;
     }

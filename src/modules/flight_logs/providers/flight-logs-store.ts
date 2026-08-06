@@ -7,7 +7,7 @@ import {
 } from '../../../core/services/backend-sync';
 import { PersistenceService } from '../../../core/services/persistence-service';
 import { AppLogger } from '../../../core/utils/logger';
-import { toJsonMap } from '../../../core/utils/parse-utils';
+import { toJsonMap, toText } from '../../../core/utils/parse-utils';
 import type { FlightDataSnapshot, SimulatorType } from '../../common/models/common-models';
 import {
   flightLogDurationMs,
@@ -127,7 +127,7 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
 
       // 后端可达时补传离线期间积压的记录
       if (remoteRaw !== null) {
-        const remoteIds = new Set(remoteRaw.map((item) => String(item.id ?? '')));
+        const remoteIds = new Set(remoteRaw.map((item) => toText(item.id)));
         for (const log of logs) {
           if (remoteIds.has(log.id)) continue;
           await pushRecord('flightLog', log.id, flightLogToJson(log));
@@ -611,6 +611,6 @@ async function persistLogs(logs: FlightLog[]): Promise<void> {
   await PersistenceService.setModuleData(
     MODULE_NAME,
     LOGS_KEY,
-    logs.map(flightLogToJson) as never,
+    logs.map(flightLogToJson),
   );
 }

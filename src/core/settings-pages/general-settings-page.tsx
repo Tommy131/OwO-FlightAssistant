@@ -2,11 +2,7 @@ import { useEffect, useState } from 'react';
 import { LocalizationKeys } from '../localization/localization-keys';
 import { useTranslate } from '../localization/use-translate';
 import { AppInitializationService } from '../services/app-initialization-service';
-import {
-  supportedLanguages,
-  useLocalizationStore,
-  type LanguageCode,
-} from '../services/localization-service';
+import { supportedLanguages, useLocalizationStore } from '../services/localization-service';
 import { PersistenceService } from '../services/persistence-service';
 import { isBackendSettingsReachable } from '../services/settings-sync';
 import { AppLogger } from '../utils/logger';
@@ -83,7 +79,7 @@ export function GeneralSettingsPage() {
               <button
                 key={option.code}
                 type="button"
-                onClick={() => void setLocale(option.code as LanguageCode)}
+                onClick={() => void setLocale(option.code)}
                 className={`${styles.optionTile}${selected ? ` ${styles.optionTileSelected}` : ''}`}
               >
                 <span className={styles.optionFlag}>{option.flag}</span>

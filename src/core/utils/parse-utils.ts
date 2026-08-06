@@ -42,10 +42,24 @@ export function toBool(value: unknown): boolean | undefined {
   return undefined;
 }
 
+/**
+ * 把后端返回的任意 JSON 值转成文本；不是标量就当作「没有值」，返回空串。
+ *
+ * 不要用 `String(value ?? '')`：value 是对象时得到 `"[object Object]"`、
+ * 是数组时得到 `"a,b"` —— 两者都非空，于是「字段类型不对」被悄悄变成一个
+ * 看起来合法的字符串，调用方随后的 `.trim().length === 0` 判空永远不成立，
+ * 脏数据就这样一路流进界面。
+ */
+export function toText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+  if (typeof value === 'boolean') return String(value);
+  return '';
+}
+
 /** 转字符串，空串归一为 undefined */
 export function toStringOrUndefined(value: unknown): string | undefined {
-  if (value === null || value === undefined) return undefined;
-  const text = String(value).trim();
+  const text = toText(value).trim();
   return text.length > 0 ? text : undefined;
 }
 

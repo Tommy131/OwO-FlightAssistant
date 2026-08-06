@@ -2,7 +2,7 @@ import type {
   AirportDetailData,
   MetarData,
 } from '../../airport_search/models/airport-search-models';
-import type { JsonMap } from '../../../core/utils/parse-utils';
+import { toText, type JsonMap } from '../../../core/utils/parse-utils';
 
 /**
  * 简报数据模型
@@ -46,6 +46,6 @@ export function briefingRecordFromJson(json: JsonMap): BriefingRecord {
   return {
     title: typeof json.title === 'string' ? json.title : '',
     content: typeof json.content === 'string' ? json.content : '',
-    createdAt: json.createdAt ? new Date(String(json.createdAt)) : new Date(),
+    createdAt: json.createdAt ? new Date(toText(json.createdAt)) : new Date(),
   };
 }

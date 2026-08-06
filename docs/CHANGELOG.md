@@ -13,6 +13,10 @@
 
 ### 新增
 
+- **ESLint 门禁**（工程手册 §4.1 警告即错误）：`npm run lint`，`--max-warnings=0`，
+  已接入 `npm run check` 与 CI。只收能抓真实缺陷的规则（浮动 Promise、误用 any、
+  `no-base-to-string`），风格交给 `.editorconfig`。首次全量扫描报出 57 处，已全部清零。
+- **`toText()` 解析工具 + 单测**（12 例）：统一替代散落各处的 `String(x ?? '')`。
 - **后端响应解析器单测**（24 例）：覆盖字段大小写混用、脏坐标剔除、`SFC` 语义、
   `hasDme` 严格布尔判定。已用变异测试确认 5 处关键行为被改坏后测试确实会红。
 - **气象报文解码单测**（15 例）：能见度的米制/英里制/分数写法、云幕只认
@@ -48,6 +52,16 @@
 
 ### 修复
 
+- **`String(x ?? '')` 会把类型不对的字段伪装成合法字符串**：后端字段是 `unknown`，
+  真传来对象时 `String()` 得到 `"[object Object]"` —— 非空，于是调用方随后的
+  `.trim().length === 0` 判空永远不成立，脏数据一路流进界面。全项目 45 处已改用
+  `toText()`（非标量一律当作没有值）；`toStringOrUndefined` 同样的洞一并修掉。
+- **两处本地重复实现的 `asText`** 收敛到公共实现（`flight-log-models` 与
+  `middleware-flight-data-adapter` 各写了一份）。
+- **日志丢栈信息**：`AppLogger.error` 的 `stackTrace` 走 `String()`，传对象时整条栈
+  变成 `"[object Object]"`，等于什么都没记；改走已有的 `stringifyError`。
+- **非 JSON 请求体被发成 `"[object Object]"`**：`serializeBody` 在 content-type
+  不是 JSON 时对对象直接 `String()`；改为 `JSON.stringify`，至少可读可排查。
 - **气象解码把时间戳当成能见度**（用户可见）：`extractWorstVisibility` 的正则少了
   两侧 `\b`，于是时间戳 `052300Z`、风组 `01004MPS`、跑道视程 `R36L/1200N`、
   修正海压 `Q1024` 里的四位数字全被当成能见度候选 —— 而该函数取的是**最小值**。

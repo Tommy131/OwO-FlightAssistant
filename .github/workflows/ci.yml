@@ -1,6 +1,7 @@
 name: CI
 
-# 合并门禁：编译通过 + 类型零错误 + 版本同步。任一不过不得合并。
+# 合并门禁：编译通过 + Lint 零警告 + 类型零错误 + 单测通过 + 版本同步。
+# 任一不过不得合并。
 on:
   push:
     branches: ['**']
@@ -40,10 +41,14 @@ jobs:
       - name: i18n 校验
         run: npm run check:i18n
 
+      # 警告即错误（--max-warnings=0）。只收能抓真实缺陷的规则，不收风格规则
+      - name: ESLint（零警告）
+        run: npm run lint
+
       - name: 类型检查（零错误）
         run: npm run typecheck
 
-      # 纯计算部分的单测：进近波束 / 等待航线 / PAPI / 机场轮廓
+      # 纯计算部分的单测：进近波束 / 等待航线 / PAPI / 机场轮廓 / 响应解析 / 气象解码
       - name: 单元测试
         run: npm run test
 

@@ -1,4 +1,4 @@
-import { toJsonMap } from '../../../core/utils/parse-utils';
+import { toJsonMap, toText } from '../../../core/utils/parse-utils';
 import { metarFromApi } from '../../airport_search/models/airport-search-models';
 import { MiddlewareHttpService } from '../../http/services/middleware-http-service';
 
@@ -48,8 +48,8 @@ export async function fetchAirportWeather(icao: string): Promise<AirportWeather 
  */
 function deriveApproachRule(body: Record<string, unknown>, raw: string): string {
   const map = toJsonMap(body) ?? {};
-  const visibilityMiles = parseVisibilityMiles(String(map.visibility ?? ''), raw);
-  const ceilingFt = parseCeilingFt(String(map.clouds ?? ''), raw);
+  const visibilityMiles = parseVisibilityMiles(toText(map.visibility), raw);
+  const ceilingFt = parseCeilingFt(toText(map.clouds), raw);
   if (visibilityMiles === undefined && ceilingFt === undefined) return 'UNK';
 
   const rank = (value: number): number => value; // 0=LIFR 1=IFR 2=MVFR 3=VFR

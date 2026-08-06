@@ -134,7 +134,9 @@ class AppLoggerImpl {
   error(message: string, error?: unknown, stackTrace?: unknown): void {
     const parts: string[] = [];
     if (error !== undefined) parts.push(stringifyError(error));
-    if (stackTrace !== undefined) parts.push(String(stackTrace));
+    // 与上面一样走 stringifyError：栈信息可能是 Error、字符串或任意对象，
+    // 直接 String() 的话对象会变成 "[object Object]"，日志里等于什么都没记下
+    if (stackTrace !== undefined) parts.push(stringifyError(stackTrace));
     this.write('error', message, parts.length > 0 ? parts.join('\n') : undefined);
   }
 

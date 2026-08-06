@@ -1,4 +1,4 @@
-import { toBool, toDouble, toInt, toJsonMap, type JsonMap } from '../../../core/utils/parse-utils';
+import { toBool, toDouble, toInt, toJsonMap, toStringOrUndefined, toText, type JsonMap } from '../../../core/utils/parse-utils';
 
 /**
  * 飞行日志（黑匣子）数据模型
@@ -53,7 +53,7 @@ export interface FlightLogAlert {
 }
 
 function alertLevelFromRaw(raw: unknown): FlightLogAlertLevel {
-  const value = String(raw ?? '').trim().toLowerCase();
+  const value = toText(raw).trim().toLowerCase();
   if (value === 'danger') return 'danger';
   if (value === 'warning') return 'warning';
   return 'caution';
@@ -217,20 +217,20 @@ export function flightLogPointFromJson(json: JsonMap): FlightLogPoint {
     ),
     fuelQuantity: toDouble(json.fuel) ?? 0,
     fuelFlow: toDouble(json.ff),
-    timestamp: json.ts ? new Date(String(json.ts)) : new Date(),
+    timestamp: json.ts ? new Date(toText(json.ts)) : new Date(),
     autopilotEngaged: toBool(json.ap),
     autothrottleEngaged: toBool(json.at),
-    flightPhase: asText(json.phase),
+    flightPhase: toStringOrUndefined(json.phase),
     autopilotHeadingTarget: toDouble(json.ap_hdg),
-    autopilotLateralMode: asText(json.ap_lat),
-    autopilotVerticalMode: asText(json.ap_ver),
+    autopilotLateralMode: toStringOrUndefined(json.ap_lat),
+    autopilotVerticalMode: toStringOrUndefined(json.ap_ver),
     gearDown: toBool(json.gear),
     touchdownGearG: toDouble(json.tdg),
     noseGearG: toDouble(json.ngg),
     leftGearG: toDouble(json.lgg),
     rightGearG: toDouble(json.rgg),
     flapsPosition: toInt(json.flaps),
-    flapsLabel: asText(json.flap_lbl),
+    flapsLabel: toStringOrUndefined(json.flap_lbl),
     windSpeed: toDouble(json.ws),
     windDirection: toDouble(json.wd),
     windGust: toDouble(json.wg),
@@ -250,7 +250,7 @@ export function flightLogPointFromJson(json: JsonMap): FlightLogPoint {
     engine2N2: toDouble(json.e2n2),
     engine1Egt: toDouble(json.e1egt),
     engine2Egt: toDouble(json.e2egt),
-    transponderCode: asText(json.xpdr),
+    transponderCode: toStringOrUndefined(json.xpdr),
     landingLights: toBool(json.ll),
     beacon: toBool(json.beac),
     strobes: toBool(json.strob),
@@ -274,9 +274,9 @@ function parseAlerts(value: unknown): FlightLogAlert[] {
     const map = toJsonMap(item);
     if (!map) continue;
     alerts.push({
-      id: String(map.id ?? ''),
+      id: toText(map.id),
       level: alertLevelFromRaw(map.level),
-      message: String(map.message ?? ''),
+      message: toText(map.message),
     });
   }
   return alerts;
@@ -437,15 +437,15 @@ export function flightLogFromJson(json: JsonMap): FlightLog {
     : [];
 
   return {
-    id: String(json.id ?? crypto.randomUUID()),
-    aircraftTitle: String(json.aircraft ?? 'Unknown'),
-    aircraftType: asText(json.aircraft_type),
-    simulatorLabel: asText(json.simulator),
-    flightNumber: asText(json.flight_number),
-    departureAirport: String(json.departure ?? '----'),
-    arrivalAirport: asText(json.arrival),
-    startTime: json.start ? new Date(String(json.start)) : new Date(),
-    endTime: json.end ? new Date(String(json.end)) : undefined,
+    id: toText(json.id) || crypto.randomUUID(),
+    aircraftTitle: toText(json.aircraft) || 'Unknown',
+    aircraftType: toStringOrUndefined(json.aircraft_type),
+    simulatorLabel: toStringOrUndefined(json.simulator),
+    flightNumber: toStringOrUndefined(json.flight_number),
+    departureAirport: toText(json.departure) || '----',
+    arrivalAirport: toStringOrUndefined(json.arrival),
+    startTime: json.start ? new Date(toText(json.start)) : new Date(),
+    endTime: json.end ? new Date(toText(json.end)) : undefined,
     points,
     maxG: toDouble(json.max_g) ?? 1,
     minG: toDouble(json.min_g) ?? 1,
@@ -490,9 +490,9 @@ function takeoffFromJson(json: JsonMap | null): TakeoffData | undefined {
     verticalSpeed: toDouble(json.vs) ?? 0,
     pitch: toDouble(json.pit) ?? 0,
     heading: toDouble(json.hdg) ?? 0,
-    timestamp: json.ts ? new Date(String(json.ts)) : new Date(),
+    timestamp: json.ts ? new Date(toText(json.ts)) : new Date(),
     remainingRunwayFt: toDouble(json.rem_rwy),
-    runway: asText(json.rwy),
+    runway: toStringOrUndefined(json.rwy),
     takeoffStabilityScore: toDouble(json.stability),
     rotationSpeedKt: toDouble(json.vr),
     rotationToLiftoffSec: toInt(json.rot_sec),
@@ -529,7 +529,7 @@ function landingToJson(data: LandingData): JsonMap {
 function landingFromJson(json: JsonMap | null): LandingData | undefined {
   if (!json) return undefined;
   const gForce = toDouble(json.g) ?? 1;
-  const ratingRaw = String(json.rating ?? '');
+  const ratingRaw = toText(json.rating);
   const rating: LandingRating = (
     ['butter', 'good', 'firm', 'hard', 'crash'] as const
   ).includes(ratingRaw as LandingRating)
@@ -549,7 +549,7 @@ function landingFromJson(json: JsonMap | null): LandingData | undefined {
     pitch: toDouble(json.pit) ?? 0,
     roll: toDouble(json.rol) ?? 0,
     rating,
-    timestamp: json.ts ? new Date(String(json.ts)) : new Date(),
+    timestamp: json.ts ? new Date(toText(json.ts)) : new Date(),
     touchdownSequence: Array.isArray(json.seq)
       ? json.seq
           .map((item) => toJsonMap(item))
@@ -560,7 +560,7 @@ function landingFromJson(json: JsonMap | null): LandingData | undefined {
       ? json.g_list.map((item) => toDouble(item) ?? 0)
       : [],
     remainingRunwayFt: toDouble(json.rem_rwy),
-    runway: asText(json.rwy),
+    runway: toStringOrUndefined(json.rwy),
     approachStabilityScore: toDouble(json.stability),
     flareHeightFt: toDouble(json.flare),
     sinkRateAt50FtFpm: toDouble(json.sink50),
@@ -569,8 +569,3 @@ function landingFromJson(json: JsonMap | null): LandingData | undefined {
   };
 }
 
-function asText(value: unknown): string | undefined {
-  if (value === null || value === undefined) return undefined;
-  const text = String(value).trim();
-  return text.length > 0 ? text : undefined;
-}

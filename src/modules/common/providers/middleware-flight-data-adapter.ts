@@ -11,6 +11,7 @@ import {
   toDouble,
   toInt,
   toJsonMap,
+  toText,
   type JsonMap,
 } from '../../../core/utils/parse-utils';
 import {
@@ -151,7 +152,7 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
         this.emitSnapshot();
         return false;
       }
-      const token = String(body.token ?? '').trim();
+      const token = toText(body.token).trim();
       if (token.length === 0) {
         this.errorMessage = 'missing_token';
         this.emitSnapshot();
@@ -304,8 +305,8 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
         this.emitSnapshot();
         return;
       }
-      const raw = String(body.raw_metar ?? '').trim();
-      const translated = String(body.translated_metar ?? '').trim();
+      const raw = toText(body.raw_metar).trim();
+      const translated = toText(body.translated_metar).trim();
       const metarTimestamp =
         toInt(body.metar_timestamp_unix) ??
         toInt(body.timestamp) ??
@@ -529,7 +530,7 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
       const payload = toJsonMap(JSON.parse(data));
       if (!payload) return;
       if (payload.error !== null && payload.error !== undefined) {
-        this.errorMessage = String(payload.error);
+        this.errorMessage = extractErrorMessage(payload.error);
         this.emitSnapshot();
         return;
       }
@@ -1039,8 +1040,8 @@ function sanitizePollIntervalMs(value: number): number {
   return value;
 }
 
+/** 与 toStringOrUndefined 的区别：这里**不** trim，保留后端原样的空白 */
 function asText(value: unknown): string | undefined {
-  if (value === null || value === undefined) return undefined;
-  const text = String(value);
+  const text = toText(value);
   return text.length > 0 ? text : undefined;
 }

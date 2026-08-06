@@ -33,8 +33,8 @@ export const middlewareBackendTransport: BackendTransport = {
       kind === 'flightLog'
         ? await MiddlewareHttpService.listFlightLogs()
         : await MiddlewareHttpService.listBriefings();
-    const records = response.objectBody?.records;
-    return Array.isArray(records) ? records : [];
+    const records: unknown = response.objectBody?.records;
+    return Array.isArray(records) ? (records as unknown[]) : [];
   },
 
   async getAllSettings() {

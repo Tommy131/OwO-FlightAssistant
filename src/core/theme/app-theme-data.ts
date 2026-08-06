@@ -243,7 +243,7 @@ export function themeFromJson(json: unknown): AppThemeData {
   if (!json || typeof json !== 'object') return fallback;
   const raw = json as Record<string, unknown>;
   const pick = (key: string, def: string) =>
-    typeof raw[key] === 'string' ? (raw[key] as string) : def;
+    typeof raw[key] === 'string' ? raw[key] : def;
   return {
     name: pick('name', fallback.name),
     localizationKey:

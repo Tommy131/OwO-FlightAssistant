@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslate } from '../../../../core/localization/use-translate';
 import { AppLogger } from '../../../../core/utils/logger';
-import { toDouble, toJsonMap, type JsonMap } from '../../../../core/utils/parse-utils';
+import { toDouble, toJsonMap, type JsonMap, toText } from '../../../../core/utils/parse-utils';
 import { Button, Checkbox, Select, TextField } from '../../../../core/widgets/common/controls';
 import { SectionCard } from '../../../../core/widgets/common/surfaces';
 import {
@@ -243,13 +243,13 @@ function RunwayPerformanceCard() {
           `${t(K.perfLandingRequired)} ${(toDouble(body.landing_required) ?? 0).toFixed(0)} m\n` +
           `${t(K.perfTakeoffMargin)} ${(toDouble(body.takeoff_margin) ?? 0).toFixed(0)} m\n` +
           `${t(K.perfLandingMargin)} ${(toDouble(body.landing_margin) ?? 0).toFixed(0)} m\n` +
-          `${t(K.perfRunwayLevel)}：${runwayLevelText(String(body.runway_level_code ?? ''), t)}`,
+          `${t(K.perfRunwayLevel)}：${runwayLevelText(toText(body.runway_level_code), t)}`,
       );
     } catch (e) {
       // 重量超限时给出该机型的允许区间，而不是原始错误码
       if (e instanceof MiddlewareHttpException) {
         const data = toJsonMap(e.data);
-        const errorCode = String(data?.error ?? '').trim();
+        const errorCode = toText(data?.error).trim();
         if (errorCode === 'weight_out_of_range') {
           setResult(
             `${t(K.perfWeightRangeHint)} ${selectedProfile.minWeight.toFixed(0)}-${selectedProfile.maxWeight.toFixed(0)} kg`,
@@ -340,10 +340,10 @@ function RunwayPerformanceCard() {
 
 function parseProfile(map: JsonMap): AircraftProfile {
   return {
-    id: String(map.id ?? '').trim(),
-    manufacturer: String(map.manufacturer ?? '').trim(),
-    family: String(map.family ?? '').trim(),
-    model: String(map.model ?? '').trim(),
+    id: toText(map.id).trim(),
+    manufacturer: toText(map.manufacturer).trim(),
+    family: toText(map.family).trim(),
+    model: toText(map.model).trim(),
     minWeight: toDouble(map.min_weight) ?? 0,
     maxWeight: toDouble(map.max_weight) ?? 0,
     referenceWeight: toDouble(map.reference_weight) ?? 0,

@@ -587,7 +587,9 @@ function serializeBody(body: unknown, headers: Record<string, string>): string |
   if (typeof body === 'string') return body;
   const contentType = (headers['Content-Type'] ?? headers['content-type'] ?? '').toLowerCase();
   if (contentType.includes('application/json')) return JSON.stringify(body);
-  return String(body);
+  // 非 JSON content-type 但传了对象：String() 会得到 "[object Object]"，
+  // 等于把一段垃圾发给后端。序列化成 JSON 至少是可读、可排查的。
+  return JSON.stringify(body);
 }
 
 function normalizeBaseUrl(value: string): string {

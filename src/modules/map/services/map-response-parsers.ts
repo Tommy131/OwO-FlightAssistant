@@ -1,4 +1,4 @@
-import { pickDouble, pickString, toJsonMap } from '../../../core/utils/parse-utils';
+import { pickDouble, pickString, toJsonMap, toText } from '../../../core/utils/parse-utils';
 import type {
   MapAerowayFeature,
   MapCoordinate,
@@ -88,7 +88,7 @@ export function parseAerowayFeature(raw: unknown): MapAerowayFeature | undefined
   const map = toJsonMap(raw);
   if (!map) return undefined;
 
-  const kind = String(map.kind ?? '').toLowerCase();
+  const kind = toText(map.kind).toLowerCase();
   if (!AEROWAY_KINDS.includes(kind)) return undefined;
 
   // 后端给的是 [lat, lon] 数对数组
@@ -103,8 +103,8 @@ export function parseAerowayFeature(raw: unknown): MapAerowayFeature | undefined
   }
   if (points.length < 2) return undefined;
 
-  const ref = String(map.ref ?? '').trim();
-  const name = String(map.name ?? '').trim();
+  const ref = toText(map.ref).trim();
+  const name = toText(map.name).trim();
   return {
     kind: kind as MapAerowayFeature['kind'],
     ref: ref.length > 0 ? ref : undefined,
@@ -124,12 +124,12 @@ export function parseNearbyAirport(raw: unknown): MapAirportMarker | undefined {
     }
     return undefined;
   };
-  const code = String(pick('ICAO', 'icao') ?? '').trim().toUpperCase();
+  const code = toText(pick('ICAO', 'icao')).trim().toUpperCase();
   const lat = Number(pick('Lat', 'lat', 'latitude'));
   const lon = Number(pick('Lon', 'lon', 'longitude'));
   if (code.length === 0 || !isValidCoordinate(lat, lon)) return undefined;
 
-  const name = String(pick('Name', 'name') ?? '').trim();
+  const name = toText(pick('Name', 'name')).trim();
   return {
     code,
     name: name.length > 0 ? name : undefined,
@@ -193,7 +193,7 @@ export function parseRestrictedZone(raw: unknown): MapRestrictedZone | null {
   const map = toJsonMap(raw);
   if (!map) return null;
 
-  const id = String(map.id ?? '').trim();
+  const id = toText(map.id).trim();
   if (id.length === 0) return null;
 
   const lat = Number(map.center_lat ?? map.latitude);

@@ -37,7 +37,7 @@ export async function pullSettings(): Promise<Record<string, unknown> | null> {
     backendReachable = true;
     // 拉取成功说明后端回来了，顺手把积压的写入补上
     void flushPendingSettings();
-    return entries as Record<string, unknown>;
+    return entries;
   } catch (e) {
     backendReachable = false;
     AppLogger.warning(`[SettingsSync] pull failed: ${String(e)}`);

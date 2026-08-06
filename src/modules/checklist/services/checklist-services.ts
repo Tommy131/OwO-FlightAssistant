@@ -1,5 +1,5 @@
 import { translate } from '../../../core/services/localization-service';
-import { toJsonMap, type JsonMap } from '../../../core/utils/parse-utils';
+import { toJsonMap, toStringOrUndefined, toText, type JsonMap } from '../../../core/utils/parse-utils';
 import type { FlightData } from '../../common/models/common-models';
 import { createA320Checklist } from '../data/a320-checklist';
 import { createB737Checklist } from '../data/b737-checklist';
@@ -230,16 +230,16 @@ function parseJson(content: string, baseName: string): AircraftChecklist[] {
       .map((item) => toJsonMap(item))
       .filter((item): item is JsonMap => item !== null)
       .map((sectionMap) => {
-        const phase = normalizePhase(String(sectionMap.phase ?? ''));
+        const phase = normalizePhase(toText(sectionMap.phase));
         const itemsRaw = Array.isArray(sectionMap.items) ? sectionMap.items : [];
         const items: ChecklistItem[] = itemsRaw
           .map((item) => toJsonMap(item))
           .filter((item): item is JsonMap => item !== null)
           .map((itemMap, index) => ({
-            id: String(itemMap.id ?? `${phase}_${index}`),
-            task: String(itemMap.task ?? ''),
-            response: String(itemMap.response ?? ''),
-            detail: itemMap.detail ? String(itemMap.detail) : undefined,
+            id: toText(itemMap.id) || `${phase}_${index}`,
+            task: toText(itemMap.task),
+            response: toText(itemMap.response),
+            detail: toStringOrUndefined(itemMap.detail),
             isChecked: false,
           }))
           .filter((item) => item.task.length > 0);
@@ -248,9 +248,9 @@ function parseJson(content: string, baseName: string): AircraftChecklist[] {
       .filter((section) => section.items.length > 0);
 
     if (sections.length === 0) continue;
-    const name = String(map.name ?? baseName);
+    const name = toText(map.name) || baseName;
     result.push({
-      id: String(map.id ?? slugify(name)),
+      id: toText(map.id) || slugify(name),
       name,
       family: normalizeFamily(map.family, name),
       sections,
@@ -385,7 +385,7 @@ function normalizePhase(raw: string): ChecklistPhase {
 }
 
 function normalizeFamily(raw: unknown, fallbackSeed: string): AircraftFamily {
-  const value = String(raw ?? '').toLowerCase();
+  const value = toText(raw).toLowerCase();
   if (value === 'a320' || value === 'b737' || value === 'generic') return value;
   return inferFamily(fallbackSeed);
 }
