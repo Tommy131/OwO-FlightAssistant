@@ -7,9 +7,11 @@
  *
  * 与 `core/utils/parse-utils.ts` 里的 `calculateDistanceNm` 分工：那边收
  * 四个标量（lat, lon, lat, lon），给非地图模块用；这边收 `MapCoordinate`，
- * 给地图几何用。两套签名各有调用场景，不强行合并。
+ * 给地图几何用。两套签名各有调用场景，不强行合并 —— 但 Haversine 的**算式本身
+ * 只保留一份**（这里委托过去），否则改了一处漏另一处，两边会悄悄给出不同的距离。
  */
 
+import { calculateDistanceNm } from '../../../core/utils/parse-utils';
 import type { MapCoordinate } from '../models/map-models';
 
 /** 地球平均半径（海里） */
@@ -60,11 +62,5 @@ export function bearingDeg(from: MapCoordinate, to: MapCoordinate): number {
 
 /** 两点间的大圆距离（海里，Haversine） */
 export function distanceInNm(from: MapCoordinate, to: MapCoordinate): number {
-  const lat1 = (from.latitude * Math.PI) / 180;
-  const lat2 = (to.latitude * Math.PI) / 180;
-  const deltaLat = lat2 - lat1;
-  const deltaLon = ((to.longitude - from.longitude) * Math.PI) / 180;
-  const a =
-    Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-  return 2 * EARTH_RADIUS_NM * Math.asin(Math.min(1, Math.sqrt(a)));
+  return calculateDistanceNm(from.latitude, from.longitude, to.latitude, to.longitude);
 }

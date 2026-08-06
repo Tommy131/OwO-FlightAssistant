@@ -30,6 +30,11 @@
 - **地图几何基元合并**：`bearingDeg` 在 `approach-beam` 与 `papi-guidance` 里各有一份
   逐字符相同的实现，`EARTH_RADIUS_NM` 也各写一遍，而 `holding-geometry` 为了拿
   `destination` 得去 import「进近波束」。统一收进 `map/services/geo.ts`。
+- **Haversine 算式只留一份**：`geo.ts` 的 `distanceInNm` 与 `core/utils` 的
+  `calculateDistanceNm` 是同一套公式的两种写法（asin / atan2，地球半径也各写一个），
+  前者改为委托后者。两种签名（`MapCoordinate` / 四个标量）各有调用场景，保留；
+  但算式本身留两份，早晚会改了一处漏另一处，让两边给出不同的距离。
+  实测两种写法差 0.06 ppm（4200 海里差 0.00025 海里），远低于导航数据本身的精度。
 
 ### 删除
 
