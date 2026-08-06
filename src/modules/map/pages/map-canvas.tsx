@@ -415,10 +415,14 @@ export function MapCanvas({
       // 新选中机场时把相机定位过去（zoom 15，与桌面版一致）
       if (detailChanged && state.selectedAirport) {
         const { latitude, longitude } = state.selectedAirport.marker.position;
+        // 上一次 flyTo 还在飞的时候再次选中，getZoom() 会返回 NaN，
+        // Math.max(NaN, 15) 仍是 NaN，Leaflet 随即抛 "Invalid LatLng object"。
+        // 而这里是 Zustand 订阅回调 —— 一抛异常，**排在后面的订阅者全部收不到通知**
+        // （包括各面板的 React 订阅），表现为「地图动了但底卡不出来」。
+        const currentZoom = map.getZoom();
+        const targetZoom = Number.isFinite(currentZoom) ? Math.max(currentZoom, 15) : 15;
         if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-          map.flyTo([latitude, longitude], Math.max(map.getZoom(), 15), {
-            duration: 0.8,
-          });
+          map.flyTo([latitude, longitude], targetZoom, { duration: 0.8 });
         }
       }
     }),

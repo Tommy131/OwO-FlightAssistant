@@ -29,6 +29,9 @@
 
 ### 调整
 
+- **`map-page.tsx` 按面板拆开**（1026 → 143 行）：新增 `pages/panels/`，顶部搜索栏、
+  HUD、告警浮层、右侧控制栏、图层选择器、滑行道工具条、机场底卡各自成文件，
+  页面本身只剩组装。搬运逐字符，组件体一行未改。
 - **`map-store.ts` 抽出滑行道路线编辑器**（`services/taxiway-route-editor.ts`）：
   这是一套基于下标的节点/分段手术 —— 在分段中插一个节点，它后面所有分段的
   `fromIndex`/`toIndex` 都要整体后移。错一位不抛异常，只是某条分段连到了隔壁
@@ -76,6 +79,12 @@
 
 ### 修复
 
+- **一个抛异常的 store 订阅者会让它后面的订阅者全部收不到通知**：选中机场时
+  `map.flyTo(..., Math.max(map.getZoom(), 15))` —— 上一次飞行动画还没结束就再次
+  选中，`getZoom()` 返回 NaN，`Math.max(NaN, 15)` 仍是 NaN，Leaflet 抛
+  "Invalid LatLng object"。而这是 Zustand 的订阅回调，异常会中断 `Set.forEach`，
+  排在后面的订阅者（各面板的 React 订阅）全部收不到通知 —— 表现为「地图动了，
+  但机场底卡不出来」，控制台只有一条看起来无关的 Leaflet 报错。已给缩放级别兜底。
 - **地图图层有 6 处外部文本未转义就进了 innerHTML**（NFR-6）：Leaflet 的
   `divIcon` 与 `bindTooltip` 传字符串时内部都是 `node.innerHTML = content`，
   所以这两处都是 XSS 落点。文本来源并不都可信 —— 滑行道要素的 `ref`/`name`

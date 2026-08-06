@@ -108,6 +108,9 @@ flowchart TD
 | `layers/airport-detail-layer.ts` | 选中机场：跑道/停机位/进近波束/等待航线 |
 | `services/map-marker-html.ts` | 纯 HTML 构造（不依赖 Leaflet，可单测） |
 
+页面侧同理：`map-page.tsx` 只做组装，各面板（顶部栏/HUD/告警浮层/右侧控制栏/
+图层选择器/滑行道工具条/机场底卡）在 `pages/panels/` 下各自成文件。
+
 > Leaflet 的 `divIcon` 与 `bindTooltip` 传字符串时内部都是 `innerHTML`，
 > 所以 `map-marker-html.ts` 与各图层凡拼接外部文本处**一律走 `escapeHtml`**。
 
