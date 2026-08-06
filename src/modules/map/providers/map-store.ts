@@ -38,6 +38,17 @@ import {
   parseRunwayNavaid,
   parseTaxiwayFile,
 } from '../services/map-response-parsers';
+import {
+  addNode,
+  insertNodeBetween,
+  moveNode,
+  pushUndo,
+  rebuildSegments,
+  removeNode,
+  updateNodeInfo,
+  updateSegmentInfo,
+  type TaxiwayRoute,
+} from '../services/taxiway-route-editor';
 import { evaluateFlightAlerts } from '../services/flight-alerts';
 import { resolveHudTimerAction } from '../services/hud-timer-rules';
 import {
@@ -300,10 +311,30 @@ const ctx = {
   radarTimerHandle: null as ReturnType<typeof setInterval> | null,
   lastRoutePoint: null as MapCoordinate | null,
   lastOnGround: undefined as boolean | undefined,
-  /** 撤销/重做栈 */
-  undoStack: [] as MapTaxiwayFileData[],
-  redoStack: [] as MapTaxiwayFileData[],
+  /** 撤销/重做栈（存的是整条路线的快照） */
+  undoStack: [] as TaxiwayRoute[],
+  redoStack: [] as TaxiwayRoute[],
 };
+
+/** 从 store 状态取出当前路线（编辑器只认这两个字段） */
+function currentRoute(state: MapState): TaxiwayRoute {
+  return { nodes: state.taxiwayNodes, segments: state.taxiwaySegments };
+}
+
+/** 记录一次可撤销操作；任何新操作都会作废重做栈 */
+function recordUndo(route: TaxiwayRoute): void {
+  ctx.undoStack = pushUndo(ctx.undoStack, route);
+  ctx.redoStack = [];
+}
+
+/** 把编辑结果写回 store */
+function applyRoute(setState: (patch: Partial<MapState>) => void, route: TaxiwayRoute): void {
+  setState({
+    taxiwayNodes: route.nodes,
+    taxiwaySegments: route.segments,
+    hasUnsavedTaxiwayChanges: true,
+  });
+}
 
 export const useMapStore = create<MapState>((set, get) => ({
   layerStyle: 'dark',
@@ -727,78 +758,56 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
 
   addTaxiwayNode(point) {
-    pushUndo(get());
-    const nodes = [...get().taxiwayNodes, { position: point }];
-    set({
-      taxiwayNodes: nodes,
-      taxiwaySegments: rebuildSegments(nodes, get().taxiwaySegments),
-      hasUnsavedTaxiwayChanges: true,
-    });
+    const current = currentRoute(get());
+    recordUndo(current);
+    applyRoute(set, addNode(current, point));
   },
 
   updateTaxiwayNodePosition(index, point) {
-    const nodes = get().taxiwayNodes;
-    if (index < 0 || index >= nodes.length) return;
-    pushUndo(get());
-    const next = nodes.map((node, i) => (i === index ? { ...node, position: point } : node));
-    set({ taxiwayNodes: next, hasUnsavedTaxiwayChanges: true });
+    const current = currentRoute(get());
+    const next = moveNode(current, index, point);
+    if (!next) return;
+    recordUndo(current);
+    applyRoute(set, next);
   },
 
   updateTaxiwayNodeInfo(index, info) {
-    const nodes = get().taxiwayNodes;
-    if (index < 0 || index >= nodes.length) return;
-    pushUndo(get());
-    const next = nodes.map((node, i) => (i === index ? { ...node, ...info } : node));
-    set({ taxiwayNodes: next, hasUnsavedTaxiwayChanges: true });
+    const current = currentRoute(get());
+    const next = updateNodeInfo(current, index, info);
+    if (!next) return;
+    recordUndo(current);
+    applyRoute(set, next);
   },
 
   removeTaxiwayNodeAt(index) {
-    const nodes = get().taxiwayNodes;
-    if (index < 0 || index >= nodes.length) return;
-    pushUndo(get());
-    const next = nodes.filter((_, i) => i !== index);
-    set({
-      taxiwayNodes: next,
-      taxiwaySegments: rebuildSegments(next, []),
-      hasUnsavedTaxiwayChanges: true,
-    });
+    const current = currentRoute(get());
+    const next = removeNode(current, index);
+    if (!next) return;
+    recordUndo(current);
+    applyRoute(set, next);
   },
 
   insertTaxiwayNodeBetween(segmentIndex, coordinate) {
-    const { taxiwayNodes, taxiwaySegments } = get();
-    const segment = taxiwaySegments[segmentIndex];
-    if (!segment) return;
-    const from = taxiwayNodes[segment.fromIndex];
-    const to = taxiwayNodes[segment.toIndex];
-    if (!from || !to) return;
-
-    pushUndo(get());
-    // 未指定坐标时取线段中点
-    const position = coordinate ?? {
-      latitude: (from.position.latitude + to.position.latitude) / 2,
-      longitude: (from.position.longitude + to.position.longitude) / 2,
-    };
-    const next = [...taxiwayNodes];
-    next.splice(segment.toIndex, 0, { position });
-    set({
-      taxiwayNodes: next,
-      taxiwaySegments: rebuildSegments(next, []),
-      hasUnsavedTaxiwayChanges: true,
-    });
+    const current = currentRoute(get());
+    const next = insertNodeBetween(current, segmentIndex, coordinate);
+    if (!next) return;
+    recordUndo(current);
+    applyRoute(set, next);
   },
 
   updateTaxiwaySegmentInfo(index, info) {
-    const segments = get().taxiwaySegments;
-    if (index < 0 || index >= segments.length) return;
-    pushUndo(get());
-    const next = segments.map((segment, i) => (i === index ? { ...segment, ...info } : segment));
-    set({ taxiwaySegments: next, hasUnsavedTaxiwayChanges: true });
+    const current = currentRoute(get());
+    const next = updateSegmentInfo(current, index, info);
+    if (!next) return;
+    recordUndo(current);
+    applyRoute(set, next);
   },
 
   undoTaxiwayRoute() {
-    const previous = ctx.undoStack.pop();
+    const previous = ctx.undoStack.at(-1);
     if (!previous) return;
-    ctx.redoStack.push(snapshotTaxiway(get()));
+    ctx.undoStack = ctx.undoStack.slice(0, -1);
+    ctx.redoStack = [...ctx.redoStack, currentRoute(get())];
     set({
       taxiwayNodes: previous.nodes,
       taxiwaySegments: previous.segments,
@@ -807,9 +816,10 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
 
   redoTaxiwayRoute() {
-    const next = ctx.redoStack.pop();
+    const next = ctx.redoStack.at(-1);
     if (!next) return;
-    ctx.undoStack.push(snapshotTaxiway(get()));
+    ctx.redoStack = ctx.redoStack.slice(0, -1);
+    ctx.undoStack = [...ctx.undoStack, currentRoute(get())];
     set({
       taxiwayNodes: next.nodes,
       taxiwaySegments: next.segments,
@@ -821,7 +831,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   canRedoTaxiwayRoute: () => ctx.redoStack.length > 0,
 
   clearTaxiwayRoute() {
-    pushUndo(get());
+    recordUndo(currentRoute(get()));
     set({
       taxiwayNodes: [],
       taxiwaySegments: [],
@@ -857,7 +867,7 @@ export const useMapStore = create<MapState>((set, get) => ({
       const data = parseTaxiwayFile(decoded);
       if (!data || data.nodes.length === 0) return 0;
 
-      pushUndo(get());
+      recordUndo(currentRoute(get()));
       set({
         taxiwayNodes: data.nodes,
         taxiwaySegments:
@@ -1325,38 +1335,8 @@ function stopRadarInterval(): void {
   }
 }
 
-// ── 滑行道辅助 ──
 
-function snapshotTaxiway(state: MapState): MapTaxiwayFileData {
-  return { nodes: state.taxiwayNodes, segments: state.taxiwaySegments };
-}
 
-/** 记录一次可撤销操作；新操作会清空重做栈 */
-function pushUndo(state: MapState): void {
-  ctx.undoStack.push(snapshotTaxiway(state));
-  // 撤销栈最多 50 步
-  if (ctx.undoStack.length > 50) ctx.undoStack.shift();
-  ctx.redoStack = [];
-}
-
-/** 节点列表变化后重建相邻分段，尽量保留已有分段的名称/限速 */
-function rebuildSegments(
-  nodes: MapTaxiwayNode[],
-  previous: MapTaxiwaySegment[],
-): MapTaxiwaySegment[] {
-  const segments: MapTaxiwaySegment[] = [];
-  for (let i = 0; i + 1 < nodes.length; i++) {
-    const existing = previous[i];
-    segments.push({
-      fromIndex: i,
-      toIndex: i + 1,
-      name: existing?.name,
-      note: existing?.note,
-      speedLimitKt: existing?.speedLimitKt,
-    });
-  }
-  return segments;
-}
 
 
 
