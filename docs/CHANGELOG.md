@@ -13,6 +13,9 @@
 
 ### 新增
 
+- **三个规则引擎的单测**（42 例）：飞行告警（阈值边界、危险优先于警告、各条独立开关）、
+  HUD 计时器自动启停（3 种启动 × 3 种停止模式）、遥测派生（航迹裁剪、机场去重）。
+  14 处变异全部被捕获。
 - **ESLint 门禁**（工程手册 §4.1 警告即错误）：`npm run lint`，`--max-warnings=0`，
   已接入 `npm run check` 与 CI。只收能抓真实缺陷的规则（浮动 Promise、误用 any、
   `no-base-to-string`），风格交给 `.editorconfig`。首次全量扫描报出 57 处，已全部清零。
@@ -24,6 +27,12 @@
 
 ### 调整
 
+- **`map-store.ts` 再抽出三个规则引擎**：`services/flight-alerts.ts`（告警判定）、
+  `services/hud-timer-rules.ts`（计时器启停判定）、`services/map-telemetry.ts`
+  （航迹累积与机场标记）。三者此前都读整个 `MapState`、且航迹依赖模块级可变量
+  `ctx.lastRoutePoint`，没法脱离 Zustand 调用 —— 也就一直没有测试。
+  现在入参收窄、状态改为传入，`map-store.ts` 1524 → 1364 行。
+  计时器的判定与副作用也就此分开：纯函数只回答「该做什么」，store 负责做。
 - **`map-store.ts` 抽出纯解析层**：9 个解析函数移入
   `modules/map/services/map-response-parsers.ts`，`map-store.ts` 由 1726 行降到 1524 行。
   解析器不再依赖 store，可被直接调用与测试，并纳入架构门禁的「纯计算」白名单。

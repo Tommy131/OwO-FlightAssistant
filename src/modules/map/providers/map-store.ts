@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { PersistenceService } from '../../../core/services/persistence-service';
 import { AppLogger } from '../../../core/utils/logger';
 import {
-  calculateDistanceNm,
   pickString,
   toJsonMap,
 } from '../../../core/utils/parse-utils';
@@ -39,6 +38,13 @@ import {
   parseRunwayNavaid,
   parseTaxiwayFile,
 } from '../services/map-response-parsers';
+import { evaluateFlightAlerts } from '../services/flight-alerts';
+import { resolveHudTimerAction } from '../services/hud-timer-rules';
+import {
+  appendRoutePoint,
+  buildAirportsFromSnapshot,
+  distanceInMeters,
+} from '../services/map-telemetry';
 import { fetchAirportWeather } from '../services/airport-weather';
 import { parseAirportDetail } from '../services/map-airport-parser';
 
@@ -72,9 +78,7 @@ const DEFAULT_DESCENT_WARNING_FPM = -3000;
 const DEFAULT_DESCENT_DANGER_FPM = -5000;
 
 /** 航迹最多保留的点数，避免长航班无限增长 */
-const MAX_ROUTE_POINTS = 4000;
 /** 相邻航迹点最小间隔（米），低于此值不记点 */
-const MIN_ROUTE_POINT_DISTANCE_M = 30;
 /** 判定「移动中」的地速门槛（kt） */
 const MOVING_GROUND_SPEED_KT = 1.5;
 /** UI 刷新限流间隔（ms）—— 地图重绘开销大 */
@@ -495,8 +499,11 @@ export const useMapStore = create<MapState>((set, get) => ({
       patch.isAircraftMoving = isMoving;
 
       // 航迹累积：与上一点距离足够才记
-      const nextRoute = appendRoutePoint(state.route, aircraft);
-      if (nextRoute !== state.route) patch.route = nextRoute;
+      const appended = appendRoutePoint(state.route, aircraft, ctx.lastRoutePoint);
+      if (appended.appended) {
+        patch.route = appended.route;
+        ctx.lastRoutePoint = appended.lastPoint;
+      }
 
       // 起降点标记：onGround 翻转时打点
       const onGround = flightData.onGround;
@@ -507,7 +514,16 @@ export const useMapStore = create<MapState>((set, get) => ({
       }
       ctx.lastOnGround = onGround;
 
-      handleAutoHudTimer(state, aircraft, isMoving, patch);
+      // 判定是纯函数，副作用留在这里
+      const timerAction = resolveHudTimerAction(state, aircraft, isMoving);
+      if (timerAction === 'start') {
+        useMapStore.getState().startHudTimer();
+        patch.hasHudTimerStarted = true;
+        patch.isHudTimerRunning = true;
+      } else if (timerAction === 'stop') {
+        useMapStore.getState().pauseHudTimer();
+        patch.isHudTimerRunning = false;
+      }
     } else if (!isConnected) {
       patch.aircraft = null;
       patch.aiAircraft = [];
@@ -1252,185 +1268,10 @@ function isLayerStyle(value: unknown): value is MapLayerStyle {
 }
 
 
-function distanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  return calculateDistanceNm(lat1, lon1, lat2, lon2) * 1852;
-}
 
-/** 航迹追加：距上一点足够远才记，并裁剪到最大点数 */
-function appendRoutePoint(
-  route: MapRoutePoint[],
-  aircraft: MapAircraftState,
-): MapRoutePoint[] {
-  const last = ctx.lastRoutePoint;
-  if (
-    last &&
-    distanceInMeters(
-      last.latitude,
-      last.longitude,
-      aircraft.position.latitude,
-      aircraft.position.longitude,
-    ) < MIN_ROUTE_POINT_DISTANCE_M
-  ) {
-    return route;
-  }
-  ctx.lastRoutePoint = aircraft.position;
-  const next: MapRoutePoint[] = [
-    ...route,
-    {
-      latitude: aircraft.position.latitude,
-      longitude: aircraft.position.longitude,
-      altitude: aircraft.altitude,
-      groundSpeed: aircraft.groundSpeed,
-      timestamp: new Date(),
-    },
-  ];
-  return next.length > MAX_ROUTE_POINTS ? next.slice(next.length - MAX_ROUTE_POINTS) : next;
-}
 
-function buildAirportsFromSnapshot(snapshot: FlightDataSnapshot): MapAirportMarker[] {
-  const result: MapAirportMarker[] = [];
-  const seen = new Set<string>();
 
-  const push = (
-    airport: { icaoCode: string; name: string; latitude: number; longitude: number } | undefined,
-    isPrimary: boolean,
-  ) => {
-    if (!airport) return;
-    const code = airport.icaoCode.trim().toUpperCase();
-    if (code.length === 0 || seen.has(code)) return;
-    if (!isValidCoordinate(airport.latitude, airport.longitude)) return;
-    seen.add(code);
-    result.push({
-      code,
-      name: airport.name,
-      position: { latitude: airport.latitude, longitude: airport.longitude },
-      isPrimary,
-    });
-  };
 
-  push(snapshot.departureAirport, true);
-  push(snapshot.destinationAirport, true);
-  push(snapshot.alternateAirport, true);
-  push(snapshot.nearestAirport, false);
-  for (const airport of snapshot.suggestedAirports) push(airport, false);
-
-  return result;
-}
-
-/**
- * 飞行告警评估
- * 与桌面版一致：失速、超速、爬升/下降率超限、大坡度、大迎角
- */
-function evaluateFlightAlerts(state: MapState, flightData: FlightData): MapFlightAlert[] {
-  if (!state.alertsEnabled || !state.isConnected) return [];
-
-  const alerts: MapFlightAlert[] = [];
-  const enabled = (id: string) => !state.disabledAlertIds.includes(id);
-
-  if (enabled('stall_warning') && flightData.stallWarning === true) {
-    alerts.push({ id: 'stall_warning', level: 'danger', message: 'STALL' });
-  }
-
-  const verticalSpeed = flightData.verticalSpeed;
-  if (verticalSpeed !== undefined) {
-    if (enabled('excessive_climb_rate')) {
-      if (verticalSpeed >= state.climbRateDangerFpm) {
-        alerts.push({ id: 'excessive_climb_rate', level: 'danger', message: 'CLIMB RATE' });
-      } else if (verticalSpeed >= state.climbRateWarningFpm) {
-        alerts.push({ id: 'excessive_climb_rate', level: 'warning', message: 'CLIMB RATE' });
-      }
-    }
-    if (enabled('excessive_descent_rate')) {
-      if (verticalSpeed <= state.descentRateDangerFpm) {
-        alerts.push({ id: 'excessive_descent_rate', level: 'danger', message: 'SINK RATE' });
-      } else if (verticalSpeed <= state.descentRateWarningFpm) {
-        alerts.push({ id: 'excessive_descent_rate', level: 'warning', message: 'SINK RATE' });
-      }
-    }
-  }
-
-  const bank = flightData.bank;
-  if (enabled('bank_angle') && bank !== undefined && Math.abs(bank) >= 45) {
-    alerts.push({
-      id: 'bank_angle',
-      level: Math.abs(bank) >= 60 ? 'danger' : 'warning',
-      message: 'BANK ANGLE',
-    });
-  }
-
-  const aoa = flightData.angleOfAttack;
-  if (enabled('high_aoa') && aoa !== undefined && aoa >= 15) {
-    alerts.push({ id: 'high_aoa', level: aoa >= 18 ? 'danger' : 'caution', message: 'HIGH AOA' });
-  }
-
-  // 近地告警：低无线电高度 + 大下降率
-  const radioAltitude = flightData.radioAltitude;
-  if (
-    enabled('terrain_warning') &&
-    state.showTerrainWarning &&
-    radioAltitude !== undefined &&
-    radioAltitude < 1000 &&
-    verticalSpeed !== undefined &&
-    verticalSpeed < -1500 &&
-    flightData.gearDown !== true
-  ) {
-    alerts.push({ id: 'terrain_warning', level: 'danger', message: 'TERRAIN' });
-  }
-
-  return alerts;
-}
-
-/**
- * HUD 计时器自动启停
- *
- * 起：按所选模式判定「开始滑行 / 推出 / 任意移动」
- * 停：按所选模式判定「稳定落地 / 脱离跑道 / 到达停机位」
- */
-function handleAutoHudTimer(
-  state: MapState,
-  aircraft: MapAircraftState,
-  isMoving: boolean,
-  patch: Partial<MapState>,
-): void {
-  if (!state.autoHudTimerEnabled) return;
-
-  const onGround = aircraft.onGround ?? true;
-  const groundSpeed = aircraft.groundSpeed ?? 0;
-
-  // ── 自动启动 ──
-  if (!state.hasHudTimerStarted && isMoving) {
-    const shouldStart =
-      state.autoTimerStartMode === 'anyMovement'
-        ? true
-        : state.autoTimerStartMode === 'pushback'
-          ? onGround && aircraft.parkingBrake !== true
-          : // runwayMovement：地速超过 30kt 视为进跑道加速
-            onGround && groundSpeed >= 30;
-
-    if (shouldStart) {
-      useMapStore.getState().startHudTimer();
-      patch.hasHudTimerStarted = true;
-      patch.isHudTimerRunning = true;
-    }
-    return;
-  }
-
-  // ── 自动停止 ──
-  if (state.isHudTimerRunning && onGround) {
-    const shouldStop =
-      state.autoTimerStopMode === 'parkingArrival'
-        ? groundSpeed < 1 && aircraft.parkingBrake === true
-        : state.autoTimerStopMode === 'runwayExitAfterLanding'
-          ? groundSpeed < 30
-          : // stableLanding：完全停稳
-            groundSpeed < 5;
-
-    if (shouldStop) {
-      useMapStore.getState().pauseHudTimer();
-      patch.isHudTimerRunning = false;
-    }
-  }
-}
 
 /**
  * 上报新出现的地形告警

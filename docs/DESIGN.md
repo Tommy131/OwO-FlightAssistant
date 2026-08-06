@@ -151,7 +151,7 @@ flowchart TD
 | M3 | 后端对齐：存储、设置、天气、空域接口 | 完成 |
 | M4 | 航空要素增强：进近设施、波束、等待航线、PAPI | 完成 |
 | M5 | 工程规范化 + CI/CD + 中间件同源托管 | 进行中 |
-| M6 | 纯计算与解析单测（86 例）+ 架构/i18n/ESLint 门禁 | 完成 |
+| M6 | 纯计算、解析与规则引擎单测（128 例）+ 架构/i18n/ESLint 门禁 | 完成 |
 | M7 | UI 与 store 测试、超大文件拆分 | 进行中 |
 
 ---
@@ -162,8 +162,8 @@ flowchart TD
 
 | 差距 | 现状 | 为什么先不动 |
 |---|---|---|
-| §5.1 单文件 ~400 行 | 17 个文件超标，最大 `map-store.ts` 1524 行、`map-canvas.tsx` 1474 行 | 按「先测试后重构」的顺序推进中：`map-store` 的纯解析部分已抽到 `services/map-response-parsers.ts` 并锁上单测（1726 → 1524 行）。剩余部分是 Zustand 状态与副作用，拆分前需要 store 级测试 |
-| §10 测试 | 纯计算、响应解析、报文解码与解析工具已覆盖（Vitest，86 例）；**UI 与 store 编排仍无测试** | 组件测试要引 jsdom 与 testing-library，成本高于收益；先把最容易出错的几何与解析锁住 |
+| §5.1 单文件 ~400 行 | 17 个文件超标，最大 `map-canvas.tsx` 1474 行、`map-store.ts` 1364 行 | 按「先测试后重构」的顺序推进中：`map-store` 已抽出解析层（`map-response-parsers`）与三个规则引擎（`flight-alerts` / `hud-timer-rules` / `map-telemetry`），每步都先补测试再搬，1726 → 1364 行。剩余是 Zustand 状态与图层副作用 |
+| §10 测试 | 纯计算、响应解析、报文解码与解析工具已覆盖（Vitest，128 例）；**UI 与 store 编排仍无测试** | 组件测试要引 jsdom 与 testing-library，成本高于收益；先把最容易出错的几何与解析锁住 |
 | §7 i18n 覆盖 | de_DE **0/987**，11 个模块全部只有 zh/en | 有「当前语言 → en_US → key」回退链兜底，界面显示英文而非崩坏。航空术语机翻质量不可控，宁可留空也不要错译 |
 
 `npm run check` 可一次跑完全部门禁（版本同步 / 架构 / i18n / ESLint / 类型 / 单测）。
