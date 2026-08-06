@@ -441,6 +441,31 @@ function TakeoffLandingReport({ log }: { log: FlightLog }) {
               label={t(K.approachStability)}
               value={landing.approachStabilityScore?.toFixed(0) ?? '--'}
             />
+            {/* 键早就备好了却一直没接上：剩余跑道与接地序列 */}
+            <DataCard
+              label={t(K.remainingRunway)}
+              value={landing.remainingRunwayFt?.toFixed(0) ?? '--'}
+              unit="ft"
+              accentColor={
+                landing.remainingRunwayFt !== undefined && landing.remainingRunwayFt < 1500
+                  ? 'var(--color-warning)'
+                  : undefined
+              }
+            />
+            <DataCard
+              label={t(K.landingTouchdownSequence)}
+              // 多次接地时把每次的 G 值都列出来，弹跳落地一眼可见
+              value={
+                landing.touchdownGForces.length > 0
+                  ? landing.touchdownGForces.map((g) => g.toFixed(2)).join(' / ')
+                  : '--'
+              }
+              hint={
+                landing.touchdownSequence.length > 1
+                  ? `${landing.touchdownSequence.length} ${t(K.blackBoxRows)}`
+                  : undefined
+              }
+            />
           </div>
         </SectionCard>
       )}

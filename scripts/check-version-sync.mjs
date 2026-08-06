@@ -40,6 +40,21 @@ for (const match of readme.matchAll(/\bv?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/g
   }
 }
 
+// app-constants.ts 里的回退值必须与 package.json 一致
+//
+// 这条是补上一个真实事故：`VITE_APP_VERSION` 从来没有人注入过，界面显示的
+// 一直是那个写死的回退值。1.0.4 都要发了，侧边栏还挂着 1.0.3 —— 而当时的
+// 版本校验只看 package.json / CHANGELOG / README，压根没看这个文件。
+const constants = read('src/core/constants/app-constants.ts');
+const fallback = /VITE_APP_VERSION\s*\?\?\s*'([^']+)'/.exec(constants);
+if (!fallback) {
+  problems.push('src/core/constants/app-constants.ts 里找不到 appVersion 的回退值');
+} else if (fallback[1] !== version) {
+  problems.push(
+    `app-constants.ts 的回退版本 ${fallback[1]} 与 package.json 的 ${version} 不一致`,
+  );
+}
+
 if (problems.length > 0) {
   console.error('版本同步校验失败：');
   for (const problem of problems) console.error('  - ' + problem);

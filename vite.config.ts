@@ -1,6 +1,12 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
+
+/** 版本号的唯一事实来源是 package.json —— 构建期注入，避免界面显示写死的回退值 */
+const packageVersion = JSON.parse(
+  readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'),
+).version as string;
 
 /**
  * Vite 配置
@@ -22,6 +28,20 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    /*
+     * 版本号注入
+     *
+     * `app-constants.ts` 里写的是 `import.meta.env.VITE_APP_VERSION ?? '1.0.3-beta'`，
+     * 而这个变量此前**从来没有人注入过** —— 于是界面上永远显示那个写死的回退值，
+     * 发 1.0.4 时侧边栏还挂着 1.0.3。这里从 package.json 注入，
+     * 并由 scripts/check-version-sync.mjs 守住回退值与之一致。
+     */
+    define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageVersion),
+      'import.meta.env.VITE_APP_BUILD': JSON.stringify(
+        new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+      ),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),

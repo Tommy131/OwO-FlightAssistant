@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { useTranslate } from '../../../../core/localization/use-translate';
 import { LeafletMap } from '../../../../core/widgets/common/leaflet-map';
@@ -105,26 +105,43 @@ export const LANDING_RATING_COLOR: Record<LandingRating, string> = {
 // 航迹地图
 // ──────────────────────────────────────────────────────────────────────────
 
+/** 回放倍速档位 */
+const REPLAY_SPEEDS = [1, 2, 4, 8] as const;
+/** 一倍速下每帧的间隔 */
+const REPLAY_TICK_MS = 120;
+
 export function AnalysisTrackMap({ log }: { log: FlightLog }) {
   const t = useTranslate();
 
-  // 过滤掉 (0,0) 这类无效坐标
-  const track = useMemo(
+  // 过滤掉 (0,0) 这类无效坐标。回放要按下标回查原始读数，
+  // 所以这里保留过滤后的**点对象**，坐标对另外派生
+  const points = useMemo(
     () =>
-      log.points
-        .filter(
-          (point) =>
-            Number.isFinite(point.latitude) &&
-            Number.isFinite(point.longitude) &&
-            !(point.latitude === 0 && point.longitude === 0),
-        )
-        .map((point) => [point.latitude, point.longitude] as [number, number]),
+      log.points.filter(
+        (point) =>
+          Number.isFinite(point.latitude) &&
+          Number.isFinite(point.longitude) &&
+          !(point.latitude === 0 && point.longitude === 0),
+      ),
     [log],
   );
+
+  const track = useMemo(
+    () => points.map((point) => [point.latitude, point.longitude] as [number, number]),
+    [points],
+  );
+
+  /** null = 未进入回放（看全程）；否则为当前回放到的下标 */
+  const [cursor, setCursor] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState<(typeof REPLAY_SPEEDS)[number]>(1);
+  // 回放光标标记走 Leaflet 命令式 API，放 ref 里避免拖动时重建地图
+  const replayRef = useRef<{ map?: L.Map; marker?: L.CircleMarker }>({});
 
   const handleReady = useCallback(
     (map: L.Map) => {
       if (track.length === 0) return;
+      replayRef.current.map = map;
 
       const polyline = L.polyline(track, {
         color: '#2a78d6',
@@ -153,16 +170,58 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
         .addTo(map)
         .bindTooltip(log.arrivalAirport ?? '--');
 
+      // 回放光标：先建好，未进入回放时隐藏（半径 0）
+      const cursorMarker = L.circleMarker(track[0], {
+        radius: 0,
+        color: '#ffffff',
+        weight: 2,
+        fillColor: '#f5a524',
+        fillOpacity: 1,
+      }).addTo(map);
+      replayRef.current.marker = cursorMarker;
+
       map.fitBounds(polyline.getBounds(), { padding: [24, 24] });
 
       return () => {
         polyline.remove();
         startMarker.remove();
         endMarker.remove();
+        cursorMarker.remove();
+        replayRef.current = {};
       };
     },
     [track, log.departureAirport, log.arrivalAirport],
   );
+
+  // 拖动/播放时移动光标标记
+  useEffect(() => {
+    const marker = replayRef.current.marker;
+    if (!marker) return;
+    if (cursor === null || !track[cursor]) {
+      marker.setRadius(0);
+      return;
+    }
+    marker.setRadius(7);
+    marker.setLatLng(track[cursor]);
+  }, [cursor, track]);
+
+  // 播放：按倍速推进下标，到头自动停
+  useEffect(() => {
+    if (!playing) return;
+    const timer = setInterval(() => {
+      setCursor((current) => {
+        const next = (current ?? -1) + 1;
+        if (next >= track.length - 1) {
+          setPlaying(false);
+          return track.length - 1;
+        }
+        return next;
+      });
+    }, REPLAY_TICK_MS / speed);
+    return () => clearInterval(timer);
+  }, [playing, speed, track.length]);
+
+  const active = cursor !== null ? points[cursor] : undefined;
 
   return (
     <SectionCard
@@ -174,16 +233,102 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
       {track.length === 0 ? (
         <EmptyState icon="wrong_location" title={t(K.chartNoData)} />
       ) : (
-        <LeafletMap
-          center={track[0]}
-          zoom={8}
-          tileLayer="cartoDark"
-          height={320}
-          onReady={handleReady}
-        />
+        <>
+          <LeafletMap
+            center={track[0]}
+            zoom={8}
+            tileLayer="cartoDark"
+            height={320}
+            onReady={handleReady}
+          />
+
+          <div className={styles.replayBar}>
+            <IconButton
+              icon={playing ? 'pause' : 'play_arrow'}
+              label={t(playing ? K.replayPause : K.replayPlay)}
+              onClick={() => {
+                // 从「看全程」直接点播放时，从头开始
+                if (cursor === null) setCursor(0);
+                setPlaying((value) => !value);
+              }}
+            />
+            <IconButton
+              icon="replay"
+              label={t(K.replayReset)}
+              onClick={() => {
+                setPlaying(false);
+                setCursor(0);
+              }}
+            />
+
+            <input
+              className={styles.replaySlider}
+              type="range"
+              min={0}
+              max={Math.max(0, track.length - 1)}
+              value={cursor ?? 0}
+              aria-label={t(K.detailTrack)}
+              onChange={(event) => {
+                setPlaying(false);
+                setCursor(Number(event.target.value));
+              }}
+            />
+
+            <select
+              className={styles.replaySpeed}
+              value={speed}
+              aria-label={t(K.replaySpeed)}
+              onChange={(event) =>
+                setSpeed(Number(event.target.value) as (typeof REPLAY_SPEEDS)[number])
+              }
+            >
+              {REPLAY_SPEEDS.map((value) => (
+                <option key={value} value={value}>
+                  {value}×
+                </option>
+              ))}
+            </select>
+
+            {/* 退出回放，回到「看全程」 */}
+            <Button
+              variant="text"
+              size="sm"
+              onClick={() => {
+                setPlaying(false);
+                setCursor(null);
+              }}
+            >
+              {t(K.replayLive)}
+            </Button>
+          </div>
+
+          {active && (
+            <div className={styles.replayReadout}>
+              <span className={styles.replayTime}>{formatClock(active.timestamp)}</span>
+              <span>
+                {t(K.chartAltitude)} <b>{active.altitude.toFixed(0)}</b>
+              </span>
+              <span>
+                {t(K.chartSpeed)} <b>{active.groundSpeed.toFixed(0)}</b>
+              </span>
+              <span>
+                {t(K.chartVerticalSpeed)} <b>{active.verticalSpeed.toFixed(0)}</b>
+              </span>
+              <span>
+                {t(K.replayHeading)} <b>{active.heading.toFixed(0)}°</b>
+              </span>
+            </div>
+          )}
+        </>
       )}
     </SectionCard>
   );
+}
+
+/** 回放读数用的时分秒 */
+function formatClock(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 // ──────────────────────────────────────────────────────────────────────────

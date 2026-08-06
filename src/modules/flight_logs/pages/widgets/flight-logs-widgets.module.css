@@ -167,3 +167,49 @@
 .blackBoxJumpInput {
   width: 120px;
 }
+
+/* ── 航迹回放 ── */
+.replayBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-outline-variant);
+}
+
+.replaySlider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.replaySpeed {
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--color-outline-variant);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.replayReadout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 12px 10px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.replayReadout b {
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.replayTime {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary);
+  font-weight: 600;
+}
