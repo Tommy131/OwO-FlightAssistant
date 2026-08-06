@@ -1,5 +1,5 @@
 import type { MapCoordinate, MapHoldingPattern } from '../models/map-models';
-import { destination } from './approach-beam';
+import { destination } from './geo';
 
 /**
  * 等待航线几何

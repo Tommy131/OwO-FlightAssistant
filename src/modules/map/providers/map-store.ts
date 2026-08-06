@@ -94,7 +94,6 @@ export const CONFIGURABLE_ALERT_IDS = [
   'high_aoa',
 ] as const;
 
-export type ConfigurableAlertId = (typeof CONFIGURABLE_ALERT_IDS)[number];
 
 interface MapState {
   // ── 图层开关 ──

@@ -108,14 +108,6 @@ export function pickMap(map: JsonMap, keys: readonly string[]): JsonMap | null {
   return null;
 }
 
-/** 取数组，非数组返回空数组 */
-export function pickArray(map: JsonMap, keys: readonly string[]): unknown[] {
-  for (const key of keys) {
-    const value = map[key];
-    if (Array.isArray(value)) return value;
-  }
-  return [];
-}
 
 /**
  * 读取角度值：优先取带 `_deg` 后缀的键，否则从候选键取值并做弧度判定
@@ -160,18 +152,3 @@ export function calculateDistanceNm(
   return earthRadiusKm * c * 0.539956803;
 }
 
-/** 大圆方位角（度，0-360） */
-export function calculateBearingDeg(
-  startLat: number,
-  startLon: number,
-  endLat: number,
-  endLon: number,
-): number {
-  const toRad = Math.PI / 180;
-  const lat1 = startLat * toRad;
-  const lat2 = endLat * toRad;
-  const deltaLon = (endLon - startLon) * toRad;
-  const y = Math.sin(deltaLon) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
-  return (Math.atan2(y, x) * (180 / Math.PI) + 360) % 360;
-}

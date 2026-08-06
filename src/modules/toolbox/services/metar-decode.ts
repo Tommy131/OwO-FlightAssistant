@@ -1,8 +1,12 @@
 /**
- * 气象报文解析工具
+ * 气象报文解码（纯函数）
  *
  * 对应 Flutter 版 `modules/map/providers/map_weather_utils.dart`。
- * 由 map 与 toolbox 两个模块共用（能见度、云幕高、飞行规则判定）。
+ *
+ * 原先放在 `modules/map/providers/` 下，但那里有两个问题：`providers/` 按分层约定
+ * 装的是 Zustand store，而这些是纯函数；且 map 模块自己一处都没用，唯一的消费方
+ * 是 toolbox 的气象解码页 —— 等于 toolbox 越过模块边界去读 map 的内部实现，
+ * map 模块就没法独立裁剪了。现按实际归属挪到 toolbox 的领域层。
  */
 
 /** 飞行规则类别 */
@@ -62,12 +66,15 @@ export function parseCeilingFt(cloudText: string | undefined): number | undefine
   return minCeiling;
 }
 
-/** 由能见度与云幕高判定飞行规则 */
+/** 由能见度与云幕高判定飞行规则；两个条件取更严的那个 */
 export function resolveRule(
   visibilitySm: number | undefined,
   ceilingFt: number | undefined,
 ): ApproachRule {
-  if ((ceilingFt !== undefined && ceilingFt < 500) || (visibilitySm !== undefined && visibilitySm < 1)) {
+  if (
+    (ceilingFt !== undefined && ceilingFt < 500) ||
+    (visibilitySm !== undefined && visibilitySm < 1)
+  ) {
     return 'LIFR';
   }
   if (
@@ -85,49 +92,17 @@ export function resolveRule(
   return 'VFR';
 }
 
-/** 从任意文本中标准化提取飞行规则关键字 */
-export function normalizeApproachRule(text: string | undefined): ApproachRule | null {
-  const upper = (text ?? '').toUpperCase();
-  if (upper.includes('LIFR')) return 'LIFR';
-  if (upper.includes('MVFR')) return 'MVFR';
-  if (upper.includes('IFR')) return 'IFR';
-  if (upper.includes('VFR')) return 'VFR';
-  return null;
-}
-
 /**
- * 综合判定飞行规则
- * 优先用结构化字段计算，其次从原始报文提取关键字，CAVOK 视为 VFR
+ * 从整段报文中提取最差能见度（SM）
+ *
+ * ⚠️ 两侧的 `\b` 是必需的，不是可有可无的收紧。报文里到处都是四位数字：
+ * 时间戳 `052300Z`、风组 `01004MPS`、跑道视程 `R36L/1200N`、修正海压 `Q1024`。
+ * 少了词边界就会把它们全当成能见度，而本函数取的是**最小值** ——
+ * 风组里的 `0100` 会让任何一份报文都被判成 LIFR，连 CAVOK 都不例外。
  */
-export function resolveApproachRule(options: {
-  visibility?: string;
-  clouds?: string;
-  rawMetar?: string;
-}): ApproachRule {
-  const visibilitySm = parseVisibilitySm(options.visibility);
-  const ceilingFt = parseCeilingFt(options.clouds);
-  if (visibilitySm !== undefined || ceilingFt !== undefined) {
-    return resolveRule(visibilitySm, ceilingFt);
-  }
-  const fromRaw = normalizeApproachRule(options.rawMetar);
-  if (fromRaw) return fromRaw;
-  if ((options.rawMetar ?? '').toUpperCase().includes('CAVOK')) return 'VFR';
-  return 'UNK';
-}
-
-/** 各飞行规则对应的展示色（地图机场标记与工具箱共用） */
-export const APPROACH_RULE_COLOR: Record<ApproachRule, string> = {
-  VFR: '#2ECC71',
-  MVFR: '#3498DB',
-  IFR: '#E74C3C',
-  LIFR: '#9B59B6',
-  UNK: '#95A5A6',
-};
-
-/** 从整段报文中提取最差能见度（SM） */
 export function extractWorstVisibility(raw: string): number | undefined {
   let minVis: number | undefined;
-  for (const match of raw.matchAll(/(\d{4}|P?\d+\/\d+SM|P?\d+SM)/g)) {
+  for (const match of raw.matchAll(/\b(\d{4}|P?\d+\/\d+SM|P?\d+SM)\b/g)) {
     const vis = parseVisibilitySm(match[1]);
     if (vis === undefined) continue;
     if (minVis === undefined || vis < minVis) minVis = vis;
@@ -135,7 +110,12 @@ export function extractWorstVisibility(raw: string): number | undefined {
   return minVis;
 }
 
-/** 从整段报文中提取最低云幕高（ft） */
+/**
+ * 从整段报文中提取最低云幕高（ft）
+ *
+ * 实现上等同于对全文跑一遍 `parseCeilingFt`，但保留独立命名：调用方传的是
+ * 整段 TAF/METAR，而不是已经切好的云层字段，语义不同。
+ */
 export function extractLowestCeiling(raw: string): number | undefined {
   return parseCeilingFt(raw);
 }

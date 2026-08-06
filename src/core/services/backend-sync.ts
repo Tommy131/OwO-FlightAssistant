@@ -14,7 +14,6 @@ import { getBackendTransport } from './backend-transport';
  */
 
 /** 待补传队列的持久化键（存在 PersistenceService 的模块命名空间下） */
-export const PENDING_SYNC_KEY = 'pending_backend_sync';
 
 export type SyncKind = 'flightLog' | 'briefing';
 

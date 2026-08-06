@@ -218,4 +218,3 @@ export const LocalizationKeys = {
 } as const;
 
 /** 所有核心 key 的联合类型 */
-export type LocalizationKey = (typeof LocalizationKeys)[keyof typeof LocalizationKeys];

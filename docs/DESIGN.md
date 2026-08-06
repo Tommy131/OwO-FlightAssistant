@@ -84,11 +84,16 @@ flowchart TD
 
 ### 3.2 依赖方向铁律（评审一票否决）
 
-- 依赖**单向向内**。`modules/*/models` 与纯几何 `services/`（如 `approach-beam`、
-  `holding-geometry`、`papi-guidance`、`airport-outline`）**MUST NOT** 依赖 React、
-  Leaflet、Zustand 或任何 IO —— 它们必须能被单独调用与测试。
+- 依赖**单向向内**。`modules/*/models` 与纯计算 `services/`（如 `geo`、`approach-beam`、
+  `holding-geometry`、`papi-guidance`、`airport-outline`、`map-response-parsers`、
+  `metar-decode`）**MUST NOT** 依赖 React、Leaflet、Zustand 或任何 IO ——
+  它们必须能被单独调用与测试。
 - `core/` **MUST NOT** import 任何 `modules/`。框架层对业务模块一无所知。
 - 页面组件不直接发 HTTP；一律经 store → `MiddlewareHttpService`。
+- **跨模块引用只允许指向共享模块**（`http` 传输层、`common` 遥测层、
+  `airport_search/models`）与组合根 `modules-register-entry.ts`。业务模块之间不得
+  互相 import 对方的 `providers/`（那是别人的内部状态），否则模块就不可独立裁剪了。
+  `scripts/check-architecture.mjs` 守前两条，第三条目前靠评审。
 
 ### 3.3 模块注册表（微内核）
 
@@ -158,7 +163,7 @@ flowchart TD
 | 差距 | 现状 | 为什么先不动 |
 |---|---|---|
 | §5.1 单文件 ~400 行 | 17 个文件超标，最大 `map-store.ts` 1524 行、`map-canvas.tsx` 1474 行 | 按「先测试后重构」的顺序推进中：`map-store` 的纯解析部分已抽到 `services/map-response-parsers.ts` 并锁上单测（1726 → 1524 行）。剩余部分是 Zustand 状态与副作用，拆分前需要 store 级测试 |
-| §10 测试 | 纯计算与响应解析已覆盖（Vitest，59 例）；**UI 与 store 编排仍无测试** | 组件测试要引 jsdom 与 testing-library，成本高于收益；先把最容易出错的几何与解析锁住 |
+| §10 测试 | 纯计算、响应解析与报文解码已覆盖（Vitest，74 例）；**UI 与 store 编排仍无测试** | 组件测试要引 jsdom 与 testing-library，成本高于收益；先把最容易出错的几何与解析锁住 |
 | §7 i18n 覆盖 | de_DE **0/987**，11 个模块全部只有 zh/en | 有「当前语言 → en_US → key」回退链兜底，界面显示英文而非崩坏。航空术语机翻质量不可控，宁可留空也不要错译 |
 | §4.1 警告即错误 | 无 ESLint | `tsc --noEmit`（strict）已是有效门禁；半配一套 ESLint 不如不配 |
 

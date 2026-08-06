@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { bearingDeg, buildApproachBeam, destination } from './approach-beam';
+import { buildApproachBeam } from './approach-beam';
+import { bearingDeg, destination } from './geo';
 import type { MapCoordinate, MapRunwayNavaid } from '../models/map-models';
 
 /**

@@ -144,11 +144,6 @@ export interface MapRunwayNavaid {
 }
 
 /** 某跑道端已公布的进近类型（来自 CIFP 程序数据） */
-export interface MapRunwayApproach {
-  readonly runway: string;
-  /** 如 ILS / GLS / RNAV / LOC / VOR，按能力从强到弱排序 */
-  readonly types: readonly string[];
-}
 
 /** 已公布的等待航线（来自 earth_hold.dat） */
 export interface MapHoldingPattern {
@@ -341,9 +336,3 @@ export interface MapRestrictedZone {
 // 数据快照
 // ──────────────────────────────────────────────────────────────────────────
 
-export interface MapDataSnapshot {
-  readonly aircraft?: MapAircraftState;
-  readonly route: MapRoutePoint[];
-  readonly airports: MapAirportMarker[];
-  readonly isConnected: boolean;
-}

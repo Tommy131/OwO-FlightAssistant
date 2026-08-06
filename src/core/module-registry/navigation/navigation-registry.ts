@@ -89,11 +89,6 @@ export type NavigationElement =
   | { kind: 'item'; item: NavigationItem; priority: number }
   | { kind: 'group'; group: NavigationGroup; children: NavigationItem[]; priority: number };
 
-export function isGroupElement(
-  element: NavigationElement,
-): element is Extract<NavigationElement, { kind: 'group' }> {
-  return element.kind === 'group';
-}
 
 /** 把分组结构拍平成线性导航项列表（用于按 index 切换页面） */
 export function flattenNavigationElements(elements: NavigationElement[]): NavigationItem[] {

@@ -26,9 +26,6 @@ export interface AviationTerm {
 }
 
 /** 用于搜索展示的复合字符串 */
-export function termDisplayValue(term: AviationTerm): string {
-  return `${term.chineseName} (${term.fullName})`;
-}
 
 /** 工具箱分区（对应 AppBar 侧边二级菜单的 6 个入口） */
 export type ToolboxSection =

@@ -15,19 +15,40 @@
 
 - **后端响应解析器单测**（24 例）：覆盖字段大小写混用、脏坐标剔除、`SFC` 语义、
   `hasDme` 严格布尔判定。已用变异测试确认 5 处关键行为被改坏后测试确实会红。
+- **气象报文解码单测**（15 例）：能见度的米制/英里制/分数写法、云幕只认
+  BKN/OVC/VV、飞行规则的分档边界值。
 
 ### 调整
 
 - **`map-store.ts` 抽出纯解析层**：9 个解析函数移入
   `modules/map/services/map-response-parsers.ts`，`map-store.ts` 由 1726 行降到 1524 行。
   解析器不再依赖 store，可被直接调用与测试，并纳入架构门禁的「纯计算」白名单。
+- **气象报文解码工具归位**：`map/providers/map-weather-utils.ts` →
+  `toolbox/services/metar-decode.ts`。原位置有两处不对：`providers/` 按分层约定放
+  Zustand store，而这些是纯函数；且 map 模块自己一处都没用，唯一消费方是 toolbox，
+  等于 toolbox 越界读 map 的内部实现，map 模块无法独立裁剪。
+- **地图几何基元合并**：`bearingDeg` 在 `approach-beam` 与 `papi-guidance` 里各有一份
+  逐字符相同的实现，`EARTH_RADIUS_NM` 也各写一遍，而 `holding-geometry` 为了拿
+  `destination` 得去 import「进近波束」。统一收进 `map/services/geo.ts`。
 
 ### 删除
 
-- 无。
+- **清理无人引用的导出**（14 处）：`calculateBearingDeg`（与 `bearingDeg` 重复实现）、
+  `pickArray`、`contrastRatio`、`isGroupElement`、`LocalizationKey`、`PENDING_SYNC_KEY`、
+  `airportDisplayName`、`termDisplayValue`、`MapDataSnapshot`、`MapRunwayApproach`、
+  `ConfigurableAlertId`、`resolveApproachRule`、`normalizeApproachRule`、
+  `APPROACH_RULE_COLOR`。
+- **`flightDataSelectors` 及其 4 个便捷 hook**：移植期照搬桌面版 `FlightDataProvider`
+  的 getter 代理，但全部 29 处订阅点都用的内联选择器，这套从未被采用。
 
 ### 修复
 
+- **气象解码把时间戳当成能见度**（用户可见）：`extractWorstVisibility` 的正则少了
+  两侧 `\b`，于是时间戳 `052300Z`、风组 `01004MPS`、跑道视程 `R36L/1200N`、
+  修正海压 `Q1024` 里的四位数字全被当成能见度候选 —— 而该函数取的是**最小值**。
+  结果是任何一份报文都会被风组数字判成 LIFR，连 `CAVOK`（能见度与云幕俱佳）
+  都会显示成 LIFR。同文件的 `decodeMetar` 一直用的是带 `\b` 的正确写法，
+  是这个 helper 抄漏了。
 - **架构门禁漏判副作用导入**：`scripts/check-architecture.mjs` 原先只匹配
   `from 'x'`，`import 'leaflet';` 这类副作用导入完全看不见 —— 铁律形同虚设。
   改为统一用 `importPattern()` 生成正则，同时覆盖 `from` / 裸 `import` / `require`。

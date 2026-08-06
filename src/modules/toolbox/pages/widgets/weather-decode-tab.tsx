@@ -8,7 +8,7 @@ import {
   parseCeilingFt,
   parseVisibilitySm,
   resolveRule,
-} from '../../../map/providers/map-weather-utils';
+} from '../../services/metar-decode';
 import { ToolboxLocalizationKeys as K } from '../../localization/toolbox-localization';
 import { ResultBlock } from './flight-calculators-tab';
 import styles from './toolbox-tabs.module.css';

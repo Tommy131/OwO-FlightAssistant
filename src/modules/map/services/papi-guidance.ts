@@ -5,6 +5,7 @@ import type {
   MapRunwayNavaid,
   MapSelectedAirportDetail,
 } from '../models/map-models';
+import { bearingDeg, distanceInNm } from './geo';
 
 /**
  * PAPI 目视进近坡度指示
@@ -61,7 +62,6 @@ const MAX_HEIGHT_FT = 3000;
 /** 与跑道方向的最大夹角（度）：偏太多说明不是冲着这条跑道来的 */
 const MAX_ALIGNMENT_DEG = 45;
 
-const EARTH_RADIUS_NM = 3440.065;
 const FT_PER_NM = 6076.12;
 
 /**
@@ -186,27 +186,6 @@ function heightAboveThreshold(
     return aircraft.altitude - navaid.elevationFt;
   }
   return null;
-}
-
-function distanceInNm(from: MapCoordinate, to: MapCoordinate): number {
-  const lat1 = (from.latitude * Math.PI) / 180;
-  const lat2 = (to.latitude * Math.PI) / 180;
-  const deltaLat = lat2 - lat1;
-  const deltaLon = ((to.longitude - from.longitude) * Math.PI) / 180;
-  const a =
-    Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-  return 2 * EARTH_RADIUS_NM * Math.asin(Math.min(1, Math.sqrt(a)));
-}
-
-function bearingDeg(from: MapCoordinate, to: MapCoordinate): number {
-  const lat1 = (from.latitude * Math.PI) / 180;
-  const lat2 = (to.latitude * Math.PI) / 180;
-  const deltaLon = ((to.longitude - from.longitude) * Math.PI) / 180;
-  const y = Math.sin(deltaLon) * Math.cos(lat2);
-  const x =
-    Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
 /** 两个方位角之间的夹角（0–180） */

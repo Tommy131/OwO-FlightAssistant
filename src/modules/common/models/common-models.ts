@@ -19,9 +19,6 @@ export interface AirportInfo {
 }
 
 /** 优先返回中文名称，无中文名则返回英文名 */
-export function airportDisplayName(airport: AirportInfo): string {
-  return airport.nameChinese.length > 0 ? airport.nameChinese : airport.name;
-}
 
 /** METAR 气象报文数据 */
 export interface LiveMetarData {

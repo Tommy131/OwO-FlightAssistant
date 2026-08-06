@@ -73,10 +73,3 @@ export function withAlpha(color: string, alpha: number): string {
 }
 
 /** WCAG 对比度（map 模块的 AI 机标签配色用到） */
-export function contrastRatio(a: string, b: string): number {
-  const la = computeLuminance(a);
-  const lb = computeLuminance(b);
-  const lighter = Math.max(la, lb);
-  const darker = Math.min(la, lb);
-  return (lighter + 0.05) / (darker + 0.05);
-}
