@@ -1,3 +1,4 @@
+import { usePlannedRouteStore } from '../../common/providers/planned-route-store';
 import { create } from 'zustand';
 import {
   mergeById,
@@ -156,7 +157,13 @@ export const useBriefingStore = create<BriefingState>((set, get) => ({
         distanceNm !== undefined ? Math.round((distanceNm / PLANNING_SPEED_KT) * 60) : undefined;
 
       // 3. 燃油计划
-      const fuel = buildFuelPlan({ distanceNm, hasAlternate: altBundle !== undefined });
+      // 有导入的 SimBrief 配载就用真实值，否则退回粗估
+      const fuel = buildFuelPlan({
+        distanceNm,
+        hasAlternate: altBundle !== undefined,
+        imported: usePlannedRouteStore.getState().plan?.fuel,
+        importedEnrouteSeconds: usePlannedRouteStore.getState().plan?.enrouteSeconds,
+      });
 
       // 4. 跑道：手填优先，否则按风向自动挑
       const depRunway = pickRunway(input.departureRunway, depBundle);

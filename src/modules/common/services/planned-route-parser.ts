@@ -81,6 +81,7 @@ function parsePlannedFuel(raw: unknown): PlannedFuel {
     contingency: pickDouble(map, ['contingency']),
     reserve: pickDouble(map, ['reserve']),
     taxi: pickDouble(map, ['taxi']),
+    extra: pickDouble(map, ['extra']),
   };
 }
 
@@ -120,6 +121,7 @@ export function parsePlannedRoute(raw: unknown): PlannedRoute | null {
     routeText: routeText.length > 0 ? routeText : undefined,
     distanceNm: pickDouble(map, ['route_distance_nm']),
     cruiseAltitudeFt: pickDouble(map, ['cruise_altitude_ft']),
+    enrouteSeconds: pickDouble(map, ['enroute_seconds']),
     points,
     fuel: parsePlannedFuel(map.fuel),
     // 后端给的是 Unix 秒

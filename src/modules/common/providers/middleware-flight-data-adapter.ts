@@ -747,6 +747,18 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
       destination.latitude,
       destination.longitude,
     );
+    /*
+     * 这里**刻意不使用**导入的 SimBrief 配载，两个原因：
+     *
+     * 1. 口径不同。本判定问的是「从当前位置飞到目的地还需多少油」，按实时距离重算；
+     *    而 OFP 的 plan_ramp 是**推出时**的总油量。飞到一半时机上油量本来就远少于
+     *    ramp fuel，拿它当门槛会一路误报「油量不足」。
+     * 2. 单位不同。模拟器读数经后端归一化为 KG（fuel_quantity_kg），
+     *    而 OFP 单位随用户设置，可能是 lbs —— 混用会让判定偏 2.2 倍。
+     *
+     * 真要用 OFP，正确的做法是拿 navlog 里每个点的 fuel_plan_onboard 与当前位置
+     * 匹配后比较，那是另一件事。
+     */
     const required = buildFuelPlanTotal(distanceNm, this.alternateAirport !== undefined);
     this.isFuelSufficient = fuelQuantity >= required;
   }

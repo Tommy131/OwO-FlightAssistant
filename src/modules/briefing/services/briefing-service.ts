@@ -3,6 +3,7 @@ import type {
   AirportDetailData,
   MetarData,
 } from '../../airport_search/models/airport-search-models';
+import type { PlannedFuel } from '../../common/models/planned-route-models';
 import type { BriefingAirportBundle, BriefingFuelPlan } from '../models/briefing-models';
 
 /**
@@ -17,15 +18,31 @@ import type { BriefingAirportBundle, BriefingFuelPlan } from '../models/briefing
 // 燃油计划
 // ──────────────────────────────────────────────────────────────────────────
 
+/** 本地估算沿用桌面版的单位 */
+const ESTIMATE_FUEL_UNITS = 'KG';
+
 /**
  * 构建燃油计划
- * 航段 = 距离 × 2.5；备降固定按 200NM 计；备份 1500；滑行 200；额外 5%
+ *
+ * 有导入的 SimBrief 配载就用真实值，否则退回按距离的粗估 ——
+ * 手填航班的用户不该看到一片空白。两者精度差着数量级，
+ * 因此结果带上 `source`，由简报正文标明来源。
+ *
+ * **单位不做换算**：SimBrief 给的是用户自己设置的那套（kg 或 lbs），
+ * 也就是他机上 FMS 用的那套；换算过去反而对不上，还平白损失精度。
  */
 export function buildFuelPlan(options: {
   distanceNm?: number;
   hasAlternate: boolean;
+  /** 已导入的 SimBrief 燃油计划；给了就优先用 */
+  imported?: PlannedFuel;
+  /** OFP 的计划航时（秒）；有它才能算出真实的平均油耗 */
+  importedEnrouteSeconds?: number;
 }): BriefingFuelPlan {
-  const { distanceNm, hasAlternate } = options;
+  const { distanceNm, hasAlternate, imported, importedEnrouteSeconds } = options;
+
+  const fromSimBrief = buildImportedFuelPlan(imported, importedEnrouteSeconds);
+  if (fromSimBrief) return fromSimBrief;
 
   const trip = (distanceNm ?? 0) * 2.5;
   const alternate = hasAlternate ? 200 * 2.5 : 0;
@@ -41,7 +58,65 @@ export function buildFuelPlan(options: {
       ? 2600
       : Math.min(Math.max(trip / (distanceNm / 450), 1800), 3400);
 
-  return { trip, alternate, reserve, taxi, extra, total, avgFlow, estimatedArrivalFuel };
+  return {
+    trip,
+    alternate,
+    reserve,
+    taxi,
+    extra,
+    total,
+    avgFlow,
+    estimatedArrivalFuel,
+    units: ESTIMATE_FUEL_UNITS,
+    source: 'estimate',
+  };
+}
+
+/**
+ * 把导入的 SimBrief 配载转成简报的燃油计划。
+ *
+ * 缺关键项（航段耗油或总油量）就返回 null 交回估算 —— 半真半估的一份数字
+ * 比全估的更危险：用户会以为整份都是真实配载。
+ */
+function buildImportedFuelPlan(
+  imported: PlannedFuel | undefined,
+  enrouteSeconds: number | undefined,
+): BriefingFuelPlan | null {
+  if (!imported) return null;
+  const trip = imported.enrouteBurn;
+  const total = imported.planRamp;
+  if (trip === undefined || total === undefined) return null;
+
+  const alternate = imported.alternateBurn ?? 0;
+  const reserve = imported.reserve ?? 0;
+  const taxi = imported.taxi ?? 0;
+  // SimBrief 把「余量」拆成 contingency 与 extra 两项，简报只有一栏，合并显示
+  const extra = (imported.contingency ?? 0) + (imported.extra ?? 0);
+
+  // 落地油量优先用 OFP 给的计划着陆油量；没有就退回「备份 + 备降」
+  const estimatedArrivalFuel = imported.planLanding ?? reserve + alternate;
+
+  // 平均小时油耗用 OFP 的**真实航时**算。
+  //
+  // 不要拿「距离 ÷ 假定速度」反推 —— 实测那样会差近一倍（KLAS→KLGB 那份
+  // OFP 真实航时 51.6 分，按 450kt 反推只有 27 分，油耗于是虚高到 14998
+  // 而非 7777 lbs/h）。在一堆真实数字里混一个估算值，比整份都是估算更误导。
+  // 没有航时就留 0，让界面显示 0 而不是编一个看起来合理的数。
+  const hours = enrouteSeconds !== undefined && enrouteSeconds > 0 ? enrouteSeconds / 3600 : 0;
+  const avgFlow = hours > 0 ? trip / hours : 0;
+
+  return {
+    trip,
+    alternate,
+    reserve,
+    taxi,
+    extra,
+    total,
+    avgFlow,
+    estimatedArrivalFuel,
+    units: (imported.units ?? '').trim().toUpperCase() || ESTIMATE_FUEL_UNITS,
+    source: 'simbrief',
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -151,14 +226,17 @@ export function buildBriefingSummary(options: {
     `DEP WX: ${formatWeatherLine(departure.metar)}`,
     `ARR WX: ${formatWeatherLine(arrival.metar)}`,
     `ALT WX: ${alternate ? formatWeatherLine(alternate.metar) : '--'}`,
-    `TRIP FUEL: ${fuel.trip.toFixed(0)} KG`,
-    `ALTN FUEL: ${fuel.alternate.toFixed(0)} KG`,
-    `RESV FUEL: ${fuel.reserve.toFixed(0)} KG`,
-    `TAXI FUEL: ${fuel.taxi.toFixed(0)} KG`,
-    `EXTRA FUEL: ${fuel.extra.toFixed(0)} KG`,
-    `TOTAL FUEL: ${fuel.total.toFixed(0)} KG`,
-    `AVG FLOW: ${fuel.avgFlow.toFixed(0)} KG/H`,
-    `ETA FUEL: ${fuel.estimatedArrivalFuel.toFixed(0)} KG`,
+    // 单位随来源，不做换算；来源必须标明 —— 真实配载与本地粗估差着数量级，
+    // 不写清楚用户没法判断能不能照着这份数字加油
+    `FUEL SRC: ${fuel.source === 'simbrief' ? 'SIMBRIEF OFP' : 'LOCAL ESTIMATE'}`,
+    `TRIP FUEL: ${fuel.trip.toFixed(0)} ${fuel.units}`,
+    `ALTN FUEL: ${fuel.alternate.toFixed(0)} ${fuel.units}`,
+    `RESV FUEL: ${fuel.reserve.toFixed(0)} ${fuel.units}`,
+    `TAXI FUEL: ${fuel.taxi.toFixed(0)} ${fuel.units}`,
+    `EXTRA FUEL: ${fuel.extra.toFixed(0)} ${fuel.units}`,
+    `TOTAL FUEL: ${fuel.total.toFixed(0)} ${fuel.units}`,
+    `AVG FLOW: ${fuel.avgFlow.toFixed(0)} ${fuel.units}/H`,
+    `ETA FUEL: ${fuel.estimatedArrivalFuel.toFixed(0)} ${fuel.units}`,
     '',
   ].join('\n');
 }

@@ -45,6 +45,7 @@ export interface PlannedFuel {
   readonly contingency?: number;
   readonly reserve?: number;
   readonly taxi?: number;
+  readonly extra?: number;
 }
 
 /** 一份导入的飞行计划 */
@@ -58,6 +59,8 @@ export interface PlannedRoute {
   readonly routeText?: string;
   readonly distanceNm?: number;
   readonly cruiseAltitudeFt?: number;
+  /** 计划航路航时（秒），取自 OFP —— 算真实平均油耗要用它 */
+  readonly enrouteSeconds?: number;
   readonly points: readonly PlannedRoutePoint[];
   readonly fuel: PlannedFuel;
   /** OFP 生成时间；用来提示「这份计划有多旧」 */
