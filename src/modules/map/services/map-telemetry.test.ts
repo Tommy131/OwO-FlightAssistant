@@ -3,7 +3,6 @@ import {
   appendRoutePoint,
   buildAirportsFromSnapshot,
   distanceInMeters,
-  MAX_ROUTE_POINTS,
   MIN_ROUTE_POINT_DISTANCE_M,
 } from './map-telemetry';
 import type { FlightDataSnapshot } from '../../common/models/common-models';
@@ -73,17 +72,20 @@ describe('appendRoutePoint', () => {
     });
   });
 
-  it('超过上限时从头裁剪，保留最新的点', () => {
-    const route: MapRoutePoint[] = Array.from({ length: MAX_ROUTE_POINTS }, (_, i) => ({
+  it('不设点数上限 —— 长航线不能丢掉前半程', () => {
+    // 300ms 轮询下巡航时每点间隔约 69m，旧的 4000 点上限只够约 20 分钟。
+    // 抑制刷点靠的是最小间距过滤，不是砍历史。
+    const size = 50_000;
+    const route: MapRoutePoint[] = Array.from({ length: size }, (_, i) => ({
       latitude: i,
       longitude: 0,
       timestamp: new Date(),
     }));
 
     const result = appendRoutePoint(route, aircraft(99, 99), null);
-    expect(result.route).toHaveLength(MAX_ROUTE_POINTS);
-    // 最老的那个点被丢掉，最新的在末尾
-    expect(result.route[0].latitude).toBe(1);
+    expect(result.route).toHaveLength(size + 1);
+    // 第一个点必须还在 —— 起飞那一段不能被裁掉
+    expect(result.route[0].latitude).toBe(0);
     expect(result.route[result.route.length - 1].latitude).toBe(99);
   });
 

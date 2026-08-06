@@ -16,9 +16,6 @@ import type {
 } from '../models/map-models';
 import { isValidCoordinate } from './map-response-parsers';
 
-/** 航迹最多保留的点数，超出后从头裁剪 */
-export const MAX_ROUTE_POINTS = 4000;
-
 /** 距上一点不足此距离就不记新点，避免停机时把航迹刷爆 */
 export const MIN_ROUTE_POINT_DISTANCE_M = 30;
 
@@ -79,12 +76,10 @@ export function appendRoutePoint(
     },
   ];
 
-  return {
-    route:
-      next.length > MAX_ROUTE_POINTS ? next.slice(next.length - MAX_ROUTE_POINTS) : next,
-    lastPoint: position,
-    appended: true,
-  };
+  // 不设点数上限：300ms 轮询下巡航时每点间隔约 69m，4000 点只够 20 分钟，
+  // 长航线会把前半程整段丢掉。抑制刷点靠的是上面的最小间距过滤，不是砍历史。
+  // 代价是航迹会一直变长，所以渲染侧必须增量追加而非整条重建（见 map-canvas）。
+  return { route: next, lastPoint: position, appended: true };
 }
 
 /**

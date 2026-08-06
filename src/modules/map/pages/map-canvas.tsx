@@ -9,6 +9,7 @@ import {
   mapTileUrl,
   type MapAirportMarker,
   type MapCoordinate,
+  type MapRoutePoint,
 } from '../models/map-models';
 import {
   useMapStore,
@@ -67,6 +68,25 @@ const RADAR_MAX_NATIVE_ZOOM = 7;
  */
 const OVERLAY_MAX_NATIVE_ZOOM = 9;
 
+/**
+ * 单段航迹的点数上限
+ *
+ * 航迹本身不限长，但 Leaflet 每次 addLatLng 都会把所在 polyline 的全部点
+ * 重新投影一遍。分段之后，每帧的重投影量就被钉死在这个数以内，与总长无关。
+ * 取 500：段太小则 polyline 对象过多，太大则单帧开销回升。
+ */
+const ROUTE_SEGMENT_POINTS = 500;
+
+const ROUTE_STYLE = { color: '#2a78d6', weight: 3, opacity: 0.85 } as const;
+
+/** 建一段航迹线 */
+function newRouteSegment(points: readonly MapRoutePoint[]): L.Polyline {
+  return L.polyline(
+    points.map((point) => [point.latitude, point.longitude] as [number, number]),
+    ROUTE_STYLE,
+  );
+}
+
 export function MapCanvas({
   onAirportClick,
   onMapClick,
@@ -78,12 +98,18 @@ export function MapCanvas({
   const mapRef = useRef<L.Map | null>(null);
 
   // 各图层句柄，便于增量更新
+  /** 航迹渲染进度：分段句柄 + 已画点数（靠首元素引用判断是不是同一条航迹） */
+  const routeRenderedRef = useRef<{
+    segments: L.Polyline[];
+    count: number;
+    head?: MapRoutePoint;
+  }>({ segments: [], count: 0 });
+
   const layersRef = useRef<{
     base?: L.TileLayer;
     reference?: L.TileLayer;
     radar?: L.TileLayer;
     overlays: Partial<Record<'rain' | 'pressure' | 'wind' | 'temp', L.TileLayer>>;
-    route?: L.Polyline;
     aircraft?: L.Marker;
     aiGroup?: L.LayerGroup;
     airportGroup?: L.LayerGroup;
@@ -211,6 +237,9 @@ export function MapCanvas({
       map.remove();
       mapRef.current = null;
       layersRef.current = { overlays: {} };
+      // map.remove() 已经销毁了所有图层，这里必须一并丢掉航迹分段的句柄，
+      // 否则重新挂载时会拿着一堆失效的 polyline 继续往里 addLatLng
+      routeRenderedRef.current = { segments: [], count: 0 };
     };
   }, []);
 
@@ -512,14 +541,60 @@ export function MapCanvas({
       if (!map) return;
       if (state.route === previous.route && state.showRoute === previous.showRoute) return;
 
-      layersRef.current.route?.remove();
-      layersRef.current.route = undefined;
-      if (!state.showRoute || state.route.length < 2) return;
+      const rendered = routeRenderedRef.current;
 
-      layersRef.current.route = L.polyline(
-        state.route.map((point) => [point.latitude, point.longitude] as [number, number]),
-        { color: '#2a78d6', weight: 3, opacity: 0.85 },
-      ).addTo(map);
+      if (!state.showRoute || state.route.length < 2) {
+        for (const segment of rendered.segments) segment.remove();
+        routeRenderedRef.current = { segments: [], count: 0, head: undefined };
+        return;
+      }
+
+      // 航迹没有点数上限，一次长航线能到十万点级别。这里不能整条重建 ——
+      // 那是 O(n) per tick，会把 UI 拖死，也违反 NFR-3。
+      //
+      // 但**只把新点 addLatLng 进去同样是 O(n)**：Leaflet 的 addLatLng 内部会
+      // 调 redraw()，把整条线的所有点重新投影一遍。实测 6000 点时单帧渲染开销
+      // 从 0.08ms 一路涨到 0.93ms，跟整条重建没有区别。
+      //
+      // 真正有效的办法是**分段**：写满的段就此冻结、再也不碰，只有末尾这一段
+      // 在长。于是每帧的重投影量被钉死在 ROUTE_SEGMENT_POINTS 以内，与航迹
+      // 总长无关。相邻段共用一个点，接缝处才不会断开。
+      const sameTrack =
+        rendered.count > 0 &&
+        state.route.length >= rendered.count &&
+        state.route[0] === rendered.head;
+
+      if (!sameTrack) {
+        // 清空 / 重连 / 载入别的航迹：整条重画（只发生一次，不在热路径上）
+        for (const segment of rendered.segments) segment.remove();
+        const segments: L.Polyline[] = [];
+        for (let start = 0; start < state.route.length - 1; start += ROUTE_SEGMENT_POINTS - 1) {
+          const chunk = state.route.slice(start, start + ROUTE_SEGMENT_POINTS);
+          segments.push(newRouteSegment(chunk).addTo(map));
+        }
+        routeRenderedRef.current = {
+          segments,
+          count: state.route.length,
+          head: state.route[0],
+        };
+        return;
+      }
+
+      // 同一条航迹在生长：只往末段追加；末段写满就冻结它、另起一段
+      const segments = rendered.segments;
+      for (let i = rendered.count; i < state.route.length; i++) {
+        const active = segments[segments.length - 1];
+        const point = state.route[i];
+        if (!active || active.getLatLngs().length >= ROUTE_SEGMENT_POINTS) {
+          // 新段从上一段的末点起头，避免接缝断开
+          const previousPoint = state.route[i - 1];
+          const seed = previousPoint ? [previousPoint, point] : [point];
+          segments.push(newRouteSegment(seed).addTo(map));
+        } else {
+          active.addLatLng([point.latitude, point.longitude]);
+        }
+      }
+      routeRenderedRef.current = { segments, count: state.route.length, head: state.route[0] };
     }),
   []);
 
