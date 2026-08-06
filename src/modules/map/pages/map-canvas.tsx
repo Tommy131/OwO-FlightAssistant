@@ -20,6 +20,7 @@ import {
   weatherOverlayTileUrl,
   weatherRadarTileUrl,
 } from '../providers/map-store';
+import { escapeHtml } from '../../../core/utils/escape-html';
 import { computeAirportOutline } from '../services/airport-outline';
 import { buildApproachBeam, type ApproachBeamKind } from '../services/approach-beam';
 import { buildHoldingGeometry } from '../services/holding-geometry';
@@ -476,7 +477,7 @@ export function MapCanvas({
         })
           .bindTooltip(
             [
-              zone.name || zone.id,
+              escapeHtml(zone.name || zone.id),
               zone.lowerAltitudeFt !== undefined && zone.upperAltitudeFt !== undefined
                 ? `${zone.lowerAltitudeFt}–${zone.upperAltitudeFt} ft`
                 : null,
@@ -622,7 +623,7 @@ export function MapCanvas({
           },
         )
           .bindTooltip(
-            [segment.name, segment.speedLimitKt ? `${segment.speedLimitKt}kt` : null]
+            [segment.name ? escapeHtml(segment.name) : null, segment.speedLimitKt ? `${segment.speedLimitKt}kt` : null]
               .filter(Boolean)
               .join(' · ') || `#${index + 1}`,
           )
@@ -696,7 +697,7 @@ function airportMarkerHtml(
     <span style="width:${dot}px;height:${dot}px;border-radius:50%;background:${fill};border:2px solid ${strokeColor};box-shadow:0 1px 3px rgba(0,0,0,.5)"></span>
     ${
       airport.isPrimary
-        ? `<span style="font-size:9px;font-weight:700;color:${strokeColor === '#ffffff' ? '#fff' : '#111'};text-shadow:0 1px 2px rgba(0,0,0,.7);white-space:nowrap">${airport.code}</span>`
+        ? `<span style="font-size:9px;font-weight:700;color:${strokeColor === '#ffffff' ? '#fff' : '#111'};text-shadow:0 1px 2px rgba(0,0,0,.7);white-space:nowrap">${escapeHtml(airport.code)}</span>`
         : ''
     }
   </div>`;
@@ -856,7 +857,7 @@ function renderAeroway(map: L.Map, group: L.LayerGroup | undefined): void {
       lineJoin: 'round',
       interactive: false,
     })
-      .bindTooltip(feature.ref ?? feature.name ?? '', { sticky: true })
+      .bindTooltip(escapeHtml(feature.ref ?? feature.name ?? ''), { sticky: true })
       .addTo(group);
   }
 
@@ -1085,7 +1086,7 @@ function renderAirportDetail(map: L.Map, group: L.LayerGroup | undefined): void 
         interactive: false,
       },
     )
-      .bindTooltip(detail.marker.code, { sticky: true })
+      .bindTooltip(escapeHtml(detail.marker.code), { sticky: true })
       .addTo(group);
   }
 
@@ -1117,7 +1118,7 @@ function renderAirportDetail(map: L.Map, group: L.LayerGroup | undefined): void 
         dashArray: '10 12',
       })
         .bindTooltip(
-          [runway.ident, runway.lengthM ? `${Math.round(runway.lengthM)}m` : null]
+          [escapeHtml(runway.ident), runway.lengthM ? `${Math.round(runway.lengthM)}m` : null]
             .filter(Boolean)
             .join(' · '),
           { sticky: true },
@@ -1451,14 +1452,6 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /** 机场名/停机位名来自后端，插进 innerHTML 前必须转义 */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 /** 空域严重度配色，与中间件返回的 severity 字段对应 */
 const AIRSPACE_SEVERITY_COLOR: Record<string, string> = {
   critical: '#d03b3b',

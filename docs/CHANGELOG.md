@@ -61,6 +61,14 @@
 
 ### 修复
 
+- **地图图层有 6 处外部文本未转义就进了 innerHTML**（NFR-6）：Leaflet 的
+  `divIcon` 与 `bindTooltip` 传字符串时内部都是 `node.innerHTML = content`，
+  所以这两处都是 XSS 落点。文本来源并不都可信 —— 滑行道要素的 `ref`/`name`
+  来自 **OpenStreetMap**（任何人可编辑），自绘滑行道的 `segment.name` 可由用户
+  **从 JSON 文件导入**（别人分享的文件同样能带脚本）。同一个 `airport.code`
+  在一个渲染器里转义、另一个里没转义，正是这类不一致的典型。
+  6 处已全部走 `escapeHtml`，该函数移到 `core/utils/escape-html.ts` 并补 6 例单测
+  （含「`&` 必须最先替换」这条容易改错的顺序约束），另补上了单引号转义。
 - **`String(x ?? '')` 会把类型不对的字段伪装成合法字符串**：后端字段是 `unknown`，
   真传来对象时 `String()` 得到 `"[object Object]"` —— 非空，于是调用方随后的
   `.trim().length === 0` 判空永远不成立，脏数据一路流进界面。全项目 45 处已改用
