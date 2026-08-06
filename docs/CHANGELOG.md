@@ -27,6 +27,14 @@
 
 ### 调整
 
+- **`map-canvas.tsx` 按图层职责拆开**（1467 → 709 行）：新增 `pages/layers/`，
+  地面结构、视野内机场、机场详情三组渲染各自成文件，共享的配色与 z 序常量
+  收进 `layers/layer-style.ts`；纯 HTML 构造抽到 `services/map-marker-html.ts`
+  （不依赖 Leaflet，可单测）。组件自身只保留「什么时候画」。
+  搬运是逐字符的，函数体一行未改。
+- **`clamp` 从三处收敛到一处**：`core/theme/color-utils.ts`、`map-canvas.tsx`、
+  `map/services/holding-geometry.ts` 各写了一份实现等价的版本，
+  统一到 `core/utils/math-utils.ts`。
 - **`map-store.ts` 再抽出三个规则引擎**：`services/flight-alerts.ts`（告警判定）、
   `services/hud-timer-rules.ts`（计时器启停判定）、`services/map-telemetry.ts`
   （航迹累积与机场标记）。三者此前都读整个 `MapState`、且航迹依赖模块级可变量

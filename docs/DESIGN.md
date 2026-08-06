@@ -95,6 +95,22 @@ flowchart TD
   互相 import 对方的 `providers/`（那是别人的内部状态），否则模块就不可独立裁剪了。
   `scripts/check-architecture.mjs` 守前两条，第三条目前靠评审。
 
+### 3.2.1 地图图层的组织
+
+`map-canvas.tsx` 只回答「**什么时候画**」（React 副作用 + Leaflet 生命周期），
+具体「**怎么画**」按图层职责拆在 `pages/layers/` 下：
+
+| 文件 | 职责 |
+|---|---|
+| `layers/layer-style.ts` | 跨图层共享的配色与 z 序常量 |
+| `layers/aeroway-layer.ts` | 地面结构：跑道道面/滑行道/停机坪 |
+| `layers/nearby-airports-layer.ts` | 视野内机场 pin 与轮廓 |
+| `layers/airport-detail-layer.ts` | 选中机场：跑道/停机位/进近波束/等待航线 |
+| `services/map-marker-html.ts` | 纯 HTML 构造（不依赖 Leaflet，可单测） |
+
+> Leaflet 的 `divIcon` 与 `bindTooltip` 传字符串时内部都是 `innerHTML`，
+> 所以 `map-marker-html.ts` 与各图层凡拼接外部文本处**一律走 `escapeHtml`**。
+
 ### 3.3 模块注册表（微内核）
 
 11 张注册表位于 `core/module-registry/`：导航、路由、设置页、Provider 绑定、
@@ -162,7 +178,7 @@ flowchart TD
 
 | 差距 | 现状 | 为什么先不动 |
 |---|---|---|
-| §5.1 单文件 ~400 行 | 17 个文件超标，最大 `map-canvas.tsx` 1474 行、`map-store.ts` 1364 行 | 按「先测试后重构」的顺序推进中：`map-store` 已抽出解析层（`map-response-parsers`）与三个规则引擎（`flight-alerts` / `hud-timer-rules` / `map-telemetry`），每步都先补测试再搬，1726 → 1364 行。剩余是 Zustand 状态与图层副作用 |
+| §5.1 单文件 ~400 行 | 17 个文件超标，最大 `map-store.ts` 1364 行、`middleware-flight-data-adapter.ts` 1047 行、`map-page.tsx` 1026 行 | 按「先测试后重构」推进中。`map-canvas.tsx` 已按图层职责拆开（1467 → 709 行，见 `pages/layers/`）；`map-store.ts` 已抽出解析层与三个规则引擎（1726 → 1364 行）。剩余部分是 Zustand 状态与 React 副作用，缺 UI 测试保护，暂不动 |
 | §10 测试 | 纯计算、响应解析、报文解码与解析工具已覆盖（Vitest，128 例）；**UI 与 store 编排仍无测试** | 组件测试要引 jsdom 与 testing-library，成本高于收益；先把最容易出错的几何与解析锁住 |
 | §7 i18n 覆盖 | de_DE **0/987**，11 个模块全部只有 zh/en | 有「当前语言 → en_US → key」回退链兜底，界面显示英文而非崩坏。航空术语机翻质量不可控，宁可留空也不要错译 |
 

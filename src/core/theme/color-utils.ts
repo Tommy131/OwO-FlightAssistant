@@ -5,6 +5,8 @@
  * 使主题生成结果与桌面版保持像素级一致。
  */
 
+import { clamp } from '../utils/math-utils';
+
 export interface Rgb {
   r: number;
   g: number;
@@ -29,9 +31,6 @@ export function toHex({ r, g, b }: Rgb): string {
   return `#${h(r)}${h(g)}${h(b)}`;
 }
 
-export function clamp(value: number, min: number, max: number): number {
-  return value < min ? min : value > max ? max : value;
-}
 
 /** 线性插值，等价于 Flutter 的 `Color.lerp(a, b, t)` */
 export function lerpColor(a: string | Rgb, b: string | Rgb, t: number): string {

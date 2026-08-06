@@ -1,3 +1,4 @@
+import { clamp } from '../../../core/utils/math-utils';
 import type { MapCoordinate, MapHoldingPattern } from '../models/map-models';
 import { destination } from './geo';
 
@@ -121,6 +122,3 @@ function turnArc(
   return points;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
