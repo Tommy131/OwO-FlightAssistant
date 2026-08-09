@@ -20,6 +20,15 @@ export const AEROWAY_MIN_ZOOM = 12;
 export const TAXIWAY_REF_MIN_ZOOM = 14;
 
 /**
+ * 有滑行引导时，其余地面结构压暗到这个比例。
+ *
+ * 大机场一屏几百条滑行道，全是同一种黄，规划出来的那条橙线混在里面
+ * 一眼找不着。这里压暗而不是隐藏：路网仍要看得见 —— 用户得判断
+ * 「我该在哪个路口转」，把周围全藏掉反而失去参照。
+ */
+const AEROWAY_DIM_FACTOR = 0.3;
+
+/**
  * 画机场地面结构
  *
  * 数据来自 OSM 的 aeroway 标签，只有跑道、滑行道、停机坪，
@@ -38,6 +47,10 @@ export function renderAeroway(map: L.Map, group: L.LayerGroup | undefined): void
   if (zoom < AEROWAY_MIN_ZOOM) return;
   const scale = clamp(2 ** (zoom - 15), 0.35, 2.2);
   const showRefs = zoom >= TAXIWAY_REF_MIN_ZOOM;
+
+  // 有规划出来的滑行路线时让路：其余地面结构整体压暗，把注意力让给那条橙线
+  const dimmed = state.showTaxiGuidance && state.taxiPlan !== null;
+  const fade = (value: number) => (dimmed ? value * AEROWAY_DIM_FACTOR : value);
 
   // 视野外的要素一概不画：同时缓存了几个机场时，
   // 不裁剪会往 DOM 里塞几千条根本看不到的线。
@@ -69,9 +82,9 @@ export function renderAeroway(map: L.Map, group: L.LayerGroup | undefined): void
         stroke: true,
         color: AEROWAY_COLORS.apronStroke,
         weight: 1,
-        opacity: 0.6,
+        opacity: fade(0.6),
         fillColor: AEROWAY_COLORS.apronFill,
-        fillOpacity: 0.5,
+        fillOpacity: fade(0.5),
         interactive: false,
       }).addTo(group);
       continue;
@@ -82,7 +95,7 @@ export function renderAeroway(map: L.Map, group: L.LayerGroup | undefined): void
         pane: 'aeroway',
         color: AEROWAY_COLORS.helipad,
         weight: clamp(2.4 * scale, 1, 5),
-        opacity: 0.85,
+        opacity: fade(0.85),
         interactive: false,
       }).addTo(group);
       continue;
@@ -98,7 +111,7 @@ export function renderAeroway(map: L.Map, group: L.LayerGroup | undefined): void
       pane: 'aeroway',
       color: AEROWAY_COLORS.taxiwayCasing,
       weight: pavementWidth,
-      opacity: isLane ? 0.55 : 0.75,
+      opacity: fade(isLane ? 0.55 : 0.75),
       lineCap: 'round',
       lineJoin: 'round',
       interactive: false,
@@ -107,7 +120,7 @@ export function renderAeroway(map: L.Map, group: L.LayerGroup | undefined): void
       pane: 'aeroway',
       color: isLane ? AEROWAY_COLORS.taxilane : AEROWAY_COLORS.taxiway,
       weight: coreWidth,
-      opacity: isLane ? 0.85 : 1,
+      opacity: fade(isLane ? 0.85 : 1),
       lineCap: 'round',
       lineJoin: 'round',
       interactive: false,
@@ -116,7 +129,7 @@ export function renderAeroway(map: L.Map, group: L.LayerGroup | undefined): void
       .addTo(group);
   }
 
-  if (showRefs) renderTaxiwayRefs(group, sorted, zoom);
+  if (showRefs) renderTaxiwayRefs(group, sorted, zoom, dimmed);
 }
 
 /**
@@ -130,6 +143,7 @@ export function renderTaxiwayRefs(
   group: L.LayerGroup,
   features: MapAerowayFeature[],
   zoom: number,
+  dimmed = false,
 ): void {
   const longest = new Map<string, { feature: MapAerowayFeature; length: number }>();
 
@@ -154,7 +168,9 @@ export function renderTaxiwayRefs(
     L.marker([middle.latitude, middle.longitude], {
       icon: L.divIcon({
         className: 'owo-map-autolabel',
+        // 线压暗了牌子还亮着的话，注意力反而全被牌子勾走
         html: `<div style="position:absolute;left:0;top:0;transform:translate(-50%,-50%);
+          opacity:${dimmed ? 0.35 : 1};
           padding:1px 5px;border-radius:2px;
           background:${TAXIWAY_SIGN.background};
           border:1px solid ${isLane ? TAXIWAY_SIGN.laneBorder : TAXIWAY_SIGN.border};

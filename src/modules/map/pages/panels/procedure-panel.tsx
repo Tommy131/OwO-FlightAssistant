@@ -97,6 +97,7 @@ export function ProcedurePanel() {
             value={kind}
             size="sm"
             block
+            className={styles.procedureTabs}
             onChange={setKind}
             options={KIND_ORDER.map((item) => ({
               value: item,

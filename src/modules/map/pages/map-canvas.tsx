@@ -606,6 +606,8 @@ export function MapCanvas({
         state.showTaxiGuidance,
         taxiLabelsOf(state),
       );
+      // 地面结构要跟着改弱化状态：有路线时压暗，清掉后恢复
+      renderAeroway(map, layersRef.current.aerowayGroup);
     }),
   []);
 

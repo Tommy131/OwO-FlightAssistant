@@ -73,6 +73,18 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    /*
+     * 测试环境
+     *
+     * 默认 node：两百多个纯函数用例不该白白背上 DOM 的启动开销。
+     * 需要 DOM 的测试在文件顶部写 `// @vitest-environment jsdom` 自行声明 ——
+     * 比在这里配目录 glob 更直白，也不会随 vitest 版本变动失效
+     * （`environmentMatchGlobs` 在 vitest 3 已废弃）。
+     */
+    test: {
+      environment: 'node',
+      setupFiles: ['./src/test-setup.ts'],
+    },
     build: {
       target: 'es2022',
       chunkSizeWarningLimit: 1200,

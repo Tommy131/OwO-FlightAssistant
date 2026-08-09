@@ -913,6 +913,17 @@
   background: var(--color-on-surface-a04);
 }
 
+/*
+ * 面板里的分段控件不能被纵向压扁。
+ *
+ * .procedurePanel 是纵向 flex 且有 max-height，内容超高时 flex 子项会沿主轴
+ * （这里就是纵向）收缩。可滚动的列表本来就该收缩，但页签不行 ——
+ * 被压到比行高还矮，字就被裁掉了。
+ */
+.procedureTabs {
+  flex-shrink: 0;
+}
+
 /* ── 地面滑行引导面板 ── */
 
 .taxiPanel {
