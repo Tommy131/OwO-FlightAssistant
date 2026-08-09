@@ -10,15 +10,20 @@ import { MiddlewareHttpException, MiddlewareHttpResponse } from '../models/http-
  *
  * ── Web 适配说明（CORS）──
  * 浏览器不能直接跨源请求 `http://127.0.0.1:18080`。
- * 因此默认 baseUrl 改为同源代理前缀 `/mw-api`，由 Vite dev server 转发（见 vite.config.ts）。
+ * 开发下默认 baseUrl 是同源代理前缀 `/mw-api`，由 Vite dev server 转发（见 vite.config.ts）。
  * 用户仍可在「中间件设置」里改成任意绝对地址 —— 此时需要中间件自身下发 CORS 头。
+ *
+ * ⚠️ 构建产物由中间件自己内嵌托管，接口就在**同源根路径**下，此时绝不能带 `/mw-api`：
+ * 中间件对未知路径一律回落到 SPA 的 index.html，于是 `/mw-api/...` 会拿到
+ * **HTTP 200 + 一段 HTML**。状态码是 200，健康检查照样「通过」，
+ * 界面显示已连接，可每个接口都解析不出数据 —— 这种失败一声不吭，最难查。
  */
 
 const BASE_URL_KEY = 'middleware_http_base_url';
 const WEBSOCKET_BASE_URL_KEY = 'middleware_ws_base_url';
 const TIMEOUT_MS_KEY = 'middleware_http_timeout_ms';
 
-/** 同源代理前缀（开发与同源部署下的默认值） */
+/** 同源代理前缀（仅开发下的默认值） */
 export const PROXY_HTTP_PREFIX = '/mw-api';
 export const PROXY_WS_PATH = '/mw-ws';
 
@@ -26,7 +31,38 @@ export const PROXY_WS_PATH = '/mw-ws';
 export const DESKTOP_DEFAULT_BASE_URL = 'http://127.0.0.1:18080';
 export const DESKTOP_DEFAULT_WS_BASE_URL = 'ws://127.0.0.1:18081/api/v1/simulator/ws';
 
-const DEFAULT_BASE_URL = PROXY_HTTP_PREFIX;
+/** 内嵌托管时 WS 与 HTTP 的端口差（18080 → 18081），沿用桌面版约定 */
+const WS_PORT_OFFSET = 1;
+
+/**
+ * 默认 HTTP 基址。
+ *
+ * 开发下走 Vite 代理前缀，内嵌托管下必须是空串（同源根路径，见文件头的警告）。
+ * 抽成纯函数是为了能直接测两种模式 —— 这个判断错了不会报错，只会静默失灵。
+ */
+export function defaultBaseUrl(isDev: boolean): string {
+  return isDev ? PROXY_HTTP_PREFIX : '';
+}
+
+/**
+ * 默认 WS 地址。
+ *
+ * 开发下走 Vite 的 `/mw-ws` 代理；内嵌托管下 WS 与 HTTP 不同端口，
+ * 按端口 +1 从当前页面地址推出来，这样换主机部署也不用手改设置。
+ */
+export function defaultWebSocketUrl(
+  isDev: boolean,
+  location: { protocol: string; host: string; hostname: string; port: string } | null,
+): string {
+  if (!location) return DESKTOP_DEFAULT_WS_BASE_URL;
+  const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+  if (isDev) return `${scheme}://${location.host}${PROXY_WS_PATH}`;
+  const httpPort = Number(location.port);
+  const port = Number.isFinite(httpPort) && httpPort > 0 ? httpPort + WS_PORT_OFFSET : 18081;
+  return `${scheme}://${location.hostname}:${port}/api/v1/simulator/ws`;
+}
+
+const DEFAULT_BASE_URL = defaultBaseUrl(import.meta.env.DEV);
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 class MiddlewareHttpServiceImpl {
@@ -222,8 +258,27 @@ class MiddlewareHttpServiceImpl {
   // 具体 API（与桌面版逐一对应）
   // ──────────────────────────────────────────────────────────────────────────
 
-  getHealth(): Promise<MiddlewareHttpResponse> {
-    return this.get('/health');
+  /**
+   * 健康检查
+   *
+   * 只看状态码是不够的：baseUrl 指错时中间件会把请求当成前端路由，
+   * 回落到 SPA 的 index.html —— HTTP 200，内容是 HTML。
+   * 于是「连接正常」，可每个接口都取不到数据。
+   * 这里必须验到响应确实是个 JSON 对象，才算连上的是中间件。
+   */
+  async getHealth(): Promise<MiddlewareHttpResponse> {
+    const response = await this.get('/health');
+    if (!response.objectBody) {
+      AppLogger.warning(
+        `[Http] /health 返回的不是 JSON，baseUrl 可能指错了：${this.baseUrlValue || '(同源)'}`,
+      );
+      throw new MiddlewareHttpException({
+        message: 'health check returned non-JSON body',
+        statusCode: response.statusCode,
+        uri: response.uri,
+      });
+    }
+    return response;
   }
 
   getVersion(): Promise<MiddlewareHttpResponse> {
@@ -270,6 +325,13 @@ class MiddlewareHttpServiceImpl {
     if (userId) queryParameters.userid = userId;
     else if (username) queryParameters.username = username;
     return this.get('/api/v1/simbrief/fetch', { queryParameters });
+  }
+
+  /** 某机场公布的 SID / STAR / 进近程序航段（后端解析 CIFP 并补齐坐标） */
+  getAirportProcedures(icao: string): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/procedure/query', {
+      queryParameters: { icao: normalizeIcao(icao) },
+    });
   }
 
   /** 机场跑道/滑行道/停机坪矢量（后端代 Overpass 查询并缓存） */
@@ -571,9 +633,9 @@ class MiddlewareHttpServiceImpl {
     const normalizedPath = path.trim().length === 0 ? '/' : path.trim();
     const base = this.baseUrlValue;
 
-    // 相对前缀（代理模式）：直接拼接
+    // 相对基址（空串＝同源根路径，`/mw-api` ＝开发代理）：直接拼接
     let full: string;
-    if (base.startsWith('/')) {
+    if (base.length === 0 || base.startsWith('/')) {
       const left = base.replace(/\/+$/, '');
       const right = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
       full = `${left}${right}`;
@@ -659,7 +721,8 @@ function resolveClientReachableHost(host: string, baseUrl: string): string {
 
 /** 由 HTTP baseUrl 推导 WS 地址（端口 +1，路径固定），与桌面版一致 */
 function deriveWebSocketUrlFromBase(baseUrl: string): string {
-  if (baseUrl.startsWith('/')) return deriveDefaultWebSocketUrl();
+  // 相对基址（含同源根路径）没有主机可取，只能从页面地址推
+  if (baseUrl.length === 0 || baseUrl.startsWith('/')) return deriveDefaultWebSocketUrl();
   try {
     const uri = new URL(baseUrl);
     const scheme = uri.protocol === 'https:' ? 'wss' : 'ws';
@@ -670,11 +733,10 @@ function deriveWebSocketUrlFromBase(baseUrl: string): string {
   }
 }
 
-/** 同源代理下的 WS 地址（由页面协议推导 ws/wss） */
+/** 由当前页面地址推导 WS 地址 */
 function deriveDefaultWebSocketUrl(): string {
   if (typeof window === 'undefined') return DESKTOP_DEFAULT_WS_BASE_URL;
-  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${scheme}://${window.location.host}${PROXY_WS_PATH}`;
+  return defaultWebSocketUrl(import.meta.env.DEV, window.location);
 }
 
 function buildProxyWebSocketUrl(token: string): string {
