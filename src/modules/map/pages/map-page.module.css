@@ -780,6 +780,139 @@
   background: var(--color-primary);
 }
 
+/* ── 公布程序面板 ── */
+
+.procedurePanel {
+  position: absolute;
+  right: var(--space-md);
+  bottom: var(--space-md);
+  z-index: 555;
+  width: min(280px, calc(100% - 2 * var(--space-md)));
+  max-height: 58%;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  overflow: hidden;
+  border-radius: 18px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface) 78%, transparent),
+    color-mix(in srgb, var(--color-background) 82%, transparent)
+  );
+  border: 1px solid var(--color-primary-a30);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  animation: slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.procedureHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.procedureTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.procedureAirport {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.procedureHint {
+  padding: 14px 4px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.procedureSearch {
+  flex-shrink: 0;
+}
+
+.procedureList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.procedureRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.procedureRow:hover {
+  background: var(--color-on-surface-a08);
+}
+
+.procedureRowActive {
+  font-weight: 700;
+}
+
+.procedureName {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.procedureTransition {
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--color-on-surface-a08);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+
+.procedureLegs {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.procedureClear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.procedureClear:hover {
+  background: var(--color-on-surface-a04);
+}
+
 /* ── 移动端：控件让位给地图 ── */
 
 @media (max-width: 649px) {
@@ -812,5 +945,18 @@
     bottom: var(--space-sm);
     width: auto;
     max-height: 58%;
+  }
+
+  /*
+   * 窄屏放不下并排的两张卡。程序面板是用户主动打开的，
+   * 让它盖在机场卡之上（面板自带关闭按钮，关掉就回到机场卡）。
+   */
+  .procedurePanel {
+    left: var(--space-sm);
+    right: var(--space-sm);
+    bottom: var(--space-sm);
+    z-index: 565;
+    width: auto;
+    max-height: 56%;
   }
 }

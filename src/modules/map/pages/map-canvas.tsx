@@ -9,6 +9,7 @@ import {
   mapTileUrl,
   type MapAirportMarker,
   type MapCoordinate,
+  type MapProcedure,
   type MapRoutePoint,
 } from '../models/map-models';
 import {
@@ -37,6 +38,7 @@ import {
 } from './layers/airport-detail-layer';
 import { usePlannedRouteStore } from '../../common/providers/planned-route-store';
 import { renderPlannedRoute } from './layers/planned-route-layer';
+import { procedureKey, renderProcedure } from './layers/procedure-layer';
 import { AIRSPACE_SEVERITY_COLOR } from './layers/layer-style';
 
 /**
@@ -89,6 +91,17 @@ function newRouteSegment(points: readonly MapRoutePoint[]): L.Polyline {
   );
 }
 
+/** 从 store 状态里取出当前选中的程序 */
+function selectedProcedureOf(state: {
+  procedures: readonly MapProcedure[];
+  selectedProcedureKey: string | null;
+}): MapProcedure | null {
+  if (!state.selectedProcedureKey) return null;
+  return (
+    state.procedures.find((item) => procedureKey(item) === state.selectedProcedureKey) ?? null
+  );
+}
+
 export function MapCanvas({
   onAirportClick,
   onMapClick,
@@ -123,6 +136,7 @@ export function MapCanvas({
     aerowayGroup?: L.LayerGroup;
     procedureGroup?: L.LayerGroup;
     plannedGroup?: L.LayerGroup;
+    procedureLayerGroup?: L.LayerGroup;
   }>({ overlays: {} });
 
   // 回调放 ref，避免因 props 变化重建地图
@@ -176,6 +190,8 @@ export function MapCanvas({
     layersRef.current.procedureGroup = L.layerGroup().addTo(map);
     // 计划航路：压在实际航迹之下，两者同屏时以实际航迹为主
     layersRef.current.plannedGroup = L.layerGroup().addTo(map);
+    // 公布程序：与计划航路同层级，配色已刻意错开
+    layersRef.current.procedureLayerGroup = L.layerGroup().addTo(map);
     layersRef.current.aiGroup = L.layerGroup().addTo(map);
     layersRef.current.airportGroup = L.layerGroup().addTo(map);
     layersRef.current.taxiwayGroup = L.layerGroup().addTo(map);
@@ -193,6 +209,13 @@ export function MapCanvas({
         layersRef.current.plannedGroup,
         usePlannedRouteStore.getState().plan,
         useMapStore.getState().showPlannedRoute,
+      );
+      const mapState = useMapStore.getState();
+      renderProcedure(
+        map,
+        layersRef.current.procedureLayerGroup,
+        selectedProcedureOf(mapState),
+        mapState.showProcedures,
       );
     });
 
@@ -542,6 +565,27 @@ export function MapCanvas({
           )
           .addTo(group);
       }
+    }),
+  []);
+
+  // ── 公布程序（SID/STAR/进近）──
+  useEffect(() =>
+    useMapStore.subscribe((state, previous) => {
+      const map = mapRef.current;
+      if (!map) return;
+      if (
+        state.procedures === previous.procedures &&
+        state.selectedProcedureKey === previous.selectedProcedureKey &&
+        state.showProcedures === previous.showProcedures
+      ) {
+        return;
+      }
+      renderProcedure(
+        map,
+        layersRef.current.procedureLayerGroup,
+        selectedProcedureOf(state),
+        state.showProcedures,
+      );
     }),
   []);
 

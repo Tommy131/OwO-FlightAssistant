@@ -15,6 +15,7 @@ import {
   type MapCoordinate,
   type MapFlightAlert,
   type MapLayerStyle,
+  type MapProcedure,
   type MapRestrictedZone,
   type MapRoutePoint,
   type MapHoldingPattern,
@@ -58,6 +59,7 @@ import {
 } from '../services/map-telemetry';
 import { fetchAirportWeather } from '../services/airport-weather';
 import { parseAirportDetail } from '../services/map-airport-parser';
+import { parseProcedureList } from '../services/procedure-parser';
 
 /**
  * 地图模块状态管理
@@ -125,6 +127,13 @@ interface MapState {
   showRunwayNavaids: boolean;
   /** 等待航线是否显示 */
   showHoldings: boolean;
+  /** 是否显示公布程序（SID/STAR/进近） */
+  showProcedures: boolean;
+  /** 当前机场的全部程序 */
+  procedures: MapProcedure[];
+  /** 选中的程序键（`类型|名称|转换`）；null 表示未选 */
+  selectedProcedureKey: string | null;
+  isLoadingProcedures: boolean;
   /** 当前机场的等待航线 */
   holdings: MapHoldingPattern[];
   /** 点开了哪条跑道的进近波束（跑道 ident，如 `18L/36R`）；null=没展开 */
@@ -212,6 +221,9 @@ interface MapState {
   toggleAeroway: () => void;
   toggleRunwayNavaids: () => void;
   toggleHoldings: () => void;
+  toggleProcedures: () => void;
+  loadProcedures: (icao: string) => Promise<void>;
+  selectProcedure: (key: string | null) => void;
   setBeamRunway: (ident: string | null) => void;
   loadHoldings: (detail: MapSelectedAirportDetail) => Promise<void>;
   toggleGlideslope: () => void;
@@ -347,6 +359,10 @@ export const useMapStore = create<MapState>((set, get) => ({
   showAeroway: true,
   showRunwayNavaids: true,
   showHoldings: false,
+  showProcedures: false,
+  procedures: [],
+  selectedProcedureKey: null,
+  isLoadingProcedures: false,
   holdings: [],
   beamRunwayIdent: null,
   showGlideslope: true,
@@ -601,6 +617,34 @@ export const useMapStore = create<MapState>((set, get) => ({
   toggleAeroway: () => set((s) => ({ showAeroway: !s.showAeroway })),
   toggleRunwayNavaids: () => set((s) => ({ showRunwayNavaids: !s.showRunwayNavaids })),
   toggleHoldings: () => set((s) => ({ showHoldings: !s.showHoldings })),
+
+  toggleProcedures: () => {
+    const next = !get().showProcedures;
+    set({ showProcedures: next });
+    // 开关是懒加载的入口：打开时才去取当前机场的程序
+    const airport = get().selectedAirport;
+    if (next && airport && get().procedures.length === 0) {
+      void get().loadProcedures(airport.marker.code);
+    }
+  },
+
+  selectProcedure: (key) => set({ selectedProcedureKey: key }),
+
+  async loadProcedures(icao) {
+    const code = icao.trim().toUpperCase();
+    if (code.length === 0) return;
+    set({ isLoadingProcedures: true });
+    try {
+      await MiddlewareHttpService.init();
+      const response = await MiddlewareHttpService.getAirportProcedures(code);
+      const procedures = parseProcedureList(response.objectBody?.procedures);
+      // 换机场就把旧的选中项清掉 —— 留着会指向一条已经不在列表里的程序
+      set({ procedures, selectedProcedureKey: null, isLoadingProcedures: false });
+    } catch (e) {
+      AppLogger.warning(`[Map] load procedures for ${code} failed: ${String(e)}`);
+      set({ procedures: [], selectedProcedureKey: null, isLoadingProcedures: false });
+    }
+  },
   setBeamRunway: (ident) => set((s) => ({
     // 再点一次同一条跑道就收起来
     beamRunwayIdent: s.beamRunwayIdent === ident ? null : ident,
@@ -631,13 +675,23 @@ export const useMapStore = create<MapState>((set, get) => ({
     set((s) => ({ showCustomTaxiwayRoute: !s.showCustomTaxiwayRoute })),
 
   setSelectedAirport: (detail) => {
-    set({ selectedAirport: detail, aerowayFeatures: [] });
+    // 程序是挂在机场上的：换机场或关掉机场，旧机场的程序必须一起清掉，
+    // 否则地图上会留着一条孤零零的航线，而面板已经回到「先选一个机场」，
+    // 用户从界面上再也找不到取消它的入口。
+    set({
+      selectedAirport: detail,
+      aerowayFeatures: [],
+      procedures: [],
+      selectedProcedureKey: null,
+    });
     if (!detail) return;
     set({ beamRunwayIdent: null, holdings: [] });
     void get().loadAerowayFeatures(detail);
     void get().loadAirportWeather(detail);
     void get().loadRunwayNavaids(detail);
     void get().loadHoldings(detail);
+    // 开关开着才拉：程序数据一个机场上百条，没人看的时候不必打这一趟
+    if (get().showProcedures) void get().loadProcedures(detail.marker.code);
   },
 
   async setHomeAirport(airport) {

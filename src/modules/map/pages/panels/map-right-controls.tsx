@@ -121,6 +121,13 @@ export function MapRightControls({ onOpenLayerPicker }: { onOpenLayerPicker: () 
           onClick: state.toggleRunwayNavaids,
         },
         {
+          // 公布程序（SID/STAR/进近）：开关同时也是程序面板的开关
+          icon: 'route',
+          label: t(K.toggleProcedures),
+          active: state.showProcedures,
+          onClick: state.toggleProcedures,
+        },
+        {
           icon: 'loop',
           label: t(K.toggleHoldings),
           active: state.showHoldings,

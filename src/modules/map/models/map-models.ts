@@ -146,6 +146,45 @@ export interface MapRunwayNavaid {
 /** 某跑道端已公布的进近类型（来自 CIFP 程序数据） */
 
 /** 已公布的等待航线（来自 earth_hold.dat） */
+// ──────────────────────────────────────────────────────────────────────────
+// 公布程序（SID / STAR / 进近）
+// ──────────────────────────────────────────────────────────────────────────
+
+export type MapProcedureKind = 'SID' | 'STAR' | 'APPROACH';
+
+/** 程序里的一段 */
+export interface MapProcedureLeg {
+  readonly sequence: number;
+  readonly fixIdent?: string;
+  /** 坐标；`hasPosition` 为假时不可用 */
+  readonly position?: MapCoordinate;
+  /**
+   * 是否解析出了坐标。
+   *
+   * `CA`（飞到某高度）这类以条件结束的航段本就没有定位点，
+   * 画线时要跳过它而不是把它当成 (0,0)。
+   */
+  readonly hasPosition: boolean;
+  /** ARINC 424 航段类型：TF / DF / CF / CA / VA … */
+  readonly legType?: string;
+  readonly turnDirection?: string;
+  /** 高度限制描述：`+` 不低于 / `-` 不高于 / `B` 区间之内 */
+  readonly altitudeDescription?: string;
+  readonly altitude1Ft?: number;
+  readonly altitude2Ft?: number;
+  readonly speedLimitKt?: number;
+  readonly magneticCourse?: number;
+}
+
+/** 一条公布程序（含其某一条转换） */
+export interface MapProcedure {
+  readonly kind: MapProcedureKind;
+  readonly name: string;
+  /** 转换标识：SID/STAR 常是跑道（RW18R），进近是进场定位点 */
+  readonly transition?: string;
+  readonly legs: readonly MapProcedureLeg[];
+}
+
 export interface MapHoldingPattern {
   readonly fix: string;
   readonly lat: number;
