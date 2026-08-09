@@ -334,6 +334,30 @@ class MiddlewareHttpServiceImpl {
     });
   }
 
+  /**
+   * 航路气象剖面：沿航线取各气压层的高空风与温度
+   *
+   * 走 POST 是因为航路点可能上百个，塞进 query string 会超长；
+   * 后端会抽稀到 12 个点再问上游。
+   */
+  getRouteWeatherProfile(input: {
+    points: readonly { lat: number; lon: number }[];
+    departureEpoch?: number;
+    enrouteMinutes?: number;
+  }): Promise<MiddlewareHttpResponse> {
+    return this.request({
+      method: 'POST',
+      path: '/api/v1/weather/route-profile',
+      body: {
+        points: input.points,
+        departure_epoch: input.departureEpoch ?? 0,
+        enroute_minutes: input.enrouteMinutes ?? 0,
+      },
+      // 后端要向上游取十几个坐标的多层数据，默认 10s 偶尔不够
+      timeoutMs: 25_000,
+    });
+  }
+
   /** 机场跑道/滑行道/停机坪矢量（后端代 Overpass 查询并缓存） */
   getAirportAeroway(
     icao: string,

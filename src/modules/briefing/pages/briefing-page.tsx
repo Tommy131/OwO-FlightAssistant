@@ -1,5 +1,6 @@
 import { PersistenceService } from '../../../core/services/persistence-service';
 import { usePlannedRouteStore } from '../../common/providers/planned-route-store';
+import { RouteProfilePanel } from './widgets/route-profile-panel';
 
 /** SimBrief 身份存在简报模块的命名空间下 */
 const SIMBRIEF_MODULE = 'briefing';
@@ -302,6 +303,9 @@ function GenerateView() {
           </Button>
         </div>
       </SectionCard>
+
+      {/* 剖面依赖导入的计划航路，所以紧跟在 SimBrief 卡片后面 */}
+      <RouteProfilePanel />
 
       <SectionCard title={t(K.inputTitle)} icon="edit_note" subtitle={t(K.generateSubtitle)}>
         <div className={styles.formGrid}>
