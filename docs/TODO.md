@@ -138,3 +138,120 @@ EDDM 3509 个节点按坐标原样建图，99% 落在同一连通分量（RCNN�
 | 内嵌航图（Jeppesen/NAIP） | 版权不清晰 |
 | 语音 ATC 交互 | 超出「飞行辅助」定位，且质量不可控 |
 | de_DE 机翻补全 | 航空术语机翻质量不可控，宁可走回退链显示英文（见 `DESIGN.md` §6.1） |
+
+---
+
+## P0 · 待接管（2026-08-10 移交给新会话）
+
+> 以下六项（A–F）由用户在 2026-08-09～10 提出，本会话因上下文耗尽未开始。
+> 每项都写清了「现状 / 要做什么 / 已知线索 / 验收标准」，接手可直接开工。
+>
+> **通用约定**（本项目一路沿用，请遵守）：
+> - Flutter 源码在 `D:\Workspace\flutter_projects\owo_flight_assistant`，移植以它为准逐项对齐
+> - 纯计算逻辑放 `services/`，写单测并做**变异测试**（改坏源码确认测试真的会红）
+> - 改完必须 `npm run check` 全绿，再 `npm run build` + 刷进 `internal/webassets/dist` 起本地产物**在浏览器里实测**
+> - 起服务前先确认 18080 没有旧进程占着（本会话踩过两次：旧进程占端口，新二进制没绑上就退了，
+>   浏览器拿到的还是上一版产物，CSS/JS 文件名对不上才发现）
+> - 用脚本批量改文件时**锚点要按文件实际行尾归一**（多数文件是 CRLF，用反斜杠-n 写锚点会静默失配），
+>   且**不要用 `[^}]*` 这类朴素正则删 CSS 规则**（匹配到第一个 `}` 就停，会留下没有主体的孤儿选择器，
+>   把后面的规则并进一条永不匹配的选择器串 —— 花括号数量仍然平衡，语法检查看不出来）
+
+### A. 【最严重】连接状态与飞行日志不持久化
+
+**现象**：刷新页面或新开标签页后，前端认为「未连接模拟器」，必须重新点连接。
+**如果此时正在录制飞行日志，先前的数据会丢失。**
+
+**这很可能是两个独立问题，动手前必须先分清**：
+
+1. **连接状态没持久化** —— 后端其实还连着模拟器，只是前端刷新后不知道。
+   线索：后端已有 `POST /api/v1/simulator/state`（见 `internal/apps/common/http/handlers/v1/v1.go`）。
+   方向：前端启动时先查一次真实状态，而不是一律按「未连接」初始化。
+2. **录制中的飞行日志丢失** —— 这才是真正要命的。
+   **先确认日志到底攒在哪**：看 `web/src/modules/flight_logs/providers/flight-logs-store.ts`（616 行）
+   是攒在内存里、结束时才落盘，还是边录边写。攒在内存里就必须改成增量持久化
+   （IndexedDB 边录边写，或把录制职责整个移到后端）。
+   **不确认存储位置就动手，很可能修错地方。**
+
+**验收**：模拟器连着 → 开始录制 → 刷新页面 → 连接状态仍为已连接，且已录的航迹点一个不少。
+
+### B. 地图模块的飞行罗盘完全没实现
+
+**现状**：Web 版地图里没有罗盘。
+**参考**：`lib/modules/map/pages/widgets/map_markers/compass_ring.dart`。
+监控页已有一个罗盘实现（`web/src/modules/monitor/pages/monitor-page.tsx` 里的 `CompassSection`），
+可以借鉴，但**地图罗盘是叠在地图上的**，与监控页那个独立卡片不是一回事，别直接套用。
+
+**注意**：地图 store 里已有 `showCompass` / `toggleCompass`，右侧控制栏「飞行」组也已有开关 —— 
+开关是通的，缺的是图层本身。
+
+**验收**：开关打开后地图上出现罗盘，随本机航向转动；关闭后消失。
+
+### C. 地图模块的智能感知告警过于简陋
+
+**现状**：`web/src/modules/map/services/flight-alerts.ts`（17 例单测）只覆盖了一部分，
+用户明确反馈「过于简陋」，尤其缺**姿态告警**。
+**参考**：Flutter 侧对应实现（在 `lib/modules/map/` 下找告警相关文件，
+`map_provider.dart` 或独立的 alerts 服务）。
+
+**要做的**：对照 Flutter 逐条补齐规则（俯仰/坡度/迎角/下降率等姿态类），
+补单测并做变异测试。现有的 `CONFIGURABLE_ALERT_IDS`（见 `map-store.ts`）已列了
+`bank_angle` / `high_aoa` 等 id，可对照检查哪些只有 id 没有实现。
+
+**验收**：Flutter 版有的姿态告警，Web 版都能触发；阈值可配置项与桌面版一致。
+
+### D. 飞行日志页面：三个子模块改为嵌入父容器
+
+**现状**：飞行轨迹地图、飞行质量报告、黑匣子数据明细各自套了一层卡片窗口，
+白白浪费父容器宽度，地图尤其显示不全。
+
+**要做的**：三者都直接嵌入父容器，**最大化利用宽度**，不要再套独立卡片。
+
+**相关文件**：
+- `web/src/modules/flight_logs/pages/flight-logs-page.tsx`（479 行）
+- `web/src/modules/flight_logs/pages/widgets/analysis-widgets.tsx`（524 行）
+- Flutter 侧参考：`lib/modules/flight_logs/pages/widgets/analysis_track_map.dart`、
+  `analysis_black_box.dart`、`analysis_chart.dart`
+
+**验收**：三个区域各自占满父容器宽度，地图能完整显示航迹。
+
+### E. 地图：点击飞机显示航空器信息（本会话已定位组件，未移植）
+
+**参考**：`lib/modules/map/pages/widgets/map_markers/aircraft_info_mini_panel.dart`（274 行）。
+本会话读了前 60 行，已确认的设计：
+
+- 有状态组件，**面板可拖拽**（内部 `_relativeOffset` 初值 `Offset(118, -92)`，默认浮在飞机右上方）
+- 面板 192×74（随 scale 缩放），边距 10
+- 位置对视口做 `clamp`，拖到边缘也不会跑出屏幕
+- 面板与飞机之间有**引线**，且引线接点随面板在飞机哪一侧而切换
+  （面板在右就接左边、在左就接右边）—— 这样引线不会横穿面板
+- 显示：主标签（航班号/注册号）、高度 `N ft`、地速、应答机编码与状态
+
+**后 214 行（渲染、拖拽处理、配色）尚未读，移植前请先完整读完。**
+
+### F. 黑匣子数据明细的警告/告警文案缺翻译
+
+**现象**：飞行日志详情里「黑匣子数据明细」区，警告/告警那一列的文案没有翻译，
+直接露出了英文或原始 id。
+
+**相关文件**：
+- `web/src/modules/flight_logs/pages/widgets/analysis-widgets.tsx`（524 行，黑匣子表格在这里）
+- `web/src/modules/flight_logs/localization/flight-logs-localization.ts`（419 行）
+- 告警 id 的来源见 `web/src/modules/map/providers/map-store.ts` 的 `CONFIGURABLE_ALERT_IDS`
+  与 `web/src/modules/map/services/flight-alerts.ts`
+- Flutter 侧参考：`lib/modules/flight_logs/localization/flight_logs_translations.dart`
+
+**注意与 C 项一起做更省事**：补齐姿态告警时会新增告警 id，
+那些 id 的文案同样要在这里有对应词条，否则黑匣子里又是一片没翻译的。
+**别只补 zh_CN** —— `npm run check:i18n` 要求已声明语言的键集一致（de_DE 走回退链，不用补）。
+
+**验收**：黑匣子明细里出现的每一种警告/告警都有中文文案，没有裸露的 id 或英文。
+
+### 发布状态提醒
+
+**以下修复都还没发版**，v1.0.8-beta 里没有它们：
+
+- 后端 `a04a155`：同名导航点把程序画到别的国家（EDDM 的 ALG2Q 画到撒丁岛那个）
+- 前端 `f8255cb`：监控图表向右漂移
+- 前端 `34154a1`：起落架卡还原 + 机型仿真 + 监控页布局
+
+上述 A–F 做完后可一并发 v1.0.9-beta。发布流程见本文件上方与 `docs/CHANGELOG.md` 的硬约束。
