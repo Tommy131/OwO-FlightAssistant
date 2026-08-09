@@ -77,11 +77,30 @@
 
 /* ── 上排：罗盘 + 系统状态 ── */
 
+/*
+ * 上半区：左栏（磁航向 + 系统状态，竖排）与起落架并排。
+ * 左栏给 1fr、起落架给固定宽：起落架图是按机型比例画的，
+ * 拉伸会让轮位偏离真实相对位置，失去参考价值。
+ */
 .topRow {
   display: grid;
-  grid-template-columns: minmax(240px, 320px) 1fr;
+  grid-template-columns: 1fr minmax(280px, 360px);
+  gap: var(--space-md);
+  align-items: stretch;
+}
+
+.topLeft {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) 1fr;
   gap: var(--space-md);
   align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .topRow,
+  .topLeft {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {

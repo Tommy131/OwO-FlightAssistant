@@ -12,7 +12,7 @@ import { Button } from '../../../core/widgets/common/controls';
 import { MaterialIcon } from '../../../core/widgets/common/icon';
 import { Card, SectionCard, StatusBadge } from '../../../core/widgets/common/surfaces';
 import { MonitorLocalizationKeys as K } from '../localization/monitor-localization';
-import type { ChartPoint, MonitorData } from '../models/monitor-models';
+import { MonitorChartBuffer, type ChartPoint, type MonitorData } from '../models/monitor-models';
 import { flushPendingMonitorData, useMonitorStore } from '../providers/monitor-store';
 import styles from './monitor-page.module.css';
 
@@ -40,12 +40,18 @@ export function MonitorPage() {
         <MonitorHeader data={data} />
         <WarningBanner data={data} />
 
+        {/*
+          * 上半区左右两栏：左栏是「磁航向 + 系统状态」竖排，右栏是起落架。
+          * 起落架图是纵向构图（机头在上、主轮在下），配一个同样高的左栏
+          * 才不会在它旁边留出一大片空白。
+          */}
         <div className={styles.topRow}>
-          <CompassSection heading={data.heading} />
-          <SystemsStatusCard data={data} />
+          <div className={styles.topLeft}>
+            <CompassSection heading={data.heading} />
+            <SystemsStatusCard data={data} />
+          </div>
+          <LandingGearCard data={data} />
         </div>
-
-        <LandingGearCard data={data} />
         <MonitorCharts data={data} />
       </div>
     </div>
@@ -304,6 +310,7 @@ function MonitorCharts({ data }: { data: MonitorData }) {
         value={data.gForce}
         unit={t(K.unitG)}
         digits={2}
+        currentTime={data.chartData.currentTime}
         data={data.chartData.gForceSpots}
         color={chartColor('orange', isDark)}
         isDark={isDark}
@@ -313,6 +320,7 @@ function MonitorCharts({ data }: { data: MonitorData }) {
         value={data.altitude}
         unit={t(K.unitFt)}
         digits={0}
+        currentTime={data.chartData.currentTime}
         data={data.chartData.altitudeSpots}
         color={primaryColor}
         isDark={isDark}
@@ -322,6 +330,7 @@ function MonitorCharts({ data }: { data: MonitorData }) {
         value={data.baroPressure}
         unit={t(K.unitInHg)}
         digits={2}
+        currentTime={data.chartData.currentTime}
         data={data.chartData.pressureSpots}
         color={chartColor('aqua', isDark)}
         isDark={isDark}
@@ -336,6 +345,7 @@ function MonitorChartCard({
   unit,
   digits,
   data,
+  currentTime,
   color,
   isDark,
 }: {
@@ -344,16 +354,39 @@ function MonitorChartCard({
   unit: string;
   digits: number;
   data: ChartPoint[];
+  currentTime: number;
   color: string;
   isDark: boolean;
 }) {
   // 单系列图表不需要图例：标题已经指明了系列身份
   const option = useMemo(
-    () => ({
-      ...baseChartOption({ isDark, showYAxisLabel: true, grid: { left: 42, right: 10 } }),
-      series: lineSeries({ name: title, data, color }),
-    }),
-    [data, color, isDark, title],
+    () => {
+      const base = baseChartOption({
+        isDark,
+        showYAxisLabel: true,
+        grid: { left: 42, right: 10 },
+      });
+      return {
+        ...base,
+        /*
+         * x 轴必须**显式锁成固定宽度的时间窗**。
+         *
+         * 缓冲区攒满前只有几个点，ECharts 按数据范围自适应轴：
+         * 每来一个新点，轴的跨度就变一次，已经画好的那截波形跟着被重新
+         * 映射到别的位置 —— 看上去就是整条曲线在往右挪，而不是新数据
+         * 从右边进、旧数据从左边出。
+         * 把窗口钉死在 [当前时刻 - 缓冲长度, 当前时刻] 之后，
+         * 横轴的物理含义恒定，曲线才会像纸带记录仪那样向左滚。
+         */
+        xAxis: {
+          ...(base.xAxis as object),
+          min: currentTime - MonitorChartBuffer.maxPoints,
+          max: currentTime,
+        },
+        series: lineSeries({ name: title, data, color }),
+      };
+    },
+    [data, currentTime, color, isDark, title],
   );
 
   return (
