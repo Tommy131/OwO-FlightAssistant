@@ -55,6 +55,20 @@ if (!fallback) {
   );
 }
 
+// package-lock.json 的根包版本必须跟上
+//
+// npm 只在依赖对不上时才报错，根包的 version 漂了它一声不吭 ——
+// 这个文件从 1.0.3-beta 一路漂到 1.0.6-beta 都没人发现。
+const lock = JSON.parse(read('package-lock.json'));
+for (const [label, actual] of [
+  ['package-lock.json 顶层', lock.version],
+  ['package-lock.json 的 packages[""]', lock.packages?.['']?.version],
+]) {
+  if (actual !== version) {
+    problems.push(`${label} 的版本 ${actual} 与 package.json 的 ${version} 不一致`);
+  }
+}
+
 if (problems.length > 0) {
   console.error('版本同步校验失败：');
   for (const problem of problems) console.error('  - ' + problem);
