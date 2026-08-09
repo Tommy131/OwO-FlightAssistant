@@ -15,6 +15,7 @@
  * 那比断开危险得多。真正的断头（占 6%，多是通向机位的尽头）保持断开即可。
  */
 
+import { bearingDeg } from './geo';
 import { distanceInMeters } from './map-telemetry';
 import type { MapAerowayFeature, MapCoordinate } from '../models/map-models';
 
@@ -190,6 +191,86 @@ export function shortestTaxiPath(
   refs.reverse();
 
   return { points, distanceM, refs: dedupeAdjacent(refs) };
+}
+
+/**
+ * 滑行速度模型
+ *
+ * 直线段按 15 kt 算（多数机场的滑行限速在 15–25 kt，取偏保守的一头）；
+ * 转弯要减到 8 kt 上下，机场里九十度弯必须慢下来。
+ * 只按全程除以一个固定速度会明显低估 —— 一条 4 km 的滑行路线上
+ * 十几个弯，那部分时间是实打实的。
+ */
+const TAXI_STRAIGHT_KT = 15;
+/**
+ * 每转过一度航向额外花的时间（秒）。九十度弯约多花 9 秒。
+ *
+ * 按**累计转角**计费，而不是「单步夹角超过 N 度就整段降速」——
+ * 后者在 OSM 这种密集采样的几何上根本不成立：一个九十度弯被拆成十来个顶点，
+ * 每步只转十几度，于是一个弯都识别不出来。EDDM 实测 92 个顶点里
+ * 只有 2 段单步超过 30 度，算出来的时间和纯直线只差 1%。
+ * 累计转角与采样密度无关，弯拆得再碎，转过的总度数不变。
+ */
+const TAXI_TURN_SECONDS_PER_DEG = 0.1;
+/**
+ * 每步扣掉的噪声余量（度）。
+ *
+ * OSM 的滑行道中心线是人描出来的，笔直的一段也会左右微抖一两度；
+ * 不扣的话，一条四公里的直线滑行道能凑出好几百度的「转角」。
+ *
+ * 用「扣掉余量后累加」而不是「小于阈值就整步丢弃」：后者有悬崖 ——
+ * 采样再密一点，每步角度落到阈值以下，一个真的九十度弯会被整个吞掉，
+ * 而所有合成测试都还过得去。
+ *
+ * 扣减式仍有残余的密度敏感：一个九十度弯拆成 N 段，计入的是 `90 - 2N` 度，
+ * N 大到 45 就归零。实测 OSM 的采样密度远没到那个程度（EDDM 上转弯占总时长
+ * 9%–13%，折合均速 13.1–13.6 kt，与真实机场吻合），所以按当前数据源够用。
+ * 真要彻底消除，得改成按固定距离窗口比较航向，而不是逐顶点。
+ */
+const TAXI_TURN_NOISE_DEG = 2;
+const KT_TO_M_PER_S = 0.514444;
+
+/** 两个航向之间的夹角（0–180） */
+function headingDeltaDeg(from: number, to: number): number {
+  const raw = Math.abs(to - from) % 360;
+  return raw > 180 ? 360 - raw : raw;
+}
+
+/**
+ * 估算滑行时间（秒）。
+ *
+ * 不含等待放行、跑道穿越等待这类不可预测的时间 —— 那些取决于管制，
+ * 不该由几何算出来假装精确。这里只回答「一路不停要多久」。
+ */
+export function estimateTaxiSeconds(points: readonly MapCoordinate[]): number {
+  // 不足两个点时下面的循环本就不会执行，返回 0 —— 不必再加一道提前返回
+  let meters = 0;
+  let turnDegrees = 0;
+  let previousHeading: number | undefined;
+  for (let i = 1; i < points.length; i += 1) {
+    const from = points[i - 1];
+    const to = points[i];
+    const legMeters = distanceInMeters(
+      from.latitude,
+      from.longitude,
+      to.latitude,
+      to.longitude,
+    );
+    // 重复点既没有长度也定不出航向，跳过；否则会把后一段误判成转弯
+    if (legMeters <= 0) continue;
+    meters += legMeters;
+
+    const heading = bearingDeg(from, to);
+    if (previousHeading !== undefined) {
+      const delta = headingDeltaDeg(previousHeading, heading);
+      turnDegrees += Math.max(0, delta - TAXI_TURN_NOISE_DEG);
+    }
+    previousHeading = heading;
+  }
+  return (
+    meters / (TAXI_STRAIGHT_KT * KT_TO_M_PER_S) +
+    turnDegrees * TAXI_TURN_SECONDS_PER_DEG
+  );
 }
 
 /** 去掉相邻重复：一条滑行道被切成几十段，编号会重复几十次 */

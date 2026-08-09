@@ -1073,6 +1073,21 @@
   font-variant-numeric: tabular-nums;
 }
 
+.taxiChipActive {
+  border-color: color-mix(in srgb, #ff8c1a 70%, transparent);
+  background: color-mix(in srgb, #ff8c1a 18%, transparent);
+  color: #ffb066;
+}
+
+.taxiEta {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── 移动端：控件让位给地图 ── */
 
 @media (max-width: 649px) {

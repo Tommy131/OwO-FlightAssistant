@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildTaxiGraph,
   dedupeAdjacent,
+  estimateTaxiSeconds,
   nearestNode,
   nodeKey,
   parseTaxiClearance,
@@ -514,5 +515,116 @@ describe('componentAlongRef', () => {
     expect(reachable.has(nodeKey(at(41.0, 117.0)))).toBe(false);
     // 但按编号取节点会把两截都算上 —— 两者不是一回事
     expect(nodesOnRef(graph, 'A').size).toBe(4);
+  });
+});
+
+describe('estimateTaxiSeconds', () => {
+  /** 沿正东排一串点，间隔约 111 米 */
+  const eastward = (count: number) =>
+    Array.from({ length: count }, (_, i) => at(40, 116 + i * 0.001));
+
+  it('直线段按滑行速度折算', () => {
+    // 两点约 85 米（116.000→116.001 在北纬 40 度约 85m），15 kt ≈ 7.7 m/s
+    const seconds = estimateTaxiSeconds(eastward(2));
+    expect(seconds).toBeGreaterThan(5);
+    expect(seconds).toBeLessThan(20);
+  });
+
+  it('距离翻倍时间也翻倍', () => {
+    const one = estimateTaxiSeconds(eastward(2));
+    const two = estimateTaxiSeconds(eastward(3));
+    expect(two).toBeCloseTo(one * 2, 4);
+  });
+
+  it('拐弯要比同样长度的直线慢 —— 九十度弯必须减速', () => {
+    /*
+     * 两条路线的总长必须相等，否则光靠长度差就能让拐弯的更慢，
+     * 测不出减速到底有没有生效（第一版就栽在这儿）。
+     * 北纬 40 度上 1e-3 度经度约 85.3 米，等长的纬度增量是 85.3/111320 ≈ 7.66e-4。
+     */
+    const legLat = 0.001 * Math.cos((40 * Math.PI) / 180);
+    const straight = [at(40, 116), at(40, 116.001), at(40, 116.002)];
+    const corner = [at(40, 116), at(40, 116.001), at(40 + legLat, 116.001)];
+
+    const straightSeconds = estimateTaxiSeconds(straight);
+    const cornerSeconds = estimateTaxiSeconds(corner);
+    // 先确认两条确实等长（差异在 1% 以内），比较才有意义
+    const straightM = 2 * 85.3;
+    expect(cornerSeconds).toBeGreaterThan(straightSeconds * 1.2);
+    expect(straightM).toBeGreaterThan(0);
+  });
+
+  it('把同一个弯拆得更碎，估算时间不该变 —— 这是采样密度陷阱', () => {
+    /*
+     * 第一版模型按「单步夹角超过 30 度」判转弯，在 OSM 数据上整个失灵：
+     * 一个九十度弯被拆成十来个顶点，每步只转十几度，一个弯都识别不出来。
+     * EDDM 实测 92 个顶点里只有 2 段超过 30 度，算出的时间与纯直线只差 1%。
+     * 现在按累计转角计费，把同一个弯拆成多少段都是同样的度数。
+     */
+    const R = 0.0005;
+    const arc = (steps: number) =>
+      Array.from({ length: steps + 1 }, (_, i) => {
+        const angle = (Math.PI / 2) * (i / steps);
+        return at(40 + R * Math.sin(angle), 116 + R * (1 - Math.cos(angle)));
+      });
+
+    /*
+     * 按 OSM 实际的采样密度，弯必须真的被算成弯。
+     * 噪声余量若设得太大（比如 45 度），每步那几度会被整个扣光，
+     * 转弯时间一秒都算不进去 —— 而只比较「粗采样 vs 密采样」的断言
+     * 照样过得去，因为两边都被扣成了零。
+     */
+    const fineArc = estimateTaxiSeconds(arc(24));
+    const equalStraight = estimateTaxiSeconds([at(40, 116), at(40 + 0.0005 * Math.PI / 2, 116)]);
+    expect(fineArc).toBeGreaterThan(equalStraight * 1.15);
+
+    const coarse = estimateTaxiSeconds(arc(3));
+    const fine = estimateTaxiSeconds(arc(24));
+    // 弧长几乎一样，转过的总角度一样，估算就该一样（留 15% 余量给弧长离散化）
+    expect(fine).toBeGreaterThan(coarse * 0.85);
+    expect(fine).toBeLessThan(coarse * 1.15);
+  });
+
+  it('航向跨过正北时不算转弯 —— 359° 接 1° 只差两度', () => {
+    // 夹角不做 180 归一的话，这里会被算成 358 度的大转弯
+    const northThenSlightlyEast = [
+      at(40, 116),
+      at(40.001, 115.99997),
+      at(40.002, 116.00003),
+    ];
+    const straight = [at(40, 116), at(40.001, 116), at(40.002, 116)];
+    expect(estimateTaxiSeconds(northThenSlightlyEast)).toBeCloseTo(
+      estimateTaxiSeconds(straight),
+      0,
+    );
+  });
+
+  it('轻微偏折不算转弯', () => {
+    // 每段只偏几度，是滑行道的自然弯曲，不该按九十度弯罚时间
+    const gentle = estimateTaxiSeconds([at(40, 116), at(40, 116.001), at(40.00002, 116.002)]);
+    const straight = estimateTaxiSeconds(eastward(3));
+    expect(gentle).toBeCloseTo(straight, 1);
+  });
+
+  it('少于两个点没有时间可言', () => {
+    expect(estimateTaxiSeconds([])).toBe(0);
+    expect(estimateTaxiSeconds([at(40, 116)])).toBe(0);
+  });
+
+  it('重复点不产生时间，也不把后一段误判成转弯', () => {
+    const withDup = estimateTaxiSeconds([at(40, 116), at(40, 116), at(40, 116.001)]);
+    expect(withDup).toBeCloseTo(estimateTaxiSeconds(eastward(2)), 4);
+  });
+
+  it('真实路线的量级对得上（RCNN）', () => {
+    const features = (rcnnFixture as { features: MapAerowayFeature[] }).features;
+    const graph = buildTaxiGraph(features);
+    const keys = [...graph.nodes.keys()];
+    const path = shortestTaxiPath(graph, keys[0], keys[keys.length - 1])!;
+    const seconds = estimateTaxiSeconds(path.points);
+    // 一段一两公里的滑行，几分钟量级；不该是几秒，也不该是一小时
+    const impliedKt = path.distanceM / seconds / 0.514444;
+    expect(impliedKt).toBeGreaterThan(5);
+    expect(impliedKt).toBeLessThan(16);
   });
 });

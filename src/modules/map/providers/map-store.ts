@@ -62,6 +62,7 @@ import { parseAirportDetail } from '../services/map-airport-parser';
 import { parseProcedureList } from '../services/procedure-parser';
 import {
   buildTaxiGraph,
+  estimateTaxiSeconds,
   nearestNode,
   parseTaxiClearance,
   planTaxiRouteByRefs,
@@ -130,9 +131,19 @@ export const CONFIGURABLE_ALERT_IDS = [
  * 起点错了整条路线都是错的。
  */
 function resolveTaxiStart(
-  state: { aircraft: MapAircraftState | null; selectedAirport: MapSelectedAirportDetail | null },
+  state: {
+    aircraft: MapAircraftState | null;
+    selectedAirport: MapSelectedAirportDetail | null;
+    taxiStartSpotIndex: number | null;
+  },
   graph: ReturnType<typeof buildTaxiGraph>,
 ): string | null {
+  // 用户明确挑了机位就听他的，别再拿本机位置盖过去 ——
+  // 推出前先看一眼路线，正是从机位规划的典型场景
+  if (state.taxiStartSpotIndex !== null) {
+    const chosen = state.selectedAirport?.parkingSpots[state.taxiStartSpotIndex];
+    return chosen ? nearestNode(graph, chosen.position, 300) : null;
+  }
   if (state.aircraft) {
     const key = nearestNode(graph, state.aircraft.position, 200);
     if (key) return key;
@@ -150,6 +161,7 @@ function toTaxiPlan(
   return {
     points: path.points,
     distanceM: path.distanceM,
+    etaSeconds: estimateTaxiSeconds(path.points),
     segments: summarizePathByRef(graph, path),
     holdShort,
   };
@@ -167,6 +179,8 @@ export type TaxiPlanError = 'no_aeroway' | 'no_refs' | 'no_start' | 'unreachable
 export interface TaxiPlan {
   readonly points: readonly MapCoordinate[];
   readonly distanceM: number;
+  /** 一路不停滑完要多久（秒）；不含等放行、等穿越跑道 */
+  readonly etaSeconds: number;
   /** 按滑行道编号合并后的分段，用来列出可读的路线 */
   readonly segments: readonly { ref?: string; distanceM: number }[];
   /** 指令里 hold short 的跑道号（若有） */
@@ -269,6 +283,8 @@ interface MapState {
   taxiClearanceText: string;
   taxiPlan: TaxiPlan | null;
   taxiPlanError: TaxiPlanError | null;
+  /** 用哪个机位当起点；null=用本机当前位置 */
+  taxiStartSpotIndex: number | null;
   hasUnsavedTaxiwayChanges: boolean;
   loadedTaxiwayAirportIcao: string | null;
   completedTaxiwaySegmentIndexes: number[];
@@ -292,6 +308,7 @@ interface MapState {
   planTaxiByClearance: () => void;
   planTaxiToRunway: (runwayIdent: string) => void;
   clearTaxiPlan: () => void;
+  setTaxiStartSpot: (index: number | null) => void;
 
   toggleProcedures: () => void;
   loadProcedures: (icao: string) => Promise<void>;
@@ -435,6 +452,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   taxiClearanceText: '',
   taxiPlan: null,
   taxiPlanError: null,
+  taxiStartSpotIndex: null,
 
   showProcedures: false,
   procedures: [],
@@ -896,6 +914,10 @@ export const useMapStore = create<MapState>((set, get) => ({
   setTaxiClearanceText: (text) => set({ taxiClearanceText: text }),
 
   clearTaxiPlan: () => set({ taxiPlan: null, taxiPlanError: null }),
+
+  // 换起点后旧路线就不成立了，一并清掉，免得用户以为那条还是当前的
+  setTaxiStartSpot: (index) =>
+    set({ taxiStartSpotIndex: index, taxiPlan: null, taxiPlanError: null }),
 
   planTaxiByClearance() {
     const state = get();

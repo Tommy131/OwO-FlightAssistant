@@ -13,6 +13,9 @@ import { MapLocalizationKeys as K } from '../../localization/map-localization';
 import { useMapStore, type TaxiPlanError } from '../../providers/map-store';
 import styles from '../map-page.module.css';
 
+/** 机位选择最多列几个；大机场几百个机位全铺出来面板就没法看了 */
+const MAX_SPOT_CHIPS = 12;
+
 const ERROR_KEY: Record<TaxiPlanError, string> = {
   no_aeroway: K.taxiErrorNoAeroway,
   no_refs: K.taxiErrorNoRefs,
@@ -25,6 +28,17 @@ function formatDistance(meters: number): string {
   return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(2)} km`;
 }
 
+/**
+ * 滑行时间取整到分钟。
+ *
+ * 不报秒：这是个按速度模型算出来的估计，写成「4 分 37 秒」是假精确 ——
+ * 实际还要等放行、等穿越跑道，那些不在模型里。
+ */
+function formatEta(seconds: number): string {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return `${minutes} min`;
+}
+
 export function TaxiGuidancePanel() {
   const t = useTranslate();
   const visible = useMapStore((s) => s.showTaxiGuidance);
@@ -32,6 +46,9 @@ export function TaxiGuidancePanel() {
   const plan = useMapStore((s) => s.taxiPlan);
   const error = useMapStore((s) => s.taxiPlanError);
   const runways = useMapStore((s) => s.selectedAirport?.runwayGeometries);
+  const spots = useMapStore((s) => s.selectedAirport?.parkingSpots);
+  const startSpotIndex = useMapStore((s) => s.taxiStartSpotIndex);
+  const setStartSpot = useMapStore((s) => s.setTaxiStartSpot);
   const setText = useMapStore((s) => s.setTaxiClearanceText);
   const planByClearance = useMapStore((s) => s.planTaxiByClearance);
   const planToRunway = useMapStore((s) => s.planTaxiToRunway);
@@ -62,6 +79,35 @@ export function TaxiGuidancePanel() {
         </Button>
       </div>
 
+      {/* 起点：默认跟着本机走，也可以指定机位（推出前先看路线） */}
+      {spots && spots.length > 0 && (
+        <div className={styles.taxiRunwayRow}>
+          <span className={styles.taxiRunwayLabel}>{t(K.taxiStartFrom)}</span>
+          <button
+            type="button"
+            className={`${styles.taxiRunwayChip}${
+              startSpotIndex === null ? ` ${styles.taxiChipActive}` : ''
+            }`}
+            onClick={() => setStartSpot(null)}
+          >
+            {t(K.taxiStartAircraft)}
+          </button>
+          {/* 机位动辄几百个，全列出来会把面板撑爆；只给前若干个 */}
+          {spots.slice(0, MAX_SPOT_CHIPS).map((spot, index) => (
+            <button
+              key={`${spot.name ?? ''}-${index}`}
+              type="button"
+              className={`${styles.taxiRunwayChip} text-mono${
+                startSpotIndex === index ? ` ${styles.taxiChipActive}` : ''
+              }`}
+              onClick={() => setStartSpot(index)}
+            >
+              {spot.name ?? `${t(K.taxiStand)} ${index + 1}`}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 没有指令时的另一条路：直接点跑道 */}
       {runways && runways.length > 0 && (
         <div className={styles.taxiRunwayRow}>
@@ -91,6 +137,10 @@ export function TaxiGuidancePanel() {
           <div className={styles.taxiSummary}>
             <span className={styles.taxiTotalValue}>
               {t(K.taxiTotal)} {formatDistance(plan.distanceM)}
+            </span>
+            <span className={styles.taxiEta}>
+              <MaterialIcon name="schedule" size={11} />
+              {t(K.taxiEta)} {formatEta(plan.etaSeconds)}
             </span>
             {plan.holdShort && (
               <span className={styles.taxiHoldShort}>
