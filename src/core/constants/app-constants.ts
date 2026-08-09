@@ -23,7 +23,7 @@ export const AppConstants = {
   // ========== 应用信息 ==========
   appName: 'OwO! FlightAssistant',
   appPackageName: 'com.owoblog.owo_flight_assistant',
-  appVersion: import.meta.env.VITE_APP_VERSION ?? '1.0.6-beta',
+  appVersion: import.meta.env.VITE_APP_VERSION ?? '1.0.7-beta',
   appBuildVersion: import.meta.env.VITE_APP_BUILD ?? '20260809',
 
   // ========== 资源路径 ==========
