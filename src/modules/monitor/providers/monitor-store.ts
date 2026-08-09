@@ -67,6 +67,8 @@ export const useMonitorStore = create<MonitorState>((set, get) => ({
       masterWarning: flightData.masterWarning,
       masterCaution: flightData.masterCaution,
       heading: flightData.heading,
+      aircraftIcao: flightData.aircraftIcao,
+      aircraftTitle: flightData.aircraftDisplayName ?? flightData.aircraftModel,
       parkingBrake: flightData.parkingBrake,
       transponderState: snapshot.transponderState,
       transponderCode: snapshot.transponderCode,

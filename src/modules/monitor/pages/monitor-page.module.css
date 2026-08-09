@@ -82,30 +82,38 @@
  * 左栏给 1fr、起落架给固定宽：起落架图是按机型比例画的，
  * 拉伸会让轮位偏离真实相对位置，失去参考价值。
  */
+/*
+ * 上半区：与 Flutter 版 monitor_page.dart 逐项对齐。
+ *
+ * Row( Expanded(Column(罗盘, 系统状态)), Expanded(起落架) )
+ * —— 两个 Expanded 即等宽两栏，左栏内部是竖排。
+ */
 .topRow {
   display: grid;
-  grid-template-columns: 1fr minmax(280px, 360px);
-  gap: var(--space-md);
-  align-items: stretch;
-}
-
-.topLeft {
-  display: grid;
-  grid-template-columns: minmax(240px, 300px) 1fr;
+  /* 左 7 右 3：起落架是固定构图，占三成即可，剩下的宽度给罗盘与系统状态 */
+  grid-template-columns: 7fr 3fr;
   gap: var(--space-md);
   align-items: start;
 }
 
-@media (max-width: 1100px) {
-  .topRow,
-  .topLeft {
-    grid-template-columns: 1fr;
-  }
+.topLeft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
 }
 
-@media (max-width: 900px) {
+/*
+ * 窄屏（Flutter 的 isCompact 判据是 maxWidth < 980）：
+ * 单列，且**不渲染起落架卡片** —— 这是 Flutter 版的既有行为，
+ * 那张卡是固定构图，压到窄栏里会挤成一团。
+ */
+@media (max-width: 979px) {
   .topRow {
     grid-template-columns: 1fr;
+  }
+
+  .topRowGear {
+    display: none;
   }
 }
 
@@ -244,125 +252,30 @@
 
 /* ── 起落架面板 ── */
 
-.gearPanel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xl);
-  padding: var(--space-sm) 0;
-  flex-wrap: wrap;
-}
-
-.gearLights {
-  display: flex;
-  gap: var(--space-md);
-}
-
-.gearColumn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-}
-
-.gearLabel {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  margin-bottom: 2px;
-}
-
 /* 仿真灯箱：黑底、灰框，亮起时发光 */
-.gearLight {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 60px;
-  height: 32px;
-  border: 2px solid #4a4a4a;
-  border-radius: 4px;
-  background: #0a0a0a;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.22);
-  transition:
-    color var(--anim-duration) ease,
-    box-shadow var(--anim-duration) ease;
-}
-
-.gearLightRed.gearLightOn {
-  color: #ff5252;
-  box-shadow:
-    0 0 12px rgba(255, 82, 82, 0.6),
-    inset 0 0 10px rgba(255, 82, 82, 0.25);
-}
-
-.gearLightGreen.gearLightOn {
-  color: #2ecc71;
-  box-shadow:
-    0 0 12px rgba(46, 204, 113, 0.6),
-    inset 0 0 10px rgba(46, 204, 113, 0.25);
-}
-
 /* ── 起落架手柄 ── */
-
-.gearHandleWrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-}
-
-.gearHandleLabel,
-.gearHandleValue {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-}
-
-.gearHandleValue {
-  font-weight: 700;
-  color: var(--color-text-primary);
-}
-
-.gearHandle {
-  position: relative;
-  width: 34px;
-  height: 96px;
-  border: 2px solid #4a4a4a;
-  border-radius: 17px;
-  background: #101010;
-}
-
-.gearHandleKnob {
-  position: absolute;
-  left: 50%;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: linear-gradient(180deg, #e8e8e8, #9a9a9a);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.55);
-  transform: translateX(-50%);
-  transition: top 320ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.gearHandle_up .gearHandleKnob {
-  top: 5px;
-}
-
-.gearHandle_off .gearHandleKnob {
-  top: 37px;
-}
-
-.gearHandle_down .gearHandleKnob {
-  top: 69px;
-}
 
 /* ── 趋势图 ── */
 
+/*
+ * 三张图表：宽度够就一行三张，不够就整体竖排。
+ *
+ * 不用 auto-fit：那会在中间宽度出现「两张一行 + 一张单独一行」的排布，
+ * 最后那张被拉成两倍宽，三条曲线的横向尺度对不上，没法横向比读。
+ * 显式断点保证要么三等分、要么全竖排。
+ */
 .chartGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(288px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-md);
+}
+
+@media (max-width: 979px) {
+  .chartGrid {
+    grid-template-columns: 1fr;
+    /* 竖排时上下留出与横排同样的间距 */
+    row-gap: var(--space-md);
+  }
 }
 
 .chartCard {
@@ -463,3 +376,235 @@
   font-weight: 700;
   flex-shrink: 0;
 }
+
+/* ── 起落架面板（还原 Flutter 版 landing_gear_card 的仪表板构图）── */
+
+.gearPanel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  /* 深色仿真面板：与 Flutter 版同一套配色 */
+  background: #2a2a2a;
+  border: 4px solid #1a1a1a;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* ── 机型示意图（俯视，机头朝上）── */
+
+.gearDiagram {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 0 4px;
+}
+
+.gearDiagramBody {
+  position: absolute;
+  top: 4px;
+  bottom: 18px;
+  width: 14px;
+  border-radius: 7px 7px 4px 4px;
+  background: linear-gradient(180deg, #4a4f57, #33373d);
+}
+
+.gearStrut {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: opacity 0.3s ease;
+}
+
+.gearStrutNose {
+  margin-bottom: 10px;
+}
+
+/* 747/A380 的机身侧主起比机翼侧靠内，画出来才有四支的样子 */
+.gearStrutInner {
+  transform: translateY(6px);
+}
+
+.gearMainStruts {
+  display: flex;
+  align-items: flex-start;
+  gap: 26px;
+}
+
+.gearLeg {
+  width: 3px;
+  border-radius: 2px;
+  background: #8b9199;
+  transition: height 0.3s ease;
+}
+
+.gearWheels {
+  display: flex;
+  gap: 2px;
+}
+
+.gearWheel {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #15181c;
+  border: 1.5px solid #9aa2ab;
+}
+
+.gearDiagramSource {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: #6f7680;
+  font-family: var(--font-mono, monospace);
+}
+
+/* ── 指示灯：前起居中在上，左右主起并排在下 ── */
+
+.gearLights {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.gearMainRow {
+  display: flex;
+  gap: 24px;
+}
+
+.gearColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gearLight {
+  width: 60px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: #000;
+  border: 2px solid #424242;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  /* 熄灭时是压暗的灰字，而不是不显示 —— 灯盒本身要始终看得见 */
+  color: rgba(158, 158, 158, 0.3);
+  transition: color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gearLightRed.gearLightOn {
+  color: #ff5252;
+  box-shadow: 0 0 10px 1px rgba(255, 82, 82, 0.6);
+}
+
+.gearLightGreen.gearLightOn {
+  color: #4caf50;
+  box-shadow: 0 0 10px 1px rgba(76, 175, 80, 0.6);
+}
+
+/* ── 手柄 ── */
+
+.gearHandleWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.gearHandleLabel {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: #9e9e9e;
+}
+
+.gearTrack {
+  position: relative;
+  width: 40px;
+  height: 160px;
+  border-radius: 20px;
+  background: #000;
+  border: 2px solid #424242;
+}
+
+.gearTrackTop,
+.gearTrackMid,
+.gearTrackBottom {
+  position: absolute;
+  left: calc(100% + 8px);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+}
+
+.gearTrackTop {
+  top: 6px;
+}
+
+.gearTrackMid {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.gearTrackBottom {
+  bottom: 6px;
+}
+
+.gearKnob {
+  position: absolute;
+  left: 50%;
+  width: 50px;
+  height: 50px;
+  margin-left: -25px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fff, #bdbdbd);
+  border: 2px solid #757575;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.55);
+  /* 位置由收放比例驱动，过渡时间与 Flutter 版一致 */
+  transition: top 0.3s ease;
+}
+
+/* 固定起落架没有可操作的手柄，画成锁死状态 */
+.gearKnobLocked {
+  background: linear-gradient(135deg, #9e9e9e, #616161);
+  border-style: dashed;
+}
+
+.gearHandleValue {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  color: #e0e0e0;
+}
+
+/* ── 速度限制铭牌 ── */
+
+.gearLimit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.gearLimitTitle {
+  font-size: 9px;
+  font-weight: 700;
+  color: #9e9e9e;
+}
+
+.gearLimitContent {
+  font-size: 8px;
+  color: #9e9e9e;
+  font-family: var(--font-mono, monospace);
+}
+

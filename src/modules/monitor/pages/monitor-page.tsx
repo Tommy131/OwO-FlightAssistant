@@ -13,6 +13,12 @@ import { MaterialIcon } from '../../../core/widgets/common/icon';
 import { Card, SectionCard, StatusBadge } from '../../../core/widgets/common/surfaces';
 import { MonitorLocalizationKeys as K } from '../localization/monitor-localization';
 import { MonitorChartBuffer, type ChartPoint, type MonitorData } from '../models/monitor-models';
+import {
+  effectiveGearRatio,
+  resolveGearLayout,
+  wheelsPerStrut,
+  type GearLayout,
+} from '../services/gear-layout';
 import { flushPendingMonitorData, useMonitorStore } from '../providers/monitor-store';
 import styles from './monitor-page.module.css';
 
@@ -45,12 +51,19 @@ export function MonitorPage() {
           * 起落架图是纵向构图（机头在上、主轮在下），配一个同样高的左栏
           * 才不会在它旁边留出一大片空白。
           */}
+        {/*
+          * 与 Flutter 版 monitor_page.dart 一致：
+          * 等宽两栏，左栏竖排（罗盘在上、系统状态在下），右栏起落架。
+          * 窄屏由 CSS 收成单列并隐藏起落架卡（Flutter 的 isCompact 分支同样不渲染它）。
+          */}
         <div className={styles.topRow}>
           <div className={styles.topLeft}>
             <CompassSection heading={data.heading} />
             <SystemsStatusCard data={data} />
           </div>
-          <LandingGearCard data={data} />
+          <div className={styles.topRowGear}>
+            <LandingGearCard data={data} />
+          </div>
         </div>
         <MonitorCharts data={data} />
       </div>
@@ -236,60 +249,173 @@ function gearStatus(ratio: number | undefined): 0 | 1 | 2 {
   return 1;
 }
 
+/**
+ * 起落架状态卡片
+ *
+ * 还原 Flutter 版 `landing_gear_card.dart` 的仪表板构图：
+ * 深色仿真面板、**前起居中在上／左右主起并排在下**（不是三个平铺）、
+ * 红上绿下的灯盒（亮时带光晕）、中央轨道上按平均收放比例滑动的圆钮、
+ * 底部速度限制铭牌。
+ *
+ * 在此之上补了机型仿真：轮组按当前机型画（747 四支主起、777 六轮小车、
+ * 737/A320 双轮、通航单轮），固定起落架恒为放下 —— 收上对它们是不存在的状态。
+ */
 function LandingGearCard({ data }: { data: MonitorData }) {
   const t = useTranslate();
+  const layout = useMemo(
+    () => resolveGearLayout(data.aircraftIcao, data.aircraftTitle),
+    [data.aircraftIcao, data.aircraftTitle],
+  );
 
+  const ratios = {
+    nose: effectiveGearRatio(layout, data.noseGearDown),
+    left: effectiveGearRatio(layout, data.leftGearDown),
+    right: effectiveGearRatio(layout, data.rightGearDown),
+  };
   const gears = [
-    { label: t(K.gearNoseLabel), status: gearStatus(data.noseGearDown) },
-    { label: t(K.gearLeftLabel), status: gearStatus(data.leftGearDown) },
-    { label: t(K.gearRightLabel), status: gearStatus(data.rightGearDown) },
-  ];
+    { key: 'nose', label: t(K.gearNoseLabel), status: gearStatus(ratios.nose) },
+    { key: 'left', label: t(K.gearLeftLabel), status: gearStatus(ratios.left) },
+    { key: 'right', label: t(K.gearRightLabel), status: gearStatus(ratios.right) },
+  ] as const;
 
-  // 三个都放下锁定 → 手柄在 DOWN；都收上 → UP；否则 OFF（过渡）
   const allDown = gears.every((gear) => gear.status === 2);
   const allUp = gears.every((gear) => gear.status === 0);
-  const handlePosition = allDown ? 'down' : allUp ? 'up' : 'off';
   const handleLabel = allDown
     ? t(K.gearPositionDown)
     : allUp
       ? t(K.gearPositionUp)
       : t(K.gearPositionOff);
+  // 手柄位置取三组平均：0=最上（UP），1=最下（DN），与 Flutter 版一致
+  const average = (ratios.nose + ratios.left + ratios.right) / 3;
 
   return (
     <SectionCard title={t(K.landingGearTitle)} icon="airline_seat_legroom_reduced">
       <div className={styles.gearPanel}>
+        {/* 机型示意：前起在上、主起在下，轮组数量按机型画 */}
+        <GearDiagram layout={layout} ratios={ratios} />
+
         <div className={styles.gearLights}>
-          {gears.map((gear) => (
-            <div key={gear.label} className={styles.gearColumn}>
-              <span className={styles.gearLabel}>{gear.label}</span>
-              {/* status==1 红灯亮（运动中）；status>=1 绿灯亮 */}
-              <div
-                className={`${styles.gearLight} ${styles.gearLightRed}${
-                  gear.status === 1 ? ` ${styles.gearLightOn}` : ''
-                }`}
-              >
-                UNLK
-              </div>
-              <div
-                className={`${styles.gearLight} ${styles.gearLightGreen}${
-                  gear.status >= 1 ? ` ${styles.gearLightOn}` : ''
-                }`}
-              >
-                DOWN
-              </div>
-            </div>
-          ))}
+          {/* 前起居中在上 */}
+          <GearLightBox label={gears[0].label} status={gears[0].status} />
+          {/* 左右主起并排在下 */}
+          <div className={styles.gearMainRow}>
+            <GearLightBox label={gears[1].label} status={gears[1].status} />
+            <GearLightBox label={gears[2].label} status={gears[2].status} />
+          </div>
         </div>
 
         <div className={styles.gearHandleWrap}>
           <span className={styles.gearHandleLabel}>{t(K.gearHandleLabel)}</span>
-          <div className={`${styles.gearHandle} ${styles[`gearHandle_${handlePosition}`]}`}>
-            <span className={styles.gearHandleKnob} />
+          <div className={styles.gearTrack}>
+            <span className={styles.gearTrackTop}>{t(K.gearPositionUp)}</span>
+            <span className={styles.gearTrackMid}>{t(K.gearPositionOff)}</span>
+            <span className={styles.gearTrackBottom}>{t(K.gearPositionDown)}</span>
+            {/* 固定起落架的手柄钉在 DN 且不可动 —— 那不是一个可操作的控制器 */}
+            <span
+              className={`${styles.gearKnob}${layout.retractable ? '' : ` ${styles.gearKnobLocked}`}`}
+              style={{ top: `calc(${(average * 100).toFixed(1)}% - 25px)` }}
+            />
           </div>
           <span className={styles.gearHandleValue}>{handleLabel}</span>
         </div>
+
+        <div className={styles.gearLimit}>
+          <span className={styles.gearLimitTitle}>{t(K.gearLimitTitle)}</span>
+          <span className={styles.gearLimitContent}>{t(K.gearLimitContent)}</span>
+        </div>
       </div>
     </SectionCard>
+  );
+}
+
+/** 单组灯盒：上红（过渡中）下绿（放下），亮时带光晕 */
+function GearLightBox({ label, status }: { label: string; status: 0 | 1 | 2 }) {
+  return (
+    <div className={styles.gearColumn}>
+      <div
+        className={`${styles.gearLight} ${styles.gearLightRed}${
+          status === 1 ? ` ${styles.gearLightOn}` : ''
+        }`}
+      >
+        {label}
+      </div>
+      <div
+        className={`${styles.gearLight} ${styles.gearLightGreen}${
+          status >= 1 ? ` ${styles.gearLightOn}` : ''
+        }`}
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 机型起落架示意图
+ *
+ * 俯视构图：机头朝上，前起在中轴线上，主起对称分列两侧。
+ * 支柱随收放比例上抬/落下，收上后轮组淡出 —— 让"正在收放"这个过程看得见，
+ * 而不是只有灯在闪。
+ */
+function GearDiagram({
+  layout,
+  ratios,
+}: {
+  layout: GearLayout;
+  ratios: { nose: number; left: number; right: number };
+}) {
+  const wheels = wheelsPerStrut(layout.bogie);
+  // 747/A380 的四支主起：机身两支在内、机翼两支在外
+  const mainSides = layout.mainStruts >= 4 ? ['outer', 'inner', 'inner', 'outer'] : ['x', 'x'];
+
+  return (
+    <div className={styles.gearDiagram}>
+      <div className={styles.gearDiagramBody} />
+
+      <GearStrut wheels={layout.noseWheels} ratio={ratios.nose} className={styles.gearStrutNose} />
+
+      <div className={styles.gearMainStruts}>
+        {mainSides.map((side, index) => {
+          const isLeft = index < mainSides.length / 2;
+          return (
+            <GearStrut
+              key={`${side}-${index}`}
+              wheels={wheels}
+              ratio={isLeft ? ratios.left : ratios.right}
+              className={side === 'inner' ? styles.gearStrutInner : undefined}
+            />
+          );
+        })}
+      </div>
+
+      <span className={styles.gearDiagramSource}>{layout.source}</span>
+    </div>
+  );
+}
+
+/** 一支起落架：支柱 + 机轮，随收放比例改变高度与不透明度 */
+function GearStrut({
+  wheels,
+  ratio,
+  className,
+}: {
+  wheels: number;
+  ratio: number;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`${styles.gearStrut}${className ? ` ${className}` : ''}`}
+      style={{ opacity: 0.25 + ratio * 0.75 }}
+    >
+      {/* 支柱长度随收放比例伸缩：收上时缩进机身 */}
+      <span className={styles.gearLeg} style={{ height: `${6 + ratio * 14}px` }} />
+      <span className={styles.gearWheels}>
+        {Array.from({ length: wheels }, (_, index) => (
+          <span key={index} className={styles.gearWheel} />
+        ))}
+      </span>
+    </div>
   );
 }
 

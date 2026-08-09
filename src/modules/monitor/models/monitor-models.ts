@@ -35,6 +35,9 @@ export interface MonitorData {
   fireWarningEngine1?: boolean;
   fireWarningEngine2?: boolean;
   fireWarningAPU?: boolean;
+  /** 机型信息，用来判断起落架构型（可收放 / 轮组排布） */
+  aircraftIcao?: string;
+  aircraftTitle?: string;
   noseGearDown?: number;
   leftGearDown?: number;
   rightGearDown?: number;
