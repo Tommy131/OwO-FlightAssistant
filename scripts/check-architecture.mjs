@@ -41,7 +41,7 @@ const rules = [
     // 这些是领域层：必须能脱离 React/Leaflet/store 被直接调用与测试
     appliesTo: (path) =>
       /^src\/modules\/[^/]+\/services\//.test(path) &&
-      /(approach-beam|holding-geometry|papi-guidance|airport-outline|map-airport-parser|map-response-parsers|planned-route-parser|procedure-parser|geo|metar-decode)\.ts$/.test(
+      /(approach-beam|holding-geometry|papi-guidance|airport-outline|map-airport-parser|map-response-parsers|planned-route-parser|procedure-parser|taxi-graph|geo|metar-decode)\.ts$/.test(
         path,
       ),
     forbidden: new RegExp(
