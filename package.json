@@ -1,7 +1,7 @@
 {
   "name": "owo-flight-assistant-web",
   "private": true,
-  "version": "1.0.4-beta",
+  "version": "1.0.5-beta",
   "type": "module",
   "description": "OwO! FlightAssistant — Web GUI (React port of the Flutter modular flight assistant)",
   "license": "CC-BY-NC-SA-4.0",
