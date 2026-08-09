@@ -22,6 +22,7 @@ import { MapLayerPicker } from './panels/map-layer-picker';
 import { TaxiwayToolbar } from './panels/taxiway-toolbar';
 import { SelectedAirportCard } from './panels/selected-airport-card';
 import { ProcedurePanel } from './panels/procedure-panel';
+import { TaxiGuidancePanel } from './panels/taxi-guidance-panel';
 import styles from './map-page.module.css';
 
 /**
@@ -129,6 +130,7 @@ export function MapPage() {
       <SelectedAirportCard />
       {/* 自己判断显隐：开关在右侧控制栏的「进近程序」组里 */}
       <ProcedurePanel />
+      <TaxiGuidancePanel />
     </div>
   );
 }

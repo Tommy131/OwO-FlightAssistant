@@ -39,6 +39,7 @@ import {
 import { usePlannedRouteStore } from '../../common/providers/planned-route-store';
 import { renderPlannedRoute } from './layers/planned-route-layer';
 import { procedureKey, renderProcedure } from './layers/procedure-layer';
+import { renderTaxiRoute } from './layers/taxi-route-layer';
 import { AIRSPACE_SEVERITY_COLOR } from './layers/layer-style';
 
 /**
@@ -91,6 +92,14 @@ function newRouteSegment(points: readonly MapRoutePoint[]): L.Polyline {
   );
 }
 
+/** 滑行路线两端的标签：起点固定，终点优先显示 hold short 的跑道号 */
+function taxiLabelsOf(state: { taxiPlan: { holdShort?: string } | null }): {
+  start: string;
+  end: string;
+} {
+  return { start: 'START', end: state.taxiPlan?.holdShort ?? 'END' };
+}
+
 /** 从 store 状态里取出当前选中的程序 */
 function selectedProcedureOf(state: {
   procedures: readonly MapProcedure[];
@@ -137,6 +146,7 @@ export function MapCanvas({
     procedureGroup?: L.LayerGroup;
     plannedGroup?: L.LayerGroup;
     procedureLayerGroup?: L.LayerGroup;
+    taxiRouteGroup?: L.LayerGroup;
   }>({ overlays: {} });
 
   // 回调放 ref，避免因 props 变化重建地图
@@ -192,6 +202,8 @@ export function MapCanvas({
     layersRef.current.plannedGroup = L.layerGroup().addTo(map);
     // 公布程序：与计划航路同层级，配色已刻意错开
     layersRef.current.procedureLayerGroup = L.layerGroup().addTo(map);
+    // 滑行引导：压在标记之下，但要盖住地面结构，否则在机坪上看不清走向
+    layersRef.current.taxiRouteGroup = L.layerGroup().addTo(map);
     layersRef.current.aiGroup = L.layerGroup().addTo(map);
     layersRef.current.airportGroup = L.layerGroup().addTo(map);
     layersRef.current.taxiwayGroup = L.layerGroup().addTo(map);
@@ -216,6 +228,14 @@ export function MapCanvas({
         layersRef.current.procedureLayerGroup,
         selectedProcedureOf(mapState),
         mapState.showProcedures,
+      );
+      // 滑行路线两端的标签也按缩放级别显隐
+      renderTaxiRoute(
+        map,
+        layersRef.current.taxiRouteGroup,
+        mapState.taxiPlan?.points ?? null,
+        mapState.showTaxiGuidance,
+        taxiLabelsOf(mapState),
       );
     });
 
@@ -565,6 +585,27 @@ export function MapCanvas({
           )
           .addTo(group);
       }
+    }),
+  []);
+
+  // ── 滑行引导 ──
+  useEffect(() =>
+    useMapStore.subscribe((state, previous) => {
+      const map = mapRef.current;
+      if (!map) return;
+      if (
+        state.taxiPlan === previous.taxiPlan &&
+        state.showTaxiGuidance === previous.showTaxiGuidance
+      ) {
+        return;
+      }
+      renderTaxiRoute(
+        map,
+        layersRef.current.taxiRouteGroup,
+        state.taxiPlan?.points ?? null,
+        state.showTaxiGuidance,
+        taxiLabelsOf(state),
+      );
     }),
   []);
 

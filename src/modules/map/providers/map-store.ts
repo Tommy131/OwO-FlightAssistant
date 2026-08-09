@@ -60,6 +60,15 @@ import {
 import { fetchAirportWeather } from '../services/airport-weather';
 import { parseAirportDetail } from '../services/map-airport-parser';
 import { parseProcedureList } from '../services/procedure-parser';
+import {
+  buildTaxiGraph,
+  nearestNode,
+  parseTaxiClearance,
+  planTaxiRouteByRefs,
+  shortestTaxiPath,
+  summarizePathByRef,
+  type TaxiPath,
+} from '../services/taxi-graph';
 
 /**
  * 地图模块状态管理
@@ -111,6 +120,58 @@ export const CONFIGURABLE_ALERT_IDS = [
   'high_aoa',
 ] as const;
 
+
+/**
+ * 滑行起点：本机当前位置优先，其次是机场第一个机位。
+ *
+ * 用本机位置是因为滑行引导本来就是「我现在在这儿，接下来怎么走」；
+ * 没连模拟器时退回机位，好歹能先看一眼路线。两者都定不到（离滑行道太远，
+ * 或压根不在这个机场）就明确报 `no_start`，而不是随便挑个节点凑合 ——
+ * 起点错了整条路线都是错的。
+ */
+function resolveTaxiStart(
+  state: { aircraft: MapAircraftState | null; selectedAirport: MapSelectedAirportDetail | null },
+  graph: ReturnType<typeof buildTaxiGraph>,
+): string | null {
+  if (state.aircraft) {
+    const key = nearestNode(graph, state.aircraft.position, 200);
+    if (key) return key;
+  }
+  const spot = state.selectedAirport?.parkingSpots[0];
+  return spot ? nearestNode(graph, spot.position, 300) : null;
+}
+
+/** 把算法输出转成界面用的规划结果 */
+function toTaxiPlan(
+  graph: ReturnType<typeof buildTaxiGraph>,
+  path: TaxiPath,
+  holdShort?: string,
+): TaxiPlan {
+  return {
+    points: path.points,
+    distanceM: path.distanceM,
+    segments: summarizePathByRef(graph, path),
+    holdShort,
+  };
+}
+
+/**
+ * 滑行引导的失败原因
+ *
+ * 分这么细是因为每一种的应对完全不同：没有地面矢量要等 Overpass 抓回来，
+ * 定不了起点得让用户把飞机挪到滑行道附近，而 `unreachable` 是指令本身
+ * 在这个机场走不通。笼统给一句「规划失败」，用户只能干瞪眼。
+ */
+export type TaxiPlanError = 'no_aeroway' | 'no_refs' | 'no_start' | 'unreachable';
+
+export interface TaxiPlan {
+  readonly points: readonly MapCoordinate[];
+  readonly distanceM: number;
+  /** 按滑行道编号合并后的分段，用来列出可读的路线 */
+  readonly segments: readonly { ref?: string; distanceM: number }[];
+  /** 指令里 hold short 的跑道号（若有） */
+  readonly holdShort?: string;
+}
 
 interface MapState {
   // ── 图层开关 ──
@@ -203,6 +264,11 @@ interface MapState {
   taxiwayNodes: MapTaxiwayNode[];
   taxiwaySegments: MapTaxiwaySegment[];
   isTaxiwayDrawingActive: boolean;
+  /** 地面滑行引导：指令输入、规划结果与失败原因 */
+  showTaxiGuidance: boolean;
+  taxiClearanceText: string;
+  taxiPlan: TaxiPlan | null;
+  taxiPlanError: TaxiPlanError | null;
   hasUnsavedTaxiwayChanges: boolean;
   loadedTaxiwayAirportIcao: string | null;
   completedTaxiwaySegmentIndexes: number[];
@@ -221,6 +287,12 @@ interface MapState {
   toggleAeroway: () => void;
   toggleRunwayNavaids: () => void;
   toggleHoldings: () => void;
+  toggleTaxiGuidance: () => void;
+  setTaxiClearanceText: (text: string) => void;
+  planTaxiByClearance: () => void;
+  planTaxiToRunway: (runwayIdent: string) => void;
+  clearTaxiPlan: () => void;
+
   toggleProcedures: () => void;
   loadProcedures: (icao: string) => Promise<void>;
   selectProcedure: (key: string | null) => void;
@@ -359,6 +431,11 @@ export const useMapStore = create<MapState>((set, get) => ({
   showAeroway: true,
   showRunwayNavaids: true,
   showHoldings: false,
+  showTaxiGuidance: false,
+  taxiClearanceText: '',
+  taxiPlan: null,
+  taxiPlanError: null,
+
   showProcedures: false,
   procedures: [],
   selectedProcedureKey: null,
@@ -805,6 +882,90 @@ export const useMapStore = create<MapState>((set, get) => ({
   // ────────────────────────────────────────────────────────────────────────
   // 滑行道绘制
   // ────────────────────────────────────────────────────────────────────────
+
+  // ────────────────────────────────────────────────────────────────────────
+  // 地面滑行引导
+  // ────────────────────────────────────────────────────────────────────────
+
+  toggleTaxiGuidance() {
+    const next = !get().showTaxiGuidance;
+    // 关掉时把规划一并清掉：留着的话地图上会挂着一条看不见来源的高亮线
+    set(next ? { showTaxiGuidance: true } : { showTaxiGuidance: false, taxiPlan: null, taxiPlanError: null });
+  },
+
+  setTaxiClearanceText: (text) => set({ taxiClearanceText: text }),
+
+  clearTaxiPlan: () => set({ taxiPlan: null, taxiPlanError: null }),
+
+  planTaxiByClearance() {
+    const state = get();
+    const graph = buildTaxiGraph(state.aerowayFeatures);
+    if (graph.nodes.size === 0) {
+      set({ taxiPlan: null, taxiPlanError: 'no_aeroway' });
+      return;
+    }
+
+    const clearance = parseTaxiClearance(state.taxiClearanceText);
+    if (clearance.refs.length === 0) {
+      set({ taxiPlan: null, taxiPlanError: 'no_refs' });
+      return;
+    }
+
+    const startKey = resolveTaxiStart(state, graph);
+    if (!startKey) {
+      set({ taxiPlan: null, taxiPlanError: 'no_start' });
+      return;
+    }
+
+    const path = planTaxiRouteByRefs(graph, startKey, clearance.refs);
+    if (!path) {
+      set({ taxiPlan: null, taxiPlanError: 'unreachable' });
+      return;
+    }
+    set({
+      taxiPlan: toTaxiPlan(graph, path, clearance.holdShort),
+      taxiPlanError: null,
+      showTaxiGuidance: true,
+    });
+  },
+
+  planTaxiToRunway(runwayIdent) {
+    const state = get();
+    const graph = buildTaxiGraph(state.aerowayFeatures);
+    if (graph.nodes.size === 0) {
+      set({ taxiPlan: null, taxiPlanError: 'no_aeroway' });
+      return;
+    }
+
+    const startKey = resolveTaxiStart(state, graph);
+    if (!startKey) {
+      set({ taxiPlan: null, taxiPlanError: 'no_start' });
+      return;
+    }
+
+    // 跑道两端都试，取近的那一头 —— 用户点的是跑道，不是某个特定端
+    const runway = state.selectedAirport?.runwayGeometries.find((r) => r.ident === runwayIdent);
+    if (!runway) {
+      set({ taxiPlan: null, taxiPlanError: 'unreachable' });
+      return;
+    }
+    let best: TaxiPath | null = null;
+    for (const end of [runway.start, runway.end]) {
+      const endKey = nearestNode(graph, end, 300);
+      if (!endKey) continue;
+      const path = shortestTaxiPath(graph, startKey, endKey);
+      if (path && (!best || path.distanceM < best.distanceM)) best = path;
+    }
+    if (!best) {
+      set({ taxiPlan: null, taxiPlanError: 'unreachable' });
+      return;
+    }
+    set({
+      taxiPlan: toTaxiPlan(graph, best, runwayIdent),
+      taxiPlanError: null,
+      showTaxiGuidance: true,
+    });
+  },
 
   toggleTaxiwayDrawing() {
     const next = !get().isTaxiwayDrawingActive;

@@ -203,6 +203,13 @@ export function MapRightControls({ onOpenLayerPicker }: { onOpenLayerPicker: () 
       label: t(K.controlGroupTaxiway),
       items: [
         {
+          // 滑行引导：这个开关同时也是指令面板的开关
+          icon: 'alt_route',
+          label: t(K.toggleTaxiGuidance),
+          active: state.showTaxiGuidance,
+          onClick: state.toggleTaxiGuidance,
+        },
+        {
           icon: 'polyline',
           label: t(K.toggleCustomTaxiway),
           active: state.showCustomTaxiwayRoute,

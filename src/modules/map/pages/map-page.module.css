@@ -913,6 +913,166 @@
   background: var(--color-on-surface-a04);
 }
 
+/* ── 地面滑行引导面板 ── */
+
+.taxiPanel {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(var(--space-md) + 44px);
+  z-index: 556;
+  width: min(520px, calc(100% - 2 * var(--space-md)));
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface) 80%, transparent),
+    color-mix(in srgb, var(--color-background) 84%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, #ff8c1a 40%, transparent);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  animation: slide-up 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.taxiHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.taxiTitle {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.taxiInputRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+}
+
+.taxiInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.taxiRunwayRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.taxiRunwayLabel {
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+}
+
+.taxiRunwayChip {
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-on-surface-a04);
+  color: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.taxiRunwayChip:hover {
+  border-color: color-mix(in srgb, #ff8c1a 60%, transparent);
+  background: color-mix(in srgb, #ff8c1a 14%, transparent);
+}
+
+.taxiError {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-error) 40%, transparent);
+  color: var(--color-error);
+  font-size: 11px;
+}
+
+.taxiSummary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.taxiTotalValue {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ff8c1a;
+  font-variant-numeric: tabular-nums;
+}
+
+.taxiHoldShort {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 50%, transparent);
+  color: var(--color-warning);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.taxiClearButton {
+  margin-left: auto;
+  padding: 3px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.taxiClearButton:hover {
+  background: var(--color-on-surface-a04);
+}
+
+.taxiSegments {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.taxiSegment {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 9px;
+  background: var(--color-on-surface-a04);
+  border: 1px solid var(--color-border);
+}
+
+.taxiSegmentRef {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.taxiSegmentDistance {
+  font-size: 9.5px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── 移动端：控件让位给地图 ── */
 
 @media (max-width: 649px) {
@@ -951,6 +1111,13 @@
    * 窄屏放不下并排的两张卡。程序面板是用户主动打开的，
    * 让它盖在机场卡之上（面板自带关闭按钮，关掉就回到机场卡）。
    */
+  .taxiPanel {
+    left: var(--space-sm);
+    right: var(--space-sm);
+    transform: none;
+    width: auto;
+  }
+
   .procedurePanel {
     left: var(--space-sm);
     right: var(--space-sm);
