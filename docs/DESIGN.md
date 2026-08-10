@@ -56,6 +56,8 @@
 | FR-15 | 训练模式与复盘模式切换（复盘时暂停全部实时联动） | `modules/common/providers/app-mode-store.ts` |
 | FR-16 | 跨模块任务流 Briefing → Map → Checklist → Flight Logs | `modules/common/services/flight-workflow.ts` |
 | FR-17 | WebSocket 增量帧合并与丢帧重同步 | `modules/common/services/ws-delta-assembler.ts` |
+| FR-18 | 地形分级着色与前视地形告警（高程来自中间件的在线 DEM 瓦片） | `modules/map/services/terrain-model.ts`、`terrain-tiles.ts` |
+| FR-19 | 机场当地时间 / UTC 与本机所在位置当地时间 | `modules/map/services/local-clock.ts`、`timezone-lookup.ts` |
 
 ### 2.2 非功能性需求（NFR → ISO/IEC 25010）
 

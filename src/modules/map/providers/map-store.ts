@@ -53,6 +53,15 @@ import {
 import { evaluateFlightAlerts } from '../services/flight-alerts';
 import { resolveHudTimerAction } from '../services/hud-timer-rules';
 import {
+  buildTerrainAheadAlert,
+  sampleTerrainAhead,
+  terrainBoundsAround,
+  type TerrainTile,
+} from '../services/terrain-model';
+import { fetchTerrainTiles, mergeTerrainTiles } from '../services/terrain-tiles';
+import { zoneCellKey, type ZoneInfo } from '../services/local-clock';
+import { lookupZone } from '../services/timezone-lookup';
+import {
   appendRoutePoint,
   buildAirportsFromSnapshot,
   distanceInMeters,
@@ -241,6 +250,21 @@ interface MapState {
   aerowayFeatures: MapAerowayFeature[];
   isAerowayLoading: boolean;
   activeAlerts: MapFlightAlert[];
+
+  /** 本机周边的地形高程瓦片，供地形着色与前视判定共用 */
+  terrainTiles: TerrainTile[];
+  /**
+   * 地形数据状态。
+   *
+   * `unavailable` 表示这一片确实取不到高程 —— 界面上要说出来，
+   * 不能让用户以为「没画出地形 = 前方一马平川」。
+   */
+  terrainStatus: 'idle' | 'loading' | 'ready' | 'unavailable';
+  /** 本机所在位置的时区，未查到时为 null */
+  aircraftZone: ZoneInfo | null;
+  /** 选中机场所在位置的时区，未查到时为 null */
+  airportZone: ZoneInfo | null;
+
   homeAirport: MapAirportMarker | null;
   currentNearestAirportIcao: string | null;
   selectedAirport: MapSelectedAirportDetail | null;
@@ -400,6 +424,17 @@ interface MapState {
    * 屏幕上的机场就应该直接显示滑行道网络。
    */
   loadNearbyAeroway: (icaos: string[]) => Promise<void>;
+
+  /**
+   * 确保本机所在位置的时区已查过。
+   *
+   * 由需要显示当地时间的组件调用（迷你信息卡）——**不要**放进遥测回调里无条件跑，
+   * 没人在看的时候每飞过一个格点就发一次请求毫无意义。
+   */
+  ensureAircraftZone: () => Promise<void>;
+
+  /** 查询选中机场所在位置的时区 */
+  loadAirportZone: (latitude: number, longitude: number) => Promise<void>;
 }
 
 // ── 不参与渲染的可变上下文 ──
@@ -410,6 +445,12 @@ const ctx = {
   radarTimerHandle: null as ReturnType<typeof setInterval> | null,
   lastRoutePoint: null as MapCoordinate | null,
   lastOnGround: undefined as boolean | undefined,
+  /** 地形瓦片：上次拉取时的中心格，以及在途标记（同一时刻只允许一次拉取） */
+  terrainCenterKey: null as string | null,
+  terrainFetching: false,
+  /** 本机所在位置的时区：上次查询的格点，以及在途标记 */
+  aircraftZoneCellKey: null as string | null,
+  aircraftZoneFetching: false,
   /** 撤销/重做栈（存的是整条路线的快照） */
   undoStack: [] as TaxiwayRoute[],
   redoStack: [] as TaxiwayRoute[],
@@ -483,6 +524,10 @@ export const useMapStore = create<MapState>((set, get) => ({
   aerowayFeatures: [],
   isAerowayLoading: false,
   activeAlerts: [],
+  terrainTiles: [],
+  terrainStatus: 'idle',
+  aircraftZone: null,
+  airportZone: null,
   homeAirport: null,
   currentNearestAirportIcao: null,
   selectedAirport: null,
@@ -573,6 +618,12 @@ export const useMapStore = create<MapState>((set, get) => ({
       // 断线时关掉依赖实时遥测的叠加层，避免显示过期数据
       if (state.showWeatherWind) patch.showWeatherWind = false;
       if (state.showTerrainWarning) patch.showTerrainWarning = false;
+      // 地形与本机时区都是跟着本机位置走的，断线后一并丢掉
+      patch.terrainTiles = [];
+      patch.terrainStatus = 'idle';
+      patch.aircraftZone = null;
+      ctx.terrainCenterKey = null;
+      ctx.aircraftZoneCellKey = null;
     }
 
     const isPaused = snapshot.isPaused === true && isConnected;
@@ -672,7 +723,30 @@ export const useMapStore = create<MapState>((set, get) => ({
       ctx.lastOnGround = undefined;
     }
 
-    patch.activeAlerts = evaluateFlightAlerts(state, flightData);
+    // 前视地形：先保证本机周边的高程瓦片在手（异步，不阻塞本帧），
+    // 再拿手上已有的瓦片做判定。拿不到瓦片就不判 —— 见 sampleTerrainAhead。
+    const terrainAlerts: MapFlightAlert[] = [];
+    if (state.showTerrainWarning && isConnected && patch.aircraft) {
+      ensureTerrainCoverage(patch.aircraft.position);
+      const lookAhead = sampleTerrainAhead(
+        {
+          position: patch.aircraft.position,
+          // 遥测里没有航迹角，用航向代替：两者差一个风偏流（通常几度），
+          // 对「前方十几海里有没有山」这个尺度足够了
+          trackDeg: patch.aircraft.heading ?? Number.NaN,
+          groundSpeedKt: patch.aircraft.groundSpeed ?? 0,
+          altitudeFt: patch.aircraft.altitude ?? Number.NaN,
+          verticalSpeedFpm: patch.aircraft.verticalSpeed ?? 0,
+          radioAltitudeFt: patch.aircraft.radioAltitude,
+          onGround: patch.aircraft.onGround,
+        },
+        state.terrainTiles,
+      );
+      const alert = buildTerrainAheadAlert(lookAhead);
+      if (alert) terrainAlerts.push(alert);
+    }
+
+    patch.activeAlerts = evaluateFlightAlerts(state, flightData, terrainAlerts);
 
     // 新出现的地形告警上报给中间件（对应桌面版 _syncMiddlewareMapTelemetry）
     reportNewTerrainWarnings(state.activeAlerts, patch.activeAlerts, flightData);
@@ -763,7 +837,46 @@ export const useMapStore = create<MapState>((set, get) => ({
     set((s) => ({ showWeatherTemperature: !s.showWeatherTemperature })),
   toggleRestrictedAirspace: () =>
     set((s) => ({ showRestrictedAirspace: !s.showRestrictedAirspace })),
-  toggleTerrainWarning: () => set((s) => ({ showTerrainWarning: !s.showTerrainWarning })),
+  toggleTerrainWarning: () =>
+    set((s) => {
+      const enabled = !s.showTerrainWarning;
+      if (enabled) return { showTerrainWarning: true };
+      // 关掉开关就把地形数据一起丢掉：图层要立刻消失，
+      // 而且下次打开时应当按当时的位置重新拉，而不是画一片旧地形
+      ctx.terrainCenterKey = null;
+      return {
+        showTerrainWarning: false,
+        terrainTiles: [],
+        terrainStatus: 'idle' as const,
+      };
+    }),
+
+  async ensureAircraftZone() {
+    const state = useMapStore.getState();
+    const position = state.aircraft?.position;
+    if (!position) return;
+    const cellKey = zoneCellKey(position.latitude, position.longitude);
+    if (!cellKey) return;
+    // 本机还在同一格里就没必要再查：中间件按 0.1° 缓存，答案不会变
+    if (ctx.aircraftZoneCellKey === cellKey && state.aircraftZone) return;
+    if (ctx.aircraftZoneFetching) return;
+
+    ctx.aircraftZoneFetching = true;
+    try {
+      const zone = await lookupZone(position.latitude, position.longitude);
+      if (!zone) return;
+      ctx.aircraftZoneCellKey = cellKey;
+      set({ aircraftZone: zone });
+    } finally {
+      ctx.aircraftZoneFetching = false;
+    }
+  },
+
+  async loadAirportZone(latitude, longitude) {
+    const zone = await lookupZone(latitude, longitude);
+    // 查不到就保持 null，让界面显示「查询时区中/不可用」而不是按 UTC 装作当地时间
+    set({ airportZone: zone ?? null });
+  },
   toggleCustomTaxiway: () =>
     set((s) => ({ showCustomTaxiwayRoute: !s.showCustomTaxiwayRoute })),
 
@@ -776,9 +889,15 @@ export const useMapStore = create<MapState>((set, get) => ({
       aerowayFeatures: [],
       procedures: [],
       selectedProcedureKey: null,
+      // 时区跟着机场走：换机场的瞬间必须清掉，否则新机场会短暂顶着旧机场的当地时间
+      airportZone: null,
     });
     if (!detail) return;
     set({ beamRunwayIdent: null, holdings: [] });
+    void get().loadAirportZone(
+      detail.marker.position.latitude,
+      detail.marker.position.longitude,
+    );
     void get().loadAerowayFeatures(detail);
     void get().loadAirportWeather(detail);
     void get().loadRunwayNavaids(detail);
@@ -1520,6 +1639,75 @@ function isLayerStyle(value: unknown): value is MapLayerStyle {
 
 
 /**
+ * 本机周边地形瓦片的覆盖半径（海里）。
+ *
+ * 前视最远 25 NM，多留一点余量让转弯时不至于立刻飞出已有覆盖。
+ */
+const TERRAIN_COVERAGE_RADIUS_NM = 35;
+
+/**
+ * 触发重新拉瓦片的位移门槛（度）。
+ *
+ * 本机在同一个 0.25° 格子里飞的时候不重复拉 —— 中间件那边虽然有缓存，
+ * 但每帧发一次 HTTP 一样是浪费。
+ */
+const TERRAIN_REFETCH_CELL_DEG = 0.25;
+
+/**
+ * 保留的瓦片数上限。
+ *
+ * 35 NM 半径大约要 5×5 块，留 64 块的余量够覆盖一次转向；再多就是身后
+ * 几百海里的地形，没有留着的理由。
+ */
+const TERRAIN_TILE_LIMIT = 64;
+
+/**
+ * 确保本机周边的地形瓦片已在手。
+ *
+ * 立即返回，拉取在后台跑 —— 遥测回调是每帧都走的热路径，不能在里面等网络。
+ * 同一时刻只允许一次拉取在途，本机没飞出格子也不重复拉。
+ */
+function ensureTerrainCoverage(center: MapCoordinate): void {
+  if (!Number.isFinite(center.latitude) || !Number.isFinite(center.longitude)) return;
+  const cellKey = `${Math.floor(center.latitude / TERRAIN_REFETCH_CELL_DEG)}/${Math.floor(
+    center.longitude / TERRAIN_REFETCH_CELL_DEG,
+  )}`;
+  if (ctx.terrainFetching) return;
+  if (ctx.terrainCenterKey === cellKey) return;
+
+  ctx.terrainFetching = true;
+  if (useMapStore.getState().terrainStatus === 'idle') {
+    useMapStore.setState({ terrainStatus: 'loading' });
+  }
+
+  void (async () => {
+    try {
+      const tiles = await fetchTerrainTiles(
+        terrainBoundsAround(center, TERRAIN_COVERAGE_RADIUS_NM),
+      );
+      if (tiles.length === 0) {
+        // 这一片确实取不到 —— 记下来让界面说出口，但**不要**把 centerKey 记成
+        // 已完成，否则这块区域就再也不会重试了
+        useMapStore.setState((s) =>
+          s.terrainTiles.length === 0 ? { terrainStatus: 'unavailable' } : {},
+        );
+        return;
+      }
+      ctx.terrainCenterKey = cellKey;
+      useMapStore.setState((s) => ({
+        terrainTiles: mergeTerrainTiles(s.terrainTiles, tiles, TERRAIN_TILE_LIMIT),
+        terrainStatus: 'ready',
+      }));
+    } finally {
+      ctx.terrainFetching = false;
+    }
+  })();
+}
+
+/** 前端自己判的地形类告警 id 前缀 —— 上报时按这个筛，不要写死某一个 id */
+const TERRAIN_ALERT_ID_PREFIX = 'terrain_';
+
+/**
  * 上报新出现的地形告警
  *
  * 只在告警「从无到有」的那一帧上报，避免持续告警期间每帧刷接口。
@@ -1531,7 +1719,7 @@ function reportNewTerrainWarnings(
 ): void {
   const previousIds = new Set(previous.map((alert) => alert.id));
   const fresh = next.filter(
-    (alert) => alert.id === 'terrain_warning' && !previousIds.has(alert.id),
+    (alert) => alert.id.startsWith(TERRAIN_ALERT_ID_PREFIX) && !previousIds.has(alert.id),
   );
   if (fresh.length === 0) return;
 

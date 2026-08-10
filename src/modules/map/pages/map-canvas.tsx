@@ -42,6 +42,7 @@ import { renderPlannedRoute } from './layers/planned-route-layer';
 import { procedureKey, renderProcedure } from './layers/procedure-layer';
 import { renderTaxiRoute } from './layers/taxi-route-layer';
 import { AIRSPACE_SEVERITY_COLOR } from './layers/layer-style';
+import { buildTerrainCells, type TerrainBand } from '../services/terrain-model';
 import { COMPASS_BASE_SIZE, compassRingHtml } from '../services/compass-ring';
 
 /**
@@ -85,6 +86,26 @@ const OVERLAY_MAX_NATIVE_ZOOM = 9;
 const ROUTE_SEGMENT_POINTS = 500;
 
 const ROUTE_STYLE = { color: '#2a78d6', weight: 3, opacity: 0.85 } as const;
+
+/**
+ * 地形重画的高度档位（英尺）。
+ *
+ * 分色的分界在 0 / −1000 / −2000 ft，250 ft 一档足够让颜色跟着爬升下降变，
+ * 又不至于每帧都重画一屏矩形。
+ */
+const TERRAIN_ALTITUDE_BUCKET_FT = 250;
+
+/**
+ * 各档地形的填充不透明度。
+ *
+ * 越危险画得越实：高于本机的必须一眼看到，低于本机的只要让人知道
+ * 「下面有东西」就够了，太实会把底图压死。
+ */
+const TERRAIN_FILL_OPACITY: Record<TerrainBand, number> = {
+  above: 0.55,
+  near: 0.4,
+  below: 0.25,
+};
 
 /** 建一段航迹线 */
 function newRouteSegment(points: readonly MapRoutePoint[]): L.Polyline {
@@ -152,6 +173,7 @@ export function MapCanvas({
     taxiwayGroup?: L.LayerGroup;
     markerGroup?: L.LayerGroup;
     airspaceGroup?: L.LayerGroup;
+    terrainGroup?: L.LayerGroup;
     airportDetailGroup?: L.LayerGroup;
     nearbyGroup?: L.LayerGroup;
     aerowayGroup?: L.LayerGroup;
@@ -160,6 +182,16 @@ export function MapCanvas({
     procedureLayerGroup?: L.LayerGroup;
     taxiRouteGroup?: L.LayerGroup;
   }>({ overlays: {} });
+
+  /** 地形层的 canvas 渲染器 */
+  const terrainRendererRef = useRef<L.Canvas | null>(null);
+  /**
+   * 上次画地形时用的高度档位。
+   *
+   * 分档是必须的：地形配色按「相对本机高度」算，本机高度每帧都在变，
+   * 不分档的话一屏几千个矩形会每帧重画一遍，地图直接卡死。
+   */
+  const terrainAltitudeBucketRef = useRef<number | null>(null);
 
   // 回调放 ref，避免因 props 变化重建地图
   const onAirportClickRef = useRef(onAirportClick);
@@ -221,6 +253,22 @@ export function MapCanvas({
       // 地面结构只是背景，不该拦截地图拖拽
       aerowayPane.style.pointerEvents = 'none';
     }
+
+    /*
+     * 地形着色专用 pane
+     *
+     * 地形是背景中的背景：垫在所有矢量之下、只压在底图之上（tilePane=200）。
+     * 用 canvas 渲染器而不是默认的 SVG —— 一屏可能有几千个格子，
+     * 那么多 <rect> 会把 DOM 撑爆，canvas 画几千个矩形则毫无压力。
+     */
+    map.createPane('terrain');
+    const terrainPane = map.getPane('terrain');
+    if (terrainPane) {
+      terrainPane.style.zIndex = '250';
+      terrainPane.style.pointerEvents = 'none';
+    }
+    terrainRendererRef.current = L.canvas({ pane: 'terrain', padding: 0.2 });
+    layersRef.current.terrainGroup = L.layerGroup().addTo(map);
 
     layersRef.current.airspaceGroup = L.layerGroup().addTo(map);
     // 机场地面结构（滑行道/停机坪）垫在最底下
@@ -629,6 +677,56 @@ export function MapCanvas({
               .join(' · '),
           )
           .addTo(group);
+      }
+    }),
+  []);
+
+  // ── 地形分级着色 ──
+  useEffect(() =>
+    useMapStore.subscribe((state, previous) => {
+      const group = layersRef.current.terrainGroup;
+      const renderer = terrainRendererRef.current;
+      if (!group || !renderer) return;
+
+      if (!state.showTerrainWarning) {
+        if (previous.showTerrainWarning) {
+          group.clearLayers();
+          terrainAltitudeBucketRef.current = null;
+        }
+        return;
+      }
+
+      const altitude = state.aircraft?.altitude;
+      if (altitude === undefined || !Number.isFinite(altitude)) return;
+
+      /*
+       * 只在「瓦片变了」或「本机跨过一个高度档」时重画。
+       *
+       * 配色是按相对本机的高度算的，所以本机爬升下降时颜色确实要跟着变；
+       * 但高度每帧都在动，不分档就等于每帧重画一屏矩形。
+       */
+      const bucket = Math.round(altitude / TERRAIN_ALTITUDE_BUCKET_FT);
+      const tilesChanged = state.terrainTiles !== previous.terrainTiles;
+      const justEnabled = !previous.showTerrainWarning;
+      if (!tilesChanged && !justEnabled && terrainAltitudeBucketRef.current === bucket) return;
+      terrainAltitudeBucketRef.current = bucket;
+
+      group.clearLayers();
+      for (const cell of buildTerrainCells(state.terrainTiles, altitude)) {
+        L.rectangle(
+          [
+            [cell.south, cell.west],
+            [cell.north, cell.east],
+          ],
+          {
+            renderer,
+            // 只填充不描边：格子是紧挨着的，描边会织出一张网格纸
+            stroke: false,
+            fillColor: cell.color,
+            fillOpacity: TERRAIN_FILL_OPACITY[cell.band],
+            interactive: false,
+          },
+        ).addTo(group);
       }
     }),
   []);

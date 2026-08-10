@@ -26,6 +26,13 @@
   max-height: none !important;
 }
 
+/* 地形着色层同理 —— 它用的是 canvas 渲染器，一样不在 leaflet.css 那条规则里 */
+.page :global(.leaflet-terrain-pane svg),
+.page :global(.leaflet-terrain-pane canvas) {
+  max-width: none !important;
+  max-height: none !important;
+}
+
 /*
  * 宽度自适应的地图标签（停机位名、机场 ICAO）
  *
@@ -541,6 +548,46 @@
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+/*
+ * 当地时间 / UTC
+ *
+ * 单独一行而不是并进 airportMetaRow：时间是要一眼读到的，
+ * 混在「3 RWY · 24 SPOTS · 48.353, 11.786」里会被淹掉。
+ */
+.airportTimeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 6px;
+}
+
+.airportTimeItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.airportTimeLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.airportTimeValue {
+  font-size: 15px;
+  font-weight: 700;
+  /* 等宽 + 定宽数字：跳秒时数字不该左右抖 */
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.airportTimeZone {
+  font-size: 10px;
+  color: var(--color-text-secondary);
 }
 
 .airportMetaItem {

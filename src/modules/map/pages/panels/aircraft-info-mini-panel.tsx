@@ -22,6 +22,8 @@ import {
   resolveAircraftLabel,
   type ScreenPoint,
 } from '../../services/aircraft-info-panel-layout';
+import { formatClock } from '../../services/local-clock';
+import { useClockTick } from '../../widgets/use-clock-tick';
 import styles from '../map-page.module.css';
 
 export interface AircraftInfoMiniPanelProps {
@@ -45,6 +47,11 @@ export function AircraftInfoMiniPanel({
   const transponderCode = useFlightDataStore((s) => s.snapshot.transponderCode);
   const transponderState = useFlightDataStore((s) => s.snapshot.transponderState);
   const registration = useFlightDataStore((s) => s.snapshot.flightData.aircraftRegistration);
+  // 本机所在位置的当地时间：时区从中间件查一次（按 0.1° 格点缓存），
+  // 之后本地每秒自己走时 —— 显示一个跳秒的钟不该每秒去问一次后端
+  const aircraftZone = useMapStore((s) => s.aircraftZone);
+  const ensureAircraftZone = useMapStore((s) => s.ensureAircraftZone);
+  const now = useClockTick();
 
   const [offset, setOffset] = useState<ScreenPoint>({ ...PANEL_DEFAULT_OFFSET });
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; base: ScreenPoint } | null>(
@@ -89,6 +96,17 @@ export function AircraftInfoMiniPanel({
     if (!aircraft) onClose();
   }, [aircraft, onClose]);
 
+  /*
+   * 时区只在面板开着时查，且飞出 0.1° 格点才重查（判断在 store 里）。
+   * 依赖里挂经纬度而不是整个 aircraft：后者每帧都是新对象，会让这个 effect 每帧都跑。
+   */
+  const latitude = aircraft?.position.latitude;
+  const longitude = aircraft?.position.longitude;
+  useEffect(() => {
+    if (latitude === undefined || longitude === undefined) return;
+    void ensureAircraftZone();
+  }, [latitude, longitude, ensureAircraftZone]);
+
   if (!aircraft) return null;
 
   const layout = layoutAircraftInfoPanel({
@@ -106,6 +124,9 @@ export function AircraftInfoMiniPanel({
   const xpdr = `${(transponderCode ?? '----').trim() || '----'} ${
     (transponderState ?? '--').trim() || '--'
   }`;
+  // 时区还没查到就显示占位，不要拿 UTC 冒充当地时间 —— 那会给出一个
+  // 看着很正常的错时间，比明摆着说「还不知道」危险得多
+  const localTimeText = aircraftZone ? formatClock(now, aircraftZone.timezone) : '--:--:--';
 
   return (
     <>
@@ -156,6 +177,16 @@ export function AircraftInfoMiniPanel({
           <InfoCell label="ALT" value={altitudeText} accent />
           <InfoCell label="SPD" value={speedText} />
           <InfoCell label="XPDR" value={xpdr} />
+          {/* LT = local time，与 ALT/SPD/XPDR 一样用航空缩写，完整说明放在 title 上 */}
+          <InfoCell
+            label="LT"
+            value={localTimeText}
+            title={
+              aircraftZone
+                ? `${t(K.aircraftLocalTime)} · ${aircraftZone.timezone}`
+                : t(K.aircraftLocalTime)
+            }
+          />
         </div>
       </div>
     </>
@@ -166,13 +197,15 @@ function InfoCell({
   label,
   value,
   accent = false,
+  title,
 }: {
   label: string;
   value: string;
   accent?: boolean;
+  title?: string;
 }) {
   return (
-    <span className={styles.aircraftInfoCell}>
+    <span className={styles.aircraftInfoCell} title={title}>
       <span className={styles.aircraftInfoCellLabel}>{label}</span>
       <span
         className={`${styles.aircraftInfoCellValue}${

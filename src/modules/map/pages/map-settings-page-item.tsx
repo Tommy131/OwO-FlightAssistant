@@ -15,7 +15,7 @@ import {
   type MapAutoTimerStopMode,
 } from '../models/map-models';
 import { CONFIGURABLE_ALERT_IDS, useMapStore } from '../providers/map-store';
-import { BACKEND_ALERT_MESSAGE_KEY } from '../services/flight-alerts';
+import { ALERT_MESSAGE_KEY } from '../services/flight-alerts';
 import { parseAirportDetail } from '../services/map-airport-parser';
 import styles from './map-settings.module.css';
 
@@ -331,10 +331,11 @@ function AlertSettingsSection() {
 /**
  * 告警开关的显示名。
  *
- * 复用规则引擎那张 message→i18n key 的表：开关名与地图上真正弹出的告警
- * 用同一份文案，用户才对得上「我关的是哪一条」。表里查不到就退回 id 本身。
+ * 复用规则引擎那张 id→i18n key 的总表（后端告警 + 前端自判的地形告警）：
+ * 开关名与地图上真正弹出的告警用同一份文案，用户才对得上「我关的是哪一条」。
+ * 表里查不到就退回 id 本身。
  */
 function alertLabel(alertId: string, translate: (key: string) => string): string {
-  const key = BACKEND_ALERT_MESSAGE_KEY[alertId];
+  const key = ALERT_MESSAGE_KEY[alertId];
   return key === undefined ? alertId : translate(key);
 }

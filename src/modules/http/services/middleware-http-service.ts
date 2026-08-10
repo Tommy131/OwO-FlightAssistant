@@ -293,6 +293,42 @@ class MiddlewareHttpServiceImpl {
     return this.get(`/api/v1/airport-layout/${normalizeIcao(icao)}`);
   }
 
+  /**
+   * 地形高程瓦片
+   *
+   * 中间件按 0.25° 一块、每块 10×10 网格切好并长期缓存，所以同一片区域
+   * 只有第一次会真的打上游。范围跨度有上限（超了后端直接拒），
+   * 调用方应当只请求本机周边，而不是整个视野 —— 机载 EGPWS 的地形显示
+   * 同样只画导航显示量程内的地形。
+   */
+  getTerrainTiles(bounds: {
+    south: number;
+    west: number;
+    north: number;
+    east: number;
+  }): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/terrain/tiles', {
+      queryParameters: {
+        south: String(bounds.south),
+        west: String(bounds.west),
+        north: String(bounds.north),
+        east: String(bounds.east),
+      },
+    });
+  }
+
+  /**
+   * 按经纬度查时区
+   *
+   * 返回里带 IANA 时区名，拿到之后本地用 Intl 自己走时即可 ——
+   * 显示一个秒级跳动的钟不该每秒来问一次后端。
+   */
+  getTimezoneAt(latitude: number, longitude: number): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/timezone', {
+      queryParameters: { lat: String(latitude), lon: String(longitude) },
+    });
+  }
+
   getMetarByIcao(icao: string, force = false): Promise<MiddlewareHttpResponse> {
     return this.get(`/api/v1/metar/${normalizeIcao(icao)}`, {
       queryParameters: force ? { force: 'true' } : undefined,

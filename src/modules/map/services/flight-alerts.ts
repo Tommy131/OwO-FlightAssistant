@@ -75,7 +75,30 @@ export const BACKEND_ALERT_MESSAGE_KEY: Record<string, string> = {
  * 与桌面版一致，直接取自上面的映射表 —— 手写一份平行清单迟早对不上，
  * 早先那份只有 8 项，其中 `overspeed` 这个 id 后端根本不会发。
  */
-export const CONFIGURABLE_ALERT_IDS: readonly string[] = Object.keys(BACKEND_ALERT_MESSAGE_KEY);
+/**
+ * 前端自己算、后端不发的告警 id → i18n key。
+ *
+ * 前视地形要拿高程瓦片比对，后端没有这个数据，判定只能在前端做
+ * （见 `terrain-model.ts`）。但它同样要能在设置里逐条关掉，
+ * 所以必须进文案表 —— 只进 id 清单不进文案表，设置页上就会露出裸 id。
+ */
+export const LOCAL_ALERT_MESSAGE_KEY: Record<string, string> = {
+  terrain_ahead_danger: K.alertTerrainAheadDanger,
+  terrain_ahead_caution: K.alertTerrainAheadCaution,
+};
+
+/**
+ * 全部告警 id → i18n key。
+ *
+ * 设置页的清单与文案都从这一张表取，**不要**再各写一份 ——
+ * 手写平行清单迟早对不上，这正是早先那份只有 8 项的清单出的问题。
+ */
+export const ALERT_MESSAGE_KEY: Record<string, string> = {
+  ...BACKEND_ALERT_MESSAGE_KEY,
+  ...LOCAL_ALERT_MESSAGE_KEY,
+};
+
+export const CONFIGURABLE_ALERT_IDS: readonly string[] = Object.keys(ALERT_MESSAGE_KEY);
 
 /**
  * 由前端按用户阈值重算的升降率告警 id。
@@ -137,6 +160,13 @@ export function normalizeAlertLevel(raw: string | undefined): MapFlightAlertLeve
 export function evaluateFlightAlerts(
   settings: FlightAlertSettings,
   flightData: FlightData,
+  /**
+   * 调用方算好的附加告警（目前是前视地形，见 `terrain-model.ts`）。
+   *
+   * 前视判定要用高程瓦片，那是 IO 拿回来的，不能塞进这个纯函数；
+   * 但它必须和其它告警走同一套「逐条开关 + 按文案去重」，所以从这里并进来。
+   */
+  extraAlerts: readonly MapFlightAlert[] = [],
 ): MapFlightAlert[] {
   if (!settings.alertsEnabled || !settings.isConnected) return [];
 
@@ -169,6 +199,14 @@ export function evaluateFlightAlerts(
     if (terrain && !disabled.has(terrain.id) && !shownMessages.has(terrain.message)) {
       shownMessages.add(terrain.message);
       alerts.push(terrain);
+    }
+    // 前视地形与近地接近共用「地形告警」这一个开关
+    for (const extra of extraAlerts) {
+      const id = extra.id.trim().toLowerCase();
+      if (disabled.has(id)) continue;
+      if (shownMessages.has(extra.message)) continue;
+      shownMessages.add(extra.message);
+      alerts.push(extra);
     }
   }
 

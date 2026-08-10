@@ -13,7 +13,14 @@ import {
 } from '../../models/map-models';
 import { useMapStore } from '../../providers/map-store';
 import { findOccupiedRunway } from '../../services/runway-occupancy';
+import {
+  crossesDateBoundary,
+  formatClock,
+  formatOffsetLabel,
+  formatZonedDate,
+} from '../../services/local-clock';
 import { MarqueeText } from '../../widgets/marquee-text';
+import { useClockTick } from '../../widgets/use-clock-tick';
 import styles from '../map-page.module.css';
 
 /** 飞行等级配色，与桌面版 ApproachRuleBadge 一致 */
@@ -113,10 +120,14 @@ export function SelectedAirportCard() {
   const setSelectedAirport = useMapStore((s) => s.setSelectedAirport);
   const setHomeAirport = useMapStore((s) => s.setHomeAirport);
   const clearHomeAirport = useMapStore((s) => s.clearHomeAirport);
+  // 机场当地时间：时区在 setSelectedAirport 时查一次，之后本地每秒走时
+  const airportZone = useMapStore((s) => s.airportZone);
   // 原文 / 解读切换；换机场时回到原文（与桌面版 didUpdateWidget 行为一致）
   const [showDecoded, setShowDecoded] = useState(false);
   // 收起状态只影响本次会话，放组件内部即可
   const [collapsed, setCollapsed] = useState(false);
+  // 卡片收起来就停表 —— 没人看的时候没有每秒重渲的必要
+  const now = useClockTick(!collapsed);
   // 下滑道开关放在 store 里：卡片和地图上的跑道标注共用同一个状态
   const showGlideslope = useMapStore((s) => s.showGlideslope);
   const toggleGlideslope = useMapStore((s) => s.toggleGlideslope);
@@ -241,6 +252,40 @@ export function SelectedAirportCard() {
           <span className={styles.airportMetaItem}>
             <MaterialIcon name="location_on" size={12} />
             {latitude.toFixed(3)}, {longitude.toFixed(3)}
+          </span>
+        </div>
+
+        {/*
+          当地时间 / UTC
+
+          时区还没查到时显示占位而不是拿 UTC 冒充当地时间 —— 那会给出一个
+          看着很正常的错时间。当地日期与 UTC 不同一天时把日期一起标出来，
+          否则「21:15 / 03:15」看起来像差了 6 小时，其实是差了一天。
+        */}
+        <div className={styles.airportTimeRow}>
+          <span className={styles.airportTimeItem}>
+            <MaterialIcon name="schedule" size={12} />
+            <span className={styles.airportTimeLabel}>{t(K.airportLocalTime)}</span>
+            <span className={`${styles.airportTimeValue} text-mono`}>
+              {airportZone ? formatClock(now, airportZone.timezone) : '--:--:--'}
+            </span>
+            {airportZone ? (
+              <span className={styles.airportTimeZone} title={airportZone.timezone}>
+                {[airportZone.abbreviation, formatOffsetLabel(airportZone.utcOffsetSeconds)]
+                  .filter(Boolean)
+                  .join(' · ')}
+                {crossesDateBoundary(now, airportZone.timezone)
+                  ? ` · ${formatZonedDate(now, airportZone.timezone)}`
+                  : ''}
+              </span>
+            ) : (
+              <span className={styles.airportTimeZone}>{t(K.airportTimeLoading)}</span>
+            )}
+          </span>
+          <span className={styles.airportTimeItem}>
+            <MaterialIcon name="public" size={12} />
+            <span className={styles.airportTimeLabel}>{t(K.airportUtcTime)}</span>
+            <span className={`${styles.airportTimeValue} text-mono`}>{formatClock(now, 'UTC')}</span>
           </span>
         </div>
 

@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { emptyFlightData, type FlightAlert, type FlightData } from '../../common/models/common-models';
 import { MapLocalizationKeys as K } from '../localization/map-localization';
 import {
+  ALERT_MESSAGE_KEY,
   BACKEND_ALERT_MESSAGE_KEY,
   CONFIGURABLE_ALERT_IDS,
+  LOCAL_ALERT_MESSAGE_KEY,
   evaluateFlightAlerts,
   normalizeAlertLevel,
   resolveAlertMessageKey,
@@ -275,14 +277,31 @@ describe('多来源并存', () => {
 });
 
 describe('可配置告警清单', () => {
-  it('与映射表一致，不再是手写的平行清单', () => {
-    expect(CONFIGURABLE_ALERT_IDS).toEqual(Object.keys(BACKEND_ALERT_MESSAGE_KEY));
+  it('与文案总表一致，不再是手写的平行清单', () => {
+    expect(CONFIGURABLE_ALERT_IDS).toEqual(Object.keys(ALERT_MESSAGE_KEY));
     expect(CONFIGURABLE_ALERT_IDS.length).toBeGreaterThan(25);
   });
 
   it('每一项都有对应文案，设置页不会露出裸 id', () => {
     for (const id of CONFIGURABLE_ALERT_IDS) {
-      expect(BACKEND_ALERT_MESSAGE_KEY[id]).toBeDefined();
+      expect(ALERT_MESSAGE_KEY[id]).toBeDefined();
+    }
+  });
+
+  // 后端告警与前端自判的地形告警都要在清单里：少了前者设置页会缺一半，
+  // 少了后者用户就没法关掉地形告警
+  it('后端告警与前端自判告警都在清单里', () => {
+    for (const id of Object.keys(BACKEND_ALERT_MESSAGE_KEY)) {
+      expect(CONFIGURABLE_ALERT_IDS).toContain(id);
+    }
+    for (const id of Object.keys(LOCAL_ALERT_MESSAGE_KEY)) {
+      expect(CONFIGURABLE_ALERT_IDS).toContain(id);
+    }
+  });
+
+  it('前端自判的告警不与后端 id 撞车', () => {
+    for (const id of Object.keys(LOCAL_ALERT_MESSAGE_KEY)) {
+      expect(BACKEND_ALERT_MESSAGE_KEY[id]).toBeUndefined();
     }
   });
 });
