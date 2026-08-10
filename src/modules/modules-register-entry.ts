@@ -12,6 +12,7 @@ import { MapModule } from './map/map-module';
 import { MonitorModule } from './monitor/monitor-module';
 import { SettingsModule } from './settings/settings-module';
 import { ToolboxModule } from './toolbox/toolbox-module';
+import { UpdateModule } from './update/update-module';
 
 /**
  * 模块集中注册入口
@@ -40,6 +41,8 @@ export class ModulesRegisterEntry {
     ModuleRegistry.registerModule(new HttpModule());
     ModuleRegistry.registerModule(new LogViewerModule());
     ModuleRegistry.registerModule(new SettingsModule());
+    // 自更新排在 Http 之后：它要用中间件地址，而地址是 HttpModule 载入的
+    ModuleRegistry.registerModule(new UpdateModule());
     // 后续模块在此继续注册...
 
     // 2. 初始化全部已注册模块

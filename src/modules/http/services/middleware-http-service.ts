@@ -329,6 +329,34 @@ class MiddlewareHttpServiceImpl {
     });
   }
 
+  /**
+   * 检查是否有可用更新
+   *
+   * 中间件那边缓存 30 分钟（未鉴权的 GitHub API 每小时只有 60 次配额）。
+   * `force` 用于设置页的手动检查 —— 用户点了按钮却拿到半小时前的缓存，
+   * 会以为按钮坏了。
+   */
+  getUpdateCheck(force = false): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/update/check', {
+      queryParameters: force ? { force: 'true' } : undefined,
+    });
+  }
+
+  /** 记下被忽略的版本；tag 传空表示取消忽略 */
+  postUpdateIgnore(tag: string): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/update/ignore', { body: { tag } });
+  }
+
+  /** 开始下载并替换中间件自身 */
+  postUpdateInstall(tag: string): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/update/install', { body: { tag } });
+  }
+
+  /** 查自更新进度 */
+  getUpdateStatus(): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/update/status');
+  }
+
   getMetarByIcao(icao: string, force = false): Promise<MiddlewareHttpResponse> {
     return this.get(`/api/v1/metar/${normalizeIcao(icao)}`, {
       queryParameters: force ? { force: 'true' } : undefined,

@@ -1,0 +1,92 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  /* 兜底配色：tone 类没匹配上时也不会变成透明的一团 */
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-text-secondary) 14%, transparent);
+}
+
+.accent {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+}
+
+.ok {
+  color: #35d07f;
+  background: color-mix(in srgb, #35d07f 16%, transparent);
+}
+
+.warn {
+  color: #ffa63d;
+  background: color-mix(in srgb, #ffa63d 16%, transparent);
+}
+
+.muted {
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text-secondary) 12%, transparent);
+}
+
+.neutral {
+  color: var(--color-text-secondary);
+}
+
+.versionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 10px;
+}
+
+.versionItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.versionLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.versionValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.detail {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  /* 上游的错误串可能是很长的一行，不换行会把卡片撑破 */
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}

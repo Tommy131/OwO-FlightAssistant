@@ -1,0 +1,120 @@
+/*
+ * 更新弹窗的样式
+ *
+ * SweetAlert 的节点挂在 <body> 上、不在应用容器里，CSS Module 的
+ * 局部类名到不了它，所以这里用全局类名（都带 owo-update- 前缀避免撞车）。
+ */
+
+.owo-update-dialog {
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.owo-update-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.owo-update-meta-item {
+  white-space: nowrap;
+}
+
+.owo-update-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffa63d;
+  background: rgba(255, 166, 61, 0.16);
+}
+
+.owo-update-warning {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #ffa63d;
+  background: rgba(255, 166, 61, 0.12);
+}
+
+.owo-update-notes {
+  /* 发行说明可能很长，给个上限并让它自己滚，不要把弹窗顶出屏幕 */
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.owo-update-notes-heading {
+  margin: 12px 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.owo-update-notes-heading:first-child {
+  margin-top: 0;
+}
+
+.owo-update-notes-list {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.owo-update-notes-list li {
+  margin: 2px 0;
+}
+
+.owo-update-notes-text {
+  margin: 6px 0;
+  /* 发行说明里可能有很长的 URL 或路径，不换行会把弹窗撑宽 */
+  overflow-wrap: anywhere;
+}
+
+.owo-update-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.owo-update-progress-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.owo-update-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(128, 128, 128, 0.25);
+}
+
+.owo-update-progress-bar {
+  width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-primary, #6c8cff);
+  transition: width 200ms ease;
+}
+
+/* 总大小未知时用一条来回跑的条，别让进度条僵在 100% 让人以为卡死了 */
+.owo-update-progress-indeterminate {
+  animation: owo-update-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes owo-update-indeterminate {
+  0% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.35;
+  }
+}

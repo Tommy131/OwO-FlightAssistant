@@ -58,6 +58,7 @@
 | FR-17 | WebSocket 增量帧合并与丢帧重同步 | `modules/common/services/ws-delta-assembler.ts` |
 | FR-18 | 地形分级着色与前视地形告警（高程来自中间件的在线 DEM 瓦片） | `modules/map/services/terrain-model.ts`、`terrain-tiles.ts` |
 | FR-19 | 机场当地时间 / UTC 与本机所在位置当地时间 | `modules/map/services/local-clock.ts`、`timezone-lookup.ts` |
+| FR-20 | 自动更新检测：弹窗提示更新日志、忽略版本、设置页手动检查 | `modules/update/`（判定与渲染在 `services/update-model.ts`） |
 
 ### 2.2 非功能性需求（NFR → ISO/IEC 25010）
 
