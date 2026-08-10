@@ -16,6 +16,7 @@ import { PapiIndicator } from '../widgets/papi-indicator';
 import { MapCanvas } from './map-canvas';
 import { MapTopPanel, type AirportSuggestion } from './panels/map-top-panel';
 import { MapHud } from './panels/map-hud';
+import { AircraftInfoMiniPanel } from './panels/aircraft-info-mini-panel';
 import { MapAlertOverlay } from './panels/map-alert-overlay';
 import { MapRightControls } from './panels/map-right-controls';
 import { MapLayerPicker } from './panels/map-layer-picker';
@@ -93,6 +94,13 @@ export function MapPage() {
     }
   };
 
+  // 本机信息面板：点飞机打开，位置随地图平移缩放实时更新
+  const [aircraftInfoOpen, setAircraftInfoOpen] = useState(false);
+  const [aircraftViewport, setAircraftViewport] = useState<{
+    aircraft: { x: number; y: number } | null;
+    viewport: { width: number; height: number };
+  }>({ aircraft: null, viewport: { width: 0, height: 0 } });
+
   const handleMapClick = (point: MapCoordinate) => {
     // 绘制模式下点击地图 = 添加滑行道节点
     if (useMapStore.getState().isTaxiwayDrawingActive) {
@@ -102,7 +110,12 @@ export function MapPage() {
 
   return (
     <div className={styles.page}>
-      <MapCanvas onAirportClick={handleAirportClick} onMapClick={handleMapClick} />
+      <MapCanvas
+        onAirportClick={handleAirportClick}
+        onMapClick={handleMapClick}
+        onAircraftClick={() => setAircraftInfoOpen(true)}
+        onViewportChange={setAircraftViewport}
+      />
 
       <MapTopPanel
         searchValue={searchValue}
@@ -126,6 +139,15 @@ export function MapPage() {
       <TaxiwayToolbar />
 
       {layerPickerOpen && <MapLayerPicker onClose={() => setLayerPickerOpen(false)} />}
+
+      {/* 点了本机才出现；面板自带拖拽与关闭 */}
+      {aircraftInfoOpen && aircraftViewport.aircraft && (
+        <AircraftInfoMiniPanel
+          aircraftScreenPoint={aircraftViewport.aircraft}
+          viewport={aircraftViewport.viewport}
+          onClose={() => setAircraftInfoOpen(false)}
+        />
+      )}
 
       <SelectedAirportCard />
       {/* 自己判断显隐：开关在右侧控制栏的「进近程序」组里 */}

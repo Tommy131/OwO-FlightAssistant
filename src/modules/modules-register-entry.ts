@@ -3,6 +3,7 @@ import { AirportSearchModule } from './airport_search/airport-search-module';
 import { BriefingModule } from './briefing/briefing-module';
 import { ChecklistModule } from './checklist/checklist-module';
 import { CommonModule } from './common/common-module';
+import { EfbModule } from './efb/efb-module';
 import { FlightLogsModule } from './flight_logs/flight-logs-module';
 import { HomeModule } from './home/home-module';
 import { HttpModule } from './http/http-module';
@@ -28,6 +29,7 @@ export class ModulesRegisterEntry {
     // 1. 注册核心业务模块
     ModuleRegistry.registerModule(new CommonModule());
     ModuleRegistry.registerModule(new HomeModule());
+    ModuleRegistry.registerModule(new EfbModule());
     ModuleRegistry.registerModule(new ChecklistModule());
     ModuleRegistry.registerModule(new ToolboxModule());
     ModuleRegistry.registerModule(new AirportSearchModule());

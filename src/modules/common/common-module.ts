@@ -1,4 +1,5 @@
 import { AppConstants } from '../../core/constants/app-constants';
+import { AppLogger } from '../../core/utils/logger';
 import { ModuleRegistry } from '../../core/module-registry/module-registry';
 import type { ModuleRegistrar } from '../../core/module-registry/clearable';
 import { createNavigationGroup } from '../../core/module-registry/navigation/navigation-group';
@@ -14,7 +15,12 @@ import {
   createConnectedFlightMiniCard,
   createDefaultMiniCard,
 } from './sidebar/sidebar-mini-cards';
+import { useAppModeStore } from './providers/app-mode-store';
 import { createDefaultFlightDataAdapter, useFlightDataStore } from './providers/flight-data-store';
+import { usePlannedRouteStore } from './providers/planned-route-store';
+import { useWorkflowStore } from './providers/workflow-store';
+import { createAppModeAction } from './widgets/app-mode-action';
+import { createWorkflowAction } from './widgets/workflow-action';
 
 /**
  * 公共模块注册器
@@ -61,6 +67,13 @@ export class CommonModule implements ModuleRegistrar {
     registerModuleTranslations(commonModuleTranslations);
     registerModuleTranslations(navigationModuleTranslations);
 
+    // ── 训练模式 / 复盘模式切换（顶栏常驻）──
+    void useAppModeStore.getState().hydrate();
+    ModuleRegistry.appBarActions.register('app_mode_switch', createAppModeAction);
+
+    // ── 跨模块任务流入口（顶栏常驻）──
+    ModuleRegistry.appBarActions.register('flight_workflow', createWorkflowAction);
+
     // ── 导航分组 ──
     const navigation = ModuleRegistry.navigation;
     navigation.registerGroup(() =>
@@ -97,6 +110,65 @@ export class CommonModule implements ModuleRegistrar {
           if (state.snapshot === previous.snapshot) return;
           useFlightLogsStore.getState().handleFlightSnapshot(state.snapshot);
         });
+      },
+    });
+
+    // ── 刷新页面后的会话与录制恢复 ──
+    //
+    // 顺序有讲究：**先接回连接、再恢复录制**。反过来的话，录制恢复完成的瞬间
+    // 快照还是「未连接」，既有的自动收尾逻辑会立刻把这段录制收掉存档，
+    // 用户看到的就是「刷新一下，录制自己停了」。
+    ModuleRegistry.providers.register({
+      id: 'session_recovery',
+      setup: () => {
+        void (async () => {
+          try {
+            await useFlightDataStore.getState().resumeSession();
+            await useFlightLogsStore.getState().recoverActiveLog();
+          } catch (e) {
+            AppLogger.warning(`[Common] session recovery failed: ${String(e)}`);
+          }
+        })();
+
+        // 主动刷新/关页时补一次写盘，补上节流窗口里的最后几秒
+        const flush = () => {
+          void useFlightLogsStore.getState().flushActiveLog();
+        };
+        window.addEventListener('beforeunload', flush);
+        return () => window.removeEventListener('beforeunload', flush);
+      },
+    });
+
+    // ── store 绑定：各模块状态 → 任务流进度 ──
+    //
+    // 任务流的输入横跨四个 store，任何一个变了都要重算；
+    // 重算本身很便宜（纯函数），且 workflow-store 内部按输入指纹去重，
+    // 不会因为遥测 2Hz 就跟着刷新整棵订阅树。
+    ModuleRegistry.providers.register({
+      id: 'workflow_progress',
+      setup: () => {
+        const recompute = () => {
+          const snapshot = useFlightDataStore.getState().snapshot;
+          const logs = useFlightLogsStore.getState();
+          useWorkflowStore.getState().recompute({
+            hasDestination: snapshot.destinationAirport !== undefined,
+            hasPlannedRoute: usePlannedRouteStore.getState().plan !== null,
+            isConnected: snapshot.isConnected,
+            hasPosition:
+              snapshot.flightData.latitude !== undefined &&
+              snapshot.flightData.longitude !== undefined,
+            checklistProgress: snapshot.checklistProgress ?? 0,
+            isRecording: logs.isRecording,
+            savedLogCount: logs.logs.length,
+          });
+        };
+        recompute();
+        const disposers = [
+          useFlightDataStore.subscribe(recompute),
+          useFlightLogsStore.subscribe(recompute),
+          usePlannedRouteStore.subscribe(recompute),
+        ];
+        return () => disposers.forEach((dispose) => dispose());
       },
     });
   }

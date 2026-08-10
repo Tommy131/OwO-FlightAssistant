@@ -78,12 +78,34 @@ export interface ChecklistSection {
   readonly items: ChecklistItem[];
 }
 
+/**
+ * 适用模拟器标签
+ *
+ * `any` 表示不限。同一机型在 X-Plane 与 MSFS 里的座舱流程常有差别
+ * （电门位置、APU 引气逻辑），所以模板要能按模拟器分开写。
+ */
+export type SimulatorTag = 'any' | 'xplane' | 'msfs';
+
+/** 全部模拟器标签 */
+export const SIMULATOR_TAGS: SimulatorTag[] = ['any', 'xplane', 'msfs'];
+
 /** 单机型检查单 */
 export interface AircraftChecklist {
   readonly id: string;
   readonly name: string;
   readonly family: AircraftFamily;
   readonly sections: ChecklistSection[];
+  /** 模板版本号（用户自己维护，便于分发时区分修订） */
+  readonly version?: string;
+  /**
+   * 适用的机型注册码（如 B-6075、D-AIBA），可多个。
+   *
+   * 注册码比机型名精确得多：同一个 A320 机队里，有的装了 CFM 有的装了 IAE，
+   * 检查单里的发动机项并不一样。填了注册码的模板匹配优先级最高。
+   */
+  readonly registrations?: string[];
+  /** 适用模拟器，可多选；空或含 any 表示不限 */
+  readonly simulators?: SimulatorTag[];
 }
 
 /** 取指定阶段的节段 */

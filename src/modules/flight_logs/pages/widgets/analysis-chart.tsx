@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { useTranslate } from '../../../../core/localization/use-translate';
 import { useIsDarkMode } from '../../../../core/theme/theme-store';
 import { baseChartOption, EChart, lineSeries } from '../../../../core/widgets/common/echart';
-import { EmptyState, InfoChip, SectionCard } from '../../../../core/widgets/common/surfaces';
+import { EmptyState, InfoChip } from '../../../../core/widgets/common/surfaces';
+import { AnalysisSection } from './analysis-widgets';
 import { FlightLogsLocalizationKeys as K } from '../../localization/flight-logs-localization';
 import type { FlightLog, FlightLogPoint } from '../../models/flight-log-models';
 import styles from './flight-logs-widgets.module.css';
@@ -103,7 +104,7 @@ export function AnalysisChart({ log }: { log: FlightLog }) {
   const activeMetrics = CHART_METRICS.filter((metric) => selectedIds.includes(metric.id));
 
   return (
-    <SectionCard title={t(K.chartAltitude)} icon="show_chart">
+    <AnalysisSection title={t(K.chartAltitude)} icon="show_chart">
       <div className={styles.metricPicker}>
         {CHART_METRICS.map((metric) => {
           const hasData = (seriesByMetric.get(metric.id)?.length ?? 0) > 0;
@@ -136,7 +137,7 @@ export function AnalysisChart({ log }: { log: FlightLog }) {
           ))}
         </div>
       )}
-    </SectionCard>
+    </AnalysisSection>
   );
 }
 

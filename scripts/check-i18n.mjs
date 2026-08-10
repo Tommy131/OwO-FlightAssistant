@@ -12,28 +12,45 @@
  * （见 docs/DESIGN.md 开放问题）。但覆盖率必须可见，不能悄悄退化。
  *
  * 退出码非零即失败。
+ *
+ * ── 这个脚本自己踩过的两个坑（见 check-i18n.test.mjs）──
+ * 一个校验器漏检时不会报错，只会「一直通过」，比没有校验器更危险 ——
+ * 所以下面两条都写成了测试：
+ *
+ *   1. **一个文件里可能有多个译文对象**。`common-localization.ts` 同时导出
+ *      `commonModuleTranslations` 与 `navigationModuleTranslations`，各自带一套
+ *      zh_CN/en_US 块。早先按 locale **覆盖**，后一个对象把前一个的 39 个键
+ *      整个顶掉，那些键从此不受任何校验。必须累加。
+ *   2. **键名的常量别名不止 `K.`**。上面那个文件里导航部分用的是 `N.`。
+ *      写死 `K.` 会让换了别名的对象整体隐形。
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const srcRoot = join(root, 'src');
-
 /** 项目支持的语言（与 core/localization 的 locale 列表一致） */
-const LOCALES = ['zh_CN', 'en_US', 'de_DE'];
+export const LOCALES = ['zh_CN', 'en_US', 'de_DE'];
 
-function walk(dir, files = []) {
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) walk(full, files);
-    else if (/\.ts$/.test(entry)) files.push(full);
-  }
-  return files;
+/**
+ * 匹配一条译文：`[<别名>.<键名>]: '文案'`
+ *
+ * 别名不写死：见文件头第 2 条。值允许换行后再起（`:` 与引号之间是 `\s*`），
+ * 长文案在本项目里就是这么折行的。
+ */
+const ENTRY_PATTERN = /\[([A-Za-z_$][\w$]*)\.(\w+)\]\s*:\s*('|")((?:\\.|(?!\3).)*)\3/g;
+
+/** 判断一份源码里是否含译文条目 */
+export function hasTranslationEntries(source) {
+  return /\[[A-Za-z_$][\w$]*\.\w+\]\s*:/.test(source);
 }
 
-/** 按语言块切开一份译文文件，返回 { locale: [key, ...] } */
-function extractByLocale(source) {
+/**
+ * 按语言块切开一份译文文件，返回 `{ locale: [{ key, text }, ...] }`。
+ *
+ * key 用 `别名.键名` 的完整写法：两个别名下可能有同名属性，
+ * 只取属性名会把它们误判成重复键。
+ */
+export function extractByLocale(source) {
   const result = {};
   const localePattern = new RegExp(`\\n\\s{2,4}\\[?(${LOCALES.join('|')})\\]?\\s*:\\s*\\{`, 'g');
   const marks = [...source.matchAll(localePattern)];
@@ -42,25 +59,28 @@ function extractByLocale(source) {
     const start = marks[i].index + marks[i][0].length;
     const end = i + 1 < marks.length ? marks[i + 1].index : source.length;
     const body = source.slice(start, end);
-    // 键写作 [K.someKey]: '文案'
-    result[locale] = [...body.matchAll(/\[K\.(\w+)\]\s*:\s*('|")((?:\\.|(?!\2).)*)\2/g)].map(
-      (m) => ({ key: m[1], text: m[3] }),
-    );
+    const entries = [...body.matchAll(ENTRY_PATTERN)].map((m) => ({
+      key: `${m[1]}.${m[2]}`,
+      text: m[4],
+    }));
+    // 累加而不是覆盖：同一文件里的多个译文对象都要算进来
+    (result[locale] ??= []).push(...entries);
   }
   return result;
 }
 
-const problems = [];
-const coverage = {};
-
-for (const file of walk(srcRoot)) {
-  const source = readFileSync(file, 'utf8');
-  if (!/\[K\.\w+\]\s*:/.test(source)) continue;
-
-  const path = relative(root, file).replace(/\\/g, '/');
+/**
+ * 审计一份译文源码，返回问题清单与各语言键集。
+ *
+ * `path` 只用于拼报错信息。
+ */
+export function auditSource(path, source) {
+  const problems = [];
   const byLocale = extractByLocale(source);
   const locales = Object.keys(byLocale);
-  if (locales.length === 0) continue;
+  if (locales.length === 0) {
+    return { problems, keySets: {}, union: new Set() };
+  }
 
   // 1. 重复键
   for (const locale of locales) {
@@ -96,8 +116,7 @@ for (const file of walk(srcRoot)) {
     }
   }
   for (const [key, counts] of Object.entries(byKey)) {
-    const values = new Set(Object.values(counts));
-    if (values.size > 1) {
+    if (new Set(Object.values(counts)).size > 1) {
       problems.push(
         `${path} 占位符数量不一致 ${key}：${Object.entries(counts)
           .map(([l, n]) => `${l}=${n}`)
@@ -106,26 +125,61 @@ for (const file of walk(srcRoot)) {
     }
   }
 
-  // 覆盖率统计
-  for (const locale of LOCALES) {
-    coverage[locale] ??= { have: 0, total: 0 };
-    coverage[locale].total += union.size;
-    coverage[locale].have += keySets[locale] ? keySets[locale].size : 0;
+  return { problems, keySets, union };
+}
+
+function walk(dir, files = []) {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walk(full, files);
+    else if (/\.ts$/.test(entry)) files.push(full);
   }
+  return files;
 }
 
-console.log('i18n 覆盖率：');
-for (const locale of LOCALES) {
-  const { have, total } = coverage[locale] ?? { have: 0, total: 0 };
-  const percent = total === 0 ? 100 : Math.round((have / total) * 100);
-  const note = percent < 100 ? '  ← 走回退链显示 en_US' : '';
-  console.log(`  ${locale.padEnd(6)} ${String(have).padStart(5)}/${total}  ${percent}%${note}`);
+/** 扫描整个 src 并打印报告，返回退出码 */
+function main() {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const srcRoot = join(root, 'src');
+
+  const problems = [];
+  const coverage = {};
+
+  for (const file of walk(srcRoot)) {
+    const source = readFileSync(file, 'utf8');
+    if (!hasTranslationEntries(source)) continue;
+
+    const path = relative(root, file).replace(/\\/g, '/');
+    const audit = auditSource(path, source);
+    if (audit.union.size === 0) continue;
+
+    problems.push(...audit.problems);
+    for (const locale of LOCALES) {
+      coverage[locale] ??= { have: 0, total: 0 };
+      coverage[locale].total += audit.union.size;
+      coverage[locale].have += audit.keySets[locale] ? audit.keySets[locale].size : 0;
+    }
+  }
+
+  console.log('i18n 覆盖率：');
+  for (const locale of LOCALES) {
+    const { have, total } = coverage[locale] ?? { have: 0, total: 0 };
+    const percent = total === 0 ? 100 : Math.round((have / total) * 100);
+    const note = percent < 100 ? '  ← 走回退链显示 en_US' : '';
+    console.log(`  ${locale.padEnd(6)} ${String(have).padStart(5)}/${total}  ${percent}%${note}`);
+  }
+
+  if (problems.length > 0) {
+    console.error('\ni18n 校验失败：');
+    for (const problem of problems) console.error('  - ' + problem);
+    return 1;
+  }
+
+  console.log('\ni18n 校验通过：无重复键、已声明语言键集一致、占位符对齐');
+  return 0;
 }
 
-if (problems.length > 0) {
-  console.error('\ni18n 校验失败：');
-  for (const problem of problems) console.error('  - ' + problem);
-  process.exit(1);
+// 仅在直接运行时执行；被测试 import 时只取上面的纯函数
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exit(main());
 }
-
-console.log('\ni18n 校验通过：无重复键、已声明语言键集一致、占位符对齐');

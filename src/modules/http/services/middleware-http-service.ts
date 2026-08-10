@@ -293,8 +293,117 @@ class MiddlewareHttpServiceImpl {
     return this.get(`/api/v1/airport-layout/${normalizeIcao(icao)}`);
   }
 
-  getMetarByIcao(icao: string): Promise<MiddlewareHttpResponse> {
-    return this.get(`/api/v1/metar/${normalizeIcao(icao)}`);
+  getMetarByIcao(icao: string, force = false): Promise<MiddlewareHttpResponse> {
+    return this.get(`/api/v1/metar/${normalizeIcao(icao)}`, {
+      queryParameters: force ? { force: 'true' } : undefined,
+    });
+  }
+
+  /**
+   * 批量 METAR
+   *
+   * 默认只读中间件缓存并对未命中的机场触发后台预热，所以首帧一定很快，
+   * 缺的那几个下一轮轮询就补齐了。`wait: true` 才会让后端同步回源 ——
+   * EFB 卡片首次打开时才值得这么等。
+   */
+  getMetarBatch(icaos: readonly string[], wait = false): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/weather/metar-batch', {
+      body: { icaos: icaos.map(normalizeIcao), wait },
+      // wait 模式下后端要串行回源，10s 偶尔不够
+      ...(wait ? { timeoutMs: 20_000 } : {}),
+    });
+  }
+
+  /** 近场机场（按距离升序），后端顺手预热这些机场的详情 */
+  getNearbyAirports(params: {
+    latitude: number;
+    longitude: number;
+    radiusNm?: number;
+    limit?: number;
+  }): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/airports/nearby', {
+      queryParameters: {
+        lat: params.latitude,
+        lon: params.longitude,
+        radius_nm: params.radiusNm ?? 100,
+        limit: params.limit ?? 5,
+      },
+    });
+  }
+
+  /** 声明「我马上要用这些机场」，让中间件在后台先把缓存热起来 */
+  prewarmCache(params: {
+    icaos?: readonly string[];
+    latitude?: number;
+    longitude?: number;
+    radiusNm?: number;
+    metar?: boolean;
+  }): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/cache/prewarm', {
+      body: {
+        icaos: (params.icaos ?? []).map(normalizeIcao),
+        latitude: params.latitude ?? null,
+        longitude: params.longitude ?? null,
+        radius_nm: params.radiusNm ?? 0,
+        metar: params.metar ?? true,
+      },
+    });
+  }
+
+  /** 各层缓存的命中率与容量指标（诊断页用） */
+  getCacheStats(): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/cache/stats');
+  }
+
+  /**
+   * 连接诊断与数据质量指标
+   *
+   * 分上下行两段回报：`upstream` 是「模拟器 → 中间件」（到包率 / 重复帧 / 断流），
+   * `downstream` 是「中间件 → 前端」（推送耗时 / 间隔 / 写失败）。
+   * 画面冻住但接口都正常时，问题一定在 upstream 那一段。
+   */
+  getConnectionDiagnostics(simulatorType?: string): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/diagnostics/connection', {
+      queryParameters: simulatorType ? { type: simulatorType.trim().toLowerCase() } : undefined,
+    });
+  }
+
+  /** 可观测性看板：路由耗时排行、错误分类、WS 与缓存状态 */
+  getObservabilityDashboard(): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/observability/dashboard');
+  }
+
+  /**
+   * 遥测字段契约与兼容性报告
+   *
+   * 传上本前端编译时依据的契约版本，后端会算出「你不认识哪些新字段」
+   * 和「你可能还在用哪些已弃用字段」。字段被彻底删掉时 `compatible` 为 false ——
+   * 这是唯一会真的让老前端读到 undefined 的情况。
+   */
+  getTelemetryContract(clientVersion?: string): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/contract/schema', {
+      queryParameters: clientVersion ? { client_version: clientVersion } : undefined,
+    });
+  }
+
+  /**
+   * 用契约校验一份遥测载荷
+   *
+   * 不传 payload 时后端会校验**当前实况**遥测 —— 出问题时的现场取证：
+   * 直接告诉你哪个字段类型不对、哪个数值超了范围。
+   */
+  validateTelemetryContract(input: {
+    payload?: Record<string, unknown>;
+    strict?: boolean;
+    simulatorType?: string;
+  } = {}): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/contract/validate', {
+      body: {
+        payload: input.payload ?? {},
+        strict: input.strict ?? false,
+        simulator_type: input.simulatorType?.trim().toLowerCase() ?? '',
+      },
+    });
   }
 
   getAirportList(): Promise<MiddlewareHttpResponse> {
@@ -325,6 +434,56 @@ class MiddlewareHttpServiceImpl {
     if (userId) queryParameters.userid = userId;
     else if (username) queryParameters.username = username;
     return this.get('/api/v1/simbrief/fetch', { queryParameters });
+  }
+
+  /**
+   * 统一航班计划：从 SimBrief 拉取
+   *
+   * 与 `fetchSimBriefPlan` 拿的是同一份 OFP，区别是这里返回**归一化后的**
+   * FlightPlan（带 `source` 字段），与手动导入 OFP / FPL 的结果同形状，
+   * 前端渲染一套代码就够。
+   */
+  fetchFlightPlan(identity: {
+    username?: string;
+    userId?: string;
+  }): Promise<MiddlewareHttpResponse> {
+    const queryParameters: Record<string, string> = {};
+    const userId = identity.userId?.trim();
+    const username = identity.username?.trim();
+    if (userId) queryParameters.userid = userId;
+    else if (username) queryParameters.username = username;
+    return this.get('/api/v1/flight-plan/fetch', { queryParameters });
+  }
+
+  /**
+   * 统一航班计划：解析用户提交的 OFP JSON 或简化 FPL 航路串
+   *
+   * `source: 'auto'` 时后端按内容判别（以 `{` 开头当 OFP，其余当航路串）。
+   * FPL 的航路点坐标由后端查本地导航库补齐，查不到的会出现在
+   * `plan.unresolved` 里 —— 那些点没有坐标，航线会从旁边直接过去。
+   */
+  parseFlightPlan(input: {
+    content: string;
+    source?: 'auto' | 'ofp' | 'fpl';
+    origin?: string;
+    destination?: string;
+    alternate?: string;
+    flightNumber?: string;
+    aircraftIcao?: string;
+    cruiseAltitudeFt?: number;
+  }): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/flight-plan/parse', {
+      body: {
+        source: input.source ?? 'auto',
+        content: input.content,
+        origin: normalizeIcao(input.origin ?? ''),
+        destination: normalizeIcao(input.destination ?? ''),
+        alternate: normalizeIcao(input.alternate ?? ''),
+        flight_number: input.flightNumber?.trim() ?? '',
+        aircraft_icao: input.aircraftIcao?.trim().toUpperCase() ?? '',
+        cruise_altitude_ft: input.cruiseAltitudeFt ?? 0,
+      },
+    });
   }
 
   /** 某机场公布的 SID / STAR / 进近程序航段（后端解析 CIFP 并补齐坐标） */
@@ -644,6 +803,7 @@ class MiddlewareHttpServiceImpl {
     const wsBase = normalizeWebSocketBaseUrl(base ?? this.webSocketBaseUrlValue);
     const url = new URL(wsBase);
     url.searchParams.set('token', token.trim());
+    url.searchParams.set('delta', '1');
     url.hostname = resolveClientReachableHost(url.hostname, this.baseUrlValue);
     return url.toString();
   }
@@ -766,6 +926,9 @@ function deriveDefaultWebSocketUrl(): string {
 function buildProxyWebSocketUrl(token: string): string {
   const url = new URL(deriveDefaultWebSocketUrl());
   url.searchParams.set('token', token.trim());
+  // 协商增量推送。老版本中间件不认这个参数，会照常发全量帧，
+  // 前端的 WsDeltaAssembler 两种都吃，所以可以无条件带上。
+  url.searchParams.set('delta', '1');
   return url.toString();
 }
 

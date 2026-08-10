@@ -2,6 +2,7 @@ import type { ModuleRegistrar } from '../../core/module-registry/clearable';
 import { ModuleRegistry } from '../../core/module-registry/module-registry';
 import { createNavigationItem } from '../../core/module-registry/navigation/navigation-item';
 import { registerModuleTranslations, translate } from '../../core/services/localization-service';
+import { isReviewMode } from '../common/providers/app-mode-store';
 import { useFlightDataStore } from '../common/providers/flight-data-store';
 import {
   ChecklistLocalizationKeys,
@@ -42,6 +43,9 @@ export class ChecklistModule implements ModuleRegistrar {
       setup: () =>
         useFlightDataStore.subscribe((state, previous) => {
           if (state.snapshot === previous.snapshot) return;
+          // 复盘模式下不跟遥测走：用户正对着某一段慢慢看，
+          // 阶段被刷回冷舱、勾选被改掉只会碍事。
+          if (isReviewMode()) return;
           const snapshot = state.snapshot;
           const flightData = snapshot.flightData;
 
@@ -60,7 +64,13 @@ export class ChecklistModule implements ModuleRegistrar {
             .join(' ');
 
           const checklist = useChecklistStore.getState();
-          checklist.updateAircraftByIdentifier(identifier);
+          // 注册码 + 模拟器一并传下去：用户为某架飞机、某个模拟器专门写的检查单
+          // 优先于泛化的机型模板（见 resolveAircraft 的优先级说明）。
+          checklist.updateAircraftByIdentifier({
+            identifier,
+            registration: flightData.aircraftRegistration,
+            simulator: snapshot.simulatorType,
+          });
           checklist.syncWithFlightData(flightData);
         }),
     });

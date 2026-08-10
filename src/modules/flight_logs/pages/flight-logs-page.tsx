@@ -313,7 +313,16 @@ function FlightLogDetail({ log, onBack }: { log: FlightLog; onBack: () => void }
       </div>
 
       <div className={`${styles.scroll} scroll-area`}>
-        <div className={styles.detailContent}>
+        {/*
+          概要页是一组并列卡片，保留常规内边距；
+          其余三页各自只有一块内容，改用窄内边距铺满宽度 ——
+          地图和黑匣子宽表格原先被父 padding + 卡片边框两头夹掉近 60px。
+        */}
+        <div
+          className={
+            tab === 'summary' ? styles.detailContent : styles.detailContentWide
+          }
+        >
           {tab === 'summary' && (
             <>
               <AnalysisSummaryCard log={log} />
@@ -354,33 +363,49 @@ function TakeoffLandingReport({ log }: { log: FlightLog }) {
             />
             <DataCard label={t(K.pitch)} value={takeoff.pitch.toFixed(1)} unit="°" />
             <DataCard label={t(K.heading)} value={takeoff.heading.toFixed(0)} unit="°" />
-            <DataCard
+            <MetricCard
               label={t(K.rotationSpeed)}
-              value={takeoff.rotationSpeedKt?.toFixed(0) ?? '--'}
+              value={takeoff.rotationSpeedKt}
+              digits={0}
               unit="kt"
+              notes={takeoff.metricNotes}
+              field="rotationSpeedKt"
             />
-            <DataCard
+            <MetricCard
               label={t(K.rotationToLiftoff)}
-              value={takeoff.rotationToLiftoffSec?.toFixed(0) ?? '--'}
+              value={takeoff.rotationToLiftoffSec}
+              digits={1}
               unit="s"
+              notes={takeoff.metricNotes}
+              field="rotationToLiftoffSec"
             />
             <DataCard
               label={t(K.crosswindLiftoff)}
               value={takeoff.crosswindAtLiftoffKt?.toFixed(0) ?? '--'}
               unit="kt"
             />
-            <DataCard
+            <MetricCard
               label={t(K.pitchAt35Ft)}
-              value={takeoff.pitchAt35FtDeg?.toFixed(1) ?? '--'}
+              value={takeoff.pitchAt35FtDeg}
+              digits={1}
               unit="°"
+              notes={takeoff.metricNotes}
+              field="pitchAt35FtDeg"
             />
-            <DataCard
+            <MetricCard
               label={t(K.takeoffStability)}
-              value={
-                takeoff.takeoffStabilityScore !== undefined
-                  ? takeoff.takeoffStabilityScore.toFixed(0)
-                  : '--'
-              }
+              value={takeoff.takeoffStabilityScore}
+              digits={0}
+              notes={takeoff.metricNotes}
+              field="takeoffStabilityScore"
+            />
+            <MetricCard
+              label={t(K.remainingRunway)}
+              value={takeoff.remainingRunwayFt}
+              digits={0}
+              unit="ft"
+              notes={takeoff.metricNotes}
+              field="remainingRunwayFt"
             />
           </div>
         </SectionCard>
@@ -437,15 +462,20 @@ function TakeoffLandingReport({ log }: { log: FlightLog }) {
                 (landing.bounceCount ?? 0) > 0 ? 'var(--color-warning)' : undefined
               }
             />
-            <DataCard
+            <MetricCard
               label={t(K.approachStability)}
-              value={landing.approachStabilityScore?.toFixed(0) ?? '--'}
+              value={landing.approachStabilityScore}
+              digits={0}
+              notes={landing.metricNotes}
+              field="approachStabilityScore"
             />
-            {/* 键早就备好了却一直没接上：剩余跑道与接地序列 */}
-            <DataCard
+            <MetricCard
               label={t(K.remainingRunway)}
-              value={landing.remainingRunwayFt?.toFixed(0) ?? '--'}
+              value={landing.remainingRunwayFt}
+              digits={0}
               unit="ft"
+              notes={landing.metricNotes}
+              field="remainingRunwayFt"
               accentColor={
                 landing.remainingRunwayFt !== undefined && landing.remainingRunwayFt < 1500
                   ? 'var(--color-warning)'
@@ -476,4 +506,58 @@ function TakeoffLandingReport({ log }: { log: FlightLog }) {
 function formatDateTime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+
+// ──────────────────────────────────────────────────────────────────────────
+// 派生指标卡片
+// ──────────────────────────────────────────────────────────────────────────
+
+/** 原因码 → 文案 key */
+const METRIC_REASON_KEY: Record<string, string> = {
+  no_takeoff: K.metricUnavailableNoTakeoff,
+  no_landing: K.metricUnavailableNoLanding,
+  no_rotation: K.metricUnavailableNoRotation,
+  no_agl: K.metricUnavailableNoAgl,
+  insufficient_samples: K.metricUnavailableFewSamples,
+  no_runway_geometry: K.metricUnavailableNoRunway,
+};
+
+/**
+ * 派生指标卡片：取不到值时**说明原因**，而不是统一一个 `--`。
+ *
+ * 「这架飞机不提供离地高度」和「这次飞行压根没走完这个阶段」，
+ * 对用户该做什么是完全不同的两件事 —— 都显示 `--` 等于什么都没说。
+ */
+function MetricCard({
+  label,
+  value,
+  digits,
+  unit,
+  notes,
+  field,
+  accentColor,
+}: {
+  label: string;
+  value: number | undefined;
+  digits: number;
+  unit?: string;
+  notes: Record<string, string> | undefined;
+  field: string;
+  accentColor?: string;
+}) {
+  const t = useTranslate();
+  if (value !== undefined && Number.isFinite(value)) {
+    return (
+      <DataCard
+        label={label}
+        value={value.toFixed(digits)}
+        unit={unit}
+        accentColor={accentColor}
+      />
+    );
+  }
+  const reason = notes?.[field];
+  const reasonKey = reason ? METRIC_REASON_KEY[reason] : undefined;
+  return <DataCard label={label} value="--" hint={reasonKey ? t(reasonKey) : undefined} />;
 }

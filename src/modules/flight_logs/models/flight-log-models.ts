@@ -302,6 +302,13 @@ export interface TakeoffData {
   rotationToLiftoffSec?: number;
   crosswindAtLiftoffKt?: number;
   pitchAt35FtDeg?: number;
+  /**
+   * 指标取不到时的原因码（字段名 → 原因）。
+   *
+   * 界面上要显示原因而不是统一一个 `--`：「这架飞机不提供无线电高度」和
+   * 「这次飞行没走完这个阶段」对用户是完全不同的两件事。
+   */
+  metricNotes?: Record<string, string>;
 }
 
 export interface LandingData {
@@ -325,6 +332,13 @@ export interface LandingData {
   sinkRateAt50FtFpm?: number;
   crosswindAtTouchdownKt?: number;
   bounceCount?: number;
+  /**
+   * 指标取不到时的原因码（字段名 → 原因）。
+   *
+   * 界面上要显示原因而不是统一一个 `--`：「这架飞机不提供无线电高度」和
+   * 「这次飞行没走完这个阶段」对用户是完全不同的两件事。
+   */
+  metricNotes?: Record<string, string>;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -460,6 +474,17 @@ export function flightLogFromJson(json: JsonMap): FlightLog {
   };
 }
 
+/** 反序列化原因码表；只收字符串值，脏数据整条丢掉 */
+function metricNotesFromJson(raw: unknown): Record<string, string> | undefined {
+  const map = toJsonMap(raw);
+  if (!map) return undefined;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(map)) {
+    if (typeof value === 'string' && value.length > 0) out[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function takeoffToJson(data: TakeoffData): JsonMap {
   return {
     lat: data.latitude,
@@ -477,6 +502,7 @@ function takeoffToJson(data: TakeoffData): JsonMap {
     rot_sec: data.rotationToLiftoffSec ?? null,
     xw: data.crosswindAtLiftoffKt ?? null,
     pit35: data.pitchAt35FtDeg ?? null,
+    notes: data.metricNotes ?? null,
   };
 }
 
@@ -495,9 +521,10 @@ function takeoffFromJson(json: JsonMap | null): TakeoffData | undefined {
     runway: toStringOrUndefined(json.rwy),
     takeoffStabilityScore: toDouble(json.stability),
     rotationSpeedKt: toDouble(json.vr),
-    rotationToLiftoffSec: toInt(json.rot_sec),
+    rotationToLiftoffSec: toDouble(json.rot_sec),
     crosswindAtLiftoffKt: toDouble(json.xw),
     pitchAt35FtDeg: toDouble(json.pit35),
+    metricNotes: metricNotesFromJson(json.notes),
   };
 }
 
@@ -523,6 +550,7 @@ function landingToJson(data: LandingData): JsonMap {
     sink50: data.sinkRateAt50FtFpm ?? null,
     xw: data.crosswindAtTouchdownKt ?? null,
     bounce: data.bounceCount ?? null,
+    notes: data.metricNotes ?? null,
   };
 }
 
@@ -566,6 +594,7 @@ function landingFromJson(json: JsonMap | null): LandingData | undefined {
     sinkRateAt50FtFpm: toDouble(json.sink50),
     crosswindAtTouchdownKt: toDouble(json.xw),
     bounceCount: toInt(json.bounce),
+    metricNotes: metricNotesFromJson(json.notes),
   };
 }
 

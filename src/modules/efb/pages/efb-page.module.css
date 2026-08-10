@@ -1,0 +1,266 @@
+/* EFB 单页飞行卡 */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  min-width: 0;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.pageSubtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* 复盘模式提示条：不解释一下的话，用户只会觉得数据卡住了 */
+.reviewBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px 11px;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+/*
+ * 四张卡片自适应铺排：宽屏两列、窄屏一列。
+ * 用 auto-fit + minmax 而不是固定断点 —— 侧边栏收放会改变可用宽度，
+ * 按视口断点算出来的列数在这里是错的。
+ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-md);
+  align-items: start;
+  min-width: 0;
+}
+
+/* ── 飞行阶段 ── */
+
+.phaseRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.phaseName {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.phaseMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.phaseMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  min-width: 0;
+}
+
+.phaseMetricLabel {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+}
+
+.phaseMetricValue {
+  font-size: 14px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 关键门限 ── */
+
+.gateList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/*
+ * 四列：图标 / 名称 / 实测 / 判据。
+ * 名称列用 minmax(0, 1fr) 而不是 1fr —— 栅格子项的最小宽度默认是内容宽度，
+ * 长机型名会把整行撑破，省略号永远不生效。
+ */
+.gateRow {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  border-left: 3px solid transparent;
+}
+
+.gateRow[data-status='watch'] {
+  border-left-color: var(--color-warning);
+}
+
+.gateRow[data-status='exceeded'] {
+  border-left-color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+}
+
+.gateLabel {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gateValue {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gateLimit {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* ── 油量余度 ── */
+
+.fuelGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.fuelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.fuelLabel {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fuelValue {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+/* ── 近场机场 ── */
+
+.nearbyCard {
+  grid-column: 1 / -1;
+}
+
+.airportList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.airportRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  min-width: 0;
+}
+
+.airportHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.airportIcao {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.airportName {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.airportDistance {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.metarChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.metarChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  font-size: 11px;
+  color: var(--color-text-primary);
+}
+
+.staleHint {
+  font-size: 10px;
+  color: var(--color-warning);
+}
+
+.mutedText {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}

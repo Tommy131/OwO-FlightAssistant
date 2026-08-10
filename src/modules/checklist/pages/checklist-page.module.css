@@ -281,9 +281,33 @@
   transition: width var(--anim-duration) ease;
 }
 
+.headerAircraft {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
 .headerSelect {
   width: 220px;
   flex-shrink: 0;
+}
+
+/* 模板元信息徽标：版本 / 注册码 / 适用模拟器 */
+.templateBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.templateBadge {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
 }
 
 /* ── 条目列表 ── */
@@ -460,6 +484,10 @@
   .itemResponse {
     grid-column: 3;
     text-align: left;
+  }
+
+  .headerAircraft {
+    width: 100%;
   }
 
   .headerSelect {

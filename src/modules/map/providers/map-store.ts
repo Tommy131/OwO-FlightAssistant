@@ -109,17 +109,15 @@ const UI_REFRESH_INTERVAL_MS = 250;
 /** 雷达帧刷新间隔（ms） */
 const RADAR_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
-/** 可配置的告警 ID，与桌面版一致 */
-export const CONFIGURABLE_ALERT_IDS = [
-  'stall_warning',
-  'overspeed',
-  'excessive_climb_rate',
-  'excessive_descent_rate',
-  'terrain_warning',
-  'restricted_airspace',
-  'bank_angle',
-  'high_aoa',
-] as const;
+/**
+ * 可配置的告警 ID，与桌面版一致 —— 直接取自规则引擎的映射表。
+ *
+ * 这里原先是一份手写的 8 项清单，和真正会触发的告警对不上：
+ * 列了后端根本不发的 `overspeed` / `excessive_climb_rate`，
+ * 却没有俯仰、倒飞、刀锋、螺旋下降、过载这些真会亮的。
+ * 于是设置页那些开关有一半是空转的，另一半想关的告警根本关不掉。
+ */
+export { CONFIGURABLE_ALERT_IDS } from '../services/flight-alerts';
 
 
 /**

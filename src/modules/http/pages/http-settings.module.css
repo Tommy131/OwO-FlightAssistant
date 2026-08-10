@@ -109,3 +109,51 @@
   color: var(--color-text-secondary);
   word-break: break-all;
 }
+
+/* ── 数据质量指标 ── */
+
+.qualityGrid {
+  display: grid;
+  /* 窄屏自动堆成一列：诊断页在手机上也要能看 */
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.qualityColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  min-width: 0;
+}
+
+.qualityTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 3px;
+}
+
+.qualityRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.qualityLabel {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  min-width: 0;
+}
+
+.qualityValue {
+  font-size: 11px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}

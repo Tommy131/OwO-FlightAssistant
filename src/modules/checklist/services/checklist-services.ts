@@ -7,10 +7,12 @@ import { createGenericChecklist } from '../data/generic-checklist';
 import { ChecklistLocalizationKeys } from '../localization/checklist-localization';
 import {
   CHECKLIST_PHASES,
+  SIMULATOR_TAGS,
   type AircraftChecklist,
   type AircraftFamily,
   type ChecklistItem,
   type ChecklistPhase,
+  type SimulatorTag,
 } from '../models/flight-checklist';
 
 /**
@@ -40,38 +42,160 @@ export function getBuiltInChecklists(): AircraftChecklist[] {
 // 机型匹配（AircraftResolver）
 // ──────────────────────────────────────────────────────────────────────────
 
+/** 机型匹配的上下文线索 */
+export interface AircraftMatchContext {
+  /** 机型线索拼串（标题 / 厂商 / 型号 / ICAO …） */
+  identifier?: string;
+  /** 机型注册码（尾号），如 B-6075 */
+  registration?: string;
+  /**
+   * 当前连接的模拟器。
+   *
+   * 收 string 而不是 SimulatorTag：调用方拿到的是后端的原始 `simulatorType`
+   * （'xplane' / 'msfs' / 'none'），归一化在 normalizeSimulatorTag 里做。
+   */
+  simulator?: string;
+}
+
 /**
- * 从机型列表中按标识符匹配最合适的检查单
+ * 从机型列表中按上下文匹配最合适的检查单。
  *
- * 匹配优先级：ID/名称精确包含 → 家族模糊识别 → 通用机型 → 列表首项
+ * 优先级（高 → 低）：
+ *   1. 注册码命中 且 模拟器适用
+ *   2. 注册码命中（模拟器不限）
+ *   3. ID/名称包含 且 模拟器适用
+ *   4. ID/名称包含
+ *   5. 家族模糊识别（同样先看模拟器）
+ *   6. 通用机型 → 列表首项
+ *
+ * 注册码排在最前是因为它唯一：机型名能匹配一整个机队，注册码只对应一架飞机，
+ * 用户为某架飞机专门写的检查单不该被泛化的机型模板盖掉。
  */
 export function resolveAircraft(
-  identifier: string | undefined,
+  context: AircraftMatchContext | string | undefined,
   aircraftList: AircraftChecklist[],
 ): AircraftChecklist | null {
   if (aircraftList.length === 0) return null;
-  const normalized = (identifier ?? '').trim().toLowerCase();
+  const resolved: AircraftMatchContext =
+    typeof context === 'string' || context === undefined ? { identifier: context } : context;
+
+  const simulator = normalizeSimulatorTag(resolved.simulator);
+  const registration = normalizeRegistration(resolved.registration);
+  const normalized = (resolved.identifier ?? '').trim().toLowerCase();
+
+  // 1 & 2：注册码
+  if (registration.length > 0) {
+    const byRegistration = aircraftList.filter((aircraft) =>
+      (aircraft.registrations ?? []).some(
+        (entry) => normalizeRegistration(entry) === registration,
+      ),
+    );
+    const best = bestForSimulator(byRegistration, simulator);
+    if (best) return best;
+  }
 
   if (normalized.length === 0) {
-    return findGeneric(aircraftList) ?? aircraftList[0];
+    return preferForSimulator(aircraftList, simulator, (list) => findGeneric(list)) ?? aircraftList[0];
   }
 
-  // ID 或名称精确包含
-  for (const aircraft of aircraftList) {
+  // 3 & 4：ID / 名称包含
+  const byName = aircraftList.filter((aircraft) => {
     const id = aircraft.id.toLowerCase();
     const name = aircraft.name.toLowerCase();
-    if (normalized.includes(id) || normalized.includes(name)) return aircraft;
+    return normalized.includes(id) || normalized.includes(name);
+  });
+  const bestByName = bestForSimulator(byName, simulator);
+  if (bestByName) return bestByName;
+
+  // 5：家族模糊匹配
+  const family: AircraftFamily | null = looksLikeB737(normalized)
+    ? 'b737'
+    : looksLikeA320(normalized)
+      ? 'a320'
+      : null;
+  if (family) {
+    const matched = preferForSimulator(aircraftList, simulator, (list) =>
+      findByFamily(family, list),
+    );
+    if (matched) return matched;
   }
 
-  // 家族模糊匹配
-  if (looksLikeB737(normalized)) {
-    return findByFamily('b737', aircraftList) ?? findGeneric(aircraftList) ?? aircraftList[0];
-  }
-  if (looksLikeA320(normalized)) {
-    return findByFamily('a320', aircraftList) ?? findGeneric(aircraftList) ?? aircraftList[0];
-  }
+  // 6：通用机型兜底
+  return (
+    preferForSimulator(aircraftList, simulator, (list) => findGeneric(list)) ?? aircraftList[0]
+  );
+}
 
-  return findGeneric(aircraftList) ?? aircraftList[0];
+/** 先在「适用当前模拟器」的子集里找，找不到再在全集里找 */
+function preferForSimulator(
+  list: AircraftChecklist[],
+  simulator: SimulatorTag,
+  pick: (candidates: AircraftChecklist[]) => AircraftChecklist | null,
+): AircraftChecklist | null {
+  const scoped = list.filter((aircraft) => appliesToSimulator(aircraft, simulator));
+  const preferred = pick(scoped);
+  if (preferred) return preferred;
+  return pick(list);
+}
+
+/**
+ * 在同一优先级的候选里按模拟器契合度挑最好的一份。
+ *
+ * 「显式点名了当前模拟器」要赢过「没写 = 不限」：用户特意为 MSFS 写了一份，
+ * 就是因为通用那份在 MSFS 上不对；把通用那份挑出来等于白写。
+ */
+function bestForSimulator(
+  candidates: AircraftChecklist[],
+  simulator: SimulatorTag,
+): AircraftChecklist | null {
+  if (candidates.length === 0) return null;
+  let best: AircraftChecklist | null = null;
+  let bestScore = -1;
+  for (const aircraft of candidates) {
+    const score = simulatorMatchScore(aircraft, simulator);
+    if (score > bestScore) {
+      best = aircraft;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+/** 2=显式点名当前模拟器，1=未限制，0=点名了别的模拟器 */
+function simulatorMatchScore(aircraft: AircraftChecklist, simulator: SimulatorTag): number {
+  const tags = aircraft.simulators ?? [];
+  if (tags.length === 0 || tags.includes('any')) return 1;
+  if (simulator !== 'any' && tags.includes(simulator)) return 2;
+  return 0;
+}
+
+/** 判断检查单是否适用于给定模拟器；未声明 simulators 视为不限 */
+export function appliesToSimulator(
+  aircraft: AircraftChecklist,
+  simulator: SimulatorTag,
+): boolean {
+  const tags = aircraft.simulators ?? [];
+  if (tags.length === 0 || tags.includes('any')) return true;
+  if (simulator === 'any') return true;
+  return tags.includes(simulator);
+}
+
+/** 归一化模拟器标签，认不出来的一律当 any */
+export function normalizeSimulatorTag(raw: string | undefined): SimulatorTag {
+  const value = (raw ?? '').trim().toLowerCase();
+  if (value === 'xplane' || value === 'x-plane' || value.startsWith('xplane')) return 'xplane';
+  if (value === 'msfs' || value.startsWith('msfs')) return 'msfs';
+  return 'any';
+}
+
+/**
+ * 归一化注册码：去掉横杠与空格后转大写。
+ *
+ * 同一架飞机在不同模拟器里写法不一（B-6075 / B6075 / b 6075），
+ * 不归一化就会出现「明明填了注册码却匹配不上」。
+ */
+export function normalizeRegistration(raw: string | undefined): string {
+  return (raw ?? '').replace(/[\s-]/g, '').toUpperCase();
 }
 
 /** 由种子字符串推断机型家族（导入时自动归类用） */
@@ -254,9 +378,57 @@ function parseJson(content: string, baseName: string): AircraftChecklist[] {
       name,
       family: normalizeFamily(map.family, name),
       sections,
+      version: toStringOrUndefined(map.version),
+      registrations: parseRegistrations(map.registrations ?? map.registration),
+      simulators: parseSimulatorTags(map.simulators ?? map.simulator),
     });
   }
   return result;
+}
+
+/** 解析注册码字段：接受数组或逗号分隔的字符串 */
+function parseRegistrations(raw: unknown): string[] | undefined {
+  const values = toStringList(raw);
+  if (values.length === 0) return undefined;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const key = normalizeRegistration(value);
+    if (key.length === 0 || seen.has(key)) continue;
+    seen.add(key);
+    // 存原样写法，展示时用户看得懂；比较时才归一化
+    out.push(value.trim().toUpperCase());
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/** 解析适用模拟器字段：接受数组或逗号分隔的字符串 */
+function parseSimulatorTags(raw: unknown): SimulatorTag[] | undefined {
+  const values = toStringList(raw);
+  if (values.length === 0) return undefined;
+  const tags = new Set<SimulatorTag>();
+  for (const value of values) {
+    const tag = normalizeSimulatorTag(value);
+    // 认不出的写法会被归一成 any，这时若原文不是 any 就当作没写，
+    // 免得把「打错的机型名」变成「不限模拟器」
+    if (tag === 'any' && value.trim().toLowerCase() !== 'any') continue;
+    tags.add(tag);
+  }
+  if (tags.size === 0) return undefined;
+  return SIMULATOR_TAGS.filter((tag) => tags.has(tag));
+}
+
+/** 把「数组 / 逗号分隔字符串」统一成字符串数组 */
+function toStringList(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.map((item) => toText(item)).filter((item) => item.trim().length > 0);
+  }
+  const text = toText(raw);
+  if (text.trim().length === 0) return [];
+  return text
+    .split(/[,;、]/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }
 
 /** 解析 csv / txt 两种纯文本格式，合并为单个机型 */
@@ -268,10 +440,24 @@ function parseDelimited(
   const byPhase = new Map<ChecklistPhase, ChecklistItem[]>();
   let currentPhase: ChecklistPhase = 'coldAndDark';
   let counter = 0;
+  const meta = new Map<string, string>();
 
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
-    if (line.length === 0 || line.startsWith('#') || line.startsWith('//')) continue;
+    if (line.length === 0) continue;
+
+    // 头部元数据写在注释里：`# version: 1.0`、`# registration: B-6075, B-6076`
+    // 放注释里是为了让老版本解析器原样跳过，不至于把它当成一条检查项。
+    if (line.startsWith('#') || line.startsWith('//')) {
+      const comment = line.replace(/^(#+|\/\/)\s*/, '');
+      const separator = comment.indexOf(':');
+      if (separator > 0) {
+        const key = comment.slice(0, separator).trim().toLowerCase();
+        const value = comment.slice(separator + 1).trim();
+        if (value.length > 0) meta.set(key, value);
+      }
+      continue;
+    }
 
     // txt 格式的分节标记：[before_taxi]
     const sectionMatch = line.match(/^\[(.+)\]$/);
@@ -324,12 +510,16 @@ function parseDelimited(
     items: byPhase.get(phase) ?? [],
   }));
 
+  const name = meta.get('name') ?? baseName;
   return [
     {
-      id: slugify(baseName),
-      name: baseName,
-      family: inferFamily(baseName),
+      id: meta.get('id') ?? slugify(name),
+      name,
+      family: normalizeFamily(meta.get('family'), name),
       sections,
+      version: meta.get('version'),
+      registrations: parseRegistrations(meta.get('registrations') ?? meta.get('registration')),
+      simulators: parseSimulatorTags(meta.get('simulators') ?? meta.get('simulator')),
     },
   ];
 }
@@ -404,15 +594,21 @@ function slugify(text: string): string {
 // 导出序列化（ChecklistSerializer）
 // ──────────────────────────────────────────────────────────────────────────
 
+/** 导出文件的格式版本，与单个机型模板自带的 version 是两回事 */
+export const CHECKLIST_FILE_FORMAT_VERSION = 2;
+
 /** 序列化为可再次导入的 JSON（勾选状态不写入） */
 export function serializeChecklists(list: AircraftChecklist[]): string {
   return JSON.stringify(
     {
-      version: 1,
+      version: CHECKLIST_FILE_FORMAT_VERSION,
       aircraft: list.map((aircraft) => ({
         id: aircraft.id,
         name: aircraft.name,
         family: aircraft.family,
+        ...(aircraft.version ? { version: aircraft.version } : {}),
+        ...(aircraft.registrations?.length ? { registrations: aircraft.registrations } : {}),
+        ...(aircraft.simulators?.length ? { simulators: aircraft.simulators } : {}),
         sections: aircraft.sections.map((section) => ({
           phase: section.phase,
           items: section.items.map((item) => ({
@@ -427,4 +623,60 @@ export function serializeChecklists(list: AircraftChecklist[]): string {
     null,
     2,
   );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 默认模板
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * 生成一份可直接下载、填完就能导入的检查单模板。
+ *
+ * 模板本身就是合法的导入文件：里面预置了每个飞行阶段的空节段与一两条示例，
+ * 用户照着往下写即可。全靠文档描述格式的话，第一次导入基本一定会失败。
+ *
+ * `seed` 通常传当前连接的机型名，方便用户直接在此基础上改。
+ */
+export function buildChecklistTemplate(seed?: string): string {
+  const name = (seed ?? '').trim() || 'My Aircraft';
+  const template = {
+    version: CHECKLIST_FILE_FORMAT_VERSION,
+    _readme: [
+      '每个机型一个对象；下列字段的含义：',
+      'id           唯一标识，重复导入时按它覆盖',
+      'name         显示名称',
+      'version      模板版本号，自己维护',
+      'family       机型家族：generic / a320 / b737',
+      'registrations 机型注册码（尾号）列表，匹配优先级最高',
+      'simulators   适用模拟器：any / xplane / msfs，可多选',
+      'sections     按飞行阶段分节；phase 取值见下方各节',
+      'items        task=要做的动作，response=标准应答，detail=可选补充说明',
+    ],
+    aircraft: [
+      {
+        id: slugify(name),
+        name,
+        version: '1.0',
+        family: inferFamily(name),
+        registrations: ['B-0000'],
+        simulators: ['any'],
+        sections: CHECKLIST_PHASES.map((phase) => ({
+          phase,
+          items:
+            phase === 'coldAndDark'
+              ? [
+                  {
+                    id: 'example_battery',
+                    task: 'BATTERY',
+                    response: 'ON',
+                    detail: '示例条目，可删除',
+                  },
+                  { id: 'example_beacon', task: 'BEACON LIGHT', response: 'ON' },
+                ]
+              : [],
+        })),
+      },
+    ],
+  };
+  return JSON.stringify(template, null, 2);
 }

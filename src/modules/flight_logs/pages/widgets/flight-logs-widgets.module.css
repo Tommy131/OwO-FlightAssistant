@@ -213,3 +213,47 @@
   color: var(--color-primary);
   font-weight: 600;
 }
+
+/* ── 嵌入式分区（轨迹 / 图表 / 黑匣子）── */
+
+/*
+ * 这三块各自独占一个页签，不需要卡片外壳。
+ * 贴边铺满父容器，把宽度全让给地图与宽表格。
+ */
+.embeddedSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+  width: 100%;
+}
+
+.embeddedHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.embeddedTitle {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.embeddedTrailing {
+  flex-shrink: 0;
+}
+
+.embeddedBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}

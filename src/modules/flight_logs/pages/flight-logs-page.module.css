@@ -238,9 +238,26 @@
   padding: var(--space-lg);
 }
 
+/*
+ * 轨迹 / 图表 / 黑匣子页：贴边铺满
+ *
+ * 只留一点点边距防止内容顶到滚动条上；宽度全部让给内容。
+ */
+.detailContentWide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-sm);
+  min-width: 0;
+}
+
 @media (max-width: 649px) {
   .detailContent {
     padding: var(--space-md);
+  }
+
+  .detailContentWide {
+    padding: var(--space-sm) 6px;
   }
 }
 

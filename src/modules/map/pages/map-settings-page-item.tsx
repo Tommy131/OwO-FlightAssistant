@@ -15,6 +15,7 @@ import {
   type MapAutoTimerStopMode,
 } from '../models/map-models';
 import { CONFIGURABLE_ALERT_IDS, useMapStore } from '../providers/map-store';
+import { BACKEND_ALERT_MESSAGE_KEY } from '../services/flight-alerts';
 import { parseAirportDetail } from '../services/map-airport-parser';
 import styles from './map-settings.module.css';
 
@@ -203,17 +204,6 @@ function TimerSection() {
 // 告警设置
 // ──────────────────────────────────────────────────────────────────────────
 
-/** 告警 ID → 展示名（复用 map 模块已有文案，缺失的用 ID 本身） */
-const ALERT_LABEL: Record<string, string> = {
-  stall_warning: 'STALL',
-  overspeed: 'OVERSPEED',
-  excessive_climb_rate: 'CLIMB RATE',
-  excessive_descent_rate: 'SINK RATE',
-  terrain_warning: 'TERRAIN',
-  restricted_airspace: 'AIRSPACE',
-  bank_angle: 'BANK ANGLE',
-  high_aoa: 'HIGH AOA',
-};
 
 function AlertSettingsSection() {
   const t = useTranslate();
@@ -269,7 +259,8 @@ function AlertSettingsSection() {
         <span className={styles.subsectionTitle}>{t(K.alertSettingsSelectAlerts)}</span>
         {CONFIGURABLE_ALERT_IDS.map((alertId) => (
           <label key={alertId} className={styles.alertRow}>
-            <span className={styles.alertName}>{ALERT_LABEL[alertId] ?? alertId}</span>
+            {/* 开关名直接用告警自己的文案，两处叫法就不会对不上 */}
+            <span className={styles.alertName}>{alertLabel(alertId, t)}</span>
             <Switch
               checked={isAlertEnabled(alertId)}
               onChange={(value) => void setAlertEnabled(alertId, value)}
@@ -335,4 +326,15 @@ function AlertSettingsSection() {
       </div>
     </SectionCard>
   );
+}
+
+/**
+ * 告警开关的显示名。
+ *
+ * 复用规则引擎那张 message→i18n key 的表：开关名与地图上真正弹出的告警
+ * 用同一份文案，用户才对得上「我关的是哪一条」。表里查不到就退回 id 本身。
+ */
+function alertLabel(alertId: string, translate: (key: string) => string): string {
+  const key = BACKEND_ALERT_MESSAGE_KEY[alertId];
+  return key === undefined ? alertId : translate(key);
 }

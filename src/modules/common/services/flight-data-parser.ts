@@ -143,6 +143,13 @@ export function flightDataFromDataset(dataset: JsonMap): FlightData {
     aircraftModel: asText(dataset.aircraft_model),
     aircraftIcao: asText(dataset.aircraft_icao),
     aircraftDisplayName: asText(dataset.aircraft_display_name),
+    // 注册码在两家模拟器里落在不同键上：X-Plane 走 tailnum，MSFS 走 ATC ID。
+    aircraftRegistration: pickString(dataset, [
+      'aircraft_atc_id',
+      'aircraft_registration',
+      'tail_number',
+      'tailnum',
+    ]),
     flightPhase: pickString(dataset, ['flight_phase']),
     flightAlertLevel: pickString(dataset, ['flight_alert_level']),
     flightAlerts: parseFlightAlerts(dataset.flight_alerts),

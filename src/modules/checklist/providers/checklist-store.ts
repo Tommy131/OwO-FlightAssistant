@@ -14,12 +14,14 @@ import {
 } from '../models/flight-checklist';
 import { evaluateAutoChecks } from '../services/checklist-auto-check';
 import {
+  buildChecklistTemplate,
   derivePhase,
   getBuiltInChecklists,
   parseChecklistFile,
   resolveAircraft,
   serializeChecklists,
   shouldApplyPhase,
+  type AircraftMatchContext,
 } from '../services/checklist-services';
 import { translate } from '../../../core/services/localization-service';
 
@@ -43,8 +45,8 @@ interface ChecklistState {
   currentPhase: ChecklistPhase;
   isLoading: boolean;
 
-  /** 上次请求匹配的机型标识符，加载完成后据此自动选中 */
-  pendingIdentifier?: string;
+  /** 上次请求匹配的上下文，加载完成后据此自动选中 */
+  pendingMatch?: AircraftMatchContext;
 
   /**
    * 由遥测自动勾选/取消的条目 id
@@ -59,7 +61,8 @@ interface ChecklistState {
 
   init: () => Promise<void>;
   selectAircraft: (id: string) => void;
-  updateAircraftByIdentifier: (identifier: string | undefined) => boolean;
+  /** 按机型线索 / 注册码 / 模拟器自动切换检查单 */
+  updateAircraftByIdentifier: (context: AircraftMatchContext | string | undefined) => boolean;
   setPhase: (phase: ChecklistPhase) => void;
   syncWithFlightData: (flightData: FlightData) => void;
   toggleItem: (itemId: string) => void;
@@ -75,6 +78,8 @@ interface ChecklistState {
   importFromFile: (file: File) => Promise<number>;
   /** 导出为 JSON 文件。返回 1 成功，-1 无数据 */
   exportToFile: () => number;
+  /** 下载一份可直接填写的空白模板 */
+  downloadTemplate: () => void;
 }
 
 export const useChecklistStore = create<ChecklistState>((set, get) => ({
@@ -87,7 +92,7 @@ export const useChecklistStore = create<ChecklistState>((set, get) => ({
 
   async init() {
     await get().reload(true);
-    get().updateAircraftByIdentifier(get().pendingIdentifier);
+    get().updateAircraftByIdentifier(get().pendingMatch);
   },
 
   // ── 机型选择 ──
@@ -98,18 +103,22 @@ export const useChecklistStore = create<ChecklistState>((set, get) => ({
     set({ selectedAircraft: target, currentPhase: 'coldAndDark' });
   },
 
-  updateAircraftByIdentifier(identifier) {
-    set({ pendingIdentifier: identifier });
+  updateAircraftByIdentifier(context) {
+    const match: AircraftMatchContext =
+      typeof context === 'string' || context === undefined ? { identifier: context } : context;
+    set({ pendingMatch: match });
     const state = get();
     if (state.isLoading || state.aircraftList.length === 0) return false;
 
-    // 空标识符不含任何机型信息：仅在尚未选中任何机型时用它挑默认值，
+    // 完全没有线索：仅在尚未选中任何机型时用它挑默认值，
     // 否则会把用户手动选择的机型冲回「通用机型」。
-    if ((identifier ?? '').trim().length === 0 && state.selectedAircraft !== null) {
+    const hasClue =
+      (match.identifier ?? '').trim().length > 0 || (match.registration ?? '').trim().length > 0;
+    if (!hasClue && state.selectedAircraft !== null) {
       return false;
     }
 
-    const selected = resolveAircraft(identifier, state.aircraftList);
+    const selected = resolveAircraft(match, state.aircraftList);
     if (!selected) return false;
     if (state.selectedAircraft?.id === selected.id) return true;
 
@@ -300,7 +309,7 @@ export const useChecklistStore = create<ChecklistState>((set, get) => ({
       const merged = mergeById([...getBuiltInChecklists(), ...imported]);
       applyAircraftList(set, get, merged);
       set({ isLoading: false });
-      get().updateAircraftByIdentifier(get().pendingIdentifier);
+      get().updateAircraftByIdentifier(get().pendingMatch);
       return imported.length;
     } catch (e) {
       AppLogger.error('[Checklist] reload failed', e);
@@ -338,17 +347,28 @@ export const useChecklistStore = create<ChecklistState>((set, get) => ({
   exportToFile() {
     const list = get().aircraftList;
     if (list.length === 0) return -1;
-
-    const blob = new Blob([serializeChecklists(list)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = 'checklist_export.json';
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadJson(serializeChecklists(list), 'checklist_export.json');
     return 1;
   },
+
+  downloadTemplate() {
+    // 用当前连接的机型名作种子：模板里的 id/name/family 就已经填对了，
+    // 用户只要补条目，少一步猜格式。
+    const seed = useFlightDataStore.getState().snapshot.aircraftTitle;
+    downloadJson(buildChecklistTemplate(seed), 'checklist_template.json');
+  },
 }));
+
+/** 触发浏览器下载一段 JSON 文本 */
+function downloadJson(content: string, fileName: string): void {
+  const blob = new Blob([content], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // 内部辅助

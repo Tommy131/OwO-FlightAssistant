@@ -24,6 +24,7 @@ import {
   buildFuelPlanTotal,
   flightDataFromDataset,
 } from '../services/flight-data-parser';
+import { WsDeltaAssembler } from '../services/ws-delta-assembler';
 import {
   emptyFlightData,
   type AirportInfo,
@@ -51,6 +52,19 @@ const BACKEND_MONITOR_INTERVAL_MS = 2_000;
 const BACKEND_DISCONNECT_GRACE_PERIOD_MS = 10_000;
 const POLL_INTERVAL_MS_KEY = 'middleware_flight_data_interval_ms';
 
+/**
+ * 会话持久化
+ *
+ * 刷新页面前，token 只活在这个类的内存字段里 —— 刷新后前端一律按「未连接」
+ * 初始化，用户必须重新点连接，**而后端其实还连着模拟器**。
+ * 正在录制时这一下就把已录的数据全丢了（见 flight-logs-store 的 recoverActiveLog）。
+ *
+ * 后端会话的空闲 TTL 是 10 分钟（见中间件 `sessionIdleTTL`），刷新只需几秒，
+ * 所以存下 token 后完全来得及原样接上。
+ */
+const SESSION_MODULE = 'common';
+const SESSION_KEY = 'simulator_session';
+
 export const DEFAULT_POLL_INTERVAL_MS = 300;
 export const MIN_POLL_INTERVAL_MS = 100;
 export const MAX_POLL_INTERVAL_MS = 2000;
@@ -65,6 +79,8 @@ export type SnapshotListener = (snapshot: FlightDataSnapshot) => void;
 export interface FlightDataAdapter {
   subscribe(listener: SnapshotListener): () => void;
   connect(type: SimulatorType): Promise<boolean>;
+  /** 用上次存下的 token 尝试接回后端已有会话；成功返回 true */
+  resumeSession(): Promise<boolean>;
   disconnect(): Promise<void>;
   refreshBackendHealth(): Promise<boolean>;
   getFlightDataIntervalMs(): Promise<number>;
@@ -84,6 +100,8 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private ws: WebSocket | null = null;
+  /** 增量推送的本地状态机；中间件不支持增量时它只会看到全量帧 */
+  private readonly deltaAssembler = new WsDeltaAssembler();
   private token: string | null = null;
   private simulatorType: SimulatorType = 'none';
   private isConnected = false;
@@ -165,6 +183,7 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
       this.token = token;
       this.simulatorType = type;
       this.isConnected = true;
+      await this.persistSession(token, type);
       await this.startRealtimeUpdates(token);
       await this.pollData();
       this.emitSnapshot();
@@ -181,9 +200,82 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
     }
   }
 
+  /**
+   * 刷新页面后接回后端已有会话。
+   *
+   * 用 `/simulator/data` 而不是 `/simulator/state` 探活：前者会校验 token
+   * （无效返回 401、模拟器掉了返回 409），后者只按类型查状态、根本不认 token，
+   * 拿它探活会在 token 早已失效时仍然判定「已连接」。
+   */
+  async resumeSession(): Promise<boolean> {
+    if (this.disposed || this.isConnected) return false;
+    await MiddlewareHttpService.init();
+    await this.loadPollIntervalFromStorage();
+
+    const stored = await this.readStoredSession();
+    if (!stored) return false;
+
+    try {
+      const response = await MiddlewareHttpService.getSimulatorData(stored.token);
+      if (!response.objectBody) {
+        await this.clearStoredSession();
+        return false;
+      }
+      this.token = stored.token;
+      this.simulatorType = stored.type;
+      this.isConnected = true;
+      this.errorMessage = undefined;
+      this.applySimulatorResponseBody(response.objectBody);
+      await this.startRealtimeUpdates(stored.token);
+      this.emitSnapshot();
+      AppLogger.info(`[FlightData] resumed simulator session: ${stored.type}`);
+      return true;
+    } catch (e) {
+      // token 过期、模拟器已断开、后端没起 —— 都只是「接不回去」，
+      // 清掉存档按未连接处理即可，不该把错误抛给界面。
+      AppLogger.info(`[FlightData] no resumable session: ${String(e)}`);
+      await this.clearStoredSession();
+      return false;
+    }
+  }
+
+  private async persistSession(token: string, type: SimulatorType): Promise<void> {
+    try {
+      await PersistenceService.ensureReady();
+      await PersistenceService.setModuleData(SESSION_MODULE, SESSION_KEY, { token, type });
+    } catch (e) {
+      AppLogger.warning(`[FlightData] persist session failed: ${String(e)}`);
+    }
+  }
+
+  private async readStoredSession(): Promise<{ token: string; type: SimulatorType } | null> {
+    try {
+      await PersistenceService.ensureReady();
+      const raw = toJsonMap(
+        PersistenceService.getModuleData<unknown>(SESSION_MODULE, SESSION_KEY),
+      );
+      if (!raw) return null;
+      const token = toText(raw.token).trim();
+      const type = toText(raw.type).trim();
+      if (token.length === 0 || (type !== 'xplane' && type !== 'msfs')) return null;
+      return { token, type };
+    } catch {
+      return null;
+    }
+  }
+
+  private async clearStoredSession(): Promise<void> {
+    try {
+      await PersistenceService.removeModuleData(SESSION_MODULE, SESSION_KEY);
+    } catch {
+      /* 清不掉也不影响本次运行 */
+    }
+  }
+
   async disconnect(): Promise<void> {
     const token = this.token;
     this.token = null;
+    await this.clearStoredSession();
     this.closeWebSocket();
     this.stopPolling();
     if (token && token.length > 0) {
@@ -478,6 +570,8 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
       const wsUri = await MiddlewareHttpService.resolveSimulatorWebSocketUri(token);
       AppLogger.info(`Connecting to WebSocket: ${wsUri}`);
       this.closeWebSocket();
+      // 新连接不能带着上一条连接的基准状态。
+      this.deltaAssembler.reset();
 
       const socket = new WebSocket(wsUri);
       this.ws = socket;
@@ -537,9 +631,28 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
         this.emitSnapshot();
         return;
       }
-      this.applySimulatorResponseBody(payload);
+      const { body, needsResync } = this.deltaAssembler.accept(payload);
+      if (needsResync) {
+        // 丢帧了：宁可要一帧全量，也不要把状态硬合并成半新半旧。
+        AppLogger.warning('WebSocket delta stream out of sync, requesting resync');
+        this.requestWebSocketResync();
+        return;
+      }
+      if (!body) return;
+      this.applySimulatorResponseBody(body);
     } catch {
       /* 非法帧直接丢弃 */
+    }
+  }
+
+  /** 请求服务端补发一帧全量快照 */
+  private requestWebSocketResync(): void {
+    const socket = this.ws;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    try {
+      socket.send(JSON.stringify({ type: 'resync' }));
+    } catch {
+      /* 发不出去就等服务端的定时全量帧兜底 */
     }
   }
 

@@ -2,7 +2,7 @@
  * 选中机场底卡：ATIS/METAR、经纬度、跑道与进近设施
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslate } from '../../../../core/localization/use-translate';
 import { IconButton } from '../../../../core/widgets/common/controls';
 import { MaterialIcon } from '../../../../core/widgets/common/icon';
@@ -12,6 +12,7 @@ import {
   type MapRunwayNavaid,
 } from '../../models/map-models';
 import { useMapStore } from '../../providers/map-store';
+import { findOccupiedRunway } from '../../services/runway-occupancy';
 import { MarqueeText } from '../../widgets/marquee-text';
 import styles from '../map-page.module.css';
 
@@ -108,11 +109,14 @@ export function SelectedAirportCard() {
   const t = useTranslate();
   const detail = useMapStore((s) => s.selectedAirport);
   const homeAirport = useMapStore((s) => s.homeAirport);
+  const aircraft = useMapStore((s) => s.aircraft);
   const setSelectedAirport = useMapStore((s) => s.setSelectedAirport);
   const setHomeAirport = useMapStore((s) => s.setHomeAirport);
   const clearHomeAirport = useMapStore((s) => s.clearHomeAirport);
   // 原文 / 解读切换；换机场时回到原文（与桌面版 didUpdateWidget 行为一致）
   const [showDecoded, setShowDecoded] = useState(false);
+  // 收起状态只影响本次会话，放组件内部即可
+  const [collapsed, setCollapsed] = useState(false);
   // 下滑道开关放在 store 里：卡片和地图上的跑道标注共用同一个状态
   const showGlideslope = useMapStore((s) => s.showGlideslope);
   const toggleGlideslope = useMapStore((s) => s.toggleGlideslope);
@@ -123,7 +127,19 @@ export function SelectedAirportCard() {
     if (shownCode.current === code) return;
     shownCode.current = code;
     setShowDecoded(false);
+    // 换机场时自动展开：用户刚点了一个新机场，多半就是想看详情
+    setCollapsed(false);
   }, [code]);
+
+  // 本机压在哪条跑道上（收起时也要显示，属于最紧要的那类信息）
+  const occupiedRunway = useMemo(() => {
+    if (!detail || !aircraft) return null;
+    return findOccupiedRunway(detail.runwayGeometries, {
+      position: aircraft.position,
+      radioAltitudeFt: aircraft.radioAltitude,
+      onGround: aircraft.onGround,
+    });
+  }, [detail, aircraft]);
 
   if (!detail) return null;
   const isHome = homeAirport?.code === detail.marker.code;
@@ -140,7 +156,7 @@ export function SelectedAirportCard() {
   const { latitude, longitude } = detail.marker.position;
 
   return (
-    <div className={styles.airportCard}>
+    <div className={`${styles.airportCard}${collapsed ? ` ${styles.airportCardCollapsed}` : ''}`}>
       <div className={styles.airportHead}>
         <div className={styles.airportTitleWrap}>
           <span className={`${styles.airportCode} text-mono`}>{detail.marker.code}</span>
@@ -186,12 +202,32 @@ export function SelectedAirportCard() {
           }}
         />
         <IconButton
+          icon={collapsed ? 'expand_less' : 'expand_more'}
+          label={t(collapsed ? K.airportCardExpand : K.airportCardCollapse)}
+          onClick={() => setCollapsed((value) => !value)}
+        />
+        <IconButton
           icon="close"
           label={t(K.clearSearch)}
           onClick={() => setSelectedAirport(null)}
         />
       </div>
 
+      {/*
+        收起时**真的不渲染**详情，而不是靠高度裁切。
+        这张卡是纵向 flex，用 max-height 压的话子项会被沿纵向挤扁 ——
+        页签会被压到 10px 而行高 16.5px，字直接被裁掉一半。
+      */}
+      {collapsed ? (
+        occupiedRunway && (
+          <div className={styles.airportCollapsedRow}>
+            <MaterialIcon name="flight_land" size={12} color="var(--color-primary)" />
+            <span className={styles.occupiedRunwayHint}>
+              {t(K.airportOnRunway, occupiedRunway.ident)}
+            </span>
+          </div>
+        )
+      ) : (
       <div className={`${styles.airportBody} scroll-area`}>
         <div className={styles.airportMetaRow}>
           <span className={styles.airportMetaItem}>
@@ -249,8 +285,19 @@ export function SelectedAirportCard() {
             </div>
 
             {detail.runwayGeometries.map((runway) => (
-              <div key={runway.ident} className={styles.runwayRow}>
+              <div
+                key={runway.ident}
+                className={`${styles.runwayRow}${
+                  occupiedRunway?.ident === runway.ident ? ` ${styles.runwayRowOccupied}` : ''
+                }`}
+              >
                 <span className={`${styles.runwayIdent} text-mono`}>{runway.ident}</span>
+                {occupiedRunway?.ident === runway.ident && (
+                  <span className={styles.runwayHereBadge} title={t(K.airportOnRunwayHint)}>
+                    <MaterialIcon name="my_location" size={10} filled />
+                    {t(K.airportHere)}
+                  </span>
+                )}
                 {runway.lengthM !== undefined && (
                   <span className={styles.runwayLength}>
                     {Math.round(runway.lengthM)} m
@@ -294,6 +341,7 @@ export function SelectedAirportCard() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

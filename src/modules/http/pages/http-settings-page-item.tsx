@@ -7,6 +7,7 @@ import { Button, Switch, TextField } from '../../../core/widgets/common/controls
 import { MaterialIcon } from '../../../core/widgets/common/icon';
 import { SnackBarHelper } from '../../../core/widgets/common/snack-bar';
 import { InfoChip, SectionCard } from '../../../core/widgets/common/surfaces';
+import { toDouble, toInt, toJsonMap, type JsonMap } from '../../../core/utils/parse-utils';
 import { useFlightDataStore } from '../../common/providers/flight-data-store';
 import {
   MAX_POLL_INTERVAL_MS,
@@ -298,14 +299,30 @@ interface DiagnosisStep {
   detail?: string;
 }
 
+/** 一行「指标名 : 值」 */
+interface QualityRow {
+  label: string;
+  value: string;
+}
+
+/** 诊断拿回来的数据质量快照 */
+interface QualityReport {
+  stalled: boolean;
+  observed: boolean;
+  upstream: QualityRow[];
+  downstream: QualityRow[];
+}
+
 function DiagnosisForm() {
   const t = useTranslate();
   const [steps, setSteps] = useState<DiagnosisStep[]>([]);
+  const [quality, setQuality] = useState<QualityReport | null>(null);
   const [busy, setBusy] = useState(false);
 
   const runDiagnosis = async () => {
     setBusy(true);
     setSteps([]);
+    setQuality(null);
     const results: DiagnosisStep[] = [];
 
     // 1. 后端健康
@@ -343,6 +360,25 @@ function DiagnosisForm() {
       });
     } catch (e) {
       results.push({ label: t(K.diagnoseSimulatorFail), ok: false, detail: String(e) });
+    }
+
+    // 4. 数据质量指标：链路能连通不代表数据是新的。
+    //    上游冻住时前面三步全绿，画面却是停的 —— 只有这一步能看出来。
+    try {
+      const response = await MiddlewareHttpService.getConnectionDiagnostics();
+      const report = buildQualityReport(response.objectBody, t);
+      setQuality(report);
+      results.push({
+        label: t(K.diagnoseQualityOk),
+        ok: !report.stalled,
+        detail: report.observed
+          ? report.stalled
+            ? t(K.qualityStalled)
+            : t(K.qualityHealthy)
+          : t(K.qualityNoSample),
+      });
+    } catch (e) {
+      results.push({ label: t(K.diagnoseQualityFail), ok: false, detail: String(e) });
     }
 
     setSteps(results);
@@ -384,6 +420,92 @@ function DiagnosisForm() {
           ))}
         </div>
       )}
+
+      {quality && (
+        <div className={styles.qualityGrid}>
+          <QualityColumn title={t(K.qualityUpstream)} rows={quality.upstream} />
+          <QualityColumn title={t(K.qualityDownstream)} rows={quality.downstream} />
+        </div>
+      )}
     </SectionCard>
   );
+}
+
+function QualityColumn({ title, rows }: { title: string; rows: QualityRow[] }) {
+  return (
+    <div className={styles.qualityColumn}>
+      <span className={styles.qualityTitle}>{title}</span>
+      {rows.map((row) => (
+        <div key={row.label} className={styles.qualityRow}>
+          <span className={styles.qualityLabel}>{row.label}</span>
+          <span className={`${styles.qualityValue} text-mono`}>{row.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** 把 /diagnostics/connection 的响应整理成两列指标 */
+function buildQualityReport(
+  body: JsonMap | null,
+  t: (key: string) => string,
+): QualityReport {
+  const upstream = toJsonMap(body?.upstream) ?? {};
+  const downstream = toJsonMap(body?.downstream) ?? {};
+  const websocket = toJsonMap(downstream.websocket) ?? {};
+  const clients = Array.isArray(websocket.clients) ? websocket.clients : [];
+  // 取最近连上的那条连接：诊断关心的是「我现在这条链路」。
+  const client = toJsonMap(clients[0]) ?? {};
+
+  const observed = upstream.observed === true;
+  const upstreamRows: QualityRow[] = observed
+    ? [
+        { label: t(K.qualitySampleRate), value: `${fixed(upstream.sample_rate_hz, 1)} Hz` },
+        { label: t(K.qualityRepeatRatio), value: `${fixed(pct(upstream.repeat_ratio), 1)} %` },
+        { label: t(K.qualityStallCount), value: `${int(upstream.stall_count)}` },
+        { label: t(K.qualityMaxGap), value: `${fixed(upstream.max_gap_ms, 0)} ms` },
+      ]
+    : [{ label: t(K.qualityNoSample), value: '—' }];
+
+  const downstreamRows: QualityRow[] = [
+    {
+      label: t(K.qualityPushCount),
+      value: `${int(client.snapshot_count)} / ${int(client.delta_count)} / ${int(client.skipped_count)}`,
+    },
+    {
+      label: t(K.qualityLatency),
+      value: `${fixed(client.avg_latency_ms, 1)} / ${fixed(client.max_latency_ms, 1)} ms`,
+    },
+    { label: t(K.qualityMaxGap), value: `${fixed(client.max_gap_ms, 0)} ms` },
+    {
+      label: t(K.qualityFailureCount),
+      value: `${int(client.failure_count)} (${int(client.stall_count)})`,
+    },
+    { label: t(K.qualityBytesSent), value: formatBytes(int(client.bytes_sent)) },
+  ];
+
+  return {
+    observed,
+    stalled: upstream.stalled === true,
+    upstream: upstreamRows,
+    downstream: downstreamRows,
+  };
+}
+
+function fixed(value: unknown, digits: number): string {
+  return (toDouble(value) ?? 0).toFixed(digits);
+}
+
+function int(value: unknown): number {
+  return toInt(value) ?? 0;
+}
+
+function pct(value: unknown): number {
+  return (toDouble(value) ?? 0) * 100;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }

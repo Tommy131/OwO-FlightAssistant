@@ -1,3 +1,4 @@
+import { del as idbDel, get as idbGet, set as idbSet } from 'idb-keyval';
 import { create } from 'zustand';
 import {
   mergeById,
@@ -9,6 +10,11 @@ import { PersistenceService } from '../../../core/services/persistence-service';
 import { AppLogger } from '../../../core/utils/logger';
 import { toJsonMap, toText } from '../../../core/utils/parse-utils';
 import type { FlightDataSnapshot, SimulatorType } from '../../common/models/common-models';
+import { lookupRunwayAt } from '../services/runway-lookup';
+import {
+  computeLandingMetrics,
+  computeTakeoffMetrics,
+} from '../services/takeoff-landing-metrics';
 import {
   flightLogDurationMs,
   flightLogFromJson,
@@ -40,6 +46,24 @@ export const DEFAULT_SAMPLE_INTERVAL_MS = 100;
 export const MIN_SAMPLE_INTERVAL_MS = 100;
 export const MAX_SAMPLE_INTERVAL_MS = 2000;
 
+/**
+ * 录制中日志的崩溃恢复存档
+ *
+ * ── 为什么要单开一条 IndexedDB 键，不走 PersistenceService ──
+ * 1. `PersistenceService.setModuleData` 内部是 **300ms 防抖且每次调用都重置计时器**，
+ *    按 100ms 采样间隔调用它，计时器永远被推后，一次都不会真正落盘；
+ * 2. 它还会把整桶数据 `pushSetting` 同步到中间件 —— 录制中的日志有几千个采样点，
+ *    每隔几秒往后端推一份完整副本纯属浪费。
+ *
+ * 录制中的日志是崩溃恢复用的临时状态，不是用户设置，直接写 IndexedDB 最合适。
+ */
+const ACTIVE_LOG_IDB_KEY = 'owo-flight-assistant/flight-logs/active';
+/**
+ * 存档间隔。最坏情况丢这么多秒的数据 —— 相对于「刷新一下全没了」是天壤之别。
+ * 写得再密就会和采样抢主线程。
+ */
+const ACTIVE_LOG_PERSIST_INTERVAL_MS = 3_000;
+
 /** 短于 1 分钟的记录直接丢弃（与桌面版一致） */
 const MINIMUM_RECORD_DURATION_MS = 60_000;
 /** 接地后需连续 2 秒在地面才判定落地完成 */
@@ -58,6 +82,13 @@ interface FlightLogsState {
   sampleIntervalMs: number;
 
   refreshLogs: () => Promise<void>;
+  /**
+   * 恢复上次未收尾的录制（刷新页面 / 崩溃后）。
+   * 返回 true 表示接上了，此时 `isRecording` 已置位、`activeLog` 已带上此前的采样点。
+   */
+  recoverActiveLog: () => Promise<boolean>;
+  /** 把录制中的日志立刻写盘（页面卸载前调用，补上节流窗口里的那几秒） */
+  flushActiveLog: () => Promise<void>;
   setSampleIntervalMs: (milliseconds: number) => Promise<void>;
   selectLog: (log: FlightLog | null) => void;
 
@@ -79,6 +110,7 @@ const recordingContext = {
   stableGroundSince: null as number | null,
   touchdownPointIndexes: [] as number[],
   autoStopping: false,
+  lastActiveLogPersistAt: null as number | null,
 };
 
 function resetRecordingContext(): void {
@@ -86,6 +118,61 @@ function resetRecordingContext(): void {
   recordingContext.lastOnGround = undefined;
   recordingContext.stableGroundSince = null;
   recordingContext.touchdownPointIndexes = [];
+  recordingContext.lastActiveLogPersistAt = null;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 录制中日志的崩溃恢复
+// ──────────────────────────────────────────────────────────────────────────
+
+/** 存档结构：日志本体 + 恢复时要接着用的检测上下文 */
+interface ActiveLogArchive {
+  log: unknown;
+  touchdownPointIndexes: number[];
+  lastOnGround?: boolean;
+}
+
+/** 把录制中的日志写进 IndexedDB；`force` 跳过间隔节流 */
+async function persistActiveLog(log: FlightLog, force = false): Promise<void> {
+  const now = Date.now();
+  if (
+    !force &&
+    recordingContext.lastActiveLogPersistAt !== null &&
+    now - recordingContext.lastActiveLogPersistAt < ACTIVE_LOG_PERSIST_INTERVAL_MS
+  ) {
+    return;
+  }
+  recordingContext.lastActiveLogPersistAt = now;
+  try {
+    const archive: ActiveLogArchive = {
+      log: flightLogToJson(log),
+      touchdownPointIndexes: [...recordingContext.touchdownPointIndexes],
+      lastOnGround: recordingContext.lastOnGround,
+    };
+    await idbSet(ACTIVE_LOG_IDB_KEY, archive);
+  } catch (e) {
+    AppLogger.warning(`[FlightLogs] persist active log failed: ${String(e)}`);
+  }
+}
+
+/** 清掉录制中存档（正常收尾或丢弃后调用） */
+async function clearActiveLogArchive(): Promise<void> {
+  try {
+    await idbDel(ACTIVE_LOG_IDB_KEY);
+  } catch (e) {
+    AppLogger.warning(`[FlightLogs] clear active log failed: ${String(e)}`);
+  }
+}
+
+/** 读回录制中存档 */
+async function readActiveLogArchive(): Promise<ActiveLogArchive | null> {
+  try {
+    const raw = await idbGet<ActiveLogArchive>(ACTIVE_LOG_IDB_KEY);
+    if (!raw || typeof raw !== 'object') return null;
+    return raw;
+  } catch {
+    return null;
+  }
 }
 
 export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
@@ -143,6 +230,42 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
     const next = sanitizeSampleInterval(milliseconds);
     set({ sampleIntervalMs: next });
     await PersistenceService.setModuleData(MODULE_NAME, SAMPLE_INTERVAL_MS_KEY, next);
+  },
+
+  async recoverActiveLog() {
+    if (get().isRecording) return false;
+    const archive = await readActiveLogArchive();
+    if (!archive) return false;
+
+    const raw = toJsonMap(archive.log);
+    if (!raw) {
+      await clearActiveLogArchive();
+      return false;
+    }
+    const log = flightLogFromJson(raw);
+    if (log.points.length === 0) {
+      await clearActiveLogArchive();
+      return false;
+    }
+
+    // 把检测上下文一并接回来：不接的话落地检测会以为这是一段全新的空中飞行，
+    // 已经收集到的接地序列会全部作废。
+    resetRecordingContext();
+    recordingContext.touchdownPointIndexes = [...(archive.touchdownPointIndexes ?? [])];
+    recordingContext.lastOnGround = archive.lastOnGround;
+    recordingContext.lastActiveLogPersistAt = Date.now();
+
+    set({ activeLog: log, isRecording: true, isRecordingPaused: false });
+    AppLogger.info(`[FlightLogs] recovered in-progress recording: ${log.points.length} points`);
+    // 接不回模拟器时，下一帧 isConnected=false 的快照会走既有的自动收尾逻辑，
+    // 把这段录制正常保存下来 —— 不需要在这里另写一套收尾。
+    return true;
+  },
+
+  async flushActiveLog() {
+    const log = get().activeLog;
+    if (!get().isRecording || !log) return;
+    await persistActiveLog(log, true);
   },
 
   selectLog(log) {
@@ -213,6 +336,7 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
       isRecording: true,
       isRecordingPaused: snapshot.isPaused === true,
     });
+    void persistActiveLog(activeLog, true);
     captureSnapshot(snapshot, true, set, get);
     return true;
   },
@@ -233,14 +357,20 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
     // 空记录或过短记录直接丢弃
     if (log.points.length === 0 || flightLogDurationMs(log) < MINIMUM_RECORD_DURATION_MS) {
       resetRecordingContext();
+      await clearActiveLogArchive();
       set({ isRecording: false, isRecordingPaused: false, activeLog: null });
       AppLogger.info('[FlightLogs] recording discarded (too short)');
       return false;
     }
 
     updateFuelUsed(log);
+    // 派生指标要在全部采样点都到齐之后才算得出来（抬轮、35ft 俯仰、稳定性
+    // 都要看事件前后的一整段），所以放在收尾这一步而不是采样时。
+    await enrichTakeoffLandingMetrics(log);
     await get().saveLog(log);
     resetRecordingContext();
+    // 正式记录已落库，存档使命结束；先存后清，中间崩了也只是多留一份存档
+    await clearActiveLogArchive();
     set({ isRecording: false, isRecordingPaused: false, activeLog: null });
     await get().refreshLogs();
     return true;
@@ -429,6 +559,9 @@ function captureSnapshot(
   recordingContext.lastOnGround = onGround;
   recordingContext.lastSampleAt = now;
 
+  // 增量落盘（内部按 3 秒节流）：刷新页面时最多丢这几秒，而不是整段录制
+  void persistActiveLog(log);
+
   // 触发订阅者更新（activeLog 为同一引用，故用计数字段驱动）
   set({ activeLog: { ...log } });
 }
@@ -509,6 +642,49 @@ function updateLandingDataFromTouchdowns(log: FlightLog, latestPoint: FlightLogP
     sinkRateAt50FtFpm: findSinkRateAt50Ft(log.points, primary.timestamp),
     flareHeightFt: latestPoint.radioAltitude,
   };
+}
+
+/**
+ * 收尾时补齐起飞/落地的派生指标。
+ *
+ * 剩余跑道要按坐标反查跑道几何（一次网络往返），拿不到就让该项保持不可用
+ * 并记下原因 —— 这一步失败不能影响日志本身落库。
+ */
+async function enrichTakeoffLandingMetrics(log: FlightLog): Promise<void> {
+  try {
+    const takeoff = log.takeoffData;
+    if (takeoff) {
+      const runway = await lookupRunwayAt(log.departureAirport, {
+        latitude: takeoff.latitude,
+        longitude: takeoff.longitude,
+      });
+      const metrics = computeTakeoffMetrics(log, runway);
+      takeoff.rotationSpeedKt = metrics.rotationSpeedKt;
+      takeoff.rotationToLiftoffSec = metrics.rotationToLiftoffSec;
+      takeoff.pitchAt35FtDeg = metrics.pitchAt35FtDeg;
+      takeoff.takeoffStabilityScore = metrics.takeoffStabilityScore;
+      takeoff.remainingRunwayFt = metrics.remainingRunwayFt;
+      takeoff.metricNotes = Object.keys(metrics.unavailable).length > 0
+        ? { ...metrics.unavailable }
+        : undefined;
+    }
+
+    const landing = log.landingData;
+    if (landing) {
+      const runway = await lookupRunwayAt(log.arrivalAirport, {
+        latitude: landing.latitude,
+        longitude: landing.longitude,
+      });
+      const metrics = computeLandingMetrics(log, runway);
+      landing.approachStabilityScore = metrics.approachStabilityScore;
+      landing.remainingRunwayFt = metrics.remainingRunwayFt;
+      landing.metricNotes = Object.keys(metrics.unavailable).length > 0
+        ? { ...metrics.unavailable }
+        : undefined;
+    }
+  } catch (e) {
+    AppLogger.warning(`[FlightLogs] enrich metrics failed: ${String(e)}`);
+  }
 }
 
 /** 停止记录时若仍有未定稿的接地序列，补一次落地汇总 */

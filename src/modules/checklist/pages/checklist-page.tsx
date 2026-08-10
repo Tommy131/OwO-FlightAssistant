@@ -18,6 +18,7 @@ import {
   findSection,
   PHASE_ICON,
   PHASE_LABEL_KEY,
+  type AircraftChecklist,
   type ChecklistItem,
   type ChecklistPhase,
 } from '../models/flight-checklist';
@@ -239,18 +240,55 @@ function ChecklistHeader() {
         </span>
       </div>
 
-      <Select
-        value={selectedAircraft?.id ?? ''}
-        options={aircraftList.map((aircraft) => ({
-          value: aircraft.id,
-          label: aircraft.name,
-        }))}
-        onChange={selectAircraft}
-        icon="flight"
-        label={t(K.selectAircraft)}
-        className={styles.headerSelect}
-      />
+      <div className={styles.headerAircraft}>
+        <Select
+          value={selectedAircraft?.id ?? ''}
+          options={aircraftList.map((aircraft) => ({
+            value: aircraft.id,
+            label: aircraft.name,
+          }))}
+          onChange={selectAircraft}
+          icon="flight"
+          label={t(K.selectAircraft)}
+          className={styles.headerSelect}
+        />
+        <TemplateBadges aircraft={selectedAircraft} t={t} />
+      </div>
     </header>
+  );
+}
+
+/**
+ * 显示当前检查单的模板元信息。
+ *
+ * 自动切换生效时用户需要看得见「凭什么切到了这一份」——
+ * 注册码与适用模拟器就是判据，不显示的话切错了也没人知道。
+ */
+function TemplateBadges({
+  aircraft,
+  t,
+}: {
+  aircraft: AircraftChecklist | null;
+  t: (key: string, ...args: (string | number)[]) => string;
+}) {
+  if (!aircraft) return null;
+  const badges: string[] = [];
+  if (aircraft.version) badges.push(t(K.templateVersion, aircraft.version));
+  if (aircraft.registrations?.length) {
+    badges.push(t(K.templateRegistration, aircraft.registrations.join(' / ')));
+  }
+  const simulators = (aircraft.simulators ?? []).filter((tag) => tag !== 'any');
+  if (simulators.length > 0) badges.push(t(K.templateSimulator, simulators.join(' / ')));
+  if (badges.length === 0) return null;
+
+  return (
+    <div className={styles.templateBadges}>
+      {badges.map((text) => (
+        <span key={text} className={styles.templateBadge}>
+          {text}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -367,6 +405,7 @@ function ChecklistFooter() {
   const reload = useChecklistStore((s) => s.reload);
   const importFromFile = useChecklistStore((s) => s.importFromFile);
   const exportToFile = useChecklistStore((s) => s.exportToFile);
+  const downloadTemplate = useChecklistStore((s) => s.downloadTemplate);
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -460,6 +499,15 @@ function ChecklistFooter() {
             label: t(K.exportFile),
             icon: 'download',
             onSelect: handleExport,
+          },
+          {
+            key: 'template',
+            label: t(K.downloadTemplate),
+            icon: 'note_add',
+            onSelect: () => {
+              downloadTemplate();
+              SnackBarHelper.showSuccess(t(K.downloadTemplateSuccess));
+            },
           },
         ]}
       />

@@ -31,6 +31,8 @@ interface FlightDataState {
   attachAdapter: (adapter: FlightDataAdapter | null) => void;
 
   connect: (type: SimulatorType) => Promise<boolean>;
+  /** 刷新页面后接回后端已有会话 */
+  resumeSession: () => Promise<boolean>;
   disconnect: () => Promise<void>;
   refreshBackendHealth: () => Promise<boolean>;
   getFlightDataIntervalMs: () => Promise<number>;
@@ -61,6 +63,10 @@ export const useFlightDataStore = create<FlightDataState>((set, get) => ({
 
   async connect(type) {
     return (await get().adapter?.connect(type)) ?? false;
+  },
+
+  async resumeSession() {
+    return (await get().adapter?.resumeSession()) ?? false;
   },
 
   async disconnect() {

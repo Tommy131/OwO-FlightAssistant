@@ -55,6 +55,22 @@ export const CommonLocalizationKeys = {
   miniLabelDistance: 'common.mini.label.distance',
   miniLabelEta: 'common.mini.label.eta',
   miniRecording: 'common.mini.recording',
+
+  // ── 训练模式 / 复盘模式 ──
+  appModeLive: 'common.app_mode.live',
+  appModeReview: 'common.app_mode.review',
+  appModeTooltip: 'common.app_mode.tooltip',
+  appModeLiveHint: 'common.app_mode.live_hint',
+  appModeReviewHint: 'common.app_mode.review_hint',
+  appModeReviewBanner: 'common.app_mode.review_banner',
+
+  // ── 跨模块任务流 ──
+  workflowTooltip: 'common.workflow.tooltip',
+  workflowStageBriefing: 'common.workflow.stage.briefing',
+  workflowStageMap: 'common.workflow.stage.map',
+  workflowStageChecklist: 'common.workflow.stage.checklist',
+  workflowStageFlightLogs: 'common.workflow.stage.flight_logs',
+  workflowSkipStage: 'common.workflow.skip_stage',
 } as const;
 
 const K = CommonLocalizationKeys;
@@ -66,6 +82,18 @@ export const commonModuleTranslations: ModuleTranslations = {
     [K.backendUnavailableContent]:
       '当前无法与已配置的后端 HTTP 接口通信，请启动中间件服务，或检查网络代理与后端地址配置是否正确。',
     [K.goToSettings]: '前往设置',
+    [K.appModeLive]: '训练模式',
+    [K.appModeReview]: '复盘模式',
+    [K.appModeTooltip]: '当前：{mode}',
+    [K.appModeLiveHint]: '实时辅助：检查单自动跟随遥测，气象自动刷新',
+    [K.appModeReviewHint]: '事后分析：暂停一切实时联动，界面停在你选定的那一刻',
+    [K.appModeReviewBanner]: '复盘模式已开启，实时联动已暂停',
+    [K.workflowTooltip]: '飞行任务流 {}/{}',
+    [K.workflowStageBriefing]: '简报：定起降与航路',
+    [K.workflowStageMap]: '地图：核对航路与地形',
+    [K.workflowStageChecklist]: '检查单：逐项确认',
+    [K.workflowStageFlightLogs]: '飞行日志：开始录制',
+    [K.workflowSkipStage]: '跳过当前步骤',
     [K.navDeparture]: '起飞机场',
     [K.navDestination]: '目的地',
     [K.navAlternate]: '备降',
@@ -102,6 +130,18 @@ export const commonModuleTranslations: ModuleTranslations = {
     [K.backendUnavailableContent]:
       'Cannot communicate with the configured backend HTTP endpoint. Start the middleware service or verify proxy and endpoint settings.',
     [K.goToSettings]: 'Open Settings',
+    [K.appModeLive]: 'Training mode',
+    [K.appModeReview]: 'Review mode',
+    [K.appModeTooltip]: 'Current: {mode}',
+    [K.appModeLiveHint]: 'Live assist: checklist follows telemetry, weather auto-refreshes',
+    [K.appModeReviewHint]: 'Post-flight analysis: all live linkage paused, the view stays where you put it',
+    [K.appModeReviewBanner]: 'Review mode is on — live linkage is paused',
+    [K.workflowTooltip]: 'Flight workflow {}/{}',
+    [K.workflowStageBriefing]: 'Briefing: set route and airports',
+    [K.workflowStageMap]: 'Map: verify route and terrain',
+    [K.workflowStageChecklist]: 'Checklist: confirm each item',
+    [K.workflowStageFlightLogs]: 'Flight logs: start recording',
+    [K.workflowSkipStage]: 'Skip current step',
     [K.navDeparture]: 'Departure',
     [K.navDestination]: 'Destination',
     [K.navAlternate]: 'Alternate',

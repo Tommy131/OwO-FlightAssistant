@@ -174,6 +174,13 @@ export interface FlightData {
   aircraftModel?: string;
   aircraftIcao?: string;
   aircraftDisplayName?: string;
+  /**
+   * 机型注册码（尾号），来自模拟器的 ATC ID。
+   *
+   * 比机型名精确：同一机队里不同飞机的构型可能不同，检查单按注册码匹配
+   * 才能落到具体那一架上。
+   */
+  aircraftRegistration?: string;
 
   // ── 飞行阶段与告警集合 ──
   flightPhase?: string;

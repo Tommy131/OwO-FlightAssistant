@@ -36,11 +36,13 @@ import {
   renderApproachBeams,
   renderHoldings,
 } from './layers/airport-detail-layer';
+import { isReviewMode } from '../../common/providers/app-mode-store';
 import { usePlannedRouteStore } from '../../common/providers/planned-route-store';
 import { renderPlannedRoute } from './layers/planned-route-layer';
 import { procedureKey, renderProcedure } from './layers/procedure-layer';
 import { renderTaxiRoute } from './layers/taxi-route-layer';
 import { AIRSPACE_SEVERITY_COLOR } from './layers/layer-style';
+import { COMPASS_BASE_SIZE, compassRingHtml } from '../services/compass-ring';
 
 /**
  * 地图画布
@@ -114,9 +116,18 @@ function selectedProcedureOf(state: {
 export function MapCanvas({
   onAirportClick,
   onMapClick,
+  onAircraftClick,
+  onViewportChange,
 }: {
   onAirportClick: (airport: MapAirportMarker) => void;
   onMapClick: (point: MapCoordinate) => void;
+  /** 点了本机图标；回调收飞机在容器里的屏幕坐标 */
+  onAircraftClick?: (screenPoint: { x: number; y: number }) => void;
+  /** 本机屏幕坐标或容器尺寸变化时上报，供信息面板跟着走 */
+  onViewportChange?: (info: {
+    aircraft: { x: number; y: number } | null;
+    viewport: { width: number; height: number };
+  }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -135,6 +146,7 @@ export function MapCanvas({
     radar?: L.TileLayer;
     overlays: Partial<Record<'rain' | 'pressure' | 'wind' | 'temp', L.TileLayer>>;
     aircraft?: L.Marker;
+    compass?: L.Marker;
     aiGroup?: L.LayerGroup;
     airportGroup?: L.LayerGroup;
     taxiwayGroup?: L.LayerGroup;
@@ -154,8 +166,29 @@ export function MapCanvas({
   onAirportClickRef.current = onAirportClick;
   const onMapClickRef = useRef(onMapClick);
   onMapClickRef.current = onMapClick;
+  const onAircraftClickRef = useRef(onAircraftClick);
+  onAircraftClickRef.current = onAircraftClick;
+  const onViewportChangeRef = useRef(onViewportChange);
+  onViewportChangeRef.current = onViewportChange;
 
   const layerStyle = useMapStore((s) => s.layerStyle);
+
+  /**
+   * 把本机屏幕坐标与容器尺寸报给上层（信息面板要贴着飞机走）。
+   *
+   * 绑在 ref 上而不是 useCallback：它要在只跑一次的建图 effect 里用，
+   * 做成随渲染变化的闭包会逼着那个 effect 也跟着重建整张地图。
+   */
+  const reportViewportRef = useRef((map: L.Map, latlng: [number, number] | null) => {
+    const report = onViewportChangeRef.current;
+    if (!report) return;
+    const size = map.getSize();
+    const point = latlng ? map.latLngToContainerPoint(latlng) : null;
+    report({
+      aircraft: point ? { x: point.x, y: point.y } : null,
+      viewport: { width: size.x, height: size.y },
+    });
+  });
 
   // ── 地图实例（仅创建一次）──
   useEffect(() => {
@@ -212,6 +245,18 @@ export function MapCanvas({
     map.on('click', (event: L.LeafletMouseEvent) => {
       onMapClickRef.current({ latitude: event.latlng.lat, longitude: event.latlng.lng });
     });
+
+    // 拖动/缩放/改窗口大小都会让飞机的屏幕坐标变，信息面板要跟着重算
+    const syncViewport = () => {
+      const current = useMapStore.getState().aircraft;
+      reportViewportRef.current(
+        map,
+        current ? [current.position.latitude, current.position.longitude] : null,
+      );
+    };
+    map.on('move', syncViewport);
+    map.on('zoom', syncViewport);
+    map.on('resize', syncViewport);
 
     // 跑道端点标签与停机位按缩放级别显隐，缩放后需要重画
     map.on('zoomend', () => {
@@ -737,6 +782,7 @@ export function MapCanvas({
         if (!aircraft) {
           layersRef.current.aircraft?.remove();
           layersRef.current.aircraft = undefined;
+          reportViewportRef.current(map, null);
         } else {
           const latlng: [number, number] = [
             aircraft.position.latitude,
@@ -751,9 +797,60 @@ export function MapCanvas({
           if (layersRef.current.aircraft) {
             layersRef.current.aircraft.setLatLng(latlng).setIcon(icon);
           } else {
-            layersRef.current.aircraft = L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map);
+            layersRef.current.aircraft = L.marker(latlng, { icon, zIndexOffset: 1000 })
+              .addTo(map)
+              .on('click', (event: L.LeafletMouseEvent) => {
+                // 别让点击穿到地图上 —— 绘制模式下会顺手加一个滑行道节点
+                L.DomEvent.stopPropagation(event);
+                const point = map.latLngToContainerPoint(latlng);
+                onAircraftClickRef.current?.({ x: point.x, y: point.y });
+              });
           }
-          if (state.followAircraft) map.panTo(latlng, { animate: true, duration: 0.4 });
+          // 面板要贴着飞机走：位置一变就把最新屏幕坐标报上去
+          reportViewportRef.current(map, latlng);
+          // 复盘模式下不跟随：用户正在手动拖着看某一段，
+          // 每 500ms 被拽回实时机位等于没法用。
+          if (state.followAircraft && !isReviewMode()) {
+            map.panTo(latlng, { animate: true, duration: 0.4 });
+          }
+        }
+      }
+
+      // 罗盘环：跟着本机走，开关关掉或没有本机时移除
+      const compassInputsChanged =
+        state.aircraft !== previous.aircraft ||
+        state.showCompass !== previous.showCompass ||
+        state.layerStyle !== previous.layerStyle;
+      if (compassInputsChanged) {
+        const aircraft = state.aircraft;
+        if (!state.showCompass || !aircraft) {
+          layersRef.current.compass?.remove();
+          layersRef.current.compass = undefined;
+        } else {
+          const compassLatLng: [number, number] = [
+            aircraft.position.latitude,
+            aircraft.position.longitude,
+          ];
+          const compassIcon = L.divIcon({
+            className: '',
+            html: compassRingHtml({
+              heading: aircraft.heading,
+              headingTarget: aircraft.headingTarget,
+              brightBackground: isBrightMapBackground(state.layerStyle),
+            }),
+            iconSize: [COMPASS_BASE_SIZE, COMPASS_BASE_SIZE],
+            iconAnchor: [COMPASS_BASE_SIZE / 2, COMPASS_BASE_SIZE / 2],
+          });
+          if (layersRef.current.compass) {
+            layersRef.current.compass.setLatLng(compassLatLng).setIcon(compassIcon);
+          } else {
+            // zIndexOffset 比本机低：罗盘是背景刻度，不能压住飞机图标本身
+            layersRef.current.compass = L.marker(compassLatLng, {
+              icon: compassIcon,
+              zIndexOffset: 900,
+              interactive: false,
+            }).addTo(map);
+          }
         }
       }
 

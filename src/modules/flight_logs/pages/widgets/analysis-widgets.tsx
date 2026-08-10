@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import L from 'leaflet';
 import { useTranslate } from '../../../../core/localization/use-translate';
 import { LeafletMap } from '../../../../core/widgets/common/leaflet-map';
@@ -10,6 +10,7 @@ import {
   InfoChip,
   SectionCard,
 } from '../../../../core/widgets/common/surfaces';
+import { resolveAlertMessageKey } from '../../../map/services/flight-alerts';
 import { FlightLogsLocalizationKeys as K } from '../../localization/flight-logs-localization';
 import {
   flightLogAirborneDurationMs,
@@ -224,11 +225,10 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
   const active = cursor !== null ? points[cursor] : undefined;
 
   return (
-    <SectionCard
+    <AnalysisSection
       title={t(K.detailTrack)}
       icon="route"
       trailing={<span className={styles.countBadge}>{track.length}</span>}
-      flush
     >
       {track.length === 0 ? (
         <EmptyState icon="wrong_location" title={t(K.chartNoData)} />
@@ -321,7 +321,7 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
           )}
         </>
       )}
-    </SectionCard>
+    </AnalysisSection>
   );
 }
 
@@ -385,7 +385,7 @@ export function AnalysisBlackBox({ log }: { log: FlightLog }) {
   };
 
   return (
-    <SectionCard
+    <AnalysisSection
       title={t(K.blackBoxTitle)}
       icon="table_rows"
       trailing={
@@ -450,7 +450,7 @@ export function AnalysisBlackBox({ log }: { log: FlightLog }) {
                               style={{ color: ALERT_LEVEL_COLOR[alert.level] }}
                             >
                               <MaterialIcon name="warning" size={12} filled />
-                              {alert.message}
+                              {alertText(alert, t)}
                             </span>
                           ))}
                         </div>
@@ -495,7 +495,7 @@ export function AnalysisBlackBox({ log }: { log: FlightLog }) {
           </div>
         </>
       )}
-    </SectionCard>
+    </AnalysisSection>
   );
 }
 
@@ -504,6 +504,59 @@ export const ALERT_LEVEL_COLOR: Record<FlightLogAlertLevel, string> = {
   warning: '#ec835a',
   danger: '#d03b3b',
 };
+
+/**
+ * 黑匣子里一条告警该显示的文案。
+ *
+ * 记录下来的 `message` 是后端的令牌（`push_over_danger` 这种），
+ * 早先直接渲染它，明细表里就是一列裸 id。这里走与地图告警同一张映射表，
+ * 保证两处叫法一致；实在认不出的令牌退回原文，至少不是空白。
+ */
+export function alertText(
+  alert: { readonly message: string },
+  translate: (key: string) => string,
+): string {
+  const key = resolveAlertMessageKey(alert.message);
+  return key === undefined ? alert.message : translate(key);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 嵌入式分区
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * 直接嵌进父容器的分区（不套卡片）
+ *
+ * 轨迹图 / 质量报告 / 黑匣子明细原先各自套了一层 `SectionCard`：
+ * 卡片有自己的圆角、边框和内边距，父容器又有一层 padding，
+ * 两头一夹，真正能用的宽度少了近 60px —— 地图和宽表格首当其冲，
+ * 航迹显示不全、表格横向挤成一团。
+ *
+ * 这三块本来就各自独占一个页签，外面再包一层「窗口」既没有分组意义，
+ * 也没有并列的兄弟需要区隔。改成贴边嵌入，把宽度全让给内容。
+ */
+export function AnalysisSection({
+  title,
+  icon,
+  trailing,
+  children,
+}: {
+  title: string;
+  icon: string;
+  trailing?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className={styles.embeddedSection}>
+      <header className={styles.embeddedHeader}>
+        <MaterialIcon name={icon} size={16} color="var(--color-primary)" />
+        <h3 className={styles.embeddedTitle}>{title}</h3>
+        {trailing && <div className={styles.embeddedTrailing}>{trailing}</div>}
+      </header>
+      <div className={styles.embeddedBody}>{children}</div>
+    </section>
+  );
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // 工具

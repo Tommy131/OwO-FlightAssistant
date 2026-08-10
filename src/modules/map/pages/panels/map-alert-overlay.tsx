@@ -2,6 +2,7 @@
  * 告警浮层：把 store 里的 activeAlerts 按级别配色显示在地图上方
  */
 
+import { useTranslate } from '../../../../core/localization/use-translate';
 import { MaterialIcon } from '../../../../core/widgets/common/icon';
 import {
   MAP_ALERT_LEVEL_COLOR,
@@ -14,6 +15,7 @@ import styles from '../map-page.module.css';
 // ──────────────────────────────────────────────────────────────────────────
 
 export function MapAlertOverlay() {
+  const t = useTranslate();
   const alerts = useMapStore((s) => s.activeAlerts);
   if (alerts.length === 0) return null;
 
@@ -29,7 +31,8 @@ export function MapAlertOverlay() {
           }}
         >
           <MaterialIcon name="warning" filled size={18} />
-          {alert.message}
+          {/* message 里是 i18n key，不是文案 —— 见 flight-alerts.ts */}
+          {t(alert.message)}
         </div>
       ))}
     </div>

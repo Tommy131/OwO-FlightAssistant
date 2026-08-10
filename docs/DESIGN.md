@@ -51,6 +51,11 @@
 | FR-10 | 多语言（zh/en/de）运行时切换，无需重启 | `core/localization/` |
 | FR-11 | 首次启动向导只执行一次，设置存于后端数据库 | `core/services/app-initialization-service.ts` |
 | FR-12 | 刷新页面后停留在上次访问的页面 | `core/app.tsx` |
+| FR-13 | EFB 单页飞行卡：阶段 / 关键门限 / 近场气象 / 油量余度 | `modules/efb/`（判定在 `services/efb-gates.ts`） |
+| FR-14 | 检查单模板与按注册码+模拟器自动切换 | `modules/checklist/services/checklist-services.ts` |
+| FR-15 | 训练模式与复盘模式切换（复盘时暂停全部实时联动） | `modules/common/providers/app-mode-store.ts` |
+| FR-16 | 跨模块任务流 Briefing → Map → Checklist → Flight Logs | `modules/common/services/flight-workflow.ts` |
+| FR-17 | WebSocket 增量帧合并与丢帧重同步 | `modules/common/services/ws-delta-assembler.ts` |
 
 ### 2.2 非功能性需求（NFR → ISO/IEC 25010）
 

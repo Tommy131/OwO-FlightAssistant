@@ -1,16 +1,100 @@
 /**
  * 飞行告警规则引擎（纯函数）
  *
- * 原先内嵌在 `map-store.ts` 里，读整个 `MapState`，没法脱离 Zustand 单独调用，
- * 也就一直没有测试 —— 而这是全模块**最该有测试**的一段：阈值判定错一个方向
- * （`>=` 写成 `>`、危险与警告级别写反），界面上仍然有告警在闪，
- * 只是闪错了级别，靠肉眼几乎发现不了。
+ * 对应桌面版 `map/providers/components/map_alert_component.dart`。
  *
- * 这里只收规则真正用到的字段（而非整个 MapState），调用方按需组装。
+ * ── 告警从哪来（这一版的核心改动）──
+ * **姿态类判据在中间件**：`internal/apps/simulators/utils/utils.go` 的
+ * `buildFlightAlerts` 拿得到全量 dataref，能判俯仰/坡度/倒飞/刀锋/螺旋下降/
+ * 过载/超速等三十来种，结果随遥测放在 `client_dataset.flight_alerts` 里下发。
+ *
+ * 早先 Web 端**完全没读这条流**，只在前端另写了六条薄规则（失速、升降率、
+ * 坡度、迎角、近地），于是后端算出来的姿态告警一条都到不了界面 ——
+ * 用户反馈的「智能感知告警过于简陋」就是这么来的。桌面版从一开始就是读后端流的。
+ *
+ * 现在的分工与桌面版一致：
+ *   - 姿态与性能类：**用后端的**；
+ *   - 升降率：**前端按用户阈值重算**（阈值是用户可调的，后端不知道），
+ *     因此后端同名告警要跳过，否则两套判据会打架；
+ *   - 近地接近：前端按无线电高度 + 下沉率补一条（后端没有地形数据）。
+ *
+ * `message` 里放的是 **i18n key**，不是文案 —— 渲染处负责翻译。
+ * 早先直接放 'STALL' 这种英文串，黑匣子明细里就是一片没翻译的英文。
  */
 
-import type { FlightData } from '../../common/models/common-models';
-import type { MapFlightAlert } from '../models/map-models';
+import type { FlightAlert, FlightData } from '../../common/models/common-models';
+import { MapLocalizationKeys as K } from '../localization/map-localization';
+import type { MapFlightAlert, MapFlightAlertLevel } from '../models/map-models';
+
+/**
+ * 后端告警 message 令牌 → i18n key
+ *
+ * ⚠️ 键是**后端 message 字段**而不是 id：中间件的 `appendAlert(id, level, message)`
+ * 会让多个 id 共用一个 message（如 `spiral_dive_danger` 的 message 是
+ * `push_over_danger`），桌面版正是按 message 查表并按 message 去重，
+ * 把语义相同的告警合成一条。这里逐条对齐，不要改成按 id 查。
+ */
+export const BACKEND_ALERT_MESSAGE_KEY: Record<string, string> = {
+  pitch_up_danger: K.alertPitchUpDanger,
+  pitch_up_warning: K.alertPitchUpWarning,
+  pitch_down_danger: K.alertPitchDownDanger,
+  pitch_down_warning: K.alertPitchDownWarning,
+  bank_danger: K.alertBankDanger,
+  bank_warning: K.alertBankWarning,
+  stall_warning: K.alertStallWarning,
+  sink_rate_danger: K.alertSinkRateDanger,
+  sink_rate_warning: K.alertSinkRateWarning,
+  inverted_flight_danger: K.alertInvertedFlightDanger,
+  knife_edge_danger: K.alertKnifeEdgeDanger,
+  knife_edge_warning: K.alertKnifeEdgeWarning,
+  pull_up_danger: K.alertPullUpDanger,
+  pull_up_warning: K.alertPullUpWarning,
+  push_over_danger: K.alertPushOverDanger,
+  push_over_warning: K.alertPushOverWarning,
+  spiral_dive_danger: K.alertSpiralDiveDanger,
+  spiral_dive_warning: K.alertSpiralDiveWarning,
+  unusual_attitude_danger: K.alertUnusualAttitudeDanger,
+  unusual_attitude_warning: K.alertUnusualAttitudeWarning,
+  climb_rate_danger: K.alertClimbRateDanger,
+  climb_rate_warning: K.alertClimbRateWarning,
+  descent_rate_danger: K.alertDescentRateDanger,
+  descent_rate_warning: K.alertDescentRateWarning,
+  high_g_danger: K.alertHighGDanger,
+  high_g_warning: K.alertHighGWarning,
+  negative_g_danger: K.alertNegativeGDanger,
+  negative_g_warning: K.alertNegativeGWarning,
+  overspeed_danger: K.alertOverspeedDanger,
+  overspeed_warning: K.alertOverspeedWarning,
+  terrain_pull_up_danger: K.alertTerrainPullUpDanger,
+  terrain_pull_up_warning: K.alertTerrainPullUpWarning,
+};
+
+/**
+ * 可在设置里逐条开关的告警 id。
+ *
+ * 与桌面版一致，直接取自上面的映射表 —— 手写一份平行清单迟早对不上，
+ * 早先那份只有 8 项，其中 `overspeed` 这个 id 后端根本不会发。
+ */
+export const CONFIGURABLE_ALERT_IDS: readonly string[] = Object.keys(BACKEND_ALERT_MESSAGE_KEY);
+
+/**
+ * 由前端按用户阈值重算的升降率告警 id。
+ *
+ * 后端发的同名告警要**丢掉**：阈值在用户设置里，后端用的是自己那套固定值，
+ * 两边同时出会让用户改了阈值却发现告警照旧。
+ */
+const VERTICAL_RATE_ALERT_IDS = new Set([
+  'climb_rate_warning',
+  'climb_rate_danger',
+  'descent_rate_warning',
+  'descent_rate_danger',
+]);
+
+/** 近地接近判据（与桌面版逐条对齐） */
+const TERRAIN_DANGER_RADIO_ALT_FT = 250;
+const TERRAIN_DANGER_SINK_FPM = 1200;
+const TERRAIN_WARNING_RADIO_ALT_FT = 600;
+const TERRAIN_WARNING_SINK_FPM = 700;
 
 /** 规则引擎所需的设置项 —— 刻意收窄，不依赖 MapState 的整体形状 */
 export interface FlightAlertSettings {
@@ -19,27 +103,34 @@ export interface FlightAlertSettings {
   readonly disabledAlertIds: readonly string[];
   readonly climbRateWarningFpm: number;
   readonly climbRateDangerFpm: number;
+  /** 下降阈值在本项目里存的是**负值**（-3000 / -5000），与桌面版存正值不同 */
   readonly descentRateWarningFpm: number;
   readonly descentRateDangerFpm: number;
   readonly showTerrainWarning: boolean;
 }
 
-/** 坡度告警门限（度）：超过 45° 警告，超过 60° 危险 */
-const BANK_WARNING_DEG = 45;
-const BANK_DANGER_DEG = 60;
+/** 把后端 message 令牌翻成 i18n key；认不出来返回 undefined */
+export function resolveAlertMessageKey(rawMessage: string | undefined): string | undefined {
+  const token = (rawMessage ?? '').trim().toLowerCase();
+  if (token.length === 0) return undefined;
+  return BACKEND_ALERT_MESSAGE_KEY[token];
+}
 
-/** 迎角门限（度） */
-const AOA_CAUTION_DEG = 15;
-const AOA_DANGER_DEG = 18;
-
-/** 近地告警：无线电高度低于此值且下降率超限才触发 */
-const TERRAIN_RADIO_ALTITUDE_FT = 1000;
-const TERRAIN_DESCENT_RATE_FPM = -1500;
+/** 后端 level 字符串 → 地图告警级别；认不出的按 caution 处理 */
+export function normalizeAlertLevel(raw: string | undefined): MapFlightAlertLevel {
+  switch ((raw ?? '').trim().toLowerCase()) {
+    case 'danger':
+      return 'danger';
+    case 'warning':
+      return 'warning';
+    default:
+      return 'caution';
+  }
+}
 
 /**
- * 评估当前遥测下应当亮起的告警
+ * 评估当前遥测下应当亮起的告警。
  *
- * 与桌面版一致：失速、爬升/下降率超限、大坡度、大迎角、近地。
  * 未连接模拟器或总开关关闭时一律不告警 —— 没有数据时保持沉默，
  * 而不是拿默认值算出一堆假告警。
  */
@@ -49,64 +140,97 @@ export function evaluateFlightAlerts(
 ): MapFlightAlert[] {
   if (!settings.alertsEnabled || !settings.isConnected) return [];
 
+  const disabled = new Set(settings.disabledAlertIds.map((id) => id.trim().toLowerCase()));
   const alerts: MapFlightAlert[] = [];
-  const enabled = (id: string) => !settings.disabledAlertIds.includes(id);
+  // 按**文案**去重：多个后端 id 共用一条文案时只显示一条（见映射表的说明）
+  const shownMessages = new Set<string>();
 
-  if (enabled('stall_warning') && flightData.stallWarning === true) {
-    alerts.push({ id: 'stall_warning', level: 'danger', message: 'STALL' });
+  for (const alert of mapBackendAlerts(flightData.flightAlerts)) {
+    const id = alert.id.trim().toLowerCase();
+    if (VERTICAL_RATE_ALERT_IDS.has(id)) continue;
+    if (disabled.has(id)) continue;
+    if (shownMessages.has(alert.message)) continue;
+    shownMessages.add(alert.message);
+    alerts.push(alert);
   }
 
-  const verticalSpeed = flightData.verticalSpeed;
-  if (verticalSpeed !== undefined) {
-    if (enabled('excessive_climb_rate')) {
-      // 先判危险再判警告：两个区间是包含关系，顺序反了永远出不了 danger
-      if (verticalSpeed >= settings.climbRateDangerFpm) {
-        alerts.push({ id: 'excessive_climb_rate', level: 'danger', message: 'CLIMB RATE' });
-      } else if (verticalSpeed >= settings.climbRateWarningFpm) {
-        alerts.push({ id: 'excessive_climb_rate', level: 'warning', message: 'CLIMB RATE' });
-      }
-    }
-    if (enabled('excessive_descent_rate')) {
-      // 下降率是负值，所以是 <=（阈值本身也是负数）
-      if (verticalSpeed <= settings.descentRateDangerFpm) {
-        alerts.push({ id: 'excessive_descent_rate', level: 'danger', message: 'SINK RATE' });
-      } else if (verticalSpeed <= settings.descentRateWarningFpm) {
-        alerts.push({ id: 'excessive_descent_rate', level: 'warning', message: 'SINK RATE' });
-      }
-    }
-  }
-
-  const bank = flightData.bank;
-  if (enabled('bank_angle') && bank !== undefined && Math.abs(bank) >= BANK_WARNING_DEG) {
-    alerts.push({
-      id: 'bank_angle',
-      level: Math.abs(bank) >= BANK_DANGER_DEG ? 'danger' : 'warning',
-      message: 'BANK ANGLE',
-    });
-  }
-
-  const aoa = flightData.angleOfAttack;
-  if (enabled('high_aoa') && aoa !== undefined && aoa >= AOA_CAUTION_DEG) {
-    alerts.push({
-      id: 'high_aoa',
-      level: aoa >= AOA_DANGER_DEG ? 'danger' : 'caution',
-      message: 'HIGH AOA',
-    });
-  }
-
-  // 近地告警：低无线电高度 + 大下降率，且未放起落架（放了说明是正常进近）
-  const radioAltitude = flightData.radioAltitude;
+  const verticalRate = buildVerticalRateAlert(settings, flightData.verticalSpeed);
   if (
-    enabled('terrain_warning') &&
-    settings.showTerrainWarning &&
-    radioAltitude !== undefined &&
-    radioAltitude < TERRAIN_RADIO_ALTITUDE_FT &&
-    verticalSpeed !== undefined &&
-    verticalSpeed < TERRAIN_DESCENT_RATE_FPM &&
-    flightData.gearDown !== true
+    verticalRate &&
+    !disabled.has(verticalRate.id) &&
+    !shownMessages.has(verticalRate.message)
   ) {
-    alerts.push({ id: 'terrain_warning', level: 'danger', message: 'TERRAIN' });
+    shownMessages.add(verticalRate.message);
+    alerts.push(verticalRate);
+  }
+
+  if (settings.showTerrainWarning) {
+    const terrain = buildTerrainProximityAlert(flightData);
+    if (terrain && !disabled.has(terrain.id) && !shownMessages.has(terrain.message)) {
+      shownMessages.add(terrain.message);
+      alerts.push(terrain);
+    }
   }
 
   return alerts;
+}
+
+/** 把后端告警流翻成地图告警；认不出文案的直接丢掉 */
+function mapBackendAlerts(backendAlerts: readonly FlightAlert[]): MapFlightAlert[] {
+  const out: MapFlightAlert[] = [];
+  const seen = new Set<string>();
+  for (const alert of backendAlerts) {
+    const message = resolveAlertMessageKey(alert.message);
+    if (message === undefined || seen.has(message)) continue;
+    seen.add(message);
+    out.push({
+      id: alert.id.trim().length > 0 ? alert.id : alert.message,
+      level: normalizeAlertLevel(alert.level),
+      message,
+    });
+  }
+  return out;
+}
+
+/** 按用户阈值算升降率告警；先判危险再判警告，两个区间是包含关系 */
+function buildVerticalRateAlert(
+  settings: FlightAlertSettings,
+  verticalSpeed: number | undefined,
+): MapFlightAlert | null {
+  if (verticalSpeed === undefined || !Number.isFinite(verticalSpeed)) return null;
+
+  if (verticalSpeed >= settings.climbRateDangerFpm) {
+    return { id: 'climb_rate_danger', level: 'danger', message: K.alertClimbRateDanger };
+  }
+  if (verticalSpeed >= settings.climbRateWarningFpm) {
+    return { id: 'climb_rate_warning', level: 'warning', message: K.alertClimbRateWarning };
+  }
+  // 下降阈值本身是负数，所以用 <=
+  if (verticalSpeed <= settings.descentRateDangerFpm) {
+    return { id: 'descent_rate_danger', level: 'danger', message: K.alertDescentRateDanger };
+  }
+  if (verticalSpeed <= settings.descentRateWarningFpm) {
+    return { id: 'descent_rate_warning', level: 'warning', message: K.alertDescentRateWarning };
+  }
+  return null;
+}
+
+/** 近地接近：低无线电高度 + 大下沉率。地面上不判 */
+function buildTerrainProximityAlert(flightData: FlightData): MapFlightAlert | null {
+  if (flightData.onGround === true) return null;
+  const radioAltitude = flightData.radioAltitude;
+  if (radioAltitude === undefined || !Number.isFinite(radioAltitude)) return null;
+
+  const sinkRate = -(flightData.verticalSpeed ?? 0);
+  if (radioAltitude <= TERRAIN_DANGER_RADIO_ALT_FT && sinkRate >= TERRAIN_DANGER_SINK_FPM) {
+    return { id: 'terrain_pull_up_danger', level: 'danger', message: K.alertTerrainPullUpDanger };
+  }
+  if (radioAltitude <= TERRAIN_WARNING_RADIO_ALT_FT && sinkRate >= TERRAIN_WARNING_SINK_FPM) {
+    return {
+      id: 'terrain_pull_up_warning',
+      level: 'warning',
+      message: K.alertTerrainPullUpWarning,
+    };
+  }
+  return null;
 }
