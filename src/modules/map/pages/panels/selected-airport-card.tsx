@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslate } from '../../../../core/localization/use-translate';
 import { IconButton } from '../../../../core/widgets/common/controls';
 import { MaterialIcon } from '../../../../core/widgets/common/icon';
+import { MarqueeText } from '../../../../core/widgets/common/marquee-text';
 import { InfoChip } from '../../../../core/widgets/common/surfaces';
 import { MapLocalizationKeys as K } from '../../localization/map-localization';
 import {
@@ -19,7 +20,6 @@ import {
   formatOffsetLabel,
   formatZonedDate,
 } from '../../services/local-clock';
-import { MarqueeText } from '../../widgets/marquee-text';
 import { useClockTick } from '../../widgets/use-clock-tick';
 import styles from '../map-page.module.css';
 

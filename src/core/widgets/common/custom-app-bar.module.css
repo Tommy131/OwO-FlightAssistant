@@ -15,9 +15,7 @@
   font-size: 20px;
   font-weight: 600;
   color: var(--color-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* 溢出裁切/跑马灯交给里面的 MarqueeText，字号字重顺着继承下去即可 */
 }
 
 .actions {

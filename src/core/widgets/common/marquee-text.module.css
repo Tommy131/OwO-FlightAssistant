@@ -58,9 +58,23 @@
   animation-play-state: paused;
 }
 
-/* 跟随系统「减少动态效果」偏好：停掉滚动，退回省略号 */
+/*
+ * 跟随系统「减少动态效果」偏好：停掉滚动，退回省略号。
+ *
+ * 只关掉 animation 是不够的——.track 是给无缝循环准备的「内容×2 + 间隙×2」
+ * 横向排列，animation 一停，文字会在 viewport 边缘被硬裁断，一个提示都没有。
+ * 这里把 .track 退化成普通的单行省略号文本：去掉用不到的第二份内容和间隙。
+ */
 @media (prefers-reduced-motion: reduce) {
   .track {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
     animation: none;
+  }
+
+  .track .gap,
+  .track [aria-hidden='true'] {
+    display: none;
   }
 }

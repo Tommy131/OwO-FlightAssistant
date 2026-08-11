@@ -4,11 +4,13 @@ import styles from './marquee-text.module.css';
 /**
  * 溢出跑马灯文本
  *
- * 对应 Flutter 版 `selected_airport_bottom_card.dart` 里的 `_AirportHeadlineTicker`：
- * 先量一下文字宽度，放得下就当普通文本渲染，放不下才循环滚动。
+ * 先量一下文字宽度，放得下就当普通文本渲染（超长兜底省略号）；
+ * 放不下才循环滚动，鼠标悬停时暂停，方便看清完整内容。
  *
- * 卡片在窄屏或长机场名下经常放不下（"Muenchen Franz-Josef-Strauss" 这种），
- * 直接截断会把信息吃掉；滚动能让人看全，又不占额外高度。
+ * 原型是地图模块机场卡片的 `_AirportHeadlineTicker`（"Muenchen Franz-Josef-Strauss"
+ * 这类长机场名在窄屏下放不下，直接截断会把信息吃掉），后提升为核心层通用组件——
+ * 侧边栏导航项、卡片标题、信息胶囊等短容器里的长文本都会用到同一套逻辑，
+ * 不该每处各写一遍。
  */
 
 /** 滚动速度（像素/秒）—— 与桌面版观感一致 */
@@ -25,10 +27,13 @@ export function MarqueeText({
   text,
   className,
   title,
+  style,
 }: {
   text: string;
   className?: string;
   title?: string;
+  /** 透传到根节点，主要给需要动态取色（告警态等）的调用方用 */
+  style?: React.CSSProperties;
 }) {
   const viewportRef = useRef<HTMLSpanElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
@@ -47,7 +52,7 @@ export function MarqueeText({
     };
 
     sync();
-    // 卡片会随窗口和展开状态改变宽度，得跟着重新量
+    // 容器会随窗口、折叠态、语言切换改变宽度或文字长度，得跟着重新量
     const observer = new ResizeObserver(sync);
     observer.observe(viewport);
     observer.observe(measure);
@@ -65,14 +70,15 @@ export function MarqueeText({
       ref={viewportRef}
       className={`${styles.viewport}${className ? ` ${className}` : ''}`}
       title={title ?? text}
-      style={
-        scrolling
+      style={{
+        ...style,
+        ...(scrolling
           ? ({
               '--marquee-distance': `${distance}px`,
               '--marquee-gap': `${GAP_PX}px`,
             } as React.CSSProperties)
-          : undefined
-      }
+          : undefined),
+      }}
     >
       {scrolling ? (
         <span className={styles.track} style={{ animationDuration: `${duration}s` }}>

@@ -8,6 +8,7 @@ import type { NavigationItem } from '../../module-registry/navigation/navigation
 import type { NavigationElement } from '../../module-registry/navigation/navigation-registry';
 import { useThemeStore } from '../../theme/theme-store';
 import { MaterialIcon } from '../common/icon';
+import { MarqueeText } from '../common/marquee-text';
 import styles from './sidebar.module.css';
 
 /**
@@ -225,7 +226,7 @@ function GroupHeader({
       aria-expanded={isExpanded}
     >
       <MaterialIcon name={group.icon} size={14} color="var(--color-on-surface-a40)" />
-      <span className={styles.groupTitle}>{group.title.toUpperCase()}</span>
+      <MarqueeText text={group.title.toUpperCase()} className={styles.groupTitle} />
       <MaterialIcon
         name="expand_more"
         size={14}
@@ -287,7 +288,7 @@ function SidebarNavItem({
       />
       {!isCollapsed && (
         <>
-          <span className={styles.navItemTitle}>{item.title}</span>
+          <MarqueeText text={item.title} className={styles.navItemTitle} />
           {item.badge && (
             <span className={styles.navItemBadge} style={{ background: accentColor }}>
               {item.badge}

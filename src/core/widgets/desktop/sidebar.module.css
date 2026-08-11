@@ -127,14 +127,12 @@
 
 .groupTitle {
   flex: 1;
+  min-width: 0;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.1em;
   color: var(--color-on-surface-a40);
   text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .chevronCollapsed {
@@ -222,9 +220,7 @@
   flex: 1;
   min-width: 0;
   font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-align: left;
 }
 
 .navItemBadge {

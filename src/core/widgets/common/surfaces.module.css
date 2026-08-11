@@ -47,13 +47,11 @@
   min-width: 0;
 }
 
+/* 溢出裁切/省略号由 MarqueeText 自己的 .viewport/.static 提供，这里只管字体 */
 .sectionTitle {
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .sectionSubtitle {
@@ -97,9 +95,6 @@
   font-size: 11px;
   color: var(--color-text-secondary);
   letter-spacing: 0.02em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .dataCardValueRow {
@@ -113,9 +108,6 @@
   font-size: 18px;
   font-weight: 600;
   color: var(--color-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .dataCardUnit {
@@ -142,10 +134,8 @@
   font-size: 11px;
   font-weight: 500;
   line-height: 1.5;
-  white-space: nowrap;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* 溢出裁切/省略号/跑马灯交给内部的 MarqueeText（会继承这里的字号字重） */
 }
 
 .chipClickable {

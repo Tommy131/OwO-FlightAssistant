@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { MaterialIcon } from './icon';
+import { MarqueeText } from './marquee-text';
 import styles from './surfaces.module.css';
 
 /**
@@ -89,8 +90,16 @@ export function SectionCard({
       <header className={styles.sectionHeader}>
         {icon && <MaterialIcon name={icon} size={18} color="var(--color-primary)" />}
         <div className={styles.sectionTitles}>
-          <h3 className={styles.sectionTitle}>{title}</h3>
-          {subtitle && <p className={styles.sectionSubtitle}>{subtitle}</p>}
+          {/* h3/p 保留标题语义（global.css 已把它们的 margin 清零），
+              视觉样式全交给 MarqueeText 的 className，溢出时才会跑马灯滚动 */}
+          <h3>
+            <MarqueeText text={title} className={styles.sectionTitle} />
+          </h3>
+          {subtitle && (
+            <p>
+              <MarqueeText text={subtitle} className={styles.sectionSubtitle} />
+            </p>
+          )}
         </div>
         {trailing && <div className={styles.sectionTrailing}>{trailing}</div>}
       </header>
@@ -134,15 +143,15 @@ export function DataCard({
             color={accentColor ?? 'var(--color-text-secondary)'}
           />
         )}
-        <span className={styles.dataCardLabel}>{label}</span>
+        <MarqueeText text={label} className={styles.dataCardLabel} />
       </div>
       <div className={styles.dataCardValueRow}>
-        <span
+        <MarqueeText
+          text={value}
           className={`${styles.dataCardValue} text-mono`}
+          title={value}
           style={accentColor ? { color: accentColor } : undefined}
-        >
-          {value}
-        </span>
+        />
         {unit && <span className={styles.dataCardUnit}>{unit}</span>}
       </div>
       {hint && <span className={styles.dataCardHint}>{hint}</span>}
@@ -177,7 +186,8 @@ export function InfoChip({
   const content = (
     <>
       {icon && <MaterialIcon name={icon} size={13} color={solid ? '#fff' : color} />}
-      <span>{label}</span>
+      {/* 字号/字重继承自 .chip；宽度不够（比如长 WS 地址）时自己跑马灯滚动 */}
+      <MarqueeText text={label} />
     </>
   );
   const style: CSSProperties = solid

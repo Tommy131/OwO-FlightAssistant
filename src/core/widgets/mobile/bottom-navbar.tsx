@@ -4,6 +4,7 @@ import { ModuleRegistry } from '../../module-registry/module-registry';
 import type { NavigationItem } from '../../module-registry/navigation/navigation-item';
 import { useWindowWidth } from '../../layouts/responsive';
 import { MaterialIcon } from '../common/icon';
+import { MarqueeText } from '../common/marquee-text';
 import styles from './bottom-navbar.module.css';
 
 /**
@@ -84,7 +85,7 @@ export function MobileBottomNavbar({
             aria-label={moreLabel}
           >
             <MaterialIcon name="more_horiz" filled={isMoreSelected} size={22} />
-            <span className={styles.slotLabel}>{moreLabel}</span>
+            <MarqueeText text={moreLabel} className={styles.slotLabel} />
           </button>
         )}
       </nav>
@@ -124,7 +125,7 @@ function NavSlot({
         />
         {item.badge && <span className={styles.slotBadge}>{item.badge}</span>}
       </span>
-      <span className={styles.slotLabel}>{item.title}</span>
+      <MarqueeText text={item.title} className={styles.slotLabel} />
     </button>
   );
 }
@@ -158,7 +159,7 @@ function OverflowItem({
         filled={isSelected}
         size={24}
       />
-      <span className={styles.moreItemLabel}>{item.title}</span>
+      <MarqueeText text={item.title} className={styles.moreItemLabel} />
     </button>
   );
 }

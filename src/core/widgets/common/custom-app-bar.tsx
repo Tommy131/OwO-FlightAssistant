@@ -10,6 +10,7 @@ import {
 import { useThemeStore } from '../../theme/theme-store';
 import { IconButton, PopupMenu } from './controls';
 import { MaterialIcon } from './icon';
+import { MarqueeText } from './marquee-text';
 import styles from './custom-app-bar.module.css';
 
 /**
@@ -56,7 +57,11 @@ export function CustomAppBar({
         />
       )}
 
-      <h1 className={styles.title}>{currentItem.title}</h1>
+      {/* .title 的 flex:1/min-width:0 要落在真正的 flex 子项（h1）上才会生效，
+          字号/字重则顺着继承到里面的 MarqueeText，两边都挂同一个类最省心 */}
+      <h1 className={styles.title}>
+        <MarqueeText text={currentItem.title} />
+      </h1>
 
       <div className={styles.actions}>
         {actions.map((action) => (
