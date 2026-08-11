@@ -3,7 +3,7 @@ import { LocalizationKeys } from '../../../core/localization/localization-keys';
 import { useTranslate } from '../../../core/localization/use-translate';
 import type { SettingsPageItem } from '../../../core/module-registry/settings-page/settings-page-registry';
 import { translate } from '../../../core/services/localization-service';
-import { Button, Switch, TextField } from '../../../core/widgets/common/controls';
+import { Button, Select, Switch, TextField } from '../../../core/widgets/common/controls';
 import { MaterialIcon } from '../../../core/widgets/common/icon';
 import { SnackBarHelper } from '../../../core/widgets/common/snack-bar';
 import { InfoChip, SectionCard } from '../../../core/widgets/common/surfaces';
@@ -44,9 +44,120 @@ function HttpSettingsPage() {
   return (
     <div className={styles.page}>
       <AddressForm />
+      <NavDataSourceForm />
       <RuntimeSettingsForm />
       <DiagnosisForm />
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 导航数据源
+// ──────────────────────────────────────────────────────────────────────────
+
+interface NavSourceOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * 导航数据源快速切换
+ *
+ * 这个设置本身住在中间件的配置文件里（`default_nav_source`），此前只能在
+ * 中间件自己的 TUI 里改。可中间件常常不在手边 —— 平板上开着 EFB、
+ * 中间件跑在主机上，为换个数据源要跑去另一台机器上敲键盘。
+ * 这里读写的是同一个字段，两边看到的永远是同一份状态。
+ */
+function NavDataSourceForm() {
+  const t = useTranslate();
+  const [options, setOptions] = useState<NavSourceOption[]>([]);
+  const [configured, setConfigured] = useState('');
+  const [effective, setEffective] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      await MiddlewareHttpService.init();
+      const response = await MiddlewareHttpService.getNavDataSources();
+      const body = response.objectBody;
+      const raw = Array.isArray(body?.sources) ? body.sources : [];
+      setOptions(
+        raw
+          .map((item) => toJsonMap(item))
+          .filter((item): item is JsonMap => item !== null)
+          .map((item) => ({
+            value: typeof item.value === 'string' ? item.value : '',
+            label: typeof item.label === 'string' ? item.label : '',
+          }))
+          .filter((item) => item.value.length > 0),
+      );
+      setConfigured(typeof body?.configured === 'string' ? body.configured : '');
+      setEffective(typeof body?.effective === 'string' ? body.effective : '');
+    } catch {
+      setOptions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const handleChange = async (value: string) => {
+    setBusy(true);
+    try {
+      await MiddlewareHttpService.setNavDataSource(value);
+      setConfigured(value);
+      // 切完回读一次：生效的源未必等于选的那个（选「自动」时由中间件决定）
+      await load();
+      SnackBarHelper.showSuccess(t(K.navSourceSaved));
+    } catch {
+      SnackBarHelper.showError(t(K.navSourceSaveFailed));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const effectiveLabel =
+    options.find((option) => option.value === effective)?.label || effective || '--';
+  // 存着的源不为空却没能生效，说明它已经不可用了（模拟器卸载/路径变了）
+  const fellBack = configured.length > 0 && configured !== effective;
+
+  return (
+    <SectionCard
+      title={t(K.navSourceSectionTitle)}
+      icon="storage"
+      subtitle={t(K.navSourceSectionDescription)}
+    >
+      {!loading && options.length === 0 ? (
+        <span className={styles.settingHint}>{t(K.navSourceEmpty)}</span>
+      ) : (
+        <>
+          <Select
+            value={configured}
+            options={[
+              { value: '', label: t(K.navSourceAuto) },
+              ...options.map((option) => ({ value: option.value, label: option.label })),
+            ]}
+            onChange={(value) => void handleChange(value)}
+            label={t(K.navSourceLabel)}
+            icon="database"
+            disabled={busy || loading}
+          />
+
+          <div className={styles.currentRow}>
+            <InfoChip icon="check_circle" label={t(K.navSourceCurrent, { value: effectiveLabel })} />
+          </div>
+
+          {fellBack && (
+            <span className={styles.settingHint}>{t(K.navSourceFallbackHint)}</span>
+          )}
+          <span className={styles.settingHint}>{t(K.navSourceReloadHint)}</span>
+        </>
+      )}
+    </SectionCard>
   );
 }
 

@@ -432,6 +432,22 @@ class MiddlewareHttpServiceImpl {
     });
   }
 
+  /**
+   * 导航数据源：可用列表 + 当前生效的源。
+   *
+   * `configured` 是配置里存的、`effective` 是实际会被查询用到的 ——
+   * 存着的那个源可能已经不可用了（模拟器卸载、路径变了），
+   * 两者分开报，界面才不会把一个失效的选项显示成当前值。
+   */
+  getNavDataSources(): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/navdata/sources');
+  }
+
+  /** 切换导航数据源；传空串表示交给中间件自动选择 */
+  setNavDataSource(source: string): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/navdata/set-source', { body: { source } });
+  }
+
   /** 可观测性看板：路由耗时排行、错误分类、WS 与缓存状态 */
   getObservabilityDashboard(): Promise<MiddlewareHttpResponse> {
     return this.get('/api/v1/observability/dashboard');
