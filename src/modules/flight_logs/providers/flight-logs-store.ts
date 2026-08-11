@@ -481,6 +481,7 @@ function captureSnapshot(
     roll: data.bank ?? 0,
     angleOfAttack: data.angleOfAttack,
     gForce: resolvedG.value,
+    gForcePeak: resolveSnapshotPointGPeak(data),
     gForceSource: resolvedG.source,
     fuelQuantity: data.fuelQuantity ?? 0,
     fuelFlow: data.fuelFlow,
@@ -760,6 +761,25 @@ function resolveSnapshotPointG(data: {
     return { value: data.gForce, source: 'body' };
   }
   return { value: 1, source: 'fallback' };
+}
+
+/**
+ * 解析采样点的过载**窗口峰值**（中间件下发的 `*_peak` 字段）。
+ *
+ * 与瞬时值同样优先起落架读数：机身 G 在软着陆时被机身姿态摊薄，
+ * 起落架传感器才是真正吃到冲击的那个。两者都没有就返回 undefined，
+ * 调用方退回瞬时值 —— 老中间件、MSFS 都走这条路。
+ */
+function resolveSnapshotPointGPeak(data: {
+  touchdownGearGPeak?: number;
+  gForcePeak?: number;
+}): number | undefined {
+  for (const value of [data.touchdownGearGPeak, data.gForcePeak]) {
+    if (value === undefined || !Number.isFinite(value)) continue;
+    if (value < MIN_VALID_LANDING_G || value > MAX_VALID_LANDING_G) continue;
+    return value;
+  }
+  return undefined;
 }
 
 /** 燃油消耗 = 首个采样点油量 − 当前油量 */

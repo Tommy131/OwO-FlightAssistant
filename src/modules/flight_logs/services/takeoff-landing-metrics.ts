@@ -423,7 +423,14 @@ export function peakTouchdownG(
   for (let index = touchdownIndex; index < points.length; index++) {
     const point = points[index];
     if (point.timestamp.getTime() > deadline) break;
-    const value = point.gForce;
+    /*
+     * 优先用中间件算好的窗口峰值。
+     *
+     * 光在这里扫采样点是不够的 —— 采样本身就可能整个错过那 100~300ms 的尖峰
+     * （X-Plane 侧原来按 5Hz 订阅，200ms 一个样）。中间件现在按 60Hz 收 G
+     * 并保持窗口峰值，那个数才真正吃到了冲击。取不到时退回瞬时值。
+     */
+    const value = point.gForcePeak ?? point.gForce;
     if (!Number.isFinite(value)) continue;
     if (value < options.minValidG || value > options.maxValidG) continue;
     if (peak === undefined || value > peak) peak = value;

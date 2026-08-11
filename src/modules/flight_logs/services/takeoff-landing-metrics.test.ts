@@ -499,6 +499,33 @@ describe('peakTouchdownG', () => {
     expect(peakTouchdownG(points, 0, G_BOUNDS)).toBeCloseTo(1.2, 2);
   });
 
+  /*
+   * 采样本身可能整个错过那 100~300ms 的尖峰（X-Plane 原本 5Hz 订阅，
+   * 200ms 一个样）。中间件按 60Hz 收 G 并保持窗口峰值下发，
+   * 这里必须优先采信那个数，否则前端再怎么扫也只能扫到 1.0 出头。
+   */
+  it('优先采用中间件下发的窗口峰值，而不是采样点的瞬时值', () => {
+    const points = [
+      point({ t: 0.0, onGround: false, gForce: 1.0 }),
+      point({ t: 0.2, onGround: true, gForce: 1.12, gForcePeak: 3.36 }),
+      point({ t: 0.4, onGround: true, gForce: 1.05, gForcePeak: 3.36 }),
+    ];
+    expect(peakTouchdownG(points, 1, G_BOUNDS)).toBeCloseTo(3.36, 2);
+  });
+
+  it('没有窗口峰值时退回瞬时值', () => {
+    const points = [
+      point({ t: 0.0, onGround: true, gForce: 1.4, gForcePeak: undefined }),
+      point({ t: 0.3, onGround: true, gForce: 1.9 }),
+    ];
+    expect(peakTouchdownG(points, 0, G_BOUNDS)).toBeCloseTo(1.9, 2);
+  });
+
+  it('区间外的窗口峰值同样被丢掉', () => {
+    const points = [point({ t: 0, onGround: true, gForce: 1.2, gForcePeak: 99 })];
+    expect(peakTouchdownG(points, 0, G_BOUNDS)).toBeUndefined();
+  });
+
   it('全是坏读数时返回 undefined 而不是硬凑一个数', () => {
     const points = [point({ t: 0, onGround: true, gForce: 99 })];
     expect(peakTouchdownG(points, 0, G_BOUNDS)).toBeUndefined();

@@ -76,6 +76,14 @@ export interface FlightLogPoint {
   angleOfAttack?: number;
   gForce: number;
   gForceSource: LandingGSource;
+  /**
+   * 该采样点所在窗口内的过载峰值。
+   *
+   * `gForce` 是瞬时值，G 曲线画的是它；而接地那一下的峰值只持续 100~300ms，
+   * 按采样节奏几乎必然错过，所以落地评级读这个。
+   * 老日志与不提供该量的模拟器为 undefined，调用方退回 `gForce`。
+   */
+  gForcePeak?: number;
   fuelQuantity: number;
   fuelFlow?: number;
   timestamp: Date;
@@ -140,6 +148,7 @@ export function flightLogPointToJson(point: FlightLogPoint): JsonMap {
     rol: point.roll,
     aoa: point.angleOfAttack ?? null,
     g: point.gForce,
+    g_peak: point.gForcePeak ?? null,
     g_src: point.gForceSource,
     fuel: point.fuelQuantity,
     ff: point.fuelFlow ?? null,
@@ -212,6 +221,7 @@ export function flightLogPointFromJson(json: JsonMap): FlightLogPoint {
     roll: toDouble(json.rol) ?? 0,
     angleOfAttack: toDouble(json.aoa),
     gForce: toDouble(json.g) ?? 1,
+    gForcePeak: toDouble(json.g_peak),
     gForceSource: landingGSourceFromRaw(
       typeof json.g_src === 'string' ? json.g_src : undefined,
     ),

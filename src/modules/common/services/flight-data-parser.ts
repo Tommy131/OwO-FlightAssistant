@@ -42,6 +42,13 @@ export function flightDataFromDataset(dataset: JsonMap): FlightData {
     verticalSpeed: toDouble(dataset.vertical_speed_fpm ?? dataset.vs_fpm),
     gForce: toDouble(dataset.g_force_g ?? dataset.g_force),
     touchdownGearG: toDouble(dataset.touchdown_gear_g),
+    /*
+     * 窗口峰值与瞬时值并列，**不能**拿来覆盖瞬时值：
+     * G 曲线画的是瞬时值，换成峰值保持会变成一段段平台；
+     * 而落地评级要的恰恰是峰值（瞬时值几乎必然错过接地那一下）。
+     */
+    gForcePeak: toDouble(dataset.g_force_peak_g),
+    touchdownGearGPeak: toDouble(dataset.touchdown_gear_g_peak),
     noseGearG: toDouble(dataset.nose_gear_g),
     leftGearG: toDouble(dataset.left_gear_g),
     rightGearG: toDouble(dataset.right_gear_g),

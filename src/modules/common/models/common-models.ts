@@ -75,6 +75,10 @@ export interface FlightData {
   // ── 姿态与载荷 ──
   gForce?: number;
   touchdownGearG?: number;
+  /** 过载的滑动窗口峰值；接地评级用它，曲线仍用瞬时值 */
+  gForcePeak?: number;
+  /** 起落架过载的滑动窗口峰值 */
+  touchdownGearGPeak?: number;
   noseGearG?: number;
   leftGearG?: number;
   rightGearG?: number;
