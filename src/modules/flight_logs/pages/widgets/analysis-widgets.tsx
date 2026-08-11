@@ -24,6 +24,7 @@ import {
   flightLogDurationMs,
   type FlightLog,
   type FlightLogAlertLevel,
+  type FlightLogPoint,
   type LandingRating,
 } from '../../models/flight-log-models';
 import styles from './flight-logs-widgets.module.css';
@@ -175,6 +176,8 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
 
   /** null = 未进入回放（看全程）；否则为当前回放到的下标 */
   const [cursor, setCursor] = useState<number | null>(null);
+  /** 鼠标悬停到的航迹点下标；离开时回到 null */
+  const [hovered, setHovered] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<(typeof REPLAY_SPEEDS)[number]>(1);
   // 回放光标标记走 Leaflet 命令式 API，放 ref 里避免拖动时重建地图
@@ -197,6 +200,23 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
           opacity: 0.95,
         }).addTo(map),
       );
+      /*
+       * 命中线：与航迹重合但完全透明、笔宽 14px 的一条线，只用来接鼠标。
+       *
+       * 直接在 3px 的可见折线上接 hover 太难点了 —— 鼠标得压在几个像素上，
+       * 稍微一抖就掉。加粗可见线又会把航迹画得很糊，所以分成两条：
+       * 一条负责好看，一条负责好点。
+       */
+      const hitLines = segments.map((segment) => {
+        const slice = track.slice(segment.startIndex, segment.endIndex + 1);
+        return L.polyline(slice, { color: '#000', weight: 14, opacity: 0 })
+          .addTo(map)
+          .on('mousemove', (event: L.LeafletMouseEvent) => {
+            setHovered(nearestTrackIndex(slice, event.latlng) + segment.startIndex);
+          })
+          .on('mouseout', () => setHovered(null));
+      });
+
       // 取全程范围用的辅助线，不加进地图，只为算 bounds
       const polyline = L.polyline(track);
 
@@ -235,6 +255,7 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
 
       return () => {
         phaseLines.forEach((line) => line.remove());
+        hitLines.forEach((line) => line.remove());
         startMarker.remove();
         endMarker.remove();
         cursorMarker.remove();
@@ -272,12 +293,19 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
     return () => clearInterval(timer);
   }, [playing, speed, track.length]);
 
-  const active = cursor !== null ? points[cursor] : undefined;
+  /*
+   * 详情卡看哪一点：悬停优先于回放光标。
+   * 回放播着的时候把鼠标挪到别处，用户想看的显然是鼠标底下那一点。
+   */
+  const detailIndex = hovered ?? cursor;
+  const detailPoint = detailIndex !== null ? points[detailIndex] : undefined;
+  const detailPhase = detailIndex !== null ? phases[detailIndex] : undefined;
 
   return (
     <AnalysisSection
       title={t(K.detailTrack)}
       icon="route"
+      fill
       trailing={<span className={styles.countBadge}>{track.length}</span>}
     >
       {track.length === 0 ? (
@@ -301,14 +329,24 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
             底图跟着主题走：深色主题配深色瓦片，浅色主题配浅色瓦片。
             写死 cartoDark 的话，浅色主题下整块地图是一坨黑，
             和周围的卡片完全脱节。
+
+            外面套一层 flex:1 的壳把剩余高度全吃掉，地图再填满这层壳 ——
+            原来写死 320px，屏幕再高也只有那么一条，下面全是空白。
           */}
-          <LeafletMap
-            center={track[0]}
-            zoom={8}
-            tileLayer={isDark ? 'cartoDark' : 'cartoLight'}
-            height={320}
-            onReady={handleReady}
-          />
+          <div className={styles.trackMapFill}>
+            <LeafletMap
+              center={track[0]}
+              zoom={8}
+              tileLayer={isDark ? 'cartoDark' : 'cartoLight'}
+              height="100%"
+              onReady={handleReady}
+            />
+
+            {/* 悬停某个航迹点、或回放时，显示该点的详细读数 */}
+            {detailPoint && (
+              <TrackPointDetailCard point={detailPoint} phase={detailPhase} />
+            )}
+          </div>
 
           <div className={styles.replayBar}>
             <IconButton
@@ -370,33 +408,10 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
             </Button>
           </div>
 
-          {active && (
-            <div className={styles.replayReadout}>
-              <span className={styles.replayTime}>{formatClock(active.timestamp)}</span>
-              <span>
-                {t(K.chartAltitude)} <b>{active.altitude.toFixed(0)}</b>
-              </span>
-              <span>
-                {t(K.chartSpeed)} <b>{active.groundSpeed.toFixed(0)}</b>
-              </span>
-              <span>
-                {t(K.chartVerticalSpeed)} <b>{active.verticalSpeed.toFixed(0)}</b>
-              </span>
-              <span>
-                {t(K.replayHeading)} <b>{active.heading.toFixed(0)}°</b>
-              </span>
-            </div>
-          )}
         </>
       )}
     </AnalysisSection>
   );
-}
-
-/** 回放读数用的时分秒 */
-function formatClock(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -588,6 +603,91 @@ export function alertText(
   return key === undefined ? alert.message : translate(key);
 }
 
+/**
+ * 航迹点详情卡
+ *
+ * 悬停到航迹上、或回放到某一点时贴在地图左下角。
+ * 字段与「图表」页的曲线一一对应，两处看到的是同一套读数。
+ *
+ * 缺的字段（老日志没记 AOA / 气压高度）显示 `--` 而不是整行藏掉 ——
+ * 行数固定，卡片高度才不会随着鼠标移动一直跳。
+ */
+function TrackPointDetailCard({
+  point,
+  phase,
+}: {
+  point: FlightLogPoint;
+  phase?: TrackPhase;
+}) {
+  const t = useTranslate();
+
+  const rows: { label: string; value: string }[] = [
+    { label: t(K.trackPointTimeUtc), value: formatUtcClock(point.timestamp) },
+    { label: t(K.chartAltitude), value: `${point.altitude.toFixed(0)} ft` },
+    { label: t(K.chartSpeed), value: `${point.groundSpeed.toFixed(0)} kts` },
+    { label: t(K.chartPitch), value: `${point.pitch.toFixed(1)}°` },
+    { label: t(K.chartVerticalSpeed), value: `${point.verticalSpeed.toFixed(0)} fpm` },
+    { label: t(K.chartGForce), value: point.gForce.toFixed(2) },
+    {
+      label: t(K.chartBaro),
+      value: point.baroPressure === undefined ? '--' : `${point.baroPressure.toFixed(2)} inHg`,
+    },
+    {
+      label: t(K.chartAoa),
+      value: point.angleOfAttack === undefined ? '--' : `${point.angleOfAttack.toFixed(2)}°`,
+    },
+  ];
+
+  return (
+    <div className={styles.trackPointCard}>
+      {phase && (
+        <div className={styles.trackPointPhase}>
+          <span
+            className={styles.trackLegendDot}
+            style={{ background: TRACK_PHASE_COLOR[phase] }}
+          />
+          {t(TRACK_PHASE_LABEL_KEY[phase])}
+        </div>
+      )}
+      {rows.map((row) => (
+        <div key={row.label} className={styles.trackPointRow}>
+          <span className={styles.trackPointLabel}>{row.label}</span>
+          <span className={`${styles.trackPointValue} text-mono`}>{row.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * 折线上离鼠标最近的那个顶点下标。
+ *
+ * 用平方距离比大小即可 —— 只是选最近点，开根号不影响排序，白算一遍。
+ * 经纬度直接当平面坐标够用：命中线只有十几像素宽，那点尺度上的投影畸变
+ * 不足以选错顶点。
+ */
+function nearestTrackIndex(slice: readonly [number, number][], at: L.LatLng): number {
+  let best = 0;
+  let bestDistance = Infinity;
+  for (let index = 0; index < slice.length; index++) {
+    const dLat = slice[index][0] - at.lat;
+    const dLon = slice[index][1] - at.lng;
+    const distance = dLat * dLat + dLon * dLon;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = index;
+    }
+  }
+  return best;
+}
+
+/** UTC 时钟：航迹点的时间戳按 UTC 显示，与图表页一致 */
+function formatUtcClock(at: Date): string {
+  return [at.getUTCHours(), at.getUTCMinutes(), at.getUTCSeconds()]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':');
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // 嵌入式分区
 // ──────────────────────────────────────────────────────────────────────────
@@ -608,14 +708,19 @@ export function AnalysisSection({
   icon,
   trailing,
   children,
+  /** 撑满父容器剩余高度（轨迹页要让地图占满） */
+  fill = false,
 }: {
   title: string;
   icon: string;
   trailing?: ReactNode;
   children: ReactNode;
+  fill?: boolean;
 }) {
   return (
-    <section className={styles.embeddedSection}>
+    <section
+      className={`${styles.embeddedSection}${fill ? ` ${styles.embeddedSectionFill}` : ''}`}
+    >
       <header className={styles.embeddedHeader}>
         <MaterialIcon name={icon} size={16} color="var(--color-primary)" />
         <h3 className={styles.embeddedTitle}>{title}</h3>

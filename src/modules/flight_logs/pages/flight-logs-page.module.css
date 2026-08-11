@@ -247,8 +247,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  padding: var(--space-md) var(--space-sm);
+  /* 四边等距：原来是纵向 md、横向 sm，左右明显比上下紧 */
+  padding: var(--space-md);
   min-width: 0;
+  /* 撑满滚动容器，轨迹页的地图才有高度可占（padding 计入总高，故 border-box） */
+  box-sizing: border-box;
+  min-height: 100%;
 }
 
 @media (max-width: 649px) {
@@ -257,7 +261,8 @@
   }
 
   .detailContentWide {
-    padding: var(--space-sm) 6px;
+    /* 窄屏同样四边等距，只是整体收一档 */
+    padding: var(--space-sm);
   }
 }
 

@@ -168,6 +168,82 @@
   width: 120px;
 }
 
+/*
+ * 撑满高度的分区：轨迹页用。
+ * 一路 flex:1 + min-height:0 传下去，地图才能吃到剩余高度 ——
+ * 少一层 min-height:0，flex 子项就会被内容顶开而不是收缩。
+ */
+.embeddedSectionFill {
+  flex: 1;
+  min-height: 0;
+}
+
+.embeddedSectionFill .embeddedBody {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 地图外壳：吃掉图例与回放条之外的全部高度 */
+.trackMapFill {
+  position: relative;
+  flex: 1;
+  /* 容器再矮也留出能看清航迹的高度 */
+  min-height: 240px;
+}
+
+/* ── 航迹点详情卡 ── */
+
+.trackPointCard {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 11px;
+  min-width: 190px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-md);
+  /* 不吃事件，否则卡片会挡住它底下那段航迹的 hover */
+  pointer-events: none;
+}
+
+.trackPointPhase {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.trackPointRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.trackPointLabel {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.trackPointValue {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
 /* ── 航迹阶段图例 ── */
 
 .trackLegend {
