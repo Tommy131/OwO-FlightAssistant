@@ -10,6 +10,7 @@ import { useTranslate } from '../../../../core/localization/use-translate';
 import { Button, IconButton, TextField } from '../../../../core/widgets/common/controls';
 import { MaterialIcon } from '../../../../core/widgets/common/icon';
 import { MapLocalizationKeys as K } from '../../localization/map-localization';
+import { runwayEnds } from '../../models/map-models';
 import { useMapStore, type TaxiPlanError } from '../../providers/map-store';
 import styles from '../map-page.module.css';
 
@@ -54,14 +55,29 @@ export function TaxiGuidancePanel() {
   const planToRunway = useMapStore((s) => s.planTaxiToRunway);
   const clearPlan = useMapStore((s) => s.clearTaxiPlan);
   const toggle = useMapStore((s) => s.toggleTaxiGuidance);
+  const collapsed = useMapStore((s) => s.taxiPanelCollapsed);
+  const setCollapsed = useMapStore((s) => s.setTaxiPanelCollapsed);
 
-  if (!visible) return null;
+  /*
+   * 收起后整块面板不渲染，改由顶栏的路线徽标唤回（见 MapTopPanel）。
+   * 这个面板压在地图正上方，规划完还杵在那儿正好挡住刚画出来的路线 ——
+   * 而那条线才是用户接下来要照着滑的东西。
+   */
+  if (!visible || collapsed) return null;
 
   return (
     <div className={styles.taxiPanel}>
       <div className={styles.taxiHead}>
         <MaterialIcon name="alt_route" size={16} color="#ff8c1a" />
         <span className={styles.taxiTitle}>{t(K.taxiTitle)}</span>
+        {/* 有路线才给「收起」：没路线时收起等于把面板弄丢 */}
+        {plan && (
+          <IconButton
+            icon="unfold_less"
+            label={t(K.taxiCollapse)}
+            onClick={() => setCollapsed(true)}
+          />
+        )}
         <IconButton icon="close" label={t(K.clearSearch)} onClick={toggle} />
       </div>
 
@@ -108,20 +124,30 @@ export function TaxiGuidancePanel() {
         </div>
       )}
 
-      {/* 没有指令时的另一条路：直接点跑道 */}
+      {/*
+        没有指令时的另一条路：直接点跑道。
+
+        按**端点**列而不是整条跑道：一条跑道两个方向是两件事，
+        从 34L 走还是从 16R 走，滑到的位置在场地相反两端。
+        只给合并编号的话用户没法指定，只能由程序挑近的那头，
+        而近的未必是管制给的那头。
+      */}
       {runways && runways.length > 0 && (
         <div className={styles.taxiRunwayRow}>
           <span className={styles.taxiRunwayLabel}>{t(K.taxiToRunway)}</span>
-          {runways.map((runway) => (
-            <button
-              key={runway.ident}
-              type="button"
-              className={`${styles.taxiRunwayChip} text-mono`}
-              onClick={() => planToRunway(runway.ident)}
-            >
-              {runway.ident}
-            </button>
-          ))}
+          {runways.flatMap((runway) =>
+            runwayEnds(runway).map((end) => (
+              <button
+                key={`${runway.ident}-${end.ident}`}
+                type="button"
+                className={`${styles.taxiRunwayChip} text-mono`}
+                title={runway.ident}
+                onClick={() => planToRunway(runway.ident, end.ident)}
+              >
+                {end.ident}
+              </button>
+            )),
+          )}
         </div>
       )}
 

@@ -26,6 +26,7 @@ import {
   type MapTaxiwaySegment,
   type MapAutoTimerStartMode,
   type MapAutoTimerStopMode,
+  runwayEnds,
 } from '../models/map-models';
 import { computeAirportOutline } from '../services/airport-outline';
 import {
@@ -302,6 +303,8 @@ interface MapState {
   isTaxiwayDrawingActive: boolean;
   /** 地面滑行引导：指令输入、规划结果与失败原因 */
   showTaxiGuidance: boolean;
+  /** 路线出来后面板收起，避免整块浮层压着刚画好的滑行路线 */
+  taxiPanelCollapsed: boolean;
   taxiClearanceText: string;
   taxiPlan: TaxiPlan | null;
   taxiPlanError: TaxiPlanError | null;
@@ -328,9 +331,12 @@ interface MapState {
   toggleTaxiGuidance: () => void;
   setTaxiClearanceText: (text: string) => void;
   planTaxiByClearance: () => void;
-  planTaxiToRunway: (runwayIdent: string) => void;
+  /** `endIdent` 给了就只滑到那一个跑道端，不给才两端取近 */
+  planTaxiToRunway: (runwayIdent: string, endIdent?: string) => void;
   clearTaxiPlan: () => void;
   setTaxiStartSpot: (index: number | null) => void;
+  /** 面板收起 / 展开（收起后从顶栏的路线徽标重新唤出） */
+  setTaxiPanelCollapsed: (collapsed: boolean) => void;
 
   toggleProcedures: () => void;
   loadProcedures: (icao: string) => Promise<void>;
@@ -492,6 +498,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   taxiPlan: null,
   taxiPlanError: null,
   taxiStartSpotIndex: null,
+  taxiPanelCollapsed: false,
 
   showProcedures: false,
   procedures: [],
@@ -1025,7 +1032,17 @@ export const useMapStore = create<MapState>((set, get) => ({
   toggleTaxiGuidance() {
     const next = !get().showTaxiGuidance;
     // 关掉时把规划一并清掉：留着的话地图上会挂着一条看不见来源的高亮线
-    set(next ? { showTaxiGuidance: true } : { showTaxiGuidance: false, taxiPlan: null, taxiPlanError: null });
+    set(
+      next
+        ? // 重新打开时一并展开，否则会打开一个收起状态的面板、看着像没反应
+          { showTaxiGuidance: true, taxiPanelCollapsed: false }
+        : {
+            showTaxiGuidance: false,
+            taxiPlan: null,
+            taxiPlanError: null,
+            taxiPanelCollapsed: false,
+          },
+    );
   },
 
   setTaxiClearanceText: (text) => set({ taxiClearanceText: text }),
@@ -1065,10 +1082,12 @@ export const useMapStore = create<MapState>((set, get) => ({
       taxiPlan: toTaxiPlan(graph, path, clearance.holdShort),
       taxiPlanError: null,
       showTaxiGuidance: true,
+      // 同上：规划成功即收起，路线本身比输入框重要
+      taxiPanelCollapsed: true,
     });
   },
 
-  planTaxiToRunway(runwayIdent) {
+  planTaxiToRunway(runwayIdent, endIdent) {
     const state = get();
     const graph = buildTaxiGraph(state.aerowayFeatures);
     if (graph.nodes.size === 0) {
@@ -1082,14 +1101,29 @@ export const useMapStore = create<MapState>((set, get) => ({
       return;
     }
 
-    // 跑道两端都试，取近的那一头 —— 用户点的是跑道，不是某个特定端
     const runway = state.selectedAirport?.runwayGeometries.find((r) => r.ident === runwayIdent);
     if (!runway) {
       set({ taxiPlan: null, taxiPlanError: 'unreachable' });
       return;
     }
+
+    /*
+     * 指定了端点就只滑到那一头，没指定才两端都试取近的。
+     *
+     * 「就近」在用户点整条跑道时是对的，但管制给的是具体某一头 ——
+     * 从 34L 起飞却被规划到 16R，等于滑到跑道另一端去了。
+     */
+    const ends = runwayEnds(runway);
+    const targets = endIdent
+      ? ends.filter((end) => end.ident === endIdent).map((end) => end.threshold)
+      : [runway.start, runway.end];
+    if (targets.length === 0) {
+      set({ taxiPlan: null, taxiPlanError: 'unreachable' });
+      return;
+    }
+
     let best: TaxiPath | null = null;
-    for (const end of [runway.start, runway.end]) {
+    for (const end of targets) {
       const endKey = nearestNode(graph, end, 300);
       if (!endKey) continue;
       const path = shortestTaxiPath(graph, startKey, endKey);
@@ -1100,10 +1134,16 @@ export const useMapStore = create<MapState>((set, get) => ({
       return;
     }
     set({
-      taxiPlan: toTaxiPlan(graph, best, runwayIdent),
+      taxiPlan: toTaxiPlan(graph, best, endIdent ?? runwayIdent),
       taxiPlanError: null,
       showTaxiGuidance: true,
+      // 出了路线就把面板收起来，别挡着刚画好的那条线
+      taxiPanelCollapsed: true,
     });
+  },
+
+  setTaxiPanelCollapsed(collapsed) {
+    set({ taxiPanelCollapsed: collapsed });
   },
 
   toggleTaxiwayDrawing() {

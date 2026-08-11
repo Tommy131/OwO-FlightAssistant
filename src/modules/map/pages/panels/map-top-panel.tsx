@@ -19,6 +19,11 @@ export interface AirportSuggestion {
   label: string;
 }
 
+/** 徽标上的滑行距离：一公里以内报米，更长报公里（与面板一致） */
+function formatTaxiDistance(meters: number): string {
+  return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(2)} km`;
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // 顶部面板：搜索 + 飞行状态
 // ──────────────────────────────────────────────────────────────────────────
@@ -41,6 +46,10 @@ export function MapTopPanel({
   const isConnected = useMapStore((s) => s.isConnected);
   const isPaused = useMapStore((s) => s.isPaused);
   const nearestIcao = useMapStore((s) => s.currentNearestAirportIcao);
+  // 收起后的滑行路线在状态栏留一个可点的徽标，用来把面板唤回来
+  const taxiPlan = useMapStore((s) => s.taxiPlan);
+  const taxiCollapsed = useMapStore((s) => s.taxiPanelCollapsed);
+  const setTaxiCollapsed = useMapStore((s) => s.setTaxiPanelCollapsed);
 
   const [suggestions, setSuggestions] = useState<AirportSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -177,6 +186,20 @@ export function MapTopPanel({
 
       <div className={styles.statusChips}>
         {isPaused && <InfoChip icon="pause" label="PAUSED" color="var(--color-warning)" solid />}
+        {/*
+          收起后的滑行路线在这里留个入口：显示全程距离，点一下把面板唤回来。
+          没有这个徽标的话，面板一收就再也找不回来了 —— 只能关掉整个图层重开，
+          那样连规划好的路线也一并丢了。
+        */}
+        {taxiPlan && taxiCollapsed && (
+          <InfoChip
+            icon="alt_route"
+            color="#ff8c1a"
+            label={`${t(K.taxiTitle)} · ${formatTaxiDistance(taxiPlan.distanceM)}`}
+            title={t(K.taxiExpand)}
+            onClick={() => setTaxiCollapsed(false)}
+          />
+        )}
         {nearestIcao && <InfoChip icon="local_airport" label={nearestIcao} />}
         {isConnected && aircraft && (
           <>
