@@ -47,7 +47,7 @@
 | FR-6 | 连接模拟器时按标准 PAPI 逻辑给出目视坡度指示 | `services/papi-guidance.ts` |
 | FR-7 | 检查单随遥测自动勾选，且可手动接管与交还 | `modules/checklist/` |
 | FR-8 | 飞行简报生成，机场 ICAO 实时校验并联动跑道选择 | `modules/briefing/` |
-| FR-9 | 飞行日志与简报的导入导出，并持久化到后端 | `core/services/backend-sync.ts` |
+| FR-9 | 飞行日志与简报的导入导出，并持久化到后端；每条新飞行日志使用 UUID 唯一标识 | `core/services/backend-sync.ts` |
 | FR-10 | 多语言（zh/en/de）运行时切换，无需重启 | `core/localization/` |
 | FR-11 | 首次启动向导只执行一次，设置存于后端数据库 | `core/services/app-initialization-service.ts` |
 | FR-12 | 刷新页面后停留在上次访问的页面 | `core/app.tsx` |
