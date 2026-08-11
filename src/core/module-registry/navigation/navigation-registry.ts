@@ -28,15 +28,26 @@ export type NavigationAvailabilityResolver = (item: NavigationItem) => boolean;
 
 interface NavigationCommandState {
   targetId: string | null;
+  /**
+   * 当前停留页面的导航项 id。
+   *
+   * 与 `targetId`（一次性的跳转请求，消费完就清空）不同，这个是**常驻**的
+   * 「我现在在哪儿」。布局层用下标切页，但下标是分组排序的产物，
+   * 跨模块的部件（如顶栏任务流菜单要标出「你正在这一步」）只认得 id。
+   */
+  currentId: string | null;
   goTo: (id: string) => void;
   clear: () => void;
+  setCurrentId: (id: string | null) => void;
 }
 
 /** 对应 Flutter 版的 `NavigationCommandBus` + `ValueNotifier<String?>` */
 export const useNavigationCommandStore = create<NavigationCommandState>((set) => ({
   targetId: null,
+  currentId: null,
   goTo: (id) => set({ targetId: id }),
   clear: () => set({ targetId: null }),
+  setCurrentId: (id) => set({ currentId: id }),
 }));
 
 export const NavigationCommandBus = {
@@ -49,6 +60,13 @@ export const NavigationCommandBus = {
   },
   get targetId(): string | null {
     return useNavigationCommandStore.getState().targetId;
+  },
+  /** 由布局层在切页时写入，供跨模块部件读「当前在哪一页」 */
+  setCurrentId(id: string | null): void {
+    useNavigationCommandStore.getState().setCurrentId(id);
+  },
+  get currentId(): string | null {
+    return useNavigationCommandStore.getState().currentId;
   },
 };
 

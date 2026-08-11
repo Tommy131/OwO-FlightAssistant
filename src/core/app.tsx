@@ -5,6 +5,7 @@ import { MobileLayout } from './layouts/mobile-layout';
 import { ModuleRegistry } from './module-registry/module-registry';
 import {
   flattenNavigationElements,
+  NavigationCommandBus,
   NavigationRegistry,
   useNavigationCommandStore,
 } from './module-registry/navigation/navigation-registry';
@@ -52,6 +53,36 @@ export function App() {
   const navigationTargetId = useNavigationCommandStore((state) => state.targetId);
   const clearNavigationCommand = useNavigationCommandStore((state) => state.clear);
 
+  /*
+   * 注册表工厂在此处求值 —— 内部可安全使用 hooks（见 navigation-registry.ts 的说明）。
+   *
+   * ⚠️ 下面 goToIndex／恢复上次页面／消费 NavigationCommandBus.goTo 三处
+   * 都必须用这份 flatItems，不能各自再去调 `NavigationRegistry.getAllItems()`。
+   * getAllItems() 是把所有导航项按各自 priority 整体打平排序，不知道分组
+   * （general/flight/tools）的存在；真正决定 selectedIndex 含义、实际渲染出来的
+   * 是这份「先按组排序、组内再按各自 priority 排序」的 flatItems。
+   * 两份顺序只要存在分组就会整体错位——现在 11 个导航项里 10 个都分了组，
+   * 于是按 id 跳转（NavigationCommandBus.goTo，顶栏任务流菜单点哪一步全靠它）
+   * 换算出来的下标常常指向另一个页面：点"检查单"跳到"地图"、点"飞行日志"
+   * 跳到"工具箱"这类。这里统一改成用同一份顺序，从源头消掉错位。
+   */
+  const isNavigationReady = isInitialized && !isSetupMode;
+  const elements = isNavigationReady ? NavigationRegistry.getNavigationElements() : [];
+  const flatItems = flattenNavigationElements(elements);
+
+  // 导航项数量变化时把越界索引拉回首项
+  const safeIndex = selectedIndex < flatItems.length ? selectedIndex : 0;
+
+  // ── 切页面时记下当前页，刷新后回到这里而不是首页 ──
+  const goToIndex = useCallback(
+    (index: number) => {
+      setSelectedIndex(index);
+      const item = flatItems[index];
+      if (item) void PersistenceService.setString(LAST_NAVIGATION_KEY, item.id);
+    },
+    [flatItems],
+  );
+
   // ── 初始化 ──
   useEffect(() => {
     let cancelled = false;
@@ -77,37 +108,41 @@ export function App() {
     };
   }, [loadTheme, initLocalization]);
 
-  // ── 切页面时记下当前页，刷新后回到这里而不是首页 ──
-  const goToIndex = useCallback((index: number) => {
-    setSelectedIndex(index);
-    const item = NavigationRegistry.getAllItems()[index];
-    if (item) void PersistenceService.setString(LAST_NAVIGATION_KEY, item.id);
-  }, []);
-
   // ── 恢复上次停留的页面 ──
   useEffect(() => {
-    if (!isInitialized || isSetupMode || navigationRestored.current) return;
-    // 模块要全部注册完，getAllItems() 才是完整的
-    if (NavigationRegistry.getAllItems().length === 0) return;
+    if (!isNavigationReady || navigationRestored.current) return;
+    // 模块要全部注册完，flatItems 才是完整的
+    if (flatItems.length === 0) return;
     navigationRestored.current = true;
 
     const savedId = PersistenceService.getString(LAST_NAVIGATION_KEY);
     if (!savedId) return;
-    const index = NavigationRegistry.getAllItems().findIndex((item) => item.id === savedId);
+    const index = flatItems.findIndex((item) => item.id === savedId);
     // 找不到就留在首页：可能是那个模块被停用了
     if (index >= 0) setSelectedIndex(index);
-  }, [isInitialized, isSetupMode]);
+  }, [isNavigationReady, flatItems]);
 
   // ── 消费跨模块导航命令（NavigationCommandBus.goTo）──
   useEffect(() => {
-    if (!navigationTargetId || !isInitialized) return;
+    if (!navigationTargetId || !isNavigationReady) return;
 
-    const elements = NavigationRegistry.getAllItems();
-    const targetIndex = elements.findIndex((item) => item.id === navigationTargetId);
+    const targetIndex = flatItems.findIndex((item) => item.id === navigationTargetId);
     clearNavigationCommand();
     if (targetIndex < 0) return;
     goToIndex(targetIndex);
-  }, [navigationTargetId, isInitialized, clearNavigationCommand, goToIndex]);
+  }, [navigationTargetId, isNavigationReady, flatItems, clearNavigationCommand, goToIndex]);
+
+  /*
+   * ── 广播「当前在哪一页」──
+   *
+   * 跟着 selectedIndex 走而不是写在 goToIndex 里：切页的来源不止点击一处
+   * （还有刷新后恢复上次页面、跨模块 goTo、导航项数量变化把越界下标拉回首项），
+   * 只在点击处记录会让其余几条路径下的「当前页」停在过时的值上。
+   */
+  const currentNavigationId = flatItems[safeIndex]?.id ?? null;
+  useEffect(() => {
+    NavigationCommandBus.setCurrentId(currentNavigationId);
+  }, [currentNavigationId]);
 
   // ── 关闭前清理（等价于桌面版 onWindowClose 的 performCleanup）──
   useEffect(() => {
@@ -146,13 +181,6 @@ export function App() {
       </>
     );
   }
-
-  // 注册表工厂在此处求值 —— 内部可安全使用 hooks（见 navigation-registry.ts 的说明）
-  const elements = NavigationRegistry.getNavigationElements();
-  const flatItems = flattenNavigationElements(elements);
-
-  // 导航项数量变化时把越界索引拉回首项
-  const safeIndex = selectedIndex < flatItems.length ? selectedIndex : 0;
 
   return (
     <>
