@@ -10,8 +10,15 @@ import {
   InfoChip,
   SectionCard,
 } from '../../../../core/widgets/common/surfaces';
+import { useIsDarkMode } from '../../../../core/theme/theme-store';
 import { resolveAlertMessageKey } from '../../../map/services/flight-alerts';
 import { FlightLogsLocalizationKeys as K } from '../../localization/flight-logs-localization';
+import {
+  buildTrackSegments,
+  classifyTrackPhases,
+  TRACK_PHASE_ORDER,
+  type TrackPhase,
+} from '../../services/track-phases';
 import {
   flightLogAirborneDurationMs,
   flightLogDurationMs,
@@ -111,6 +118,29 @@ const REPLAY_SPEEDS = [1, 2, 4, 8] as const;
 /** 一倍速下每帧的间隔 */
 const REPLAY_TICK_MS = 120;
 
+/**
+ * 各阶段的航迹配色，沿用桌面版那一套。
+ *
+ * 五个色相拉得比较开，且深浅底图上都还认得出来 —— 航迹是画在瓦片上的，
+ * 只在深色底图上挑好看的颜色，换成浅色底图就糊成一片。
+ */
+const TRACK_PHASE_COLOR: Record<TrackPhase, string> = {
+  taxiOut: '#f5a524',
+  climb: '#12b8b0',
+  cruise: '#8b5cf6',
+  approach: '#f5533d',
+  taxiIn: '#3ddc84',
+};
+
+/** 阶段 → 图例文案 */
+const TRACK_PHASE_LABEL_KEY: Record<TrackPhase, string> = {
+  taxiOut: K.trackPhaseTaxiOut,
+  climb: K.trackPhaseClimb,
+  cruise: K.trackPhaseCruise,
+  approach: K.trackPhaseApproach,
+  taxiIn: K.trackPhaseTaxiIn,
+};
+
 export function AnalysisTrackMap({ log }: { log: FlightLog }) {
   const t = useTranslate();
 
@@ -132,6 +162,17 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
     [points],
   );
 
+  // 阶段划分是纯计算，跟着点数组走即可（见 services/track-phases.ts）
+  const phases = useMemo(() => classifyTrackPhases(points), [points]);
+  const segments = useMemo(() => buildTrackSegments(phases), [phases]);
+  /** 图例只列这条航迹里真正出现过的阶段，没飞到的不占地方 */
+  const presentPhases = useMemo(
+    () => TRACK_PHASE_ORDER.filter((phase) => phases.includes(phase)),
+    [phases],
+  );
+
+  const isDark = useIsDarkMode();
+
   /** null = 未进入回放（看全程）；否则为当前回放到的下标 */
   const [cursor, setCursor] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -144,11 +185,20 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
       if (track.length === 0) return;
       replayRef.current.map = map;
 
-      const polyline = L.polyline(track, {
-        color: '#2a78d6',
-        weight: 3,
-        opacity: 0.9,
-      }).addTo(map);
+      /*
+       * 一段一条折线：Leaflet 的 polyline 只能整条一个颜色，
+       * 想按阶段着色就得拆开画。段与段共享一个端点（见 buildTrackSegments），
+       * 所以视觉上仍是连续的一条线。
+       */
+      const phaseLines = segments.map((segment) =>
+        L.polyline(track.slice(segment.startIndex, segment.endIndex + 1), {
+          color: TRACK_PHASE_COLOR[segment.phase],
+          weight: 3,
+          opacity: 0.95,
+        }).addTo(map),
+      );
+      // 取全程范围用的辅助线，不加进地图，只为算 bounds
+      const polyline = L.polyline(track);
 
       // 起点/终点标记
       const startMarker = L.circleMarker(track[0], {
@@ -184,14 +234,14 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
       map.fitBounds(polyline.getBounds(), { padding: [24, 24] });
 
       return () => {
-        polyline.remove();
+        phaseLines.forEach((line) => line.remove());
         startMarker.remove();
         endMarker.remove();
         cursorMarker.remove();
         replayRef.current = {};
       };
     },
-    [track, log.departureAirport, log.arrivalAirport],
+    [track, segments, log.departureAirport, log.arrivalAirport],
   );
 
   // 拖动/播放时移动光标标记
@@ -234,10 +284,28 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
         <EmptyState icon="wrong_location" title={t(K.chartNoData)} />
       ) : (
         <>
+          {/* 图例：只列这条航迹真正飞到过的阶段 */}
+          <div className={styles.trackLegend}>
+            {presentPhases.map((phase) => (
+              <span key={phase} className={styles.trackLegendItem}>
+                <span
+                  className={styles.trackLegendDot}
+                  style={{ background: TRACK_PHASE_COLOR[phase] }}
+                />
+                {t(TRACK_PHASE_LABEL_KEY[phase])}
+              </span>
+            ))}
+          </div>
+
+          {/*
+            底图跟着主题走：深色主题配深色瓦片，浅色主题配浅色瓦片。
+            写死 cartoDark 的话，浅色主题下整块地图是一坨黑，
+            和周围的卡片完全脱节。
+          */}
           <LeafletMap
             center={track[0]}
             zoom={8}
-            tileLayer="cartoDark"
+            tileLayer={isDark ? 'cartoDark' : 'cartoLight'}
             height={320}
             onReady={handleReady}
           />
