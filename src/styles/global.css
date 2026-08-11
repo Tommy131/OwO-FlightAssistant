@@ -274,11 +274,23 @@ svg {
   }
 }
 
-/* 尊重系统的「减少动态效果」偏好 */
+/*
+ * 尊重系统的「减少动态效果」偏好——但不能一刀切。
+ *
+ * 之前用裸的 `*` 选择器把动画统统按到 0.01ms/1 次，殊不知这也会打中
+ * 圆形加载指示器（boot-spin）和不确定进度条这类「正在进行中」的状态动画：
+ * `linear infinite` 被砍成一帧就定格在起始角度，看起来像卡住了，
+ * 而不是「减少了动态效果」——对一个正在等待网络请求的用户来说，
+ * 这比「转个不停」更容易误导。
+ *
+ * 所以这里加一道豁免：真正表达「操作正在进行」的元素上标 `.motion-essential`，
+ * 减少动态效果时仍保留其动画（这类动画本身通常也短促、非炫技），
+ * 只收掉装饰性的过渡与循环动画（渐入、上滑、脉冲呼吸等）。
+ */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *:not(.motion-essential),
+  *:not(.motion-essential)::before,
+  *:not(.motion-essential)::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

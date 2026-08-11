@@ -63,7 +63,8 @@ export function FlightLogsPage() {
       <div className={`${styles.scroll} scroll-area`}>
         {isLoading ? (
           <div className={styles.centered}>
-            <div className={styles.spinner} />
+            {/* motion-essential：加载转圈同理，见 global.css 的说明 */}
+            <div className={`${styles.spinner} motion-essential`} />
           </div>
         ) : logs.length === 0 ? (
           <EmptyState

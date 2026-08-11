@@ -157,10 +157,12 @@ export function showInstallProgressDialog(): {
       if (!el) return;
       if (percent === undefined) {
         el.style.width = '100%';
-        el.classList.add('owo-update-progress-indeterminate');
+        // motion-essential：总大小未知时这条来回跑的条是唯一的“没卡死”信号，
+        // 减少动态效果时也不能停成静态色块，见 global.css 的说明
+        el.classList.add('owo-update-progress-indeterminate', 'motion-essential');
         return;
       }
-      el.classList.remove('owo-update-progress-indeterminate');
+      el.classList.remove('owo-update-progress-indeterminate', 'motion-essential');
       el.style.width = `${percent.toFixed(1)}%`;
     },
     close: () => Swal.close(),

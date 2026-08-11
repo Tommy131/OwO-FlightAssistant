@@ -18,8 +18,9 @@ export function LoadingScreen({ message }: { message?: string }) {
     <div className={styles.screen} role="status" aria-live="polite">
       <div className={styles.logoWrap}>
         <img src={AppConstants.assetIconPath} alt="" className={styles.logo} />
+        {/* motion-essential：启动加载圈同理，见 global.css 的说明 */}
         <div
-          className={styles.ring}
+          className={`${styles.ring} motion-essential`}
           style={{
             borderColor: `color-mix(in srgb, ${primaryColor} 25%, transparent)`,
             borderTopColor: primaryColor,

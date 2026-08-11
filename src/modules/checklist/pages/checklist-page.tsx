@@ -51,7 +51,8 @@ export function ChecklistPage() {
   if (isLoading) {
     return (
       <div className={styles.centered}>
-        <div className={styles.spinner} />
+        {/* motion-essential：加载转圈同理，见 global.css 的说明 */}
+        <div className={`${styles.spinner} motion-essential`} />
       </div>
     );
   }

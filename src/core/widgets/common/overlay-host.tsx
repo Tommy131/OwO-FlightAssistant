@@ -134,7 +134,8 @@ function LoadingDialog({ spec }: { spec: LoadingDialogSpec }) {
         aria-label={spec.title}
         className={`${styles.dialog} ${styles[`dialog_${spec.style}`]} ${styles.dialogLoading}`}
       >
-        <div className={styles.loadingRing} aria-hidden />
+        {/* motion-essential：加载弹窗的转圈同理，见 global.css 的说明 */}
+        <div className={`${styles.loadingRing} motion-essential`} aria-hidden />
         <h2 className={styles.dialogTitle}>{spec.title}</h2>
         {spec.content.length > 0 && <p className={styles.dialogContent}>{spec.content}</p>}
       </div>

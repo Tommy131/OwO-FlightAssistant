@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import { MaterialIcon } from './icon';
+import { MarqueeText } from './marquee-text';
 import styles from './controls.module.css';
 
 /**
@@ -75,7 +76,8 @@ export function Button({
         .join(' ')}
     >
       {loading ? (
-        <span className={styles.spinner} aria-hidden />
+        // motion-essential：正在处理中的状态动画，减少动态效果时也不能停成静态圆圈
+        <span className={`${styles.spinner} motion-essential`} aria-hidden />
       ) : (
         icon && <MaterialIcon name={icon} size={size === 'sm' ? 15 : 17} />
       )}
@@ -493,7 +495,7 @@ export function PopupMenu({ icon, label, items, align = 'right' }: PopupMenuProp
                 }}
               >
                 {item.icon && <MaterialIcon name={item.icon} size={17} />}
-                <span className={styles.popupItemLabel}>{item.label}</span>
+                <MarqueeText text={item.label} className={styles.popupItemLabel} />
                 {item.selected && <MaterialIcon name="check" size={16} />}
               </button>
             ))}
@@ -522,7 +524,10 @@ export function ProgressBar({
   return (
     <div className={styles.progressTrack} style={{ height }}>
       <div
-        className={indeterminate ? styles.progressIndeterminate : styles.progressFill}
+        // motion-essential：不确定进度条同理，见 global.css 的说明
+        className={
+          indeterminate ? `${styles.progressIndeterminate} motion-essential` : styles.progressFill
+        }
         style={{
           width: indeterminate ? undefined : `${Math.min(Math.max(value, 0), 1) * 100}%`,
           background: color ?? 'var(--color-primary)',
