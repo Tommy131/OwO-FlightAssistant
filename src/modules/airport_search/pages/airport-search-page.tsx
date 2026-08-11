@@ -4,17 +4,24 @@ import { Button, IconButton, TextField } from '../../../core/widgets/common/cont
 import { MaterialIcon } from '../../../core/widgets/common/icon';
 import {
   Card,
-  DataCard,
   EmptyState,
   InfoChip,
   SectionCard,
 } from '../../../core/widgets/common/surfaces';
+import { useAirportFavoritesStore } from '../../common/providers/airport-favorites-store';
+import {
+  FREQUENCY_CATEGORY_COLOR,
+  formatFrequencyValues,
+  groupFrequencies,
+} from '../../common/services/airport-frequencies';
 import { AirportSearchLocalizationKeys as K } from '../localization/airport-search-localization';
 import type { AirportQueryResult } from '../models/airport-search-models';
 import {
   isValidIcaoPartial,
   useAirportSearchStore,
 } from '../providers/airport-search-store';
+import { parseMetarWind } from '../services/metar-wind';
+import { WindIndicator } from './widgets/wind-indicator';
 import styles from './airport-search-page.module.css';
 
 /**
@@ -33,14 +40,15 @@ export function AirportSearchPage() {
   const errorKey = useAirportSearchStore((s) => s.errorKey);
   const latestResult = useAirportSearchStore((s) => s.latestResult);
   const suggestions = useAirportSearchStore((s) => s.suggestions);
-  const favorites = useAirportSearchStore((s) => s.favorites);
+  // 收藏来自 common 的共享 store —— 地图搜索框读的是同一份
+  const favorites = useAirportFavoritesStore((s) => s.favorites);
 
   const init = useAirportSearchStore((s) => s.init);
   const queryAirport = useAirportSearchStore((s) => s.queryAirport);
   const updateSuggestions = useAirportSearchStore((s) => s.updateSuggestions);
   const clearSuggestions = useAirportSearchStore((s) => s.clearSuggestions);
   const toggleFavorite = useAirportSearchStore((s) => s.toggleFavorite);
-  const removeFavorite = useAirportSearchStore((s) => s.removeFavorite);
+  const removeFavorite = useAirportFavoritesStore((s) => s.remove);
 
   const initialized = useRef(false);
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -200,109 +208,107 @@ function AirportResultCard({
   const t = useTranslate();
   const { airport, metar } = result;
 
+  // 风向要的是数值（指针角度），后端给的 display_wind 是给人看的串，
+  // 单位还可能是 m/s —— 直接解原始报文见 services/metar-wind.ts
+  const wind = parseMetarWind(metar.raw);
+  const frequencyGroups = groupFrequencies(airport.frequencies);
+
+  const latLonText =
+    airport.latitude !== undefined && airport.longitude !== undefined
+      ? `LAT: ${airport.latitude.toFixed(5)}   LON: ${airport.longitude.toFixed(5)}`
+      : 'LAT: --   LON: --';
+  const elevText = airport.elevationFt !== undefined ? `${airport.elevationFt}` : '-';
+
   return (
-    <div className={styles.resultStack}>
-      {/* 概览 */}
-      <SectionCard
-        title={t(K.latestResultTitle)}
-        icon="location_city"
-        trailing={
-          <IconButton
-            icon={isFavorite ? 'star' : 'star_border'}
-            filled={isFavorite}
-            label={isFavorite ? t(K.favoriteRemove) : t(K.favoriteAdd)}
-            active={isFavorite}
-            onClick={onToggleFavorite}
-          />
-        }
-      >
-        <div className={styles.overviewHead}>
-          <span className={`${styles.overviewIcao} text-mono`}>{airport.icao}</span>
-          <div className={styles.overviewText}>
-            <span className={styles.overviewName}>{airport.name ?? '--'}</span>
-            <span className={styles.overviewSub}>
-              {[airport.city, airport.country].filter(Boolean).join(' · ') || '--'}
+    <div className={styles.resultCard}>
+      {/* ── 标题行：ICAO + 名称 + 数据源 + 收藏 ── */}
+      <header className={styles.resultHead}>
+        <span className={`${styles.resultIcao} text-mono`}>{airport.icao}</span>
+        <span className={styles.resultName}>{airport.name ?? '--'}</span>
+        {airport.source && <span className={styles.sourceTag}>{airport.source}</span>}
+        <span className={styles.headSpacer} />
+        <IconButton
+          icon={isFavorite ? 'star' : 'star_border'}
+          filled={isFavorite}
+          label={isFavorite ? t(K.favoriteRemove) : t(K.favoriteAdd)}
+          active={isFavorite}
+          onClick={onToggleFavorite}
+        />
+      </header>
+
+      {/* ── 主体：左侧风向罗盘，右侧位置/气象/跑道 ── */}
+      <div className={styles.resultBody}>
+        <WindIndicator wind={wind} />
+
+        <div className={styles.resultDetails}>
+          <section className={styles.detailBlock}>
+            <span className={styles.detailTitle}>
+              <MaterialIcon name="place" size={15} color="var(--color-primary)" />
+              {t(K.positionSectionTitle)}
             </span>
-          </div>
-        </div>
+            <span className={`${styles.detailValue} text-mono`}>
+              {latLonText}   ELEV: {elevText}
+            </span>
+          </section>
 
-        <div className={styles.chipRow}>
-          {airport.iata && <InfoChip icon="luggage" label={`IATA ${airport.iata}`} />}
-          {airport.source && <InfoChip icon="database" label={airport.source} />}
-          {airport.airac && <InfoChip icon="update" label={`AIRAC ${airport.airac}`} />}
-        </div>
-      </SectionCard>
+          <section className={styles.detailBlock}>
+            <span className={styles.detailTitle}>
+              <MaterialIcon name="cloud" size={15} color="var(--color-primary)" />
+              {t(K.weatherSectionTitle)}
+            </span>
+            {metar.raw ? (
+              <span className={`${styles.detailValue} text-mono`}>{metar.raw}</span>
+            ) : (
+              <span className={styles.detailMuted}>{t(K.metarEmpty)}</span>
+            )}
+            <div className={styles.chipRow}>
+              <InfoChip label={`${t(K.metarWind)}: ${metar.wind ?? '--'}`} />
+              <InfoChip label={`${t(K.metarVisibility)}: ${metar.visibility ?? 'N/A'}`} />
+              <InfoChip label={`${t(K.metarTemperature)}: ${metar.temperature ?? '--'}`} />
+              <InfoChip label={`${t(K.metarAltimeter)}: ${metar.altimeter ?? '--'}`} />
+            </div>
+            {metar.decoded && <span className={styles.detailMuted}>{metar.decoded}</span>}
+          </section>
 
-      {/* 位置 */}
-      <SectionCard title={t(K.positionSectionTitle)} icon="place">
-        <div className={styles.dataGrid}>
-          <DataCard label={t(K.airportIcaoLabel)} value={airport.icao} />
-          <DataCard
-            label={t(K.airportLatLonLabel)}
-            value={
-              airport.latitude !== undefined && airport.longitude !== undefined
-                ? `${airport.latitude.toFixed(4)}, ${airport.longitude.toFixed(4)}`
-                : '--'
-            }
-          />
-          <DataCard
-            label="ELEV"
-            value={airport.elevationFt !== undefined ? String(airport.elevationFt) : '--'}
-            unit="ft"
-          />
-          <DataCard label={t(K.airportNameLabel)} value={airport.name ?? '--'} />
-        </div>
-      </SectionCard>
-
-      {/* 跑道 */}
-      <SectionCard
-        title={t(K.runwaysTitle)}
-        icon="horizontal_rule"
-        trailing={<span className={styles.countBadge}>{airport.runways.length}</span>}
-      >
-        {airport.runways.length === 0 ? (
-          <EmptyState icon="do_not_disturb" title={t(K.runwaysEmpty)} />
-        ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>{t(K.runwayNameLabel)}</th>
-                  <th>{t(K.runwayLengthLabel)}</th>
-                  <th>{t(K.runwayTypeLabel)}</th>
-                </tr>
-              </thead>
-              <tbody>
+          <section className={styles.detailBlock}>
+            <span className={styles.detailTitle}>
+              <MaterialIcon name="flight_land" size={15} color="var(--color-primary)" />
+              {t(K.runwaySectionTitle)}
+            </span>
+            {airport.runways.length === 0 ? (
+              <span className={styles.detailMuted}>{t(K.runwaysEmpty)}</span>
+            ) : (
+              <div className={styles.runwayGrid}>
                 {airport.runways.map((runway, index) => (
-                  <tr key={`${runway.ident}-${index}`}>
-                    <td className="text-mono">
+                  <div key={`${runway.ident}-${index}`} className={styles.runwayCard}>
+                    <span className={`${styles.runwayIdent} text-mono`}>
                       {runway.leIdent && runway.heIdent
                         ? `${runway.leIdent}/${runway.heIdent}`
                         : runway.ident}
-                    </td>
-                    <td className="text-mono">
+                    </span>
+                    <span className={`${styles.runwayLength} text-mono`}>
                       {runway.lengthM !== undefined ? `${runway.lengthM.toFixed(0)} m` : '--'}
-                    </td>
-                    <td>{runway.surface ?? '--'}</td>
-                  </tr>
+                    </span>
+                    <span className={styles.runwaySurface}>{runway.surface ?? '--'}</span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
 
-      {/* 频率 */}
-      <SectionCard
-        title={t(K.frequenciesTitle)}
-        icon="radio"
-        trailing={<span className={styles.countBadge}>{airport.frequencies.length}</span>}
-      >
-        {airport.frequencies.length === 0 ? (
-          <EmptyState icon="do_not_disturb" title={t(K.frequenciesEmpty)} />
+      {/* ── 通讯频率：同类合并成一行，按类别配色 ── */}
+      <section className={styles.freqSection}>
+        <span className={styles.detailTitle}>
+          <MaterialIcon name="wifi_tethering" size={15} color="var(--color-primary)" />
+          {t(K.frequenciesTitle)}
+        </span>
+        {frequencyGroups.length === 0 ? (
+          <span className={styles.detailMuted}>{t(K.frequenciesEmpty)}</span>
         ) : (
           <div className={styles.tableWrap}>
-            <table className={styles.table}>
+            <table className={styles.freqTable}>
               <thead>
                 <tr>
                   <th>{t(K.frequencyTypeLabel)}</th>
@@ -310,54 +316,24 @@ function AirportResultCard({
                 </tr>
               </thead>
               <tbody>
-                {airport.frequencies.map((frequency, index) => (
-                  <tr key={`${frequency.type}-${index}`}>
-                    <td>{frequency.type ?? '--'}</td>
-                    <td className="text-mono">{frequency.value ?? '--'}</td>
+                {frequencyGroups.map((group) => (
+                  <tr key={group.category}>
+                    <td>
+                      <span
+                        className={styles.freqLabel}
+                        style={{ color: FREQUENCY_CATEGORY_COLOR[group.category] }}
+                      >
+                        {group.label}
+                      </span>
+                    </td>
+                    <td className="text-mono">{formatFrequencyValues(group.values)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </SectionCard>
-
-      {/* METAR */}
-      <SectionCard title={t(K.weatherSectionTitle)} icon="cloud">
-        {!metar.raw && !metar.decoded ? (
-          <EmptyState icon="cloud_off" title={t(K.metarEmpty)} />
-        ) : (
-          <div className={styles.metarBlock}>
-            {metar.raw && (
-              <>
-                <span className={styles.blockLabel}>{t(K.metarRawLabel)}</span>
-                <p className={`${styles.metarRaw} text-mono`}>{metar.raw}</p>
-              </>
-            )}
-            {metar.decoded && (
-              <>
-                <span className={styles.blockLabel}>{t(K.metarDecodedLabel)}</span>
-                <p className={styles.metarDecoded}>{metar.decoded}</p>
-              </>
-            )}
-            <div className={styles.chipRow}>
-              <InfoChip icon="air" label={`${t(K.metarWind)} ${metar.wind ?? '--'}`} />
-              <InfoChip
-                icon="visibility"
-                label={`${t(K.metarVisibility)} ${metar.visibility ?? '--'}`}
-              />
-              <InfoChip
-                icon="thermostat"
-                label={`${t(K.metarTemperature)} ${metar.temperature ?? '--'}`}
-              />
-              <InfoChip
-                icon="compress"
-                label={`${t(K.metarAltimeter)} ${metar.altimeter ?? '--'}`}
-              />
-            </div>
-          </div>
-        )}
-      </SectionCard>
+      </section>
     </div>
   );
 }

@@ -157,45 +157,200 @@
   white-space: nowrap;
 }
 
-/* ── 结果 ── */
 
-.resultStack {
+/* ── 结果卡：还原桌面版的单卡布局（左罗盘 / 右详情 / 下频率表）── */
+
+.resultCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
 }
 
-.overviewHead {
+.resultHead {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  margin-bottom: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.overviewIcao {
-  font-size: 30px;
+.resultIcao {
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: 0.05em;
   color: var(--color-primary);
 }
 
-.overviewText {
-  display: flex;
-  flex-direction: column;
+.resultName {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
   min-width: 0;
 }
 
-.overviewName {
-  font-size: 16px;
+/* 数据源徽标：告诉你这份数据是从哪个模拟器的导航库读出来的 */
+.sourceTag {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--color-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--color-secondary);
+  background: color-mix(in srgb, var(--color-secondary) 16%, transparent);
 }
 
-.overviewSub {
+.headSpacer {
+  flex: 1;
+}
+
+.resultBody {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.resultDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* 不给 min-width:0 的话，里面的长 METAR 会把整个 flex 行撑宽 */
+  min-width: 0;
+  flex: 1;
+}
+
+.detailBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.detailTitle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
+  font-weight: 600;
   color: var(--color-text-secondary);
+}
+
+/* 位置串与原始 METAR 共用：等宽 + 浅底，照着念不容易串行 */
+.detailValue {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+  border: 1px solid var(--color-border);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  word-break: break-word;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.detailMuted {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+/* ── 跑道小卡（替代原来的三列表格）── */
+
+.runwayGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.runwayCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-on-surface-a04);
+  min-width: 0;
+}
+
+.runwayIdent {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.runwayLength {
+  font-size: 12px;
+  color: var(--color-text-primary);
+}
+
+.runwaySurface {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+/* ── 通讯频率表 ── */
+
+.freqSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.freqTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.freqTable th {
+  padding: 7px 10px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-a40);
+  background: var(--color-on-surface-a04);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.freqTable td {
+  padding: 8px 10px;
+  color: var(--color-text-primary);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+}
+
+/* 频率值可能很长（地面有五个），允许换行而不是把表撑出横向滚动 */
+.freqTable td:last-child {
+  word-break: break-word;
+}
+
+.freqTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.freqTable tbody tr:hover {
+  background: var(--color-on-surface-a04);
+}
+
+/* 类别名按类别配色，颜色由 airport-frequencies.ts 统一分配 */
+.freqLabel {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .chipRow {
@@ -204,75 +359,18 @@
   gap: 6px;
 }
 
-.dataGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 8px;
-}
+/* 窄屏：罗盘挪到详情上方，横排会把右边挤没 */
+@media (max-width: 649px) {
+  .resultBody {
+    flex-direction: column;
+    align-items: stretch;
+  }
 
-/* ── 表格 ── */
+  .resultIcao {
+    font-size: 19px;
+  }
 
-.tableWrap {
-  overflow-x: auto;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.table th {
-  padding: 7px 10px;
-  text-align: left;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-on-surface-a40);
-  border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
-}
-
-.table td {
-  padding: 8px 10px;
-  color: var(--color-text-primary);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
-  white-space: nowrap;
-}
-
-.table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.table tbody tr:hover {
-  background: var(--color-on-surface-a04);
-}
-
-/* ── METAR ── */
-
-.metarBlock {
-  display: flex;
-  flex-direction: column;
-}
-
-.metarBlock .blockLabel:first-child {
-  margin-top: 0;
-}
-
-.metarRaw {
-  font-size: 12px;
-  line-height: 1.6;
-  padding: 9px 11px;
-  border-radius: var(--radius-sm);
-  background: var(--color-on-surface-a04);
-  color: var(--color-text-primary);
-  word-break: break-word;
-}
-
-.metarDecoded {
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-md);
+  .resultName {
+    font-size: 15px;
+  }
 }

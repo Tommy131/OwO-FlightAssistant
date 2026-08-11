@@ -1,11 +1,11 @@
 import {
   pickDouble,
   pickString,
-  toDouble,
   toInt,
   toJsonMap,
   type JsonMap,
 } from '../../../core/utils/parse-utils';
+import type { FavoriteAirportEntry } from '../../common/models/airport-favorite';
 
 /**
  * 机场搜索数据模型
@@ -170,12 +170,12 @@ export function suggestionFromApi(data: JsonMap): AirportSuggestionData {
   };
 }
 
-export interface FavoriteAirportEntry {
-  icao: string;
-  name?: string;
-  latitude?: number;
-  longitude?: number;
-}
+/*
+ * 收藏的类型与反序列化住在 `common/models/airport-favorite`：
+ * 地图搜索框也要读同一份收藏，两边各留一份同名类型迟早会漂移。
+ * 这里只保留「机场详情 → 收藏条目」这一步，它依赖本模块的 AirportDetailData。
+ */
+export type { FavoriteAirportEntry };
 
 export function favoriteFromAirport(airport: AirportDetailData): FavoriteAirportEntry {
   return {
@@ -183,15 +183,6 @@ export function favoriteFromAirport(airport: AirportDetailData): FavoriteAirport
     name: airport.name,
     latitude: airport.latitude,
     longitude: airport.longitude,
-  };
-}
-
-export function favoriteFromJson(json: JsonMap): FavoriteAirportEntry {
-  return {
-    icao: (pickString(json, ['icao']) ?? '').toUpperCase(),
-    name: pickString(json, ['name']),
-    latitude: toDouble(json.latitude),
-    longitude: toDouble(json.longitude),
   };
 }
 

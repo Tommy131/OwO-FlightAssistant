@@ -1,0 +1,82 @@
+/* 风向风速罗盘：还原桌面版机场查询卡左侧那只圆盘 */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dial {
+  width: 110px;
+  height: 110px;
+  /* 圆盘本身是矢量，别被 global.css 的 `svg { max-width: 100% }` 压扁 */
+  max-width: none;
+}
+
+.ring {
+  fill: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  stroke: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  stroke-width: 1.5;
+}
+
+.tickMajor {
+  stroke: color-mix(in srgb, var(--color-primary) 70%, transparent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.tickMinor {
+  stroke: var(--color-on-surface-a40);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+.label,
+.labelNorth {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--color-text-secondary);
+}
+
+/* 正北单独标亮：没有它就分不清圆盘转没转 */
+.labelNorth {
+  fill: var(--color-primary);
+  font-weight: 700;
+}
+
+.needle {
+  stroke: var(--color-primary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.needleHead {
+  fill: var(--color-primary);
+}
+
+.hub {
+  fill: var(--color-primary);
+}
+
+/* 静风/不定风：有数据但指不出方向 */
+.calmDot {
+  fill: none;
+  stroke: var(--color-text-secondary);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 2;
+}
+
+.readout {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.gust {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-warning);
+}

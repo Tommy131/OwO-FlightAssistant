@@ -1,41 +1,33 @@
 import { create } from 'zustand';
-import { PersistenceService } from '../../../core/services/persistence-service';
 import { AppLogger } from '../../../core/utils/logger';
 import { toJsonMap, type JsonMap } from '../../../core/utils/parse-utils';
+import { isValidIcao, normalizeIcao } from '../../common/models/airport-favorite';
+import { useAirportFavoritesStore } from '../../common/providers/airport-favorites-store';
 import { MiddlewareHttpService } from '../../http/services/middleware-http-service';
 import {
   airportDetailFromApi,
   favoriteFromAirport,
-  favoriteFromJson,
   metarFromApi,
   suggestionFromApi,
   type AirportQueryResult,
   type AirportSuggestionData,
-  type FavoriteAirportEntry,
 } from '../models/airport-search-models';
 
 /**
  * 机场搜索状态管理
  *
  * 对应 Flutter 版 `airport_search_provider.dart` + `airport_search_service.dart`。
- * 收藏列表持久化到 IndexedDB（桌面版写在自定义数据目录的 JSON 里）。
+ *
+ * ── 收藏不在这里 ──
+ * 收藏列表已提到 `common/providers/airport-favorites-store`：地图的搜索框
+ * 也要用同一份（没输入时列出收藏）。本 store 只保留一层转调，
+ * 页面不用同时订阅两个 store；真正的读写与持久化都在那边。
  */
 
-const MODULE_NAME = 'airport_search';
-const FAVORITES_KEY = 'favorites';
-
-/** 完整 ICAO：4 位字母/数字 */
-const ICAO_PATTERN = /^[A-Z0-9]{4}$/;
 /** 部分输入（用于联想）：2–4 位 */
 const ICAO_PARTIAL_PATTERN = /^[A-Z0-9]{2,4}$/;
 
-export function normalizeIcao(input: string): string {
-  return input.trim().toUpperCase();
-}
-
-export function isValidIcao(input: string): boolean {
-  return ICAO_PATTERN.test(normalizeIcao(input));
-}
+export { isValidIcao, normalizeIcao };
 
 export function isValidIcaoPartial(input: string): boolean {
   return ICAO_PARTIAL_PATTERN.test(normalizeIcao(input));
@@ -54,7 +46,6 @@ interface AirportSearchState {
   isSuggesting: boolean;
   errorKey: AirportSearchErrorKey;
   latestResult: AirportQueryResult | null;
-  favorites: FavoriteAirportEntry[];
   suggestions: AirportSuggestionData[];
 
   init: () => Promise<void>;
@@ -62,9 +53,8 @@ interface AirportSearchState {
   clearResult: () => void;
   updateSuggestions: (input: string) => Promise<void>;
   clearSuggestions: () => void;
+  /** 收藏/取消收藏当前查询结果 */
   toggleFavorite: () => Promise<void>;
-  removeFavorite: (icao: string) => Promise<void>;
-  isFavorite: (icao: string) => boolean;
 }
 
 export const useAirportSearchStore = create<AirportSearchState>((set, get) => ({
@@ -73,23 +63,14 @@ export const useAirportSearchStore = create<AirportSearchState>((set, get) => ({
   isSuggesting: false,
   errorKey: null,
   latestResult: null,
-  favorites: [],
   suggestions: [],
 
   async init() {
     if (get().isInitializing) return;
     set({ isInitializing: true });
     try {
-      await PersistenceService.ensureReady();
-      const stored = PersistenceService.getModuleData<unknown[]>(MODULE_NAME, FAVORITES_KEY);
-      const favorites = Array.isArray(stored)
-        ? stored
-            .map((item) => toJsonMap(item))
-            .filter((item): item is JsonMap => item !== null)
-            .map(favoriteFromJson)
-            .filter((item) => item.icao.length > 0 && isValidIcao(item.icao))
-        : [];
-      set({ favorites, errorKey: null });
+      await useAirportFavoritesStore.getState().hydrate();
+      set({ errorKey: useAirportFavoritesStore.getState().loadFailed ? 'favoriteLoadFailed' : null });
     } catch (e) {
       AppLogger.warning(`[AirportSearch] load favorites failed: ${String(e)}`);
       set({ errorKey: 'favoriteLoadFailed' });
@@ -175,39 +156,6 @@ export const useAirportSearchStore = create<AirportSearchState>((set, get) => ({
   async toggleFavorite() {
     const airport = get().latestResult?.airport;
     if (!airport || airport.icao.length === 0) return;
-
-    const icao = normalizeIcao(airport.icao);
-    const existing = get().favorites;
-    const next = existing.some((item) => item.icao === icao)
-      ? existing.filter((item) => item.icao !== icao)
-      : [favoriteFromAirport(airport), ...existing];
-
-    set({ favorites: next });
-    await persistFavorites(next);
-  },
-
-  async removeFavorite(icao) {
-    const normalized = normalizeIcao(icao);
-    const next = get().favorites.filter((item) => item.icao !== normalized);
-    set({ favorites: next });
-    await persistFavorites(next);
-  },
-
-  isFavorite(icao) {
-    const normalized = normalizeIcao(icao);
-    return get().favorites.some((item) => item.icao === normalized);
+    await useAirportFavoritesStore.getState().toggle(favoriteFromAirport(airport));
   },
 }));
-
-async function persistFavorites(favorites: FavoriteAirportEntry[]): Promise<void> {
-  await PersistenceService.setModuleData(
-    MODULE_NAME,
-    FAVORITES_KEY,
-    favorites.map((item) => ({
-      icao: item.icao,
-      name: item.name ?? null,
-      latitude: item.latitude ?? null,
-      longitude: item.longitude ?? null,
-    })),
-  );
-}
