@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { distanceInNm } from './geo';
+
 import {
   METERS_TO_FEET,
   SAFE_CELL_STRIDE,
@@ -132,9 +134,8 @@ describe('buildTerrainCells', () => {
   });
 
   /*
-   * 安全格抽稀：巡航时视野内几乎每格都安全，逐格画等于把格子数翻十倍，
-   * 而它们全是同一片淡绿、完全冗余。告警格不受影响 —— 那几格差一格就是
-   * 差一个网格距，位置本身就是信息。
+   * 安全格抽稀：巡航时圆内几乎每格都安全，逐格画纯属冗余。
+   * 告警格不受影响 —— 那几格差一格就是差一个网格距，位置本身就是信息。
    */
   it('安全格按步长抽稀，告警格不抽', () => {
     const safeOnly = buildTerrainCells([flatTile(47, 11, 0)], 30_000);
@@ -147,17 +148,46 @@ describe('buildTerrainCells', () => {
     expect(alertingOnly).toHaveLength(GRID * GRID);
   });
 
-  it('抽稀后的安全格圆按同样倍数放大，铺出来仍是连续一片', () => {
+  /*
+   * 只抽稀不放大边长，方格之间会留出空档，铺出来是一张棋盘而不是一片底色。
+   */
+  it('抽稀后的安全格边长放大到步长倍，方格之间不留空档', () => {
     const safe = buildTerrainCells([flatTile(47, 11, 0)], 30_000)[0];
-    const alerting = buildTerrainCells([flatTile(47, 11, 3000)], 0)[0];
-    expect(safe.radiusM).toBeCloseTo(alerting.radiusM * SAFE_CELL_STRIDE, 6);
+    expect(safe.north - safe.south).toBeCloseTo(CELL * SAFE_CELL_STRIDE, 10);
+    expect(safe.east - safe.west).toBeCloseTo(CELL * SAFE_CELL_STRIDE, 10);
   });
 
-  it('每个格子都带得出画圆用的中心与半径', () => {
+  /*
+   * 显示范围是以本机为圆心的圆，不是瓦片那块方补丁 ——
+   * 否则边界横平竖直、随瓦片边界跳变，离本机最远的角落又最没有意义。
+   */
+  it('按半径把显示范围裁成以本机为心的圆', () => {
+    const tile = flatTile(47, 11, 3000);
+    const center = { latitude: 47 + SPAN / 2, longitude: 11 + SPAN / 2 };
+
+    const clipped = buildTerrainCells([tile], 0, { center, radiusNm: 3 });
+    const unclipped = buildTerrainCells([tile], 0);
+    expect(clipped.length).toBeGreaterThan(0);
+    expect(clipped.length).toBeLessThan(unclipped.length);
+
+    // 留下的每一格都在半径之内
+    for (const cell of clipped) {
+      expect(
+        distanceInNm(center, { latitude: cell.centerLat, longitude: cell.centerLon }),
+      ).toBeLessThanOrEqual(3);
+    }
+  });
+
+  // 拿不到本机位置时不裁：宁可多画一圈，也别把整层地形显示成空白
+  it('没有本机位置时不做圆形裁剪', () => {
+    const tile = flatTile(47, 11, 3000);
+    expect(buildTerrainCells([tile], 0, {})).toHaveLength(GRID * GRID);
+  });
+
+  it('每个格子都带得出中心点', () => {
     const cell = buildTerrainCells([flatTile(47, 11, 3000)], 0)[0];
     expect(cell.centerLat).toBeCloseTo((cell.south + cell.north) / 2, 10);
     expect(cell.centerLon).toBeCloseTo((cell.west + cell.east) / 2, 10);
-    expect(cell.radiusM).toBeGreaterThan(0);
   });
 
   it('格子的经纬范围拼得回整块瓦片', () => {

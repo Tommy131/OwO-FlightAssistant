@@ -96,6 +96,14 @@ const ROUTE_STYLE = { color: '#2a78d6', weight: 3, opacity: 0.85 } as const;
 const TERRAIN_ALTITUDE_BUCKET_FT = 250;
 
 /**
+ * 地形重画的位置档位（度）。
+ *
+ * 显示范围是以本机为圆心的圆，飞机一动圆就该跟着挪。0.02° ≈ 2 km，
+ * 相当于不到一个高程网格距 —— 圆边跟得上，又不会每帧重画。
+ */
+const TERRAIN_POSITION_BUCKET_DEG = 0.02;
+
+/**
  * 各档地形的填充不透明度。
  *
  * 越危险画得越实：高于本机的必须一眼看到，低于本机的只要让人知道
@@ -197,6 +205,8 @@ export function MapCanvas({
    * 不分档的话一屏几千个矩形会每帧重画一遍，地图直接卡死。
    */
   const terrainAltitudeBucketRef = useRef<number | null>(null);
+  // 本机位置的档位键：圆形显示范围跟着飞机走，挪够一格才重画
+  const terrainPositionKeyRef = useRef<string | null>(null);
 
   // 回调放 ref，避免因 props 变化重建地图
   const onAirportClickRef = useRef(onAirportClick);
@@ -705,36 +715,55 @@ export function MapCanvas({
       if (altitude === undefined || !Number.isFinite(altitude)) return;
 
       /*
-       * 只在「瓦片变了」或「本机跨过一个高度档」时重画。
+       * 只在「瓦片变了」「本机跨过一个高度档」或「本机挪了一格」时重画。
        *
-       * 配色是按相对本机的高度算的，所以本机爬升下降时颜色确实要跟着变；
-       * 但高度每帧都在动，不分档就等于每帧重画一屏矩形。
+       * 配色按相对本机的高度算，显示范围又是以本机为圆心的圆 ——
+       * 两者都跟着飞机动。但高度和位置每帧都在变，不分档就等于每帧重画一屏矩形，
+       * 所以两个量都取整到档位再比。
        */
       const bucket = Math.round(altitude / TERRAIN_ALTITUDE_BUCKET_FT);
+      const position = state.aircraft?.position;
+      const positionKey = position
+        ? `${Math.round(position.latitude / TERRAIN_POSITION_BUCKET_DEG)}:` +
+          `${Math.round(position.longitude / TERRAIN_POSITION_BUCKET_DEG)}`
+        : '';
       const tilesChanged = state.terrainTiles !== previous.terrainTiles;
       const justEnabled = !previous.showTerrainWarning;
-      if (!tilesChanged && !justEnabled && terrainAltitudeBucketRef.current === bucket) return;
+      if (
+        !tilesChanged &&
+        !justEnabled &&
+        terrainAltitudeBucketRef.current === bucket &&
+        terrainPositionKeyRef.current === positionKey
+      ) {
+        return;
+      }
       terrainAltitudeBucketRef.current = bucket;
+      terrainPositionKeyRef.current = positionKey;
 
       group.clearLayers();
-      for (const cell of buildTerrainCells(state.terrainTiles, altitude)) {
-        /*
-         * 画圆而不是方格。
-         *
-         * 高程网格本身是方的，但照着画出来就是一片棋盘格，边界横平竖直，
-         * 看着像人为划的区块而不是山脊河谷 —— 而地形恰恰没有直边。
-         * 圆形彼此咬合（半径见 CELL_RADIUS_FACTOR）叠出来的轮廓是圆润的，
-         * 更接近等高线该有的样子。
-         */
-        L.circle([cell.centerLat, cell.centerLon], {
-          renderer,
-          radius: cell.radiusM,
-          // 只填充不描边：圆是互相重叠的，描边会把每个圆都勾出来变成一堆泡泡
-          stroke: false,
-          fillColor: cell.color,
-          fillOpacity: TERRAIN_FILL_OPACITY[cell.band],
-          interactive: false,
-        }).addTo(group);
+      /*
+       * 格子照实画成方的 —— 高程网格本身就是方的。
+       * 变的是**显示范围**：只画以本机为圆心的那个圆内的格子，
+       * 边界跟着飞机走，而不是一块随瓦片边界跳变的方补丁。
+       */
+      const cells = buildTerrainCells(state.terrainTiles, altitude, {
+        center: state.aircraft?.position,
+      });
+      for (const cell of cells) {
+        L.rectangle(
+          [
+            [cell.south, cell.west],
+            [cell.north, cell.east],
+          ],
+          {
+            renderer,
+            // 只填充不描边：格子是紧挨着的，描边会织出一张网格纸
+            stroke: false,
+            fillColor: cell.color,
+            fillOpacity: TERRAIN_FILL_OPACITY[cell.band],
+            interactive: false,
+          },
+        ).addTo(group);
       }
     }),
   []);

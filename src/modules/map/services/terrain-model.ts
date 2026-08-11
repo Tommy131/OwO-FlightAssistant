@@ -20,7 +20,7 @@
  */
 
 import type { MapCoordinate } from '../models/map-models';
-import { destination } from './geo';
+import { destination, distanceInNm } from './geo';
 import { MapLocalizationKeys as K } from '../localization/map-localization';
 
 /** 一块高程瓦片，字段与中间件 `terrain.Tile` 一一对应 */
@@ -137,41 +137,36 @@ export interface TerrainCell {
   readonly west: number;
   readonly north: number;
   readonly east: number;
-  /** 格子中心，画圆用 */
+  /** 格子中心，用于按半径裁剪 */
   readonly centerLat: number;
   readonly centerLon: number;
-  /** 圆的半径（米），由格子边长换算 */
-  readonly radiusM: number;
   readonly band: TerrainBand;
   readonly color: string;
   readonly elevationFt: number;
 }
 
-/** 一个纬度差对应的米数（经度方向随纬度收缩，画圆按米算不受影响） */
-const METERS_PER_DEG_LAT = 111_320;
-
 /**
- * 圆半径相对格子半边长的放大系数。
+ * 地形显示半径（海里）：只画本机周围这个圆内的格子。
  *
- * 内切圆（系数 1）会在四个角留下空隙，一片连续的高地会画成一堆散点。
- * 放大到略超过半对角线（√2/2 ≈ 1.414 的一半再多一点）让相邻圆彼此咬合，
- * 看上去才是一片连续的区域而不是筛子。
+ * 瓦片是按经纬矩形取回来的，直接全画出来，显示范围就是一块方方正正的补丁，
+ * 边界横平竖直、随瓦片边界跳变，而且离本机越远的角落越没有意义 ——
+ * 地形告警关心的是「我周围有什么」，那本就是个以本机为心的圆。
+ * 裁成圆形之后，边界跟着飞机走，看上去才像地形雷达的扫描范围。
  */
-const CELL_RADIUS_FACTOR = 0.78;
+export const TERRAIN_DISPLAY_RADIUS_NM = 40;
 
 /**
- * 安全区的抽稀步长：每 N 行 N 列才画一个。
+ * 安全区的抽稀步长：每 N 行 N 列才画一个，且格子放大到 N 倍边长。
  *
- * 巡航时视野内几乎每一格都是安全的，逐格画等于把格子数翻十倍，
- * 而它们全是同一片淡绿、彼此完全冗余 —— 每帧多画几千个圆只为铺一层底色。
+ * 巡航时圆内几乎每一格都是安全的，逐格画等于把格子数翻好几倍，
+ * 而它们全是同一片淡绿、彼此完全冗余。
  *
- * 告警格不抽稀：那几格的位置和形状正是要看的东西，差一格就是差 2.8 km。
- * 安全区只是「这一片查过了、没事」的底色，粗一点没有任何损失。
+ * 放大边长是必须的 —— 只抽稀不放大，方格之间会留出空档，
+ * 铺出来是一张棋盘而不是一片底色。
+ *
+ * 告警格不抽稀：那几格的位置和形状正是要看的东西，差一格就是差一个网格距。
  */
 export const SAFE_CELL_STRIDE = 2;
-
-/** 安全区圆要按抽稀步长放大，否则会稀成一片散点 */
-const SAFE_CELL_RADIUS_FACTOR = CELL_RADIUS_FACTOR * SAFE_CELL_STRIDE;
 
 /** 覆盖范围 */
 export interface TerrainBounds {
@@ -246,20 +241,26 @@ export function terrainBandFor(terrainFt: number, aircraftFt: number): TerrainBa
 /**
  * 把瓦片摊成可以直接画的格子。
  *
+ * 格子本身仍是方的（高程网格就是方的，照实画）。变的是**显示范围**：
+ * 给了本机位置就只产出以本机为圆心、`TERRAIN_DISPLAY_RADIUS_NM` 为半径的
+ * 圆内格子，边界跟着飞机走，而不是一块随瓦片边界跳变的方补丁。
+ *
  * 告警格（above / near / below）逐格产出：那几格的位置和形状正是要看的东西，
  * 差一格就是差一个网格距。
  *
- * 安全格按 `SAFE_CELL_STRIDE` 抽稀。巡航时视野内几乎每格都是安全的，
- * 逐格产出会把格子数翻十倍，而它们全是同一片淡绿、彼此完全冗余 ——
- * 每帧多画几千个圆只为铺一层底色。抽稀后的圆按同样倍数放大，
- * 铺出来仍是连续一片。
+ * 安全格按 `SAFE_CELL_STRIDE` 抽稀并同倍放大边长。圆内几乎每格都是安全的，
+ * 逐格产出纯属冗余；只抽稀不放大则会留出空档，铺成一张棋盘。
  */
 export function buildTerrainCells(
   tiles: readonly TerrainTile[],
   aircraftAltitudeFt: number,
+  options: { center?: MapCoordinate; radiusNm?: number } = {},
 ): TerrainCell[] {
   const cells: TerrainCell[] = [];
   if (!Number.isFinite(aircraftAltitudeFt)) return cells;
+
+  const center = options.center;
+  const radiusNm = options.radiusNm ?? TERRAIN_DISPLAY_RADIUS_NM;
 
   for (const tile of tiles) {
     if (tile.grid <= 0 || tile.elevationsM.length !== tile.grid * tile.grid) continue;
@@ -275,17 +276,33 @@ export function buildTerrainCells(
         const isSafe = band === 'safe';
         // 抽稀只对安全格生效，且只保留步长网格的左上角那一格
         if (isSafe && (row % SAFE_CELL_STRIDE !== 0 || col % SAFE_CELL_STRIDE !== 0)) continue;
+
+        // 安全格放大到步长倍边长，方格之间才不会留出空档
+        const cellExtent = isSafe ? cellSpan * SAFE_CELL_STRIDE : cellSpan;
         const south = tile.south + row * cellSpan;
         const west = tile.west + col * cellSpan;
-        const radiusFactor = isSafe ? SAFE_CELL_RADIUS_FACTOR : CELL_RADIUS_FACTOR;
+        const centerLat = south + cellExtent / 2;
+        const centerLon = west + cellExtent / 2;
+
+        /*
+         * 圆形裁剪：按格子中心到本机的距离判。
+         * 拿不到本机位置就不裁 —— 宁可多画一圈，也别因为一时没有定位
+         * 把整层地形显示成空白。
+         */
+        if (
+          center &&
+          distanceInNm(center, { latitude: centerLat, longitude: centerLon }) > radiusNm
+        ) {
+          continue;
+        }
+
         cells.push({
           south,
           west,
-          north: south + cellSpan,
-          east: west + cellSpan,
-          centerLat: south + cellSpan / 2,
-          centerLon: west + cellSpan / 2,
-          radiusM: cellSpan * METERS_PER_DEG_LAT * radiusFactor,
+          north: south + cellExtent,
+          east: west + cellExtent,
+          centerLat,
+          centerLon,
           band,
           color: TERRAIN_BAND_COLOR[band],
           elevationFt,
