@@ -129,6 +129,7 @@ const TRACK_PHASE_COLOR: Record<TrackPhase, string> = {
   taxiOut: '#f5a524',
   climb: '#12b8b0',
   cruise: '#8b5cf6',
+  arrival: '#f5a524',
   approach: '#f5533d',
   taxiIn: '#3ddc84',
 };
@@ -138,6 +139,7 @@ const TRACK_PHASE_LABEL_KEY: Record<TrackPhase, string> = {
   taxiOut: K.trackPhaseTaxiOut,
   climb: K.trackPhaseClimb,
   cruise: K.trackPhaseCruise,
+  arrival: K.trackPhaseArrival,
   approach: K.trackPhaseApproach,
   taxiIn: K.trackPhaseTaxiIn,
 };

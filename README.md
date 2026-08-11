@@ -5,7 +5,7 @@
 ![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey)
 
-**版本：1.1.0-beta** · 权威设计见 [`docs/DESIGN.md`](docs/DESIGN.md) · 变更记录见 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
+**版本：1.1.1-beta** · 权威设计见 [`docs/DESIGN.md`](docs/DESIGN.md) · 变更记录见 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)
 
 [OwO! FlightAssistant](https://github.com/Tommy131/OwO-FlightAssistant)（Flutter 桌面版）的 Web GUI 移植。
 保留原版的**模块化微内核架构**、**设计语言**与**后端 API 契约**，在浏览器中运行。

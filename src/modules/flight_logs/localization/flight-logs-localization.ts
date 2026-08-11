@@ -33,6 +33,7 @@ export const FlightLogsLocalizationKeys = {
   trackPhaseTaxiOut: 'flight_logs.track_phase.taxi_out',
   trackPhaseClimb: 'flight_logs.track_phase.climb',
   trackPhaseCruise: 'flight_logs.track_phase.cruise',
+  trackPhaseArrival: 'flight_logs.track_phase.arrival',
   trackPhaseApproach: 'flight_logs.track_phase.approach',
   trackPhaseTaxiIn: 'flight_logs.track_phase.taxi_in',
   // 航迹回放
@@ -206,6 +207,7 @@ export const flightLogsTranslations: ModuleTranslations = {
     [K.trackPhaseTaxiOut]: '起飞前滑行',
     [K.trackPhaseClimb]: '爬升中',
     [K.trackPhaseCruise]: '巡航中',
+    [K.trackPhaseArrival]: '到达/下降',
     [K.trackPhaseApproach]: '进近中',
     [K.trackPhaseTaxiIn]: '落地后滑行',
     [K.replayPlay]: '播放',
@@ -357,6 +359,7 @@ export const flightLogsTranslations: ModuleTranslations = {
     [K.trackPhaseTaxiOut]: 'Taxi out',
     [K.trackPhaseClimb]: 'Climb',
     [K.trackPhaseCruise]: 'Cruise',
+    [K.trackPhaseArrival]: 'Arrival / descent',
     [K.trackPhaseApproach]: 'Approach',
     [K.trackPhaseTaxiIn]: 'Taxi in',
     [K.replayPlay]: 'Play',

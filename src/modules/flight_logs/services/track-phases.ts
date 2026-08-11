@@ -5,7 +5,7 @@ import type { FlightLogPoint } from '../models/flight-log-models';
  *
  * 把一条已经录完的航迹切成五段着色：
  *
- *   起飞前滑行 ── 爬升中 ── 巡航中 ── 进近中 ── 落地后滑行
+ *   起飞前滑行 ── 爬升中 ── 巡航中 ── 到达/下降 ── 进近中 ── 落地后滑行
  *
  * ── 为什么不复用检查单那套阶段推断 ──
  * 那套是**实时**的：只能看到「此刻」的高度与垂速，必须逐点猜。
@@ -21,13 +21,14 @@ import type { FlightLogPoint } from '../models/flight-log-models';
  */
 
 /** 航迹阶段 */
-export type TrackPhase = 'taxiOut' | 'climb' | 'cruise' | 'approach' | 'taxiIn';
+export type TrackPhase = 'taxiOut' | 'climb' | 'cruise' | 'arrival' | 'approach' | 'taxiIn';
 
 /** 阶段顺序，图例按这个次序排 */
 export const TRACK_PHASE_ORDER: readonly TrackPhase[] = [
   'taxiOut',
   'climb',
   'cruise',
+  'arrival',
   'approach',
   'taxiIn',
 ];
@@ -46,6 +47,12 @@ const TAXI_MAX_GROUND_SPEED_KT = 60;
 const LEVEL_VS_FPM = 300;
 /** 巡航判定：高度达到全程最高的这个比例即算进入巡航层 */
 const CRUISE_ALTITUDE_RATIO = 0.92;
+/** 终端进近必须在接地点附近，避免把远场等待/机动误作进近。 */
+const TERMINAL_APPROACH_MAX_DISTANCE_NM = 8;
+/** 终端进近的最大离场高度，以接地点气压高度为基准。 */
+const TERMINAL_APPROACH_MAX_HEIGHT_FT = 2_000;
+/** 终端段至少需要有可观测的净下降，排除低空平飞。 */
+const TERMINAL_APPROACH_MIN_DESCENT_FT = 250;
 
 /** 一段连续同阶段的航迹 */
 export interface TrackSegment {
@@ -76,6 +83,7 @@ export function classifyTrackPhases(points: readonly FlightLogPoint[]): TrackPha
   if (liftoffIndex < 0) return points.map(() => 'taxiOut');
 
   const cruiseRange = findCruiseRange(points, liftoffIndex, touchdownIndex);
+  const terminalApproachStart = findTerminalApproachStart(points, touchdownIndex);
 
   return points.map((_, index) => {
     if (index < liftoffIndex) return 'taxiOut';
@@ -83,11 +91,12 @@ export function classifyTrackPhases(points: readonly FlightLogPoint[]): TrackPha
     // 进近段里，而它恰好是整条航迹的最后一点时，落地滑行会一个点都不剩
     if (touchdownIndex >= 0 && index >= touchdownIndex) return 'taxiIn';
     if (cruiseRange && index >= cruiseRange.start && index <= cruiseRange.end) return 'cruise';
-    if (cruiseRange && index > cruiseRange.end) return 'approach';
+    if (terminalApproachStart !== undefined && index >= terminalApproachStart) return 'approach';
+    if (cruiseRange && index > cruiseRange.end) return 'arrival';
     if (!cruiseRange) {
       // 没识别出巡航段（短途、始终在爬或始终在降）：
-      // 以全程最高点为界，前半段算爬升、后半段算进近
-      return index <= highestIndex(points, liftoffIndex, touchdownIndex) ? 'climb' : 'approach';
+      // 以全程最高点为界，前半段算爬升、后半段算到达/下降
+      return index <= highestIndex(points, liftoffIndex, touchdownIndex) ? 'climb' : 'arrival';
     }
     return 'climb';
   });
@@ -162,6 +171,54 @@ function highestIndex(
   return best;
 }
 
+/**
+ * 找出终端进近的起点。
+ *
+ * 飞行日志保存的是完整航迹，无法可靠知道飞机是否遵循了已发布程序；但接地点本身
+ * 是已知事实。只有接地点附近、低空且确实继续下降的连续后缀才称为进近，前面的
+ * 绕飞、等待或重新建立高度统一标作到达/下降。
+ */
+function findTerminalApproachStart(
+  points: readonly FlightLogPoint[],
+  touchdownIndex: number,
+): number | undefined {
+  if (touchdownIndex <= 0) return undefined;
+
+  const touchdown = points[touchdownIndex];
+  let beforeTerminalSegment = touchdownIndex - 1;
+  while (
+    beforeTerminalSegment >= 0 &&
+    isTerminalApproachPoint(points[beforeTerminalSegment], touchdown)
+  ) {
+    beforeTerminalSegment--;
+  }
+
+  const start = beforeTerminalSegment + 1;
+  if (start >= touchdownIndex) return undefined;
+  return points[start].altitude - touchdown.altitude >= TERMINAL_APPROACH_MIN_DESCENT_FT
+    ? start
+    : undefined;
+}
+
+function isTerminalApproachPoint(point: FlightLogPoint, touchdown: FlightLogPoint): boolean {
+  return (
+    isAirborne(point) &&
+    point.altitude <= touchdown.altitude + TERMINAL_APPROACH_MAX_HEIGHT_FT &&
+    distanceNm(point, touchdown) <= TERMINAL_APPROACH_MAX_DISTANCE_NM
+  );
+}
+
+function distanceNm(a: FlightLogPoint, b: FlightLogPoint): number {
+  const radians = Math.PI / 180;
+  const latitudeA = a.latitude * radians;
+  const latitudeB = b.latitude * radians;
+  const deltaLatitude = (b.latitude - a.latitude) * radians;
+  const deltaLongitude = (b.longitude - a.longitude) * radians;
+  const haversine =
+    Math.sin(deltaLatitude / 2) ** 2 +
+    Math.cos(latitudeA) * Math.cos(latitudeB) * Math.sin(deltaLongitude / 2) ** 2;
+  return 3_440.065 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
 /**
  * 找出巡航段。
  *

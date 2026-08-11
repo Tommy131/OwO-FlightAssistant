@@ -53,6 +53,7 @@ function completeFlight(): FlightLogPoint[] {
     level(36000),
     descending(20000),
     descending(5000),
+    descending(1500),
     taxi(),
     taxi(),
   ];
@@ -66,7 +67,7 @@ describe('classifyTrackPhases', () => {
   it('完整航班切出全部五个阶段', () => {
     const phases = classifyTrackPhases(completeFlight());
     expect(new Set(phases)).toEqual(
-      new Set<TrackPhase>(['taxiOut', 'climb', 'cruise', 'approach', 'taxiIn']),
+      new Set<TrackPhase>(['taxiOut', 'climb', 'cruise', 'arrival', 'approach', 'taxiIn']),
     );
   });
 
@@ -90,10 +91,36 @@ describe('classifyTrackPhases', () => {
     expect(phases[6]).toBe('cruise');
   });
 
-  it('巡航之后的下降判为进近', () => {
+  it('巡航后的高空下降归为到达，末段低空下降归为进近', () => {
     const phases = classifyTrackPhases(completeFlight());
-    expect(phases[7]).toBe('approach');
+    expect(phases[7]).toBe('arrival');
+    expect(phases[8]).toBe('arrival');
+    expect(phases[9]).toBe('approach');
+  });
+
+  it('keeps manoeuvring before terminal descent out of the approach phase', () => {
+    const points = [
+      taxi(),
+      climbing(2_000),
+      climbing(3_400),
+      level(3_400),
+      level(3_400),
+      point({ onGround: false, altitude: 3_200, verticalSpeed: -900, latitude: 0.22, longitude: 0 }),
+      point({ onGround: false, altitude: 2_600, verticalSpeed: -800, latitude: 0.18, longitude: 0 }),
+      point({ onGround: false, altitude: 2_200, verticalSpeed: 450, latitude: 0.15, longitude: 0 }),
+      point({ onGround: false, altitude: 1_800, verticalSpeed: -700, latitude: 0.1, longitude: 0 }),
+      point({ onGround: false, altitude: 1_100, verticalSpeed: -700, latitude: 0.06, longitude: 0 }),
+      point({ onGround: false, altitude: 500, verticalSpeed: -650, latitude: 0.02, longitude: 0 }),
+      point({ onGround: true, altitude: 0, groundSpeed: 45, latitude: 0, longitude: 0 }),
+    ].map((value, index) => ({ ...value, timestamp: new Date(index * 30_000) }));
+
+    const phases = classifyTrackPhases(points);
+
+    expect(phases[5]).toBe('arrival');
+    expect(phases[7]).toBe('arrival');
     expect(phases[8]).toBe('approach');
+    expect(phases[10]).toBe('approach');
+    expect(phases[11]).toBe('taxiIn');
   });
 
   it('阶段顺序单调，不会在巡航后又回到爬升', () => {
@@ -102,8 +129,9 @@ describe('classifyTrackPhases', () => {
       taxiOut: 0,
       climb: 1,
       cruise: 2,
-      approach: 3,
-      taxiIn: 4,
+      arrival: 3,
+      approach: 4,
+      taxiIn: 5,
     };
     for (let i = 1; i < phases.length; i++) {
       expect(rank[phases[i]]).toBeGreaterThanOrEqual(rank[phases[i - 1]]);
@@ -130,7 +158,7 @@ describe('classifyTrackPhases', () => {
     expect(phases[4]).toBe('cruise');
     // 掉高度那一点不该被判成进近——进近要到真正开始下降之后
     expect(phases[3]).not.toBe('approach');
-    expect(phases[5]).toBe('approach');
+    expect(phases[5]).toBe('arrival');
   });
 
   /*
