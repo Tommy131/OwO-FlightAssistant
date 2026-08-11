@@ -8,9 +8,19 @@
  * 纯计算：不 import React / Leaflet / store，可被直接单测。
  */
 
-/** 面板基准尺寸（px），与桌面版一致 */
-export const PANEL_BASE_WIDTH = 192;
-export const PANEL_BASE_HEIGHT = 74;
+/**
+ * 面板基准尺寸（px）。
+ *
+ * 桌面版是 192×74 的一行三格（ALT / SPD / XPDR）。后来加了第四格 LT（当地时间），
+ * 宽度却没动 —— 四格挤在 192px 里，每格分不到 45px，于是
+ * 「803 ft」被截成「803 …」、「7700 standby」被截成「7700 stand…」，
+ * 最后一格干脆被挤出面板外。
+ *
+ * 改成两行两列：每格能分到近一倍的宽度，四个值都放得下。
+ * 高度相应加一行。
+ */
+export const PANEL_BASE_WIDTH = 214;
+export const PANEL_BASE_HEIGHT = 104;
 /** 面板与视口边缘的最小间距 */
 export const PANEL_BASE_MARGIN = 10;
 /** 默认相对飞机的偏移：右上方 */

@@ -268,6 +268,65 @@
   animation: pulse-soft 1.1s ease-in-out infinite;
 }
 
+/*
+ * ── 姿态告警的边框闪烁 ──
+ *
+ * 铺满整个地图、只画一圈内嵌边框。用 inset 阴影再往里补一层辉光，
+ * 单靠 border 在浅色底图上几乎看不出来。
+ *
+ * 不吃指针事件：告警时飞行员正在操作，浮层拦掉地图拖动是帮倒忙。
+ * z-index 低于告警横幅（600），横幅始终压在上面保持可读。
+ */
+.alertBorderFlash {
+  position: absolute;
+  inset: 0;
+  z-index: 590;
+  pointer-events: none;
+  /* 颜色由组件用内联 color 给，边框与内辉光共用同一个 currentColor */
+  border: 3px solid currentColor;
+  border-radius: var(--radius-sm);
+  animation-name: alert-border-flash;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* 级别越高辉光越厚，不只靠颜色区分——色觉障碍下颜色是不够的 */
+.alertBorderFlash_caution {
+  box-shadow: inset 0 0 12px 1px currentColor;
+}
+
+.alertBorderFlash_warning {
+  box-shadow: inset 0 0 20px 2px currentColor;
+}
+
+.alertBorderFlash_danger {
+  box-shadow: inset 0 0 32px 4px currentColor;
+}
+
+@keyframes alert-border-flash {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/*
+ * 「减少动态效果」下不闪，但**边框留着**。
+ *
+ * 这条偏好的常见诱因之一就是光敏性癫痫，一圈占满屏幕的闪烁边框正是
+ * 最该收掉的那类动效。可告警本身是安全信息，不能连同动画一起消失 ——
+ * 改成常亮，信号还在，只是不闪了。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .alertBorderFlash {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* ── 右侧控制栏 ── */
 
 .rightControls {
@@ -1393,10 +1452,17 @@
   background: rgba(128, 128, 128, 0.25);
 }
 
+/*
+ * 两行两列，不是挤成一行。
+ *
+ * 一行四格时每格分不到 45px，「7700 standby」这种值必然被截。
+ * 两列之后每格有近一倍宽度，四个值都放得下。
+ */
 .aircraftInfoCells {
-  display: flex;
-  align-items: flex-start;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 5px 10px;
   min-width: 0;
 }
 
@@ -1405,11 +1471,6 @@
   flex-direction: column;
   gap: 1px;
   min-width: 0;
-}
-
-/* XPDR 那格内容最长，让它吃掉剩余宽度 */
-.aircraftInfoCell:last-child {
-  flex: 1;
 }
 
 .aircraftInfoCellLabel {

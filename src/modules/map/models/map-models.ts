@@ -213,6 +213,41 @@ export interface MapRunwayGeometry {
   readonly surface?: string;
 }
 
+/** 跑道的一个端点（一条跑道有两个，方向相反） */
+export interface MapRunwayEnd {
+  /** 该端的编号，如 `16R` */
+  readonly ident: string;
+  /** 该端的入口坐标 */
+  readonly threshold: MapCoordinate;
+  /** 所属跑道的完整编号，如 `16R/34L` */
+  readonly runwayIdent: string;
+}
+
+/**
+ * 把一条跑道拆成两个端点。
+ *
+ * 一条跑道有两个方向，从哪头起飞是完全不同的两件事（航向差 180°、
+ * 滑到的位置在场地两端）。界面上只给「16R/34L」一个按钮，用户就没法
+ * 指定要去哪一头 —— 只能由程序挑近的那个，而近的未必是管制给的那个。
+ *
+ * 端点编号优先用后端的 `leIdent` / `heIdent`；老数据只有合并编号时，
+ * 按 `/` 拆开兜底。两者都没有就退回整条跑道的编号，至少还能用。
+ *
+ * `start` 对应 LE 端、`end` 对应 HE 端（见 map-airport-parser 的构造）。
+ */
+export function runwayEnds(runway: MapRunwayGeometry): MapRunwayEnd[] {
+  const [fallbackLe, fallbackHe] = runway.ident.split('/');
+  const leIdent = (runway.leIdent ?? fallbackLe ?? runway.ident).trim();
+  const heIdent = (runway.heIdent ?? fallbackHe ?? runway.ident).trim();
+
+  const ends: MapRunwayEnd[] = [
+    { ident: leIdent, threshold: runway.start, runwayIdent: runway.ident },
+    { ident: heIdent, threshold: runway.end, runwayIdent: runway.ident },
+  ];
+  // 两端编号一样（数据缺失导致的兜底重合）时只留一个，免得出现两个同名按钮
+  return ends[0].ident === ends[1].ident ? [ends[0]] : ends;
+}
+
 /**
  * 机场地面要素（跑道 / 滑行道 / 停机坪）
  *
@@ -313,6 +348,31 @@ export const MAP_ALERT_LEVEL_COLOR: Record<MapFlightAlertLevel, string> = {
   warning: '#ec835a',
   danger: '#d03b3b',
 };
+
+/** 级别严重度，数值越大越紧急（用于同时告警时取最高级） */
+export const MAP_ALERT_LEVEL_RANK: Record<MapFlightAlertLevel, number> = {
+  caution: 0,
+  warning: 1,
+  danger: 2,
+};
+
+/**
+ * 一组告警里最紧急的那一级；没有告警返回 undefined。
+ *
+ * 边框只有一圈，同时报「坡度过大」和「地形逼近」时必须按最高级闪 ——
+ * 取第一条或最后一条都可能把致命告警显示成黄色。
+ */
+export function highestAlertLevel(
+  alerts: readonly MapFlightAlert[],
+): MapFlightAlertLevel | undefined {
+  let highest: MapFlightAlertLevel | undefined;
+  for (const alert of alerts) {
+    if (highest === undefined || MAP_ALERT_LEVEL_RANK[alert.level] > MAP_ALERT_LEVEL_RANK[highest]) {
+      highest = alert.level;
+    }
+  }
+  return highest;
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // 计时器自动启停模式
