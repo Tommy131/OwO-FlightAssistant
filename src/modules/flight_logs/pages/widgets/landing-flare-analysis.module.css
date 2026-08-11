@@ -112,6 +112,7 @@
   width: 100%;
   min-width: 620px;
   height: 240px;
+  cursor: crosshair;
 }
 
 .gridLine {
@@ -170,6 +171,46 @@
   fill: var(--color-warning);
   stroke: var(--color-surface);
   stroke-width: 3;
+}
+
+.cursorReadout {
+  pointer-events: none;
+}
+
+.cursorLine {
+  stroke: var(--color-primary-a40);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.cursorPoint {
+  fill: var(--color-surface);
+  stroke: var(--color-primary);
+  stroke-width: 3;
+}
+
+.cursorTooltip rect {
+  fill: color-mix(in srgb, var(--color-surface) 94%, var(--color-background));
+  stroke: var(--color-primary-a40);
+  stroke-width: 1;
+}
+
+.cursorTime,
+.cursorValue {
+  font-family: var(--font-mono);
+}
+
+.cursorTime {
+  fill: var(--color-primary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.cursorValue {
+  fill: var(--color-text-primary);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .tableWrap,

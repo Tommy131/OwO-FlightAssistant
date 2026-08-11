@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useTranslate } from '../../../../core/localization/use-translate';
 import { MaterialIcon } from '../../../../core/widgets/common/icon';
@@ -137,6 +137,7 @@ export function LandingFlareAnalysis({ log }: { log: FlightLog }) {
 
 function FlareCurve({ samples }: { samples: readonly LandingFlareSample[] }) {
   const t = useTranslate();
+  const [activeIndex, setActiveIndex] = useState<number>();
   const values = samples
     .map((sample) => sample.verticalSpeed)
     .filter((value): value is number => value !== undefined && Number.isFinite(value));
@@ -153,6 +154,33 @@ function FlareCurve({ samples }: { samples: readonly LandingFlareSample[] }) {
   const xAt = (index: number) => PLOT.left + (index / (samples.length - 1)) * plotWidth;
   const yAt = (value: number) => PLOT.top + ((maximum - value) / range) * plotHeight;
   const gridValues = Array.from({ length: 5 }, (_, index) => maximum - (range * index) / 4);
+  const activeSample = activeIndex === undefined ? undefined : samples[activeIndex];
+  const activeValue = activeSample?.verticalSpeed;
+  const activeX = activeIndex === undefined ? undefined : xAt(activeIndex);
+  const activeY = activeValue === undefined ? undefined : yAt(activeValue);
+
+  const selectNearestSample = (clientX: number, chart: SVGSVGElement) => {
+    const bounds = chart.getBoundingClientRect();
+    if (!Number.isFinite(clientX) || bounds.width <= 0) return;
+
+    const scale = Math.min(bounds.width / CHART_WIDTH, bounds.height / CHART_HEIGHT);
+    if (!Number.isFinite(scale) || scale <= 0) return;
+    const horizontalOffset = (bounds.width - CHART_WIDTH * scale) / 2;
+    const chartX = (clientX - bounds.left - horizontalOffset) / scale;
+    let nearestIndex: number | undefined;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    samples.forEach((sample, index) => {
+      if (sample.verticalSpeed === undefined || !Number.isFinite(sample.verticalSpeed)) return;
+      const distance = Math.abs(chartX - xAt(index));
+      if (distance < nearestDistance) {
+        nearestIndex = index;
+        nearestDistance = distance;
+      }
+    });
+
+    setActiveIndex(nearestIndex);
+  };
 
   let path = '';
   samples.forEach((sample, index) => {
@@ -166,8 +194,12 @@ function FlareCurve({ samples }: { samples: readonly LandingFlareSample[] }) {
     <svg
       className={styles.chart}
       viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+      preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label={t(K.flareTitle)}
+      onPointerMove={(event) => selectNearestSample(event.clientX, event.currentTarget)}
+      onClick={(event) => selectNearestSample(event.clientX, event.currentTarget)}
+      onPointerLeave={() => setActiveIndex(undefined)}
     >
       {gridValues.map((value) => (
         <g key={value}>
@@ -203,9 +235,45 @@ function FlareCurve({ samples }: { samples: readonly LandingFlareSample[] }) {
           </g>
         );
       })}
+      {activeSample && activeValue !== undefined && activeX !== undefined && activeY !== undefined && (
+        <g className={styles.cursorReadout} data-testid="flare-cursor-readout">
+          <line
+            x1={activeX}
+            x2={activeX}
+            y1={PLOT.top}
+            y2={CHART_HEIGHT - PLOT.bottom}
+            className={styles.cursorLine}
+          />
+          <circle cx={activeX} cy={activeY} r={6.5} className={styles.cursorPoint} />
+          <g
+            transform={`translate(${tooltipX(activeX)}, ${tooltipY(activeY)})`}
+            className={styles.cursorTooltip}
+          >
+            <rect width={142} height={42} rx={5} />
+            <text x={10} y={16} className={styles.cursorTime}>
+              {formatCursorTime(activeSample.secondsBeforeTouchdown)}
+            </text>
+            <text x={10} y={31} className={styles.cursorValue}>
+              IVV {formatNumber(activeValue, 0)} fpm
+            </text>
+          </g>
+        </g>
+      )}
       <text x={14} y={18} className={styles.unitLabel}>fpm</text>
     </svg>
   );
+}
+
+function tooltipX(pointX: number): number {
+  return pointX > CHART_WIDTH - PLOT.right - 156 ? pointX - 154 : pointX + 12;
+}
+
+function tooltipY(pointY: number): number {
+  return pointY < PLOT.top + 54 ? pointY + 12 : pointY - 52;
+}
+
+function formatCursorTime(secondsBeforeTouchdown: number): string {
+  return secondsBeforeTouchdown === 0 ? 'TD' : `T-${secondsBeforeTouchdown}s`;
 }
 
 function Readout({
