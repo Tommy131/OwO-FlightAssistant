@@ -128,7 +128,19 @@ export function MapPage() {
         }}
       />
 
-      <MapHud />
+      {/*
+        左下角是一列，不是两个各自绝对定位的浮层。
+
+        计时器和机场卡此前都锚在左下角，机场卡（430px 宽、最高 62%）又压在
+        计时器上层，选中机场后计时器就整个被盖住了。放进同一列后机场卡把
+        计时器顶上去，而不是盖住它 —— 卡片收起/展开、窄屏变全宽都自动跟着走，
+        不需要去量卡片有多高。
+      */}
+      <div className={styles.bottomLeftStack}>
+        <MapHud />
+        <SelectedAirportCard />
+      </div>
+
       <MapAlertOverlay />
       <MapLegendStack />
       {/* 只在满足进近条件时自己出现 */}
@@ -149,7 +161,6 @@ export function MapPage() {
         />
       )}
 
-      <SelectedAirportCard />
       {/* 自己判断显隐：开关在右侧控制栏的「进近程序」组里 */}
       <ProcedurePanel />
       <TaxiGuidancePanel />

@@ -104,6 +104,18 @@
   animation: slide-up 0.14s ease-out;
 }
 
+/* 浮层里的分组标题（目前只有「收藏机场」一组） */
+.suggestionGroupTitle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-a40);
+}
+
 .suggestionItem {
   display: flex;
   align-items: baseline;
@@ -155,13 +167,36 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* ── HUD ── */
+/* ── 左下角浮层列：计时器 + 选中机场卡 ── */
 
-.hud {
+/*
+ * 两者原本各自绝对定位在左下角，机场卡盖在计时器上层，选中机场后计时器就没了。
+ * 改成一列自下而上堆叠：计时器固定不压缩，机场卡吃掉剩下的空间。
+ *
+ * 整列限高 70%（`.page` 是 height:100%，百分比有确定的解），留出上半屏看地图；
+ * 机场卡因此不再需要自己的 `max-height: 62%` —— 由 flex 分配剩余空间，
+ * 卡片收起/展开、窄屏变全宽都不用另外算。
+ */
+.bottomLeftStack {
   position: absolute;
   left: var(--space-md);
   bottom: var(--space-md);
-  z-index: 500;
+  z-index: 560;
+  width: min(430px, calc(100% - 2 * var(--space-md)));
+  max-height: 70%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  /* 空白处不吃事件，否则会挡住底下地图的拖拽与点击 */
+  pointer-events: none;
+}
+
+.hud {
+  /* 计时器是这一列里唯一不让压缩的：宁可机场卡矮一点 */
+  flex-shrink: 0;
+  align-self: flex-start;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -437,12 +472,14 @@
 /* ── 选中机场底卡（毛玻璃，对齐桌面版 SelectedAirportBottomCard）── */
 
 .airportCard {
-  position: absolute;
-  left: var(--space-md);
-  bottom: var(--space-md);
-  z-index: 560;
-  width: min(430px, calc(100% - 2 * var(--space-md)));
-  max-height: 62%;
+  /*
+   * 定位与限高交给 `.bottomLeftStack`：卡片在那一列里吃掉计时器之外的剩余空间。
+   * `min-height: 0` 是必须的 —— flex 子项默认 min-height:auto 不肯缩到内容以下，
+   * 内容一长就会把计时器重新顶出可视区。
+   */
+  width: 100%;
+  min-height: 0;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -622,6 +659,33 @@
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
+}
+
+/* ── COM 频率表：一类一行，类别名按类别配色 ── */
+
+.comTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.comTable td {
+  padding: 3px 0;
+  vertical-align: baseline;
+}
+
+.comLabel {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  /* 类别列窄一点，把宽度让给频率值（地面能有五个） */
+  width: 1%;
+  padding-right: 10px !important;
+}
+
+.comValue {
+  color: var(--color-text-primary);
+  word-break: break-word;
 }
 
 /* 跑道一行：编号 + 长度 + 道面类型，两端的进近设施另起一行 */
@@ -1199,9 +1263,16 @@
     right: 56px;
   }
 
-  .hud {
+  .bottomLeftStack {
     left: var(--space-sm);
+    right: var(--space-sm);
     bottom: var(--space-sm);
+    width: auto;
+    /* 窄屏地图本来就小，整列再收一点，别让机场卡吃掉大半个屏 */
+    max-height: 66%;
+  }
+
+  .hud {
     padding: 8px 10px;
   }
 
@@ -1216,13 +1287,7 @@
     max-height: calc(100% - 2 * var(--space-sm));
   }
 
-  .airportCard {
-    left: var(--space-sm);
-    right: var(--space-sm);
-    bottom: var(--space-sm);
-    width: auto;
-    max-height: 58%;
-  }
+  /* 定位与限高都由 .bottomLeftStack 统一管，这里不再单独摆放 */
 
   /*
    * 窄屏放不下并排的两张卡。程序面板是用户主动打开的，

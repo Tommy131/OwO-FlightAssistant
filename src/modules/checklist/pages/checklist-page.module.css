@@ -479,10 +479,30 @@
   .itemTile {
     grid-template-columns: 20px auto minmax(0, 1fr);
     row-gap: 4px;
+    /* 窄屏寸土寸金，四列时的横向留白收一点 */
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  /*
+   * 换行的是 .itemTrailing（响应值和手动接管角标的外壳），不是 .itemResponse。
+   *
+   * 这里原先写的是 `.itemResponse { grid-column: 3 }` —— 但它是 .itemTrailing
+   * 的子元素、根本不是栅格子项，那条规则一直是空转的。于是末列在三列栅格里
+   * 自动落到第二行第一列（只有 20px 宽），外壳又是 align-items: flex-end，
+   * 内容便朝左溢出到容器外，「已检查 (CHECKED)」被裁成「ECKED)」。
+   * 要摆的是外壳本身，摆到第三列第二行、与任务文字对齐。
+   */
+  .itemTrailing {
+    grid-column: 3;
+    grid-row: 2;
+    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
   .itemResponse {
-    grid-column: 3;
     text-align: left;
   }
 
