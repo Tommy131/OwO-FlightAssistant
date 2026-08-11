@@ -14,6 +14,9 @@ import { lookupRunwayAt } from '../services/runway-lookup';
 import {
   computeLandingMetrics,
   computeTakeoffMetrics,
+  flareHeightFt,
+  peakTouchdownG,
+  touchdownSinkRateFpm,
 } from '../services/takeoff-landing-metrics';
 import {
   flightLogDurationMs,
@@ -533,8 +536,20 @@ function captureSnapshot(
   log.maxAltitude = Math.max(log.maxAltitude, point.altitude);
   log.maxAirspeed = Math.max(log.maxAirspeed, point.airspeed);
   log.maxGroundSpeed = Math.max(log.maxGroundSpeed, point.groundSpeed);
-  log.maxG = Math.max(log.maxG, point.gForce);
-  log.minG = Math.min(log.minG, point.gForce);
+  /*
+   * G 的极值用第一个采样点开张，不能拿建档时写死的 1 去比。
+   *
+   * 那个 1 是「静止时的过载」，拿它当种子等于给极值预置了一个假样本：
+   * 全程都在 1.05 以上的飞行，最小 G 仍会报 1.00；全程都在 1 以下的
+   * 平飞下降，最大 G 也仍是 1.00。两个数看着都正常，其实都不是真的极值。
+   */
+  if (log.points.length === 1) {
+    log.maxG = point.gForce;
+    log.minG = point.gForce;
+  } else {
+    log.maxG = Math.max(log.maxG, point.gForce);
+    log.minG = Math.min(log.minG, point.gForce);
+  }
   updateFuelUsed(log);
 
   const onGround = point.onGround ?? false;
@@ -555,7 +570,7 @@ function captureSnapshot(
     };
   }
 
-  trackLandingState(log, point, onGround, now);
+  trackLandingState(log, onGround, now);
   recordingContext.lastOnGround = onGround;
   recordingContext.lastSampleAt = now;
 
@@ -572,12 +587,7 @@ function captureSnapshot(
  * 空中 → 地面的翻转记为一次接地，收集接地序列的 G 值；
  * 连续在地面超过 2 秒后定稿落地数据（覆盖弹跳场景）。
  */
-function trackLandingState(
-  log: FlightLog,
-  point: FlightLogPoint,
-  onGround: boolean,
-  now: number,
-): void {
+function trackLandingState(log: FlightLog, onGround: boolean, now: number): void {
   const wasOnGround = recordingContext.lastOnGround;
 
   if (!onGround) {
@@ -599,12 +609,12 @@ function trackLandingState(
     now - recordingContext.stableGroundSince >= LANDING_STABLE_DURATION_MS &&
     recordingContext.touchdownPointIndexes.length > 0
   ) {
-    updateLandingDataFromTouchdowns(log, point);
+    updateLandingDataFromTouchdowns(log);
   }
 }
 
 /** 由接地序列汇总落地数据与评级 */
-function updateLandingDataFromTouchdowns(log: FlightLog, latestPoint: FlightLogPoint): void {
+function updateLandingDataFromTouchdowns(log: FlightLog): void {
   const indexes = recordingContext.touchdownPointIndexes;
   if (indexes.length === 0) return;
 
@@ -613,20 +623,35 @@ function updateLandingDataFromTouchdowns(log: FlightLog, latestPoint: FlightLogP
     .filter((item): item is FlightLogPoint => item !== undefined);
   if (sequence.length === 0) return;
 
-  const gForces = sequence
-    .map((item) => item.gForce)
-    .filter((value) => value >= MIN_VALID_LANDING_G && value <= MAX_VALID_LANDING_G);
+  /*
+   * 每次接地都在**触地之后**的窗口里取 G 峰值，而不是读触地那一个采样点。
+   *
+   * 触地瞬间减震支柱还没压缩，机身过载仍接近 1；峰值要晚 100–300ms 才出现。
+   * 原来只读翻转点，于是无论落得多重都只报 1.0 出头（模拟器自报 3.36，
+   * 这里显示 1.12）。取窗口极值才是真正砸下去的那一下。
+   */
+  const gForces = indexes
+    .map((index) =>
+      peakTouchdownG(log.points, index, {
+        minValidG: MIN_VALID_LANDING_G,
+        maxValidG: MAX_VALID_LANDING_G,
+      }),
+    )
+    .filter((value): value is number => value !== undefined);
 
   const primary = sequence[0];
   // 取接地序列中的峰值 G 作为落地评级依据
   const peakG = gForces.length > 0 ? Math.max(...gForces) : primary.gForce;
+
+  // 下沉率反过来要往前看：翻转点的垂速已经被起落架吃掉一截
+  const touchdownSink = touchdownSinkRateFpm(log.points, indexes[0]);
 
   log.landingData = {
     latitude: primary.latitude,
     longitude: primary.longitude,
     gForce: peakG,
     gForceSource: primary.gForceSource,
-    verticalSpeed: primary.verticalSpeed,
+    verticalSpeed: touchdownSink ?? primary.verticalSpeed,
     airspeed: primary.airspeed,
     groundSpeed: primary.groundSpeed,
     pitch: primary.pitch,
@@ -640,7 +665,12 @@ function updateLandingDataFromTouchdowns(log: FlightLog, latestPoint: FlightLogP
     // 首次接地之后的额外接地次数即为弹跳次数
     bounceCount: Math.max(0, sequence.length - 1),
     sinkRateAt50FtFpm: findSinkRateAt50Ft(log.points, primary.timestamp),
-    flareHeightFt: latestPoint.radioAltitude,
+    /*
+     * 拉平高度要在接地**之前**找，不能读 latestPoint —— 那是「连续在地 2 秒」
+     * 之后定稿时的采样点，飞机早停在跑道上了，无线电高度恒为 0。
+     * 界面上「拉平高度 0 ft」就是这么来的。
+     */
+    flareHeightFt: flareHeightFt(log.points, indexes[0]),
   };
 }
 
@@ -691,9 +721,8 @@ async function enrichTakeoffLandingMetrics(log: FlightLog): Promise<void> {
 function finalizeLandingAtStop(log: FlightLog): void {
   if (log.landingData) return;
   if (recordingContext.touchdownPointIndexes.length === 0) return;
-  const lastPoint = log.points[log.points.length - 1];
-  if (!lastPoint) return;
-  updateLandingDataFromTouchdowns(log, lastPoint);
+  if (log.points.length === 0) return;
+  updateLandingDataFromTouchdowns(log);
 }
 
 /** 回溯接地前最后一次无线电高度 ≈ 50ft 时的下降率 */

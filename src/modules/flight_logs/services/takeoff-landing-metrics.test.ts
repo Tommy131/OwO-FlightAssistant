@@ -9,9 +9,12 @@ import {
   computeLandingMetrics,
   computeRemainingRunwayFt,
   computeTakeoffMetrics,
+  flareHeightFt,
   headingDifference,
+  peakTouchdownG,
   scoreApproachStability,
   scoreTakeoffStability,
+  touchdownSinkRateFpm,
 } from './takeoff-landing-metrics';
 
 /**
@@ -439,5 +442,158 @@ describe('headingDifference', () => {
     expect(headingDifference(350, 10)).toBe(-20);
     expect(headingDifference(90, 90)).toBe(0);
     expect(Math.abs(headingDifference(0, 180))).toBe(180);
+  });
+});
+
+/*
+ * 接地冲击取值
+ *
+ * 这一组是那个「不管怎么落都只报 1.12 G」的回归测试。
+ * 症结是取值时机：G 的峰值在触地**之后**，下沉率的真值在触地**之前**，
+ * 只读 onGround 翻转的那一个采样点，两个都读不对。
+ */
+const G_BOUNDS = { minValidG: 0.3, maxValidG: 8 };
+
+/** 一次重着陆：0.2s 触地，0.4s 支柱压到底出现峰值，随后回落 */
+function hardLandingPoints(): FlightLogPoint[] {
+  return [
+    point({ t: 0.0, onGround: false, gForce: 1.0, verticalSpeed: -515 }),
+    point({ t: 0.2, onGround: true, gForce: 1.12 }), // 触地瞬间，支柱还没压缩
+    point({ t: 0.4, onGround: true, gForce: 3.36 }), // 真正的冲击峰值
+    point({ t: 0.6, onGround: true, gForce: 1.8 }),
+    point({ t: 1.0, onGround: true, gForce: 1.05 }),
+  ];
+}
+
+describe('peakTouchdownG', () => {
+  // 用户实测：模拟器自报 3.36，应用却显示 1.12（触地那一点的值）
+  it('取触地之后窗口内的峰值，而不是触地瞬间的值', () => {
+    expect(peakTouchdownG(hardLandingPoints(), 1, G_BOUNDS)).toBeCloseTo(3.36, 2);
+  });
+
+  it('轻着陆不会被放大', () => {
+    const points = [
+      point({ t: 0.0, onGround: false, gForce: 1.0 }),
+      point({ t: 0.2, onGround: true, gForce: 1.03 }),
+      point({ t: 0.4, onGround: true, gForce: 1.12 }),
+      point({ t: 0.6, onGround: true, gForce: 1.04 }),
+    ];
+    expect(peakTouchdownG(points, 1, G_BOUNDS)).toBeCloseTo(1.12, 2);
+  });
+
+  // 窗口不能长到把滑跑段扫进来 —— 压过跑道接缝也会有小尖峰
+  it('窗口之外的尖峰不算数', () => {
+    const points = [
+      point({ t: 0.0, onGround: true, gForce: 1.1 }),
+      point({ t: 5.0, onGround: true, gForce: 2.9 }), // 滑跑中压过接缝
+    ];
+    expect(peakTouchdownG(points, 0, G_BOUNDS)).toBeCloseTo(1.1, 2);
+  });
+
+  it('区间外的坏读数被丢掉', () => {
+    const points = [
+      point({ t: 0.0, onGround: true, gForce: 1.2 }),
+      point({ t: 0.3, onGround: true, gForce: 99 }), // 模拟器坏值
+      point({ t: 0.6, onGround: true, gForce: 0 }),
+    ];
+    expect(peakTouchdownG(points, 0, G_BOUNDS)).toBeCloseTo(1.2, 2);
+  });
+
+  it('全是坏读数时返回 undefined 而不是硬凑一个数', () => {
+    const points = [point({ t: 0, onGround: true, gForce: 99 })];
+    expect(peakTouchdownG(points, 0, G_BOUNDS)).toBeUndefined();
+  });
+
+  it('下标越界不炸', () => {
+    expect(peakTouchdownG([], 0, G_BOUNDS)).toBeUndefined();
+    expect(peakTouchdownG(hardLandingPoints(), 99, G_BOUNDS)).toBeUndefined();
+  });
+});
+
+describe('touchdownSinkRateFpm', () => {
+  // 触地后起落架已经吃掉一截垂速，读那一点会把 -515 报成 -254
+  it('取触地前最后一个空中采样的垂速', () => {
+    expect(touchdownSinkRateFpm(hardLandingPoints(), 1)).toBe(-515);
+  });
+
+  it('跳过触地后的采样点', () => {
+    const points = [
+      point({ t: 0.0, onGround: false, verticalSpeed: -600 }),
+      point({ t: 0.2, onGround: true, verticalSpeed: -254 }),
+      point({ t: 0.4, onGround: true, verticalSpeed: -20 }),
+    ];
+    expect(touchdownSinkRateFpm(points, 1)).toBe(-600);
+  });
+
+  it('回看窗口之外的不算', () => {
+    const points = [
+      point({ t: 0.0, onGround: false, verticalSpeed: -700 }),
+      point({ t: 10.0, onGround: true, verticalSpeed: -30 }),
+    ];
+    expect(touchdownSinkRateFpm(points, 1)).toBeUndefined();
+  });
+
+  it('没有 onGround 时按垂速判断是否在空中', () => {
+    const points = [
+      point({ t: 0.0, onGround: undefined, verticalSpeed: -480 }),
+      point({ t: 0.2, onGround: true, verticalSpeed: -100 }),
+    ];
+    expect(touchdownSinkRateFpm(points, 1)).toBe(-480);
+  });
+
+  // 宁可显示不可用，也不要给一个偏小的数让人以为落得比实际轻
+  it('前面没有空中采样时返回 undefined', () => {
+    const points = [
+      point({ t: 0.0, onGround: true, verticalSpeed: -10 }),
+      point({ t: 0.2, onGround: true, verticalSpeed: -5 }),
+    ];
+    expect(touchdownSinkRateFpm(points, 1)).toBeUndefined();
+  });
+});
+
+/*
+ * 拉平高度此前恒为 0 —— 读的是「落地定稿那一刻」的无线电高度，
+ * 而定稿在连续在地 2 秒之后，飞机早停在跑道上了。
+ */
+describe('flareHeightFt', () => {
+  /** 一次正常拉平：80ft 沉得最快，之后逐渐拉平接地 */
+  const approach = [
+    point({ t: 0, radioAltitude: 200, verticalSpeed: -700 }), // 超出搜索范围
+    point({ t: 1, radioAltitude: 120, verticalSpeed: -720 }),
+    point({ t: 2, radioAltitude: 80, verticalSpeed: -800 }), // 沉得最快 = 拉平起点
+    point({ t: 3, radioAltitude: 40, verticalSpeed: -500 }),
+    point({ t: 4, radioAltitude: 12, verticalSpeed: -220 }),
+    point({ t: 5, radioAltitude: 0, verticalSpeed: -60, onGround: true }),
+  ];
+
+  it('取下沉最快那一点的对地高度，而不是接地后的 0', () => {
+    expect(flareHeightFt(approach, 5)).toBe(80);
+  });
+
+  it('搜索上限之外的采样不参与', () => {
+    // 200ft 那点垂速更负也不能选，它在 FLARE_SEARCH_AGL_FT 之上
+    expect(flareHeightFt(approach, 5)).not.toBe(200);
+  });
+
+  it('接地后的回弹（正垂速）不参与', () => {
+    const points = [
+      point({ t: 0, radioAltitude: 60, verticalSpeed: -600 }),
+      point({ t: 1, radioAltitude: 0, verticalSpeed: 0, onGround: true }),
+      point({ t: 2, radioAltitude: 5, verticalSpeed: 300, onGround: false }),
+    ];
+    expect(flareHeightFt(points, 2)).toBe(60);
+  });
+
+  it('没有无线电高度时返回 undefined', () => {
+    const points = [
+      point({ t: 0, radioAltitude: undefined, verticalSpeed: -500 }),
+      point({ t: 1, radioAltitude: undefined, verticalSpeed: -200, onGround: true }),
+    ];
+    expect(flareHeightFt(points, 1)).toBeUndefined();
+  });
+
+  it('下标越界不炸', () => {
+    expect(flareHeightFt([], 0)).toBeUndefined();
+    expect(flareHeightFt(approach, 99)).toBeUndefined();
   });
 });

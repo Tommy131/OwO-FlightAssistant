@@ -37,6 +37,25 @@ export const STABLE_SINK_RATE_FPM = 1000;
 /** 稳定进近准则里的坡度上限（度） */
 export const STABLE_BANK_DEG = 15;
 
+/**
+ * 接地冲击的取值窗口（毫秒）。
+ *
+ * 触地那一瞬间机身还没受力 —— 起落架要压缩到底才出现峰值 G，
+ * 整个过程大约 100–300ms。只读「onGround 翻转的那一个采样点」
+ * 必然读到接触前后的 1.0 出头，与模拟器自报的着陆 G 差出好几倍。
+ * 往后多看这么久，才覆盖得到压缩峰值。
+ */
+export const TOUCHDOWN_IMPACT_WINDOW_MS = 1_500;
+
+/**
+ * 接地下沉率的回看窗口（毫秒）。
+ *
+ * 同理但方向相反：`onGround` 变 true 时轮子已经着地、垂速已被吸收掉一截，
+ * 那一刻读到的不是「接地时的下沉率」而是「接地后的残余下沉率」。
+ * 真正要的是触地**前**最后的空中读数。
+ */
+export const TOUCHDOWN_SINK_LOOKBACK_MS = 1_200;
+
 /** 起飞稳定性扣分上限：航向偏差 / 坡度 / 俯仰抖动 */
 const TAKEOFF_HEADING_PENALTY_CAP = 40;
 const TAKEOFF_BANK_PENALTY_CAP = 30;
@@ -368,6 +387,124 @@ export function scoreApproachStability(window: readonly FlightLogPoint[]): numbe
   );
 
   return clampScore(100 - sinkPenalty - bankPenalty - speedPenalty);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 接地冲击取值
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * 取一次接地的冲击 G 峰值。
+ *
+ * ── 为什么不能只读接地那一点 ──
+ * `onGround` 变 true 的瞬间，轮胎刚碰到跑道、减震支柱还没压缩，
+ * 机身受到的过载仍然接近 1。真正的峰值出现在支柱压到底的那一刻，
+ * 晚 100–300ms。原实现只在翻转点取值，于是不管落得多重都只报 1.0 出头
+ * （实测模拟器自报 3.36，这里读出来 1.12）。
+ *
+ * 所以从接地点**往后**扫一个窗口取最大值。窗口不宜太长：滑跑中压过
+ * 跑道接缝也会有小尖峰，1.5 秒足够覆盖压缩过程又不会扫进滑跑段。
+ *
+ * 只接受落在合理区间内的读数 —— 模拟器偶尔会吐出 0 或几十的坏值，
+ * 那种数混进来会把「完美着陆」判成坠机。
+ */
+export function peakTouchdownG(
+  points: readonly FlightLogPoint[],
+  touchdownIndex: number,
+  options: { minValidG: number; maxValidG: number; windowMs?: number },
+): number | undefined {
+  const start = points[touchdownIndex];
+  if (!start) return undefined;
+
+  const windowMs = options.windowMs ?? TOUCHDOWN_IMPACT_WINDOW_MS;
+  const deadline = start.timestamp.getTime() + windowMs;
+
+  let peak: number | undefined;
+  for (let index = touchdownIndex; index < points.length; index++) {
+    const point = points[index];
+    if (point.timestamp.getTime() > deadline) break;
+    const value = point.gForce;
+    if (!Number.isFinite(value)) continue;
+    if (value < options.minValidG || value > options.maxValidG) continue;
+    if (peak === undefined || value > peak) peak = value;
+  }
+  return peak;
+}
+
+/**
+ * 取接地瞬间的下沉率（fpm，向下为负）。
+ *
+ * 与 G 相反，这个值要往**前**看：`onGround` 翻转时起落架已经吃掉一部分
+ * 垂速，读到的是接地之后的残余下沉率，不是接地时的。
+ * 取触地前最后一个仍在空中的采样点，那才是真正砸下去的速度。
+ *
+ * 找不到（一开始就在地面、或前面没有空中采样）就返回 undefined，
+ * 交给调用方决定怎么显示 —— 宁可显示不可用，也不要给一个偏小的数，
+ * 那会让人以为自己落得比实际轻。
+ */
+export function touchdownSinkRateFpm(
+  points: readonly FlightLogPoint[],
+  touchdownIndex: number,
+  options: { lookbackMs?: number } = {},
+): number | undefined {
+  const touchdown = points[touchdownIndex];
+  if (!touchdown) return undefined;
+
+  const lookbackMs = options.lookbackMs ?? TOUCHDOWN_SINK_LOOKBACK_MS;
+  const earliest = touchdown.timestamp.getTime() - lookbackMs;
+
+  for (let index = touchdownIndex - 1; index >= 0; index--) {
+    const point = points[index];
+    if (point.timestamp.getTime() < earliest) break;
+    // onGround 没有时退回垂速本身：还在下降就当作仍在空中
+    const airborne = point.onGround === undefined ? point.verticalSpeed < 0 : !point.onGround;
+    if (!airborne) continue;
+    if (!Number.isFinite(point.verticalSpeed)) continue;
+    return point.verticalSpeed;
+  }
+  return undefined;
+}
+
+/** 拉平判定的搜索上限：只在这个对地高度以下找拉平起点 */
+export const FLARE_SEARCH_AGL_FT = 150;
+
+/**
+ * 取拉平起始高度（英尺对地）。
+ *
+ * ── 原来为什么恒为 0 ──
+ * 之前取的是「落地数据定稿那一刻」的无线电高度，而定稿发生在
+ * 连续在地 2 秒之后 —— 那时飞机早就停在跑道上，读出来当然是 0。
+ *
+ * 拉平的物理定义是「下沉率停止恶化、开始被拉回来」的那一点，
+ * 所以在接地前 150 ft 以内找垂速最负的采样点，它的对地高度就是拉平高度。
+ * 用垂速极值而不是俯仰角，是因为俯仰的绝对值跟机型和配平走，
+ * 各家基准不一样；而「沉得最快的那一刻」对谁都成立。
+ */
+export function flareHeightFt(
+  points: readonly FlightLogPoint[],
+  touchdownIndex: number,
+): number | undefined {
+  const touchdown = points[touchdownIndex];
+  if (!touchdown) return undefined;
+
+  let bestHeight: number | undefined;
+  let worstSink: number | undefined;
+
+  for (let index = touchdownIndex; index >= 0; index--) {
+    const point = points[index];
+    const agl = point.radioAltitude;
+    if (agl === undefined || !Number.isFinite(agl)) continue;
+    if (agl > FLARE_SEARCH_AGL_FT) break;
+    if (!Number.isFinite(point.verticalSpeed)) continue;
+    // 只看下降的采样；接地后的正垂速（回弹）不参与
+    if (point.verticalSpeed >= 0) continue;
+    if (worstSink === undefined || point.verticalSpeed < worstSink) {
+      worstSink = point.verticalSpeed;
+      bestHeight = agl;
+    }
+  }
+
+  return bestHeight;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
