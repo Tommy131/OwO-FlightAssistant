@@ -105,6 +105,11 @@ const TERRAIN_FILL_OPACITY: Record<TerrainBand, number> = {
   above: 0.55,
   near: 0.4,
   below: 0.25,
+  /*
+   * 安全区压得很淡：它铺满巡航时的绝大部分视野，只是用来说明
+   * 「这一片查过了、没事」，不该和真正的告警抢注意力。
+   */
+  safe: 0.12,
 };
 
 /** 建一段航迹线 */
@@ -713,20 +718,23 @@ export function MapCanvas({
 
       group.clearLayers();
       for (const cell of buildTerrainCells(state.terrainTiles, altitude)) {
-        L.rectangle(
-          [
-            [cell.south, cell.west],
-            [cell.north, cell.east],
-          ],
-          {
-            renderer,
-            // 只填充不描边：格子是紧挨着的，描边会织出一张网格纸
-            stroke: false,
-            fillColor: cell.color,
-            fillOpacity: TERRAIN_FILL_OPACITY[cell.band],
-            interactive: false,
-          },
-        ).addTo(group);
+        /*
+         * 画圆而不是方格。
+         *
+         * 高程网格本身是方的，但照着画出来就是一片棋盘格，边界横平竖直，
+         * 看着像人为划的区块而不是山脊河谷 —— 而地形恰恰没有直边。
+         * 圆形彼此咬合（半径见 CELL_RADIUS_FACTOR）叠出来的轮廓是圆润的，
+         * 更接近等高线该有的样子。
+         */
+        L.circle([cell.centerLat, cell.centerLon], {
+          renderer,
+          radius: cell.radiusM,
+          // 只填充不描边：圆是互相重叠的，描边会把每个圆都勾出来变成一堆泡泡
+          stroke: false,
+          fillColor: cell.color,
+          fillOpacity: TERRAIN_FILL_OPACITY[cell.band],
+          interactive: false,
+        }).addTo(group);
       }
     }),
   []);

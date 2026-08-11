@@ -35,7 +35,14 @@ export interface TerrainTile {
 }
 
 /** 地形相对本机高度的分级 */
-export type TerrainBand = 'above' | 'near' | 'below';
+/**
+ * 地形分级。
+ *
+ * `safe` 是「有数据、且确认安全」，与「没有数据」是两回事 ——
+ * 从前两者都是一片空白，看不出脚下到底是查过了没事，还是压根没查到。
+ * 画成淡绿色就能一眼分开。
+ */
+export type TerrainBand = 'above' | 'near' | 'below' | 'safe';
 
 /**
  * 分级阈值（英尺，地形高程减本机高度）
@@ -52,6 +59,7 @@ export const TERRAIN_BAND_COLOR: Record<TerrainBand, string> = {
   above: '#d03b3b',
   near: '#ec835a',
   below: '#fab219',
+  safe: '#3ddc84',
 };
 
 /** 米 → 英尺 */
@@ -129,10 +137,41 @@ export interface TerrainCell {
   readonly west: number;
   readonly north: number;
   readonly east: number;
+  /** 格子中心，画圆用 */
+  readonly centerLat: number;
+  readonly centerLon: number;
+  /** 圆的半径（米），由格子边长换算 */
+  readonly radiusM: number;
   readonly band: TerrainBand;
   readonly color: string;
   readonly elevationFt: number;
 }
+
+/** 一个纬度差对应的米数（经度方向随纬度收缩，画圆按米算不受影响） */
+const METERS_PER_DEG_LAT = 111_320;
+
+/**
+ * 圆半径相对格子半边长的放大系数。
+ *
+ * 内切圆（系数 1）会在四个角留下空隙，一片连续的高地会画成一堆散点。
+ * 放大到略超过半对角线（√2/2 ≈ 1.414 的一半再多一点）让相邻圆彼此咬合，
+ * 看上去才是一片连续的区域而不是筛子。
+ */
+const CELL_RADIUS_FACTOR = 0.78;
+
+/**
+ * 安全区的抽稀步长：每 N 行 N 列才画一个。
+ *
+ * 巡航时视野内几乎每一格都是安全的，逐格画等于把格子数翻十倍，
+ * 而它们全是同一片淡绿、彼此完全冗余 —— 每帧多画几千个圆只为铺一层底色。
+ *
+ * 告警格不抽稀：那几格的位置和形状正是要看的东西，差一格就是差 2.8 km。
+ * 安全区只是「这一片查过了、没事」的底色，粗一点没有任何损失。
+ */
+export const SAFE_CELL_STRIDE = 2;
+
+/** 安全区圆要按抽稀步长放大，否则会稀成一片散点 */
+const SAFE_CELL_RADIUS_FACTOR = CELL_RADIUS_FACTOR * SAFE_CELL_STRIDE;
 
 /** 覆盖范围 */
 export interface TerrainBounds {
@@ -199,14 +238,21 @@ export function terrainBandFor(terrainFt: number, aircraftFt: number): TerrainBa
   if (relative >= TERRAIN_ABOVE_FT) return 'above';
   if (relative >= TERRAIN_NEAR_FT) return 'near';
   if (relative >= TERRAIN_DRAW_FLOOR_FT) return 'below';
-  return undefined;
+  // 低于绘制下限即为「查过、确认安全」。返回 safe 而不是 undefined，
+  // 这样界面能把「安全」与「没数据」区分开
+  return 'safe';
 }
 
 /**
  * 把瓦片摊成可以直接画的格子。
  *
- * 低于本机 2000 ft 以下的格子直接不产出 —— 巡航时那是绝大多数格子，
- * 全画出来既没有信息量又会把地图糊死。
+ * 告警格（above / near / below）逐格产出：那几格的位置和形状正是要看的东西，
+ * 差一格就是差一个网格距。
+ *
+ * 安全格按 `SAFE_CELL_STRIDE` 抽稀。巡航时视野内几乎每格都是安全的，
+ * 逐格产出会把格子数翻十倍，而它们全是同一片淡绿、彼此完全冗余 ——
+ * 每帧多画几千个圆只为铺一层底色。抽稀后的圆按同样倍数放大，
+ * 铺出来仍是连续一片。
  */
 export function buildTerrainCells(
   tiles: readonly TerrainTile[],
@@ -226,13 +272,20 @@ export function buildTerrainCells(
         const elevationFt = tile.elevationsM[row * tile.grid + col] * METERS_TO_FEET;
         const band = terrainBandFor(elevationFt, aircraftAltitudeFt);
         if (!band) continue;
+        const isSafe = band === 'safe';
+        // 抽稀只对安全格生效，且只保留步长网格的左上角那一格
+        if (isSafe && (row % SAFE_CELL_STRIDE !== 0 || col % SAFE_CELL_STRIDE !== 0)) continue;
         const south = tile.south + row * cellSpan;
         const west = tile.west + col * cellSpan;
+        const radiusFactor = isSafe ? SAFE_CELL_RADIUS_FACTOR : CELL_RADIUS_FACTOR;
         cells.push({
           south,
           west,
           north: south + cellSpan,
           east: west + cellSpan,
+          centerLat: south + cellSpan / 2,
+          centerLon: west + cellSpan / 2,
+          radiusM: cellSpan * METERS_PER_DEG_LAT * radiusFactor,
           band,
           color: TERRAIN_BAND_COLOR[band],
           elevationFt,

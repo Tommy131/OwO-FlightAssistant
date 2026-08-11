@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   METERS_TO_FEET,
+  SAFE_CELL_STRIDE,
   TERRAIN_BAND_COLOR,
   TERRAIN_CAUTION_LOOK_AHEAD_SEC,
   TERRAIN_MAX_LOOK_AHEAD_NM,
@@ -97,9 +98,16 @@ describe('terrainBandFor', () => {
     expect(terrainBandFor(8_000, 10_000)).toBe('below');
   });
 
-  it('低于本机 2000 ft 以下不画', () => {
-    expect(terrainBandFor(7_999, 10_000)).toBeUndefined();
-    expect(terrainBandFor(0, 10_000)).toBeUndefined();
+  /*
+   * 低于绘制下限的判为 safe，而不是「不画」。
+   *
+   * 两者在界面上完全不同：safe 会铺一层淡绿，表示「这一片查过了、没事」；
+   * 不画则是一片空白，与「压根没取到高程数据」长得一模一样 ——
+   * 飞行员没法从空白里分辨自己是安全还是失去了地形信息。
+   */
+  it('低于本机 2000 ft 以下判为安全，而不是不画', () => {
+    expect(terrainBandFor(7_999, 10_000)).toBe('safe');
+    expect(terrainBandFor(0, 10_000)).toBe('safe');
   });
 
   it('非有限值不画', () => {
@@ -109,17 +117,47 @@ describe('terrainBandFor', () => {
 });
 
 describe('buildTerrainCells', () => {
-  it('只产出够得着的格子，并带上与图例一致的配色', () => {
+  it('告警格逐格产出，并带上与图例一致的配色', () => {
     const tile = makeTile(47, 11, (row) => (row === 0 ? 3000 : 0));
-    // 第 0 行 3000 m ≈ 9843 ft；本机 9000 ft → above。其余 0 m 远低于门槛 → 不画
+    // 第 0 行 3000 m ≈ 9843 ft；本机 9000 ft → above。其余 0 m → safe
     const cells = buildTerrainCells([tile], 9000);
-    expect(cells).toHaveLength(GRID);
-    for (const cell of cells) {
+    const alerting = cells.filter((cell) => cell.band !== 'safe');
+    expect(alerting).toHaveLength(GRID);
+    for (const cell of alerting) {
       expect(cell.band).toBe('above');
       expect(cell.color).toBe(TERRAIN_BAND_COLOR.above);
       expect(cell.north - cell.south).toBeCloseTo(CELL, 10);
       expect(cell.east - cell.west).toBeCloseTo(CELL, 10);
     }
+  });
+
+  /*
+   * 安全格抽稀：巡航时视野内几乎每格都安全，逐格画等于把格子数翻十倍，
+   * 而它们全是同一片淡绿、完全冗余。告警格不受影响 —— 那几格差一格就是
+   * 差一个网格距，位置本身就是信息。
+   */
+  it('安全格按步长抽稀，告警格不抽', () => {
+    const safeOnly = buildTerrainCells([flatTile(47, 11, 0)], 30_000);
+    const perAxis = Math.ceil(GRID / SAFE_CELL_STRIDE);
+    expect(safeOnly).toHaveLength(perAxis * perAxis);
+    expect(safeOnly.every((cell) => cell.band === 'safe')).toBe(true);
+
+    // 同一块瓦片全部判为告警时，一格都不能少
+    const alertingOnly = buildTerrainCells([flatTile(47, 11, 3000)], 0);
+    expect(alertingOnly).toHaveLength(GRID * GRID);
+  });
+
+  it('抽稀后的安全格圆按同样倍数放大，铺出来仍是连续一片', () => {
+    const safe = buildTerrainCells([flatTile(47, 11, 0)], 30_000)[0];
+    const alerting = buildTerrainCells([flatTile(47, 11, 3000)], 0)[0];
+    expect(safe.radiusM).toBeCloseTo(alerting.radiusM * SAFE_CELL_STRIDE, 6);
+  });
+
+  it('每个格子都带得出画圆用的中心与半径', () => {
+    const cell = buildTerrainCells([flatTile(47, 11, 3000)], 0)[0];
+    expect(cell.centerLat).toBeCloseTo((cell.south + cell.north) / 2, 10);
+    expect(cell.centerLon).toBeCloseTo((cell.west + cell.east) / 2, 10);
+    expect(cell.radiusM).toBeGreaterThan(0);
   });
 
   it('格子的经纬范围拼得回整块瓦片', () => {

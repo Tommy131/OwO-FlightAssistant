@@ -126,6 +126,8 @@ const TERRAIN_LEGEND: MapLegendSwatches = {
     { color: '#d03b3b', labelKey: K.legendTerrainDanger },
     { color: '#ec835a', labelKey: K.legendTerrainWarning },
     { color: '#fab219', labelKey: K.legendTerrainCaution },
+    // 与 terrain-model.ts 的 TERRAIN_BAND_COLOR.safe 保持一致
+    { color: '#3ddc84', labelKey: K.legendTerrainSafe },
   ],
 };
 
