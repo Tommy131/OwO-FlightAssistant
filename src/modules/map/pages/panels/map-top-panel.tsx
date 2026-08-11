@@ -2,10 +2,13 @@
  * 顶部面板：机场搜索（带联想）与飞行状态条
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslate } from '../../../../core/localization/use-translate';
 import { IconButton, TextField } from '../../../../core/widgets/common/controls';
+import { MaterialIcon } from '../../../../core/widgets/common/icon';
+import { MarqueeText } from '../../../../core/widgets/common/marquee-text';
 import { InfoChip } from '../../../../core/widgets/common/surfaces';
+import { useAirportFavoritesStore } from '../../../common/providers/airport-favorites-store';
 import { MapLocalizationKeys as K } from '../../localization/map-localization';
 import { useMapStore } from '../../providers/map-store';
 import styles from '../map-page.module.css';
@@ -42,6 +45,16 @@ export function MapTopPanel({
   const [suggestions, setSuggestions] = useState<AirportSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  /*
+   * 收藏机场：与机场查询页共用 common 里的同一个 store，
+   * 那边点星标这边立刻就有，不需要任何同步代码。
+   */
+  const favorites = useAirportFavoritesStore((s) => s.favorites);
+  const hydrateFavorites = useAirportFavoritesStore((s) => s.hydrate);
+  useEffect(() => {
+    void hydrateFavorites();
+  }, [hydrateFavorites]);
+
   // 输入防抖 250ms，避免每敲一个字母打一次接口
   useEffect(() => {
     const query = searchValue.trim();
@@ -62,9 +75,30 @@ export function MapTopPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchValue]);
 
+  /*
+   * 点击面板外关闭浮层。
+   *
+   * 没有这一层的话，收藏列表在还没输入任何东西时就会展开，
+   * 而且点地图也关不掉 —— 它正好压在地图左上角一片可点区域上。
+   */
+  const searchBarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showSuggestions) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const node = searchBarRef.current;
+      if (node && !node.contains(event.target as Node)) setShowSuggestions(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [showSuggestions]);
+
+  // 还没输入时给收藏列表；输入了就让位给联想结果
+  const isEmptyQuery = searchValue.trim().length === 0;
+  const showFavorites = showSuggestions && isEmptyQuery && favorites.length > 0;
+
   return (
     <div className={styles.topPanel}>
-      <div className={styles.searchBar}>
+      <div className={styles.searchBar} ref={searchBarRef}>
         <TextField
           value={searchValue}
           onChange={(value) => {
@@ -94,7 +128,7 @@ export function MapTopPanel({
           }
         />
 
-        {showSuggestions && suggestions.length > 0 && (
+        {showSuggestions && !isEmptyQuery && suggestions.length > 0 && (
           <div className={styles.suggestionList}>
             {suggestions.map((suggestion) => (
               <button
@@ -108,6 +142,33 @@ export function MapTopPanel({
               >
                 <span className={`${styles.suggestionIcao} text-mono`}>{suggestion.icao}</span>
                 <span className={styles.suggestionLabel}>{suggestion.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 还没输入：直接把收藏过的机场摆出来，省得再敲一遍 ICAO */}
+        {showFavorites && (
+          <div className={styles.suggestionList}>
+            <span className={styles.suggestionGroupTitle}>
+              <MaterialIcon name="star" filled size={12} color="#fab219" />
+              {t(K.favoritesSectionTitle)}
+            </span>
+            {favorites.map((favorite) => (
+              <button
+                key={favorite.icao}
+                type="button"
+                className={styles.suggestionItem}
+                onClick={() => {
+                  setShowSuggestions(false);
+                  onSelectSuggestion(favorite.icao);
+                }}
+              >
+                <span className={`${styles.suggestionIcao} text-mono`}>{favorite.icao}</span>
+                <MarqueeText
+                  text={favorite.name ?? '--'}
+                  className={styles.suggestionLabel}
+                />
               </button>
             ))}
           </div>
