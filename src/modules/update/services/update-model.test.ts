@@ -205,6 +205,137 @@ describe('renderReleaseNotesHtml', () => {
       });
     }
   });
+
+  describe('行内标记', () => {
+    it('加粗渲染成 strong', () => {
+      expect(renderReleaseNotesHtml('**重要**')).toBe(
+        '<p class="owo-update-notes-text"><strong>重要</strong></p>',
+      );
+    });
+
+    it('斜体渲染成 em', () => {
+      expect(renderReleaseNotesHtml('*强调*')).toBe(
+        '<p class="owo-update-notes-text"><em>强调</em></p>',
+      );
+    });
+
+    it('删除线渲染成 del', () => {
+      expect(renderReleaseNotesHtml('~~作废~~')).toBe(
+        '<p class="owo-update-notes-text"><del>作废</del></p>',
+      );
+    });
+
+    it('行内代码渲染成 code，内容不再被当作 Markdown 解析', () => {
+      expect(renderReleaseNotesHtml('`**not bold**`')).toBe(
+        '<p class="owo-update-notes-text"><code>**not bold**</code></p>',
+      );
+    });
+
+    // 故意不支持 _斜体_ / __加粗__ 写法：项目里路径、字段名大量是 snake_case
+    // （app_settings、earth_fix.dat），按下划线抓斜体会把标识符中间那截误判掉
+    it('snake_case 标识符不会被误判成斜体', () => {
+      const html = renderReleaseNotesHtml('查 `app_settings` 与 earth_fix.dat');
+      expect(html).not.toContain('<em>');
+      expect(html).toContain('earth_fix.dat');
+    });
+
+    it('https 链接渲染成可点击的 a，且带 noopener/noreferrer', () => {
+      expect(renderReleaseNotesHtml('[Keep a Changelog](https://keepachangelog.com/)')).toBe(
+        '<p class="owo-update-notes-text">' +
+          '<a href="https://keepachangelog.com/" target="_blank" rel="noopener noreferrer">' +
+          'Keep a Changelog</a></p>',
+      );
+    });
+
+    it('非 http(s) 协议的链接降级成纯文字，不生成 a 标签', () => {
+      const html = renderReleaseNotesHtml('[click me](javascript:document.cookie)');
+      expect(html).toBe('<p class="owo-update-notes-text">click me</p>');
+    });
+
+    it('链接 label 里可以嵌加粗', () => {
+      const html = renderReleaseNotesHtml('[**加粗链接**](https://example.invalid)');
+      expect(html).toContain('<a href="https://example.invalid"');
+      expect(html).toContain('<strong>加粗链接</strong>');
+    });
+
+    it('分隔线渲染成 hr', () => {
+      expect(renderReleaseNotesHtml('---')).toBe('<hr class="owo-update-notes-hr" />');
+      expect(renderReleaseNotesHtml('***')).toBe('<hr class="owo-update-notes-hr" />');
+      expect(renderReleaseNotesHtml('___')).toBe('<hr class="owo-update-notes-hr" />');
+    });
+
+    it('引用块渲染成 blockquote，多行合并成一段', () => {
+      expect(renderReleaseNotesHtml('> 第一行\n> 第二行')).toBe(
+        '<blockquote class="owo-update-notes-quote"><p>第一行<br />第二行</p></blockquote>',
+      );
+    });
+
+    it('有序列表渲染成 ol', () => {
+      expect(renderReleaseNotesHtml('1. 甲\n2. 乙')).toBe(
+        '<ol class="owo-update-notes-list"><li>甲</li><li>乙</li></ol>',
+      );
+    });
+
+    it('列表项的缩进续行拼进同一个 li，而不是拆成新段落', () => {
+      expect(renderReleaseNotesHtml('- 第一行\n  续行')).toBe(
+        '<ul class="owo-update-notes-list"><li>第一行 续行</li></ul>',
+      );
+    });
+
+    it('没有缩进的续行仍然结束列表', () => {
+      expect(renderReleaseNotesHtml('- 甲\n乙')).toBe(
+        '<ul class="owo-update-notes-list"><li>甲</li></ul><p class="owo-update-notes-text">乙</p>',
+      );
+    });
+
+    it('连续多行段落合并成一个 p，用 <br /> 分隔', () => {
+      expect(renderReleaseNotesHtml('第一行\n第二行')).toBe(
+        '<p class="owo-update-notes-text">第一行<br />第二行</p>',
+      );
+    });
+
+    /*
+     * 新语法（代码/链接/加粗/斜体/删除线）同样必须挡住注入——
+     * 逻辑和上面「必须挡住注入」一致：先转义、再包标签，标记不可能从文本里长出来。
+     */
+    describe('新增行内语法也必须挡住注入', () => {
+      it('非法协议的链接不生成 a 标签，label 里的脚本原样转义', () => {
+        const html = renderReleaseNotesHtml('[<script>alert(1)</script>](javascript:x)');
+        expect(html).not.toContain('<a ');
+        expect(html).not.toContain('<script>');
+        expect(html).toContain('&lt;script&gt;');
+      });
+
+      it('合法链接 label 里的脚本标签保持转义，不会破框', () => {
+        const html = renderReleaseNotesHtml('[<script>alert(1)</script>](https://example.invalid)');
+        expect(html).toContain('<a href="https://example.invalid"');
+        expect(html).toContain('&lt;script&gt;');
+        const stripped = html.replace(/<a [^>]*>|<\/a>/g, '');
+        expect(stripped).not.toContain('<script>');
+      });
+
+      it('href 里的引号已经是转义实体，不能借它逃出 href 属性', () => {
+        const html = renderReleaseNotesHtml('[x](https://evil.example/"onmouseover="evil)');
+        const hrefMatch = /href="([^"]*)"/.exec(html);
+        expect(hrefMatch).not.toBeNull();
+        expect(hrefMatch![1]).not.toContain('"');
+      });
+
+      it('代码里的脚本标签保持转义', () => {
+        expect(renderReleaseNotesHtml('`<script>alert(1)</script>`')).toBe(
+          '<p class="owo-update-notes-text">' +
+            '<code>&lt;script&gt;alert(1)&lt;/script&gt;</code></p>',
+        );
+      });
+
+      it('加粗内容里的脚本标签保持转义', () => {
+        expect(renderReleaseNotesHtml('**<script>alert(1)</script>**')).toBe(
+          '<p class="owo-update-notes-text">' +
+            '<strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong></p>',
+        );
+      });
+    });
+  });
 });
 
 describe('formatBytes', () => {

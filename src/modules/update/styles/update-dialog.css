@@ -63,6 +63,13 @@
 .owo-update-notes-list {
   margin: 0 0 8px;
   padding-left: 20px;
+  /* global.css 给全站 ul/ol 清了 list-style，这里要自己补回来——
+     无序表还能靠缩进认出是一条条列表，有序表丢了数字就看不出顺序了 */
+  list-style: disc;
+}
+
+ol.owo-update-notes-list {
+  list-style: decimal;
 }
 
 .owo-update-notes-list li {
@@ -73,6 +80,61 @@
   margin: 6px 0;
   /* 发行说明里可能有很长的 URL 或路径，不换行会把弹窗撑宽 */
   overflow-wrap: anywhere;
+}
+
+/* ── 分隔线 / 引用块 ── */
+
+.owo-update-notes-hr {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid var(--color-border, rgba(128, 128, 128, 0.25));
+}
+
+.owo-update-notes-quote {
+  margin: 6px 0 8px;
+  padding: 2px 10px;
+  border-left: 3px solid var(--color-primary, #6c8cff);
+  background: rgba(128, 128, 128, 0.08);
+  border-radius: 0 6px 6px 0;
+  opacity: 0.9;
+}
+
+.owo-update-notes-quote p {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+/* ── 行内标记：代码 / 加粗 / 斜体 / 删除线 / 链接 ── */
+
+.owo-update-notes code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.16);
+  font-family: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+}
+
+.owo-update-notes strong {
+  font-weight: 700;
+}
+
+.owo-update-notes em {
+  font-style: italic;
+}
+
+.owo-update-notes del {
+  opacity: 0.7;
+}
+
+.owo-update-notes a {
+  color: var(--color-primary, #6c8cff);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.owo-update-notes a:hover {
+  text-decoration: none;
 }
 
 .owo-update-progress {
