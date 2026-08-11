@@ -136,10 +136,13 @@ function AddressForm() {
       </div>
 
       <div className={styles.currentRow}>
-        <InfoChip icon="link" label={`${t(K.currentAddress)}: ${MiddlewareHttpService.baseUrl}`} />
+        <InfoChip
+          icon="link"
+          label={t(K.currentAddress, { address: MiddlewareHttpService.baseUrl })}
+        />
         <InfoChip
           icon="cable"
-          label={`${t(K.currentWsAddress)}: ${MiddlewareHttpService.webSocketBaseUrl}`}
+          label={t(K.currentWsAddress, { address: MiddlewareHttpService.webSocketBaseUrl })}
         />
       </div>
 

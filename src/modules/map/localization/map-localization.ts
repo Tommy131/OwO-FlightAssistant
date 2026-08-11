@@ -344,7 +344,9 @@ export const mapTranslations: ModuleTranslations = {
     [K.homeAirportSectionDesc]: '用于地图模块的默认定位中心',
     [K.homeAirportIcaoLabel]: '机场 ICAO',
     [K.homeAirportIcaoHint]: '例如 ZBAA、RJTT、KLAX',
-    [K.homeAirportCurrent]: '当前默认机场: {value}',
+    // 不带值：调用处（map-settings-page-item.tsx）自己拼 ": " + 加粗的机场代码 + 名称，
+    // 这里如果再带 "{value}" 占位符但调用处没传参，就会把字面量 "{value}" 原样露出来
+    [K.homeAirportCurrent]: '当前默认机场',
     [K.homeAirportSaved]: '默认机场已保存',
     [K.homeAirportNotFound]: '未找到该机场，请检查 ICAO',
     [K.homeAirportCleared]: '默认机场已清除',
@@ -631,7 +633,8 @@ export const mapTranslations: ModuleTranslations = {
     [K.homeAirportSectionDesc]: 'Used as the default center in map module',
     [K.homeAirportIcaoLabel]: 'Airport ICAO',
     [K.homeAirportIcaoHint]: 'e.g. ZBAA, RJTT, KLAX',
-    [K.homeAirportCurrent]: 'Current home airport: {value}',
+    // 不带值：原因同 zh_CN 那份注释
+    [K.homeAirportCurrent]: 'Current home airport',
     [K.homeAirportSaved]: 'Home airport saved',
     [K.homeAirportNotFound]: 'Airport not found, please check ICAO',
     [K.homeAirportCleared]: 'Home airport cleared',
