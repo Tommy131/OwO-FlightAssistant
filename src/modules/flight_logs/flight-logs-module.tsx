@@ -2,6 +2,7 @@ import type { ModuleRegistrar } from '../../core/module-registry/clearable';
 import { ModuleRegistry } from '../../core/module-registry/module-registry';
 import { createNavigationItem } from '../../core/module-registry/navigation/navigation-item';
 import { registerModuleTranslations, translate } from '../../core/services/localization-service';
+import { landingFlareTranslations } from './localization/landing-flare-localization';
 import {
   FlightLogsLocalizationKeys,
   flightLogsTranslations,
@@ -20,6 +21,7 @@ export class FlightLogsModule implements ModuleRegistrar {
 
   register(): void {
     registerModuleTranslations(flightLogsTranslations);
+    registerModuleTranslations(landingFlareTranslations);
 
     ModuleRegistry.navigation.register(() =>
       createNavigationItem({

@@ -555,6 +555,10 @@ function captureSnapshot(
 
   const onGround = point.onGround ?? false;
 
+  if (recordingContext.lastOnGround === false && onGround) {
+    updateArrivalAirportAtTouchdown(log, snapshot);
+  }
+
   // 离地瞬间记录起飞数据
   if (recordingContext.lastOnGround === true && !onGround && !log.takeoffData) {
     log.takeoffData = {
@@ -581,6 +585,17 @@ function captureSnapshot(
   // 触发订阅者更新（activeLog 为同一引用，故用计数字段驱动）
   set({ activeLog: { ...log } });
 }
+
+function updateArrivalAirportAtTouchdown(
+  log: FlightLog,
+  snapshot: FlightDataSnapshot,
+): void {
+  const airport = normalizeText(snapshot.nearestAirport?.icaoCode);
+  if (airport?.length === 4) {
+    log.arrivalAirport = airport.toUpperCase();
+  }
+}
+
 
 /**
  * 落地检测

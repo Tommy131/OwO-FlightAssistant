@@ -1,0 +1,353 @@
+.panel {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(135deg, var(--color-primary-a08), transparent 42%),
+    var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.emptyCard {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.titleIcon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  color: var(--color-primary);
+  background: var(--color-primary-a10);
+  box-shadow: inset 0 0 0 1px var(--color-primary-a20);
+}
+
+.heading {
+  min-width: 0;
+}
+
+.heading h2 {
+  margin: 1px 0 2px;
+  font-size: 17px;
+  color: var(--color-text-primary);
+}
+
+.heading p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--color-primary);
+}
+
+.readouts {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.readout {
+  min-width: 112px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-on-surface-a04);
+}
+
+.readout > span {
+  grid-column: 1 / -1;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.readout strong {
+  font-size: 19px;
+  color: var(--color-text-primary);
+}
+
+.readout small {
+  margin-left: 5px;
+  font-size: 9px;
+  color: var(--color-on-surface-a40);
+}
+
+.readoutAccent strong {
+  color: var(--color-primary);
+}
+
+.chartWrap {
+  padding: var(--space-md) var(--space-lg) var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-background) 48%, transparent);
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  min-width: 620px;
+  height: 240px;
+}
+
+.gridLine {
+  stroke: var(--color-border);
+  stroke-width: 1;
+  stroke-dasharray: 3 6;
+}
+
+.axisLabel,
+.xLabel,
+.unitLabel {
+  fill: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.axisLabel {
+  text-anchor: end;
+}
+
+.xLabel {
+  text-anchor: middle;
+}
+
+.unitLabel {
+  fill: var(--color-on-surface-a40);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.curve,
+.curveGlow {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.curveGlow {
+  stroke: var(--color-primary-a20);
+  stroke-width: 12;
+}
+
+.curve {
+  stroke: var(--color-primary);
+  stroke-width: 3;
+}
+
+.curvePoint {
+  fill: var(--color-surface);
+  stroke: var(--color-primary);
+  stroke-width: 2.5;
+}
+
+.touchdownPoint {
+  fill: var(--color-warning);
+  stroke: var(--color-surface);
+  stroke-width: 3;
+}
+
+.tableWrap,
+.chartWrap {
+  overflow-x: auto;
+}
+
+.recorderStrip {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-primary);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      var(--color-primary-a08) 0,
+      var(--color-primary-a08) 1px,
+      transparent 1px,
+      transparent 6px
+    ),
+    color-mix(in srgb, var(--color-background) 48%, transparent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.table {
+  width: 100%;
+  min-width: 1100px;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.table th {
+  padding: 9px 10px;
+  border-right: 1px solid color-mix(in srgb, var(--color-border) 56%, transparent);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-background) 58%, var(--color-surface));
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table th:first-child {
+  text-align: left;
+}
+
+.table th:last-child {
+  border-right: 0;
+}
+
+.table abbr {
+  color: inherit;
+  text-decoration: none;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.table td {
+  padding: 8px 10px;
+  border-right: 1px solid color-mix(in srgb, var(--color-border) 34%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 52%, transparent);
+  color: var(--color-text-primary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.table td:first-child {
+  text-align: left;
+}
+
+.table td:last-child {
+  border-right: 0;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover td {
+  background: var(--color-on-surface-a04);
+}
+
+.timeCell {
+  min-width: 56px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--color-text-secondary);
+}
+
+.sinkCell span {
+  display: inline-block;
+  min-width: 54px;
+  font-weight: 800;
+}
+
+.stateCell {
+  min-width: 76px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--color-primary);
+}
+
+.touchdownRow td {
+  background: color-mix(in srgb, var(--color-warning) 9%, transparent);
+}
+
+.touchdownRow .timeCell,
+.touchdownRow .sinkCell,
+.touchdownRow .stateCell {
+  color: var(--color-warning);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 16px;
+  margin: 0;
+  padding: 11px var(--space-lg) 13px;
+  border-top: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-background) 34%, transparent);
+}
+
+.legend > div {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.legend dt {
+  color: var(--color-primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.legend dd {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: var(--space-md);
+  }
+
+  .readouts {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .readout {
+    flex: 1;
+  }
+
+  .chartWrap {
+    padding-inline: var(--space-sm);
+  }
+
+  .recorderStrip,
+  .legend {
+    padding-inline: var(--space-md);
+  }
+
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px 10px;
+  }
+}

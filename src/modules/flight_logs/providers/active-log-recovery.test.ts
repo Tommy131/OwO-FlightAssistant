@@ -87,6 +87,49 @@ function connectedSnapshot(): FlightDataSnapshot {
   return { ...emptyFlightDataSnapshot(), isConnected: true };
 }
 
+function snapshotAtAirport({
+  icaoCode,
+  onGround,
+  latitude,
+  longitude,
+  departureAirport,
+}: {
+  icaoCode: string;
+  onGround: boolean;
+  latitude: number;
+  longitude: number;
+  departureAirport?: string;
+}): FlightDataSnapshot {
+  const snapshot = emptyFlightDataSnapshot();
+  return {
+    ...snapshot,
+    isConnected: true,
+    nearestAirport: {
+      icaoCode,
+      iataCode: icaoCode.slice(1),
+      name: icaoCode,
+      nameChinese: icaoCode,
+      latitude,
+      longitude,
+    },
+    flightData: {
+      ...snapshot.flightData,
+      departureAirport,
+      latitude,
+      longitude,
+      altitude: onGround ? 25 : 1500,
+      airspeed: onGround ? 130 : 145,
+      groundSpeed: onGround ? 128 : 140,
+      verticalSpeed: onGround ? 0 : -600,
+      heading: 90,
+      pitch: 3,
+      bank: 0,
+      gForce: 1,
+      fuelQuantity: 8000,
+      onGround,
+    },
+  };
+}
 async function seedArchive(log: FlightLog, extra: Record<string, unknown> = {}) {
   await idbSet(ACTIVE_LOG_IDB_KEY, {
     log: flightLogToJson(log),
@@ -123,6 +166,44 @@ describe('flight log identity', () => {
       expect(firstId).toMatch(uuidV4Pattern);
       expect(secondId).toMatch(uuidV4Pattern);
       expect(secondId).not.toBe(firstId);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('uses the airport nearest to touchdown instead of the departure fallback', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    try {
+      const departure = snapshotAtAirport({
+        icaoCode: 'LIRF',
+        onGround: true,
+        latitude: 41.8003,
+        longitude: 12.2389,
+        departureAirport: 'LIRF',
+      });
+      expect(useFlightLogsStore.getState().startRecording(departure)).toBe(true);
+
+      vi.advanceTimersByTime(100);
+      useFlightLogsStore.getState().handleFlightSnapshot(
+        snapshotAtAirport({
+          icaoCode: 'LIRE',
+          onGround: false,
+          latitude: 41.6545,
+          longitude: 12.4451,
+        }),
+      );
+
+      vi.advanceTimersByTime(100);
+      useFlightLogsStore.getState().handleFlightSnapshot(
+        snapshotAtAirport({
+          icaoCode: 'LIRE',
+          onGround: true,
+          latitude: 41.6545,
+          longitude: 12.4451,
+        }),
+      );
+
+      expect(useFlightLogsStore.getState().activeLog?.arrivalAirport).toBe('LIRE');
     } finally {
       vi.useRealTimers();
     }

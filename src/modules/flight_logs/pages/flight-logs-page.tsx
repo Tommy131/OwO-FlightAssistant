@@ -22,6 +22,7 @@ import {
 } from '../models/flight-log-models';
 import { useFlightLogsStore } from '../providers/flight-logs-store';
 import { AnalysisChart } from './widgets/analysis-chart';
+import { LandingFlareAnalysis } from './widgets/landing-flare-analysis';
 import {
   AnalysisBlackBox,
   AnalysisSummaryCard,
@@ -267,7 +268,7 @@ const LANDING_RATING_KEY: Record<LandingRating, string> = {
 // 详情页
 // ──────────────────────────────────────────────────────────────────────────
 
-type DetailTab = 'summary' | 'chart' | 'track' | 'blackBox';
+type DetailTab = 'summary' | 'flare' | 'chart' | 'track' | 'blackBox';
 
 function FlightLogDetail({ log, onBack }: { log: FlightLog; onBack: () => void }) {
   const t = useTranslate();
@@ -276,6 +277,7 @@ function FlightLogDetail({ log, onBack }: { log: FlightLog; onBack: () => void }
 
   const tabs: { id: DetailTab; label: string; icon: string }[] = [
     { id: 'summary', label: t(K.summaryTitle), icon: 'summarize' },
+    { id: 'flare', label: t(K.flareTab), icon: 'airline_stops' },
     { id: 'chart', label: t(K.detailProfile), icon: 'show_chart' },
     { id: 'track', label: t(K.detailTrack), icon: 'route' },
     { id: 'blackBox', label: t(K.blackBoxTitle), icon: 'table_rows' },
@@ -330,6 +332,7 @@ function FlightLogDetail({ log, onBack }: { log: FlightLog; onBack: () => void }
               <TakeoffLandingReport log={log} />
             </>
           )}
+          {tab === 'flare' && <LandingFlareAnalysis log={log} />}
           {tab === 'chart' && <AnalysisChart log={log} />}
           {tab === 'track' && <AnalysisTrackMap log={log} />}
           {tab === 'blackBox' && <AnalysisBlackBox log={log} />}

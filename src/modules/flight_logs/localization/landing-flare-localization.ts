@@ -1,0 +1,43 @@
+import type { ModuleTranslations } from '../../../core/services/localization-service';
+import { FlightLogsLocalizationKeys as K } from './flight-logs-localization';
+
+export const landingFlareTranslations: ModuleTranslations = {
+  zh_CN: {
+    [K.flareTab]: '拉平分析',
+    [K.flareTitle]: '接地前 10 秒拉平分析',
+    [K.flareSubtitle]: '按整秒观察下降率变化；TD 使用接地前捕获的下降率',
+    [K.flareSecondsBeforeTouchdown]: '距接地',
+    [K.flareUtcTime]: '时间 (UTC)',
+    [K.flareTouchdown]: '接地',
+    [K.flareSinkReduction]: '下降率变化',
+    [K.flareRadioAltitude]: '无线电高度',
+    [K.flareRoll]: '滚转角',
+    [K.flareGroundSpeed]: '地速',
+    [K.flareLegend]: '缩写说明',
+    [K.flareVerticalAcceleration]: '垂直/法向加速度（G 值近似）',
+    [K.flareCalibratedAirspeed]: '校准空速（机载上报空速）',
+    [K.flareEngineN1]: '低压压气机转速（%）',
+    [K.flareGroundAir]: '地面 / 空中状态',
+    [K.flareNoLandingTitle]: '尚未记录接地',
+    [K.flareNoLandingDescription]: '仅在飞行日志录制期间采集拉平数据，完成一次接地后即可查看',
+  },
+  en_US: {
+    [K.flareTab]: 'Flare Analysis',
+    [K.flareTitle]: 'Final 10-Second Flare',
+    [K.flareSubtitle]: 'One-second sink-rate samples; TD uses the captured pre-contact rate',
+    [K.flareSecondsBeforeTouchdown]: 'To touchdown',
+    [K.flareUtcTime]: 'Time (UTC)',
+    [K.flareTouchdown]: 'Touchdown',
+    [K.flareSinkReduction]: 'Sink-rate change',
+    [K.flareRadioAltitude]: 'Radio altitude',
+    [K.flareRoll]: 'Roll',
+    [K.flareLegend]: 'Abbreviation legend',
+    [K.flareVerticalAcceleration]: 'Vertical / normal acceleration (G approximation)',
+    [K.flareCalibratedAirspeed]: 'Calibrated airspeed (aircraft-reported)',
+    [K.flareEngineN1]: 'Low-pressure compressor speed (%)',
+    [K.flareGroundAir]: 'Ground / airborne state',
+    [K.flareGroundSpeed]: 'Ground speed',
+    [K.flareNoLandingTitle]: 'No touchdown recorded',
+    [K.flareNoLandingDescription]: 'Flare data is collected only while flight-log recording is active',
+  },
+};
