@@ -53,8 +53,8 @@ const PAPI_OFFSETS = [-0.5, -1 / 6, 1 / 6, 0.5] as const;
 /** 没有 ILS 下滑道时的默认标称坡度 */
 const DEFAULT_GLIDE_ANGLE = 3;
 
-/** 超过这个距离不显示：PAPI 实际可视距离大约 5 海里，放宽一点便于提前建立 */
-const MAX_DISTANCE_NM = 10;
+/** 超过这个距离不显示：避免相邻机场的跑道指示产生歧义 */
+const MAX_DISTANCE_NM = 5;
 
 /** 高于入口这么多就不是在做进近了 */
 const MAX_HEIGHT_FT = 3000;

@@ -95,6 +95,40 @@ async function seedArchive(log: FlightLog, extra: Record<string, unknown> = {}) 
   });
 }
 
+describe('flight log identity', () => {
+  beforeEach(() => {
+    store.clear();
+    useFlightLogsStore.setState({
+      isRecording: false,
+      isRecordingPaused: false,
+      activeLog: null,
+      logs: [],
+    });
+  });
+
+  it('two circuit recordings started in the same millisecond get distinct UUIDs', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(START);
+    try {
+      const snapshot = connectedSnapshot();
+      expect(useFlightLogsStore.getState().startRecording(snapshot)).toBe(true);
+      const firstId = useFlightLogsStore.getState().activeLog?.id;
+
+      useFlightLogsStore.setState({ isRecording: false, activeLog: null });
+      expect(useFlightLogsStore.getState().startRecording(snapshot)).toBe(true);
+      const secondId = useFlightLogsStore.getState().activeLog?.id;
+
+      const uuidV4Pattern =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      expect(firstId).toMatch(uuidV4Pattern);
+      expect(secondId).toMatch(uuidV4Pattern);
+      expect(secondId).not.toBe(firstId);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('recoverActiveLog', () => {
   beforeEach(async () => {
     store.clear();

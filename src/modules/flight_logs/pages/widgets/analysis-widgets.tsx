@@ -338,7 +338,7 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
               center={track[0]}
               zoom={8}
               tileLayer={isDark ? 'cartoDark' : 'cartoLight'}
-              height="100%"
+              fill
               onReady={handleReady}
             />
 

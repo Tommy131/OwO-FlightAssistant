@@ -263,7 +263,7 @@ POST /api/v1/performance/calculate
 前端保存后**自动落到中间件对应路径**，多个前端实例共享同一份数据：
 
 ```text
-resources/persistent/flight_logs/flight_log_<id>.json
+resources/persistent/flight_logs/flight_log_<uuid>.json
 resources/persistent/briefings/briefing_<id>.json
 ```
 
@@ -276,6 +276,8 @@ GET  /api/v1/briefings/list        POST /api/v1/briefings/save       POST /api/v
 
 写入策略：
 
+- **飞行日志使用 UUID 唯一标识** —— 每次开始录制都生成新 UUID，同航线和本场飞行也不会互相覆盖；
+  导入、同步、导出和删除全程保留该 ID，不在读取时改写既有记录
 - **本地先落盘再推后端** —— IndexedDB 作缓存，后端不可达时照常可用
 - **恢复连通后自动补传** —— `refreshLogs()` / `init()` 比对两侧 id，把离线期间新增的记录补推上去
 - **合并以后端为准** —— 两侧同 id 时用后端版本，本地独有的保留

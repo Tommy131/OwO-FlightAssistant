@@ -53,6 +53,8 @@ export interface LeafletMapProps {
   zoom?: number;
   tileLayer?: MapTileLayerId;
   height?: number | string;
+  /** 绝对定位填满最近的定位宿主，用于 flex 容器内的响应式地图 */
+  fill?: boolean;
   className?: string;
   /** 是否允许交互（缩放/拖拽） */
   interactive?: boolean;
@@ -65,6 +67,7 @@ export function LeafletMap({
   zoom = 6,
   tileLayer = 'cartoDark',
   height = 320,
+  fill = false,
   className,
   interactive = true,
   onReady,
@@ -116,7 +119,12 @@ export function LeafletMap({
     <div
       ref={containerRef}
       className={className}
-      style={{ width: '100%', height, borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}
+      style={{
+        width: '100%',
+        ...(fill ? { position: 'absolute', inset: 0 } : { height }),
+        borderRadius: 'var(--radius-sm)',
+        overflow: 'hidden',
+      }}
     />
   );
 }

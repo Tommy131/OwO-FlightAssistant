@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computePapiGuidance } from './papi-guidance';
+import { destination } from './geo';
 import type {
   MapAircraftState,
   MapSelectedAirportDetail,
@@ -21,10 +22,8 @@ const FT_PER_NM = 6076.12;
 /** 造一个位于入口正南、距离 distanceNm、仰角 angleDeg 的飞机 */
 function aircraftAtAngle(angleDeg: number, distanceNm = 4): MapAircraftState {
   const heightFt = Math.tan((angleDeg * Math.PI) / 180) * distanceNm * FT_PER_NM;
-  // 1 度纬度 ≈ 60 海里，正南方向
-  const latitude = THRESHOLD.latitude - distanceNm / 60;
   return {
-    position: { latitude, longitude: THRESHOLD.longitude },
+    position: destination(THRESHOLD, 180, distanceNm),
     radioAltitude: heightFt,
     onGround: false,
   };
@@ -96,7 +95,11 @@ describe('computePapiGuidance', () => {
   });
 
   it('距离过远时不显示', () => {
-    expect(computePapiGuidance(aircraftAtAngle(3, 20), DETAIL)).toBeNull();
+    expect(computePapiGuidance(aircraftAtAngle(3, 5.1), DETAIL)).toBeNull();
+  });
+
+  it('距离跑道入口恰好 5 海里时显示', () => {
+    expect(computePapiGuidance(aircraftAtAngle(3, 5), DETAIL)).not.toBeNull();
   });
 
   it('高度过高时不显示', () => {

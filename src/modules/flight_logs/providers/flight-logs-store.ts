@@ -309,7 +309,7 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
       '--';
 
     const activeLog: FlightLog = {
-      id: String(now.getTime()),
+      id: crypto.randomUUID(),
       aircraftTitle:
         normalizeText(snapshot.aircraftTitle) ??
         normalizeText(data.aircraftDisplayName) ??
