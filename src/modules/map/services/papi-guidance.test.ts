@@ -37,7 +37,7 @@ const DETAIL: MapSelectedAirportDetail = {
     { ident: '36/18', leIdent: '36', heIdent: '18', start: THRESHOLD, end: FAR_END },
   ],
   parkingSpots: [],
-  frequencyBadges: [],
+  frequencies: [],
   runwayNavaids: {
     // 标称下滑角 3.00°
     '36': { runway: '36', glideslopeAngle: 3, hasDme: false },

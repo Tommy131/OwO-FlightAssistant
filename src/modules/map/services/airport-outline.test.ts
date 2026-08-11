@@ -17,7 +17,7 @@ function detailWith(points: [number, number][]): MapSelectedAirportDetail {
     parkingSpots: points.map(([latitude, longitude]) => ({
       position: { latitude, longitude },
     })),
-    frequencyBadges: [],
+    frequencies: [],
   };
 }
 

@@ -7,7 +7,13 @@ import { useTranslate } from '../../../../core/localization/use-translate';
 import { IconButton } from '../../../../core/widgets/common/controls';
 import { MaterialIcon } from '../../../../core/widgets/common/icon';
 import { MarqueeText } from '../../../../core/widgets/common/marquee-text';
-import { InfoChip } from '../../../../core/widgets/common/surfaces';
+import { SnackBarHelper } from '../../../../core/widgets/common/snack-bar';
+import { useAirportFavoritesStore } from '../../../common/providers/airport-favorites-store';
+import {
+  FREQUENCY_CATEGORY_COLOR,
+  formatFrequencyValues,
+  groupFrequencies,
+} from '../../../common/services/airport-frequencies';
 import { MapLocalizationKeys as K } from '../../localization/map-localization';
 import {
   type MapRunwayNavaid,
@@ -116,6 +122,10 @@ export function SelectedAirportCard() {
   const t = useTranslate();
   const detail = useMapStore((s) => s.selectedAirport);
   const homeAirport = useMapStore((s) => s.homeAirport);
+  // 与机场查询页共用的收藏 store，两边点哪一处都立刻同步
+  const favorites = useAirportFavoritesStore((s) => s.favorites);
+  const toggleFavorite = useAirportFavoritesStore((s) => s.toggle);
+  const hydrateFavorites = useAirportFavoritesStore((s) => s.hydrate);
   const aircraft = useMapStore((s) => s.aircraft);
   const setSelectedAirport = useMapStore((s) => s.setSelectedAirport);
   const setHomeAirport = useMapStore((s) => s.setHomeAirport);
@@ -142,6 +152,11 @@ export function SelectedAirportCard() {
     setCollapsed(false);
   }, [code]);
 
+  // 收藏可能还没从持久化读出来（用户直接从地图进来、没开过机场查询页）
+  useEffect(() => {
+    void hydrateFavorites();
+  }, [hydrateFavorites]);
+
   // 本机压在哪条跑道上（收起时也要显示，属于最紧要的那类信息）
   const occupiedRunway = useMemo(() => {
     if (!detail || !aircraft) return null;
@@ -154,6 +169,7 @@ export function SelectedAirportCard() {
 
   if (!detail) return null;
   const isHome = homeAirport?.code === detail.marker.code;
+  const isFavorite = favorites.some((item) => item.icao === detail.marker.code.toUpperCase());
 
   const rawMetar = (detail.rawMetar ?? detail.atis ?? '').trim();
   const decodedMetar = (detail.decodedMetar ?? '').trim();
@@ -165,6 +181,8 @@ export function SelectedAirportCard() {
   const rule = (detail.approachRule ?? 'UNK').toUpperCase();
   const ruleStyle = APPROACH_RULE_STYLE[rule];
   const { latitude, longitude } = detail.marker.position;
+  // 与机场查询页共用同一份归类与配色，两处不会把同一个机场分成不同的类
+  const frequencyGroups = groupFrequencies(detail.frequencies);
 
   return (
     <div className={`${styles.airportCard}${collapsed ? ` ${styles.airportCardCollapsed}` : ''}`}>
@@ -202,6 +220,27 @@ export function SelectedAirportCard() {
           {rule}
         </span>
 
+        {/*
+          收藏与「默认机场」是两回事，图标必须分得开：
+          星标＝默认机场（地图的定位中心，只能有一个），
+          书签＝收藏（可以有很多，与机场查询页共用一份）。
+          两个都用星星的话，用户根本分不出自己点的是哪个。
+        */}
+        <IconButton
+          icon={isFavorite ? 'bookmark' : 'bookmark_border'}
+          label={t(isFavorite ? K.favoriteRemove : K.favoriteAdd)}
+          filled={isFavorite}
+          active={isFavorite}
+          onClick={() => {
+            void toggleFavorite({
+              icao: detail.marker.code,
+              name: detail.marker.name,
+              latitude: detail.marker.position.latitude,
+              longitude: detail.marker.position.longitude,
+            });
+            SnackBarHelper.showInfo(t(isFavorite ? K.favoriteRemoved : K.favoriteAdded));
+          }}
+        />
         <IconButton
           icon={isHome ? 'star' : 'star_border'}
           label={t(K.homeAirportSectionTitle)}
@@ -375,14 +414,30 @@ export function SelectedAirportCard() {
           </div>
         )}
 
-        {detail.frequencyBadges.length > 0 && (
+        {frequencyGroups.length > 0 && (
           <div className={styles.airportSection}>
             <span className={styles.airportSectionTitle}>COM</span>
-            <div className={styles.airportChips}>
-              {detail.frequencyBadges.map((badge) => (
-                <InfoChip key={badge} icon="radio" label={badge} />
-              ))}
-            </div>
+            {/*
+              按类别一行，同类频率合并。原先是一条频率一个 chip，
+              ZBAA 这种大机场会摊出二十多个，真要找的塔台频率反而不好找。
+            */}
+            <table className={styles.comTable}>
+              <tbody>
+                {frequencyGroups.map((group) => (
+                  <tr key={group.category}>
+                    <td
+                      className={styles.comLabel}
+                      style={{ color: FREQUENCY_CATEGORY_COLOR[group.category] }}
+                    >
+                      {group.label}
+                    </td>
+                    <td className={`${styles.comValue} text-mono`}>
+                      {formatFrequencyValues(group.values)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

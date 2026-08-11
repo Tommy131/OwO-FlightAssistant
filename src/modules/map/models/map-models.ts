@@ -244,7 +244,15 @@ export interface MapSelectedAirportDetail {
   readonly runways: string[];
   readonly runwayGeometries: MapRunwayGeometry[];
   readonly parkingSpots: MapParkingSpot[];
-  readonly frequencyBadges: string[];
+  /**
+   * 通讯频率，**保留类型与值**而不是预先拼成串。
+   *
+   * 原先这里存的是 ["TOWER 118.500", ...] 这样拼好的字符串，卡片只能把它们
+   * 一个个摆成 chip：大机场光地面就有五条，一排 chip 二十多个，
+   * 要找的塔台频率反而淹在里面。按类别归并与配色需要结构化的类型字段，
+   * 归并逻辑见 modules/common/services/airport-frequencies.ts。
+   */
+  readonly frequencies: { type?: string; value?: string }[];
   readonly atis?: string;
   readonly rawMetar?: string;
   readonly decodedMetar?: string;

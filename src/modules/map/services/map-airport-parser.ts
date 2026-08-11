@@ -50,11 +50,11 @@ export function parseAirportDetail(
       .map(toRunwayGeometry)
       .filter((geometry): geometry is MapRunwayGeometry => geometry !== null),
     parkingSpots: toParkingSpots(detail),
-    frequencyBadges: detail.frequencies
-      .map((frequency) =>
-        [frequency.type, frequency.value].filter((part) => part && part.length > 0).join(' '),
-      )
-      .filter((badge) => badge.length > 0),
+    // 原样带上类型与值，归类合并交给显示层（common/services/airport-frequencies.ts）
+    frequencies: detail.frequencies.map((frequency) => ({
+      type: frequency.type,
+      value: frequency.value,
+    })),
     atis: detail.frequencies.find((frequency) =>
       (frequency.type ?? '').toUpperCase().includes('ATIS'),
     )?.value,
