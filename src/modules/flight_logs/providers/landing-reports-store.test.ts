@@ -438,6 +438,43 @@ describe('landing reports store', () => {
     expect(store.getState().selectedReport).toBeUndefined();
   });
 
+  it('re-resolves the selected report to the refreshed object by id', async () => {
+    const original = report({ updatedAt: 4_000 });
+    const refreshed = report({
+      updatedAt: 5_000,
+      status: 'incomplete',
+      endReason: 'page_closed',
+    });
+    const list = vi.fn().mockResolvedValueOnce([original]).mockResolvedValueOnce([refreshed]);
+    const store = createLandingReportsStore({
+      repository: repository({ list }),
+      settings: settings(),
+    });
+    await store.getState().initialize();
+    store.getState().selectReport(original.id);
+
+    await store.getState().initialize();
+
+    expect(store.getState().reports).toEqual([refreshed]);
+    expect(store.getState().selectedReport).toBe(refreshed);
+  });
+
+  it('clears the selected report when refresh no longer contains its id', async () => {
+    const saved = report();
+    const list = vi.fn().mockResolvedValueOnce([saved]).mockResolvedValueOnce([]);
+    const store = createLandingReportsStore({
+      repository: repository({ list }),
+      settings: settings(),
+    });
+    await store.getState().initialize();
+    store.getState().selectReport(saved.id);
+
+    await store.getState().initialize();
+
+    expect(store.getState().reports).toEqual([]);
+    expect(store.getState().selectedReport).toBeUndefined();
+  });
+
   it('finalizes an armed disconnect once and leaves cruise buffering unsaved', async () => {
     let now = 1_000;
     const armedRepository = repository();

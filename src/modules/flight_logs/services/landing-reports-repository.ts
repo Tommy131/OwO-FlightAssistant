@@ -12,6 +12,7 @@ import {
   deserializeLandingReport,
   serializeLandingReport,
   type LandingReport,
+  type StoredLandingReport,
 } from '../models/landing-report-models';
 
 const MODULE_NAME = 'landing_reports';
@@ -38,24 +39,24 @@ export interface LandingReportsArchiveStorage {
 }
 
 export interface LandingReportsBackend {
-  push: (report: LandingReport) => Promise<SyncResult>;
+  push: (report: StoredLandingReport) => Promise<SyncResult>;
   remove: (id: string) => Promise<SyncResult>;
   pull: () => Promise<unknown[] | null>;
 }
 
 export interface LandingReportsRepository {
-  list: () => Promise<LandingReport[]>;
-  get: (id: string) => Promise<LandingReport | undefined>;
-  save: (report: LandingReport) => Promise<void>;
+  list: () => Promise<StoredLandingReport[]>;
+  get: (id: string) => Promise<StoredLandingReport | undefined>;
+  save: (report: StoredLandingReport) => Promise<void>;
   remove: (id: string) => Promise<void>;
   writeActive: (report: LandingReport) => Promise<void>;
-  readActive: () => Promise<LandingReport | undefined>;
+  readActive: () => Promise<StoredLandingReport | undefined>;
   clearActive: () => Promise<void>;
   reconcile: () => Promise<void>;
 
   /** Split operations let finalization clear recovery state before network IO. */
-  saveLocal: (report: LandingReport) => Promise<void>;
-  sync: (report: LandingReport) => Promise<void>;
+  saveLocal: (report: StoredLandingReport) => Promise<void>;
+  sync: (report: StoredLandingReport) => Promise<void>;
 }
 
 interface LandingReportsRepositoryDependencies {
@@ -84,7 +85,7 @@ export function createLandingReportsRepository(
   const backend = dependencies.backend ?? productionBackend;
   const archiveStorage = dependencies.archiveStorage ?? productionArchiveStorage;
 
-  async function readLocalReports(): Promise<LandingReport[]> {
+  async function readLocalReports(): Promise<StoredLandingReport[]> {
     await persistence.ensureReady();
     const raw = persistence.getModuleData<unknown[]>(MODULE_NAME, REPORTS_KEY);
     if (!Array.isArray(raw)) return [];
@@ -94,7 +95,7 @@ export function createLandingReportsRepository(
       .map(deserializeLandingReport);
   }
 
-  async function writeLocalReports(reports: LandingReport[]): Promise<void> {
+  async function writeLocalReports(reports: StoredLandingReport[]): Promise<void> {
     await persistence.setModuleData(
       MODULE_NAME,
       REPORTS_KEY,
@@ -116,7 +117,7 @@ export function createLandingReportsRepository(
     await persistence.setModuleData(MODULE_NAME, DELETED_REPORT_IDS_KEY, [...ids]);
   }
 
-  async function syncReport(report: LandingReport): Promise<boolean> {
+  async function syncReport(report: StoredLandingReport): Promise<boolean> {
     try {
       return (await backend.push(report)).ok;
     } catch (error) {
@@ -227,7 +228,7 @@ export function createLandingReportsRepository(
 
       const remoteById = new Map(remote.map((report) => [report.id, report]));
       const reconciled = new Map(remoteById);
-      const localWinners: LandingReport[] = [];
+      const localWinners: StoredLandingReport[] = [];
       for (const report of local) {
         if (deletedIds.has(report.id)) continue;
         const remoteReport = remoteById.get(report.id);
@@ -251,7 +252,7 @@ export function createLandingReportsRepository(
   return repository;
 }
 
-function sortReports(reports: LandingReport[]): LandingReport[] {
+function sortReports(reports: StoredLandingReport[]): StoredLandingReport[] {
   return [...reports].sort(
     (left, right) => right.startedAt - left.startedAt || right.updatedAt - left.updatedAt,
   );

@@ -10,7 +10,7 @@ import {
 } from '../../../core/services/localization-service';
 import { showAdvancedConfirmDialog } from '../../../core/widgets/common/dialog';
 import { flightLogsTranslations } from '../localization/flight-logs-localization';
-import type { LandingReport } from '../models/landing-report-models';
+import type { StoredLandingReport } from '../models/landing-report-models';
 import type { RecordingEndReason } from '../models/recording-status';
 import { makeFlightLogPoint } from '../test/flight-log-fixtures';
 import { LandingReportsView } from './landing-reports-view';
@@ -172,6 +172,31 @@ describe('LandingReportsView', () => {
     }
   });
 
+  it('renders an unavailable decoded reason in English and Chinese', () => {
+    const report = makeLandingReport({ endReason: undefined });
+    const { rerender } = render(
+      <LandingReportsView
+        reports={[report]}
+        selectedReport={undefined}
+        selectReport={vi.fn()}
+        deleteReport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByText('Reason unavailable')).toBeVisible();
+
+    useLocalizationStore.setState({ locale: 'zh_CN' });
+    rerender(
+      <LandingReportsView
+        reports={[report]}
+        selectedReport={undefined}
+        selectReport={vi.fn()}
+        deleteReport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+    expect(screen.getByText('原因不可用')).toBeVisible();
+  });
+
   it('shows the established loading and empty states', () => {
     const { rerender } = render(
       <LandingReportsView
@@ -279,7 +304,7 @@ describe('LandingReportsView', () => {
   });
 });
 
-function LandingReportsHarness({ reports }: { reports: LandingReport[] }) {
+function LandingReportsHarness({ reports }: { reports: StoredLandingReport[] }) {
   const [selectedId, setSelectedId] = useState<string>();
   return (
     <LandingReportsView
@@ -291,7 +316,9 @@ function LandingReportsHarness({ reports }: { reports: LandingReport[] }) {
   );
 }
 
-function makeLandingReport(overrides: Partial<LandingReport> = {}): LandingReport {
+function makeLandingReport(
+  overrides: Partial<StoredLandingReport> = {},
+): StoredLandingReport {
   const startedAt = new Date('2026-08-11T10:00:00.000Z').getTime();
   const points = Array.from({ length: 11 }, (_, second) =>
     makeFlightLogPoint(second * 1_000, {

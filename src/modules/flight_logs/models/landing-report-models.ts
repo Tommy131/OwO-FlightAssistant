@@ -28,7 +28,15 @@ export interface LandingReport {
   updatedAt: number;
 }
 
-export function serializeLandingReport(report: LandingReport): JsonMap {
+/**
+ * A report decoded from persistence. Producers always emit `LandingReport`
+ * with one of the six known reasons; older or forward-version storage may not.
+ */
+export type StoredLandingReport = Omit<LandingReport, 'endReason'> & {
+  endReason: RecordingEndReason | undefined;
+};
+
+export function serializeLandingReport(report: StoredLandingReport): JsonMap {
   return {
     id: report.id,
     simulator: report.simulator,
@@ -36,7 +44,7 @@ export function serializeLandingReport(report: LandingReport): JsonMap {
     ended_at: report.endedAt,
     touchdown_at: report.touchdownAt ?? null,
     status: report.status,
-    end_reason: report.endReason,
+    end_reason: report.endReason ?? null,
     points: report.points.map(flightLogPointToJson),
     landing: report.landing ? landingDataToJson(report.landing) : null,
     created_at: report.createdAt,
@@ -44,7 +52,7 @@ export function serializeLandingReport(report: LandingReport): JsonMap {
   };
 }
 
-export function deserializeLandingReport(json: JsonMap): LandingReport {
+export function deserializeLandingReport(json: JsonMap): StoredLandingReport {
   return {
     id: toText(json.id) || crypto.randomUUID(),
     simulator: toText(json.simulator) || 'Unknown',
@@ -52,7 +60,7 @@ export function deserializeLandingReport(json: JsonMap): LandingReport {
     endedAt: toDouble(json.ended_at) ?? 0,
     touchdownAt: toDouble(json.touchdown_at),
     status: recordingStatusFromRaw(json.status),
-    endReason: recordingEndReasonFromRaw(json.end_reason) ?? 'stable_landing',
+    endReason: recordingEndReasonFromRaw(json.end_reason),
     points: pointsFromJson(json.points),
     landing: landingDataFromJson(toJsonMap(json.landing)),
     createdAt: toDouble(json.created_at) ?? 0,

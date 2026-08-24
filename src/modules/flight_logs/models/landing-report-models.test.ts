@@ -68,4 +68,18 @@ describe('landing report codec', () => {
 
     expect(point).not.toHaveProperty('ras');
   });
+
+  it.each([
+    { caseName: 'missing', rawReason: undefined },
+    { caseName: 'malformed', rawReason: { future: true } },
+    { caseName: 'forward-version', rawReason: 'automatic_go_around' },
+  ])('preserves an unavailable reason when end_reason is $caseName', ({ rawReason }) => {
+    const encoded = serializeLandingReport(fixtureLandingReport());
+    if (rawReason === undefined) delete encoded.end_reason;
+    else encoded.end_reason = rawReason;
+
+    const decoded = deserializeLandingReport(encoded);
+    expect(decoded.endReason).toBeUndefined();
+    expect(serializeLandingReport(decoded).end_reason).toBeNull();
+  });
 });

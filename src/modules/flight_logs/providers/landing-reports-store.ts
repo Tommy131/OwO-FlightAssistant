@@ -9,7 +9,10 @@ import type {
   FlightLogPoint,
   LandingGSource,
 } from '../models/flight-log-models';
-import type { LandingReport } from '../models/landing-report-models';
+import type {
+  LandingReport,
+  StoredLandingReport,
+} from '../models/landing-report-models';
 import {
   createLandingReportRecorder,
   type LandingRecorderEvent,
@@ -36,8 +39,8 @@ export interface LandingReportsSettingsPersistence {
 
 export interface LandingReportsState {
   enabled: boolean;
-  reports: LandingReport[];
-  selectedReport: LandingReport | undefined;
+  reports: StoredLandingReport[];
+  selectedReport: StoredLandingReport | undefined;
   hasActiveWork: boolean;
 
   initialize: () => Promise<void>;
@@ -106,7 +109,7 @@ function landingReportsStateCreator(
   function updateReports(
     set: (partial: Partial<LandingReportsState>) => void,
     get: () => LandingReportsState,
-    report: LandingReport,
+    report: StoredLandingReport,
   ): void {
     const reports = sortReports([
       report,
@@ -132,7 +135,7 @@ function landingReportsStateCreator(
     startBestEffortSync(report);
   }
 
-  function startBestEffortSync(report: LandingReport): void {
+  function startBestEffortSync(report: StoredLandingReport): void {
     try {
       void repository.sync(report).catch((error: unknown) => {
         AppLogger.warning(`[LandingReports] sync ${report.id} failed: ${String(error)}`);
@@ -189,7 +192,15 @@ function landingReportsStateCreator(
           );
           set({ enabled: typeof stored === 'boolean' ? stored : true });
           await repository.reconcile();
-          set({ reports: sortReports(await repository.list()) });
+          const reports = sortReports(await repository.list());
+          const selectedId = get().selectedReport?.id;
+          set({
+            reports,
+            selectedReport:
+              selectedId === undefined
+                ? undefined
+                : reports.find((report) => report.id === selectedId),
+          });
         });
       },
 
@@ -427,7 +438,7 @@ function simulatorLabel(type: SimulatorType): string {
   return 'Unknown';
 }
 
-function sortReports(reports: LandingReport[]): LandingReport[] {
+function sortReports(reports: StoredLandingReport[]): StoredLandingReport[] {
   return [...reports].sort(
     (left, right) => right.startedAt - left.startedAt || right.updatedAt - left.updatedAt,
   );

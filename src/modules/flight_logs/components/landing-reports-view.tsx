@@ -14,7 +14,7 @@ import {
 } from '../../../core/widgets/common/surfaces';
 import { FlightLogsLocalizationKeys as K } from '../localization/flight-logs-localization';
 import type { FlightLog, FlightLogPoint, LandingData } from '../models/flight-log-models';
-import type { LandingReport } from '../models/landing-report-models';
+import type { StoredLandingReport } from '../models/landing-report-models';
 import type { RecordingEndReason, RecordingStatus } from '../models/recording-status';
 import styles from '../pages/flight-logs-page.module.css';
 import { AnalysisChart } from '../pages/widgets/analysis-chart';
@@ -23,8 +23,8 @@ import { LandingFlareAnalysis } from '../pages/widgets/landing-flare-analysis';
 import { MetricCard } from '../pages/widgets/metric-card';
 
 export interface LandingReportsViewProps {
-  reports: LandingReport[];
-  selectedReport: LandingReport | undefined;
+  reports: StoredLandingReport[];
+  selectedReport: StoredLandingReport | undefined;
   selectReport: (id: string | undefined) => void;
   deleteReport: (id: string) => Promise<void>;
   isLoading?: boolean;
@@ -40,6 +40,10 @@ const REASON_KEYS: Record<RecordingEndReason, string> = {
   page_closed: K.landingReasonPageClosed,
   interrupted: K.landingReasonInterrupted,
 };
+
+function reasonKey(reason: RecordingEndReason | undefined): string {
+  return reason === undefined ? K.landingReasonUnavailable : REASON_KEYS[reason];
+}
 
 const STATUS_KEYS: Record<RecordingStatus, string> = {
   completed: K.landingStatusCompleted,
@@ -75,7 +79,7 @@ export function LandingReportsView({
     restoreFocusId.current = undefined;
   }, [selectedReport]);
 
-  const handleDelete = async (report: LandingReport) => {
+  const handleDelete = async (report: StoredLandingReport) => {
     if (pendingDeleteIds.current.has(report.id)) return;
     pendingDeleteIds.current.add(report.id);
     setDeletingIds(new Set(pendingDeleteIds.current));
@@ -200,7 +204,7 @@ function LandingReportListItem({
   onDelete,
   openButtonRef,
 }: {
-  report: LandingReport;
+  report: StoredLandingReport;
   deleting: boolean;
   onOpen: () => void;
   onDelete: () => void;
@@ -238,7 +242,7 @@ function LandingReportListItem({
             tone={report.status === 'completed' ? 'success' : 'warning'}
           />
         </div>
-        <span className={styles.landingReason}>{t(REASON_KEYS[report.endReason])}</span>
+        <span className={styles.landingReason}>{t(reasonKey(report.endReason))}</span>
         <span className={styles.landingListMetrics}>
           <span>{landing ? `${landing.verticalSpeed.toFixed(0)} fpm` : '-- fpm'}</span>
           <span>{landing ? `${landing.gForce.toFixed(2)} G` : '-- G'}</span>
@@ -261,7 +265,7 @@ function LandingReportDetail({
   headingRef,
   onBack,
 }: {
-  report: LandingReport;
+  report: StoredLandingReport;
   headingRef: RefObject<HTMLHeadingElement | null>;
   onBack: () => void;
 }) {
@@ -311,7 +315,7 @@ function LandingReportDetail({
           />
           <DataCard
             label={t(K.landingReportEndReason)}
-            value={t(REASON_KEYS[report.endReason])}
+            value={t(reasonKey(report.endReason))}
             icon="flag"
           />
           <DataCard
@@ -413,7 +417,7 @@ function LandingMetrics({ landing }: { landing: LandingData | undefined }) {
   );
 }
 
-function landingReportAsFlightLog(report: LandingReport): FlightLog {
+function landingReportAsFlightLog(report: StoredLandingReport): FlightLog {
   const gValues = report.points.map((point) => point.gForce).filter(Number.isFinite);
   const altitudeValues = report.points.map((point) => point.altitude).filter(Number.isFinite);
   const airspeedValues = report.points.map((point) => point.airspeed).filter(Number.isFinite);
@@ -440,7 +444,7 @@ function landingReportAsFlightLog(report: LandingReport): FlightLog {
   };
 }
 
-function touchdownTimestamp(report: LandingReport): number | undefined {
+function touchdownTimestamp(report: StoredLandingReport): number | undefined {
   const explicit = report.touchdownAt;
   if (explicit !== undefined && Number.isFinite(explicit)) return explicit;
   const derived = report.landing?.timestamp.getTime();
