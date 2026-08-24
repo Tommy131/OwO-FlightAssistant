@@ -216,6 +216,79 @@ describe('CommonModule recording lifecycle', () => {
     expect(doubles.automatic.handleFlightSnapshot).toHaveBeenCalledWith(snapshot);
   });
 
+  it('keeps the automatic archive isolated when automatic recovery fails', async () => {
+    let automaticArchive = 'orphaned automatic archive';
+    doubles.automatic.recoverInterruptedReport.mockRejectedValue(
+      new Error('automatic recovery failed'),
+    );
+    doubles.automatic.handleFlightSnapshot.mockImplementation(async () => {
+      automaticArchive = 'new automatic draft';
+    });
+    doubles.automatic.handleDisconnect.mockImplementation(async () => {
+      automaticArchive = 'automatic disconnect checkpoint';
+    });
+
+    new CommonModule().register();
+    cleanups.push(recordingBinding().setup());
+    await vi.waitFor(() =>
+      expect(doubles.automatic.recoverInterruptedReport).toHaveBeenCalledTimes(1),
+    );
+    const snapshot = connectedSnapshot();
+
+    emitSnapshot!({ snapshot }, { snapshot: emptyFlightDataSnapshot() });
+    await vi.waitFor(() =>
+      expect(doubles.manual.handleFlightSnapshot).toHaveBeenCalledWith(snapshot),
+    );
+    emitSnapshot!(
+      { snapshot: emptyFlightDataSnapshot() },
+      { snapshot },
+    );
+    await vi.waitFor(() =>
+      expect(doubles.manual.handleDisconnect).toHaveBeenCalledTimes(1),
+    );
+
+    expect(doubles.automatic.handleFlightSnapshot).not.toHaveBeenCalled();
+    expect(doubles.automatic.handleDisconnect).not.toHaveBeenCalled();
+    expect(automaticArchive).toBe('orphaned automatic archive');
+  });
+
+  it('keeps the manual archive isolated when manual recovery fails', async () => {
+    let manualArchive = 'orphaned manual archive';
+    doubles.manual.recoverInterruptedLog.mockRejectedValue(
+      new Error('manual recovery failed'),
+    );
+    doubles.manual.handleFlightSnapshot.mockImplementation(() => {
+      manualArchive = 'new manual draft';
+    });
+    doubles.manual.handleDisconnect.mockImplementation(async () => {
+      manualArchive = 'manual disconnect checkpoint';
+      return true;
+    });
+
+    new CommonModule().register();
+    cleanups.push(recordingBinding().setup());
+    await vi.waitFor(() =>
+      expect(doubles.manual.recoverInterruptedLog).toHaveBeenCalledTimes(1),
+    );
+    const snapshot = connectedSnapshot();
+
+    emitSnapshot!({ snapshot }, { snapshot: emptyFlightDataSnapshot() });
+    await vi.waitFor(() =>
+      expect(doubles.automatic.handleFlightSnapshot).toHaveBeenCalledWith(snapshot),
+    );
+    emitSnapshot!(
+      { snapshot: emptyFlightDataSnapshot() },
+      { snapshot },
+    );
+    await vi.waitFor(() =>
+      expect(doubles.automatic.handleDisconnect).toHaveBeenCalledTimes(1),
+    );
+
+    expect(doubles.manual.handleFlightSnapshot).not.toHaveBeenCalled();
+    expect(doubles.manual.handleDisconnect).not.toHaveBeenCalled();
+    expect(manualArchive).toBe('orphaned manual archive');
+  });
+
   it('flushes both active archives and removes telemetry and unload listeners on cleanup', async () => {
     const unsubscribe = vi.fn();
     doubles.flightDataSubscribe.mockImplementation((listener) => {

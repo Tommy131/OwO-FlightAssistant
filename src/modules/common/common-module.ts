@@ -42,6 +42,19 @@ async function settleRecordingOperations(
   }
 }
 
+async function recordingOperationSucceeded(
+  stage: string,
+  operation: RecordingOperation,
+): Promise<boolean> {
+  try {
+    await operation();
+    return true;
+  } catch (error) {
+    AppLogger.warning(`[Common] ${stage} failed: ${String(error)}`);
+    return false;
+  }
+}
+
 /**
  * 公共模块注册器
  *
@@ -126,43 +139,70 @@ export class CommonModule implements ModuleRegistrar {
       id: 'recording_lifecycle',
       setup: () => {
         let disposed = false;
-        const startup = (async () => {
-          await settleRecordingOperations('recording initialization', [
-            () => useFlightLogsStore.getState().refreshLogs(),
-            () => useLandingReportsStore.getState().initialize(),
-          ]);
+        const manualInitialized = recordingOperationSucceeded(
+          'manual recording initialization',
+          () => useFlightLogsStore.getState().refreshLogs(),
+        );
+        const automaticInitialized = recordingOperationSucceeded(
+          'automatic recording initialization',
+          () => useLandingReportsStore.getState().initialize(),
+        );
+        const sessionReady = Promise.all([manualInitialized, automaticInitialized]).then(
+          async () => {
+            // Subscribe below before session resume can publish its first snapshot.
+            // A failed resume still permits orphan recovery for both local stores.
+            try {
+              await useFlightDataStore.getState().resumeSession();
+            } catch (error) {
+              AppLogger.warning(`[Common] session resume failed: ${String(error)}`);
+            }
+          },
+        );
+        const manualReady = Promise.all([manualInitialized, sessionReady]).then(
+          ([initialized]) =>
+            initialized
+              ? recordingOperationSucceeded('manual recording recovery', () =>
+                  useFlightLogsStore.getState().recoverInterruptedLog(),
+                )
+              : false,
+        );
+        const automaticReady = Promise.all([automaticInitialized, sessionReady]).then(
+          ([initialized]) =>
+            initialized
+              ? recordingOperationSucceeded('automatic recording recovery', () =>
+                  useLandingReportsStore.getState().recoverInterruptedReport(),
+                )
+              : false,
+        );
 
-          // The resumed snapshot is queued by the subscription below and is
-          // released only after both independent recovery passes have run.
-          try {
-            await useFlightDataStore.getState().resumeSession();
-          } catch (error) {
-            AppLogger.warning(`[Common] session resume failed: ${String(error)}`);
-          }
-
-          await settleRecordingOperations('recording recovery', [
-            () => useFlightLogsStore.getState().recoverInterruptedLog(),
-            () => useLandingReportsStore.getState().recoverInterruptedReport(),
-          ]);
-        })();
+        const afterReady = (
+          readiness: Promise<boolean>,
+          operation: RecordingOperation,
+        ): RecordingOperation => async () => {
+          if (!(await readiness) || disposed) return;
+          return operation();
+        };
 
         const unsubscribeFlightData = useFlightDataStore.subscribe((state, previous) => {
           if (state.snapshot === previous.snapshot) return;
           const snapshot = state.snapshot;
           const disconnected = previous.snapshot.isConnected && !snapshot.isConnected;
 
-          void startup.then(() => {
-            if (disposed) return;
-            return disconnected
-              ? settleRecordingOperations('recording disconnect', [
-                  () => useFlightLogsStore.getState().handleDisconnect(),
-                  () => useLandingReportsStore.getState().handleDisconnect(),
-                ])
-              : settleRecordingOperations('recording telemetry', [
-                  () => useFlightLogsStore.getState().handleFlightSnapshot(snapshot),
-                  () => useLandingReportsStore.getState().handleFlightSnapshot(snapshot),
-                ]);
-          });
+          void settleRecordingOperations(
+            disconnected ? 'recording disconnect' : 'recording telemetry',
+            [
+              afterReady(manualReady, () =>
+                disconnected
+                  ? useFlightLogsStore.getState().handleDisconnect()
+                  : useFlightLogsStore.getState().handleFlightSnapshot(snapshot),
+              ),
+              afterReady(automaticReady, () =>
+                disconnected
+                  ? useLandingReportsStore.getState().handleDisconnect()
+                  : useLandingReportsStore.getState().handleFlightSnapshot(snapshot),
+              ),
+            ],
+          );
         });
 
         const removeUnloadGuard = installRecordingUnloadGuard({
