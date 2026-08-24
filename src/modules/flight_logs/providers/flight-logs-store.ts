@@ -115,9 +115,15 @@ const recordingContext = {
   lastOnGround: undefined as boolean | undefined,
   stableGroundSince: null as number | null,
   touchdownPointIndexes: [] as number[],
-  autoStopping: false,
   lastActiveLogPersistAt: null as number | null,
 };
+
+/** Serialized persistence mutations plus exclusive lifecycle operations. */
+let persistenceOperations: Promise<void> = Promise.resolve();
+let terminalOperation: Promise<boolean> | null = null;
+let recoveryOperation: Promise<boolean> | null = null;
+let activeArchiveWrites: Promise<void> = Promise.resolve();
+let hasUnresolvedActiveArchive = false;
 
 function resetRecordingContext(): void {
   recordingContext.lastSampleAt = null;
@@ -139,7 +145,11 @@ interface ActiveLogArchive {
 }
 
 /** 把录制中的日志写进 IndexedDB；`force` 跳过间隔节流 */
-async function persistActiveLog(log: FlightLog, force = false): Promise<void> {
+async function persistActiveLog(
+  log: FlightLog,
+  force = false,
+  strict = false,
+): Promise<void> {
   const now = Date.now();
   if (
     !force &&
@@ -155,15 +165,19 @@ async function persistActiveLog(log: FlightLog, force = false): Promise<void> {
       touchdownPointIndexes: [...recordingContext.touchdownPointIndexes],
       lastOnGround: recordingContext.lastOnGround,
     };
-    await idbSet(ACTIVE_LOG_IDB_KEY, archive);
+    const write = activeArchiveWrites.then(() => idbSet(ACTIVE_LOG_IDB_KEY, archive));
+    activeArchiveWrites = write.catch(() => undefined);
+    await write;
   } catch (e) {
     AppLogger.warning(`[FlightLogs] persist active log failed: ${String(e)}`);
+    if (strict) throw e;
   }
 }
 
 /** 清掉录制中存档（正常收尾或丢弃后调用） */
 async function clearActiveLogArchive(): Promise<void> {
   try {
+    await activeArchiveWrites;
     await idbDel(ACTIVE_LOG_IDB_KEY);
   } catch (e) {
     AppLogger.warning(`[FlightLogs] clear active log failed: ${String(e)}`);
@@ -191,46 +205,8 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
   hasActiveWork: false,
   sampleIntervalMs: DEFAULT_SAMPLE_INTERVAL_MS,
 
-  async refreshLogs() {
-    set({ isLoading: true });
-    try {
-      await PersistenceService.ensureReady();
-
-      const stored = PersistenceService.getModuleData<unknown[]>(MODULE_NAME, LOGS_KEY);
-      const localLogs = Array.isArray(stored)
-        ? stored
-            .map((item) => toJsonMap(item))
-            .filter((item): item is Record<string, unknown> => item !== null)
-            .map(flightLogFromJson)
-        : [];
-
-      // 后端是共享真相源：能连上就以它为准，本地独有的条目保留待补传
-      const remoteRaw = await pullRecords('flightLog');
-      const logs =
-        remoteRaw === null
-          ? localLogs
-          : mergeById(remoteRaw.map(flightLogFromJson), localLogs);
-      logs.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
-
-      const interval =
-        PersistenceService.getModuleData<number>(MODULE_NAME, SAMPLE_INTERVAL_MS_KEY) ??
-        DEFAULT_SAMPLE_INTERVAL_MS;
-
-      set({ logs, sampleIntervalMs: sanitizeSampleInterval(interval), isLoading: false });
-      await persistLogs(logs);
-
-      // 后端可达时补传离线期间积压的记录
-      if (remoteRaw !== null) {
-        const remoteIds = new Set(remoteRaw.map((item) => toText(item.id)));
-        for (const log of logs) {
-          if (remoteIds.has(log.id)) continue;
-          await pushRecord('flightLog', log.id, flightLogToJson(log));
-        }
-      }
-    } catch (e) {
-      AppLogger.error('[FlightLogs] refresh failed', e);
-      set({ isLoading: false });
-    }
+  refreshLogs() {
+    return enqueuePersistenceOperation(() => refreshLogsNow(set));
   },
 
   async setSampleIntervalMs(milliseconds) {
@@ -243,49 +219,8 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
     return get().recoverInterruptedLog();
   },
 
-  async recoverInterruptedLog() {
-    if (get().isRecording) return false;
-    const archive = await readActiveLogArchive();
-    if (!archive) return false;
-
-    const raw = toJsonMap(archive.log);
-    if (!raw) {
-      await clearActiveLogArchive();
-      return false;
-    }
-    const log = flightLogFromJson(raw);
-    if (log.points.length === 0) {
-      await clearActiveLogArchive();
-      return false;
-    }
-
-    // 恢复检测上下文只为了补齐已存档的落地汇总；
-    // 孤儿存档不重新进入录制态。
-    resetRecordingContext();
-    recordingContext.touchdownPointIndexes = [...(archive.touchdownPointIndexes ?? [])];
-    recordingContext.lastOnGround = archive.lastOnGround;
-
-    const lastPoint = log.points[log.points.length - 1];
-    log.endTime = new Date();
-    log.wasOnGroundAtEnd = lastPoint.onGround ?? log.wasOnGroundAtEnd;
-    log.status = flightLogStatusForEndReason('page_closed');
-    log.endReason = 'page_closed';
-    finalizeLandingAtStop(log);
-    updateFuelUsed(log);
-    await enrichTakeoffLandingMetrics(log);
-    await get().saveLog(log);
-
-    resetRecordingContext();
-    await clearActiveLogArchive();
-    set({
-      activeLog: null,
-      isRecording: false,
-      isRecordingPaused: false,
-      hasActiveWork: false,
-    });
-    await get().refreshLogs();
-    AppLogger.info(`[FlightLogs] finalized interrupted recording: ${log.points.length} points`);
-    return true;
+  recoverInterruptedLog() {
+    return beginInterruptedRecovery(set, get);
   },
 
   async flushActiveLog() {
@@ -316,7 +251,15 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
   },
 
   startRecording(snapshot, flightNumber) {
-    if (get().isRecording) return false;
+    if (
+      get().isRecording ||
+      get().hasActiveWork ||
+      terminalOperation !== null ||
+      recoveryOperation !== null ||
+      hasUnresolvedActiveArchive
+    ) {
+      return false;
+    }
 
     const now = new Date();
     const data = snapshot.flightData;
@@ -365,43 +308,24 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
   },
 
   async handleDisconnect() {
-    if (recordingContext.autoStopping) return false;
-    recordingContext.autoStopping = true;
-    try {
-      return await finalizeActiveRecording(
-        undefined,
-        'simulator_disconnected',
-        set,
-        get,
-      );
-    } finally {
-      recordingContext.autoStopping = false;
-    }
+    return finalizeActiveRecording(
+      undefined,
+      'simulator_disconnected',
+      set,
+      get,
+    );
   },
 
   async stopRecording(snapshot, reason = 'user_stopped') {
     return finalizeActiveRecording(snapshot, reason, set, get);
   },
 
-  async saveLog(log) {
-    const existing = get().logs.filter((item) => item.id !== log.id);
-    const next = [log, ...existing].sort(
-      (a, b) => b.startTime.getTime() - a.startTime.getTime(),
-    );
-    set({ logs: next });
-    // 本地先落盘保证不丢，再推后端；后端不可达时下次 refreshLogs 会补传
-    await persistLogs(next);
-    await pushRecord('flightLog', log.id, flightLogToJson(log));
+  saveLog(log) {
+    return enqueuePersistenceOperation(() => saveLogDurably(log, set, get));
   },
 
-  async deleteLog(id) {
-    const next = get().logs.filter((log) => log.id !== id);
-    set({
-      logs: next,
-      selectedLog: get().selectedLog?.id === id ? null : get().selectedLog,
-    });
-    await persistLogs(next);
-    await removeRecord('flightLog', id);
+  deleteLog(id) {
+    return enqueuePersistenceOperation(() => deleteLogNow(id, set, get));
   },
 
   exportLog(log) {
@@ -427,64 +351,235 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
 
     if (imported.length === 0) return 0;
 
-    const byId = new Map(get().logs.map((log) => [log.id, log]));
-    for (const log of imported) byId.set(log.id, log);
-    const next = [...byId.values()].sort(
-      (a, b) => b.startTime.getTime() - a.startTime.getTime(),
-    );
-    set({ logs: next });
-    await persistLogs(next);
-    // 导入的记录同样落到后端，保证「本地文件 → 前端 → 后端」链路完整
-    for (const log of imported) {
-      await pushRecord('flightLog', log.id, flightLogToJson(log));
-    }
-    return imported.length;
+    return enqueuePersistenceOperation(() => importLogsNow(imported, set, get));
   },
 }));
 
-async function finalizeActiveRecording(
+function enqueuePersistenceOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = persistenceOperations.then(operation, operation);
+  persistenceOperations = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
+async function refreshLogsNow(set: SetState): Promise<void> {
+  set({ isLoading: true });
+  try {
+    await PersistenceService.ensureReady();
+
+    const stored = PersistenceService.getModuleData<unknown[]>(MODULE_NAME, LOGS_KEY);
+    const localLogs = Array.isArray(stored)
+      ? stored
+          .map((item) => toJsonMap(item))
+          .filter((item): item is Record<string, unknown> => item !== null)
+          .map(flightLogFromJson)
+      : [];
+
+    // 后端是共享真相源：能连上就以它为准，本地独有的条目保留待补传
+    const remoteRaw = await pullRecords('flightLog');
+    const logs =
+      remoteRaw === null
+        ? localLogs
+        : mergeById(remoteRaw.map(flightLogFromJson), localLogs);
+    logs.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+
+    const interval =
+      PersistenceService.getModuleData<number>(MODULE_NAME, SAMPLE_INTERVAL_MS_KEY) ??
+      DEFAULT_SAMPLE_INTERVAL_MS;
+
+    set({ logs, sampleIntervalMs: sanitizeSampleInterval(interval), isLoading: false });
+    await persistLogs(logs);
+
+    // 后端可达时补传离线期间积压的记录
+    if (remoteRaw !== null) {
+      const remoteIds = new Set(remoteRaw.map((item) => toText(item.id)));
+      for (const log of logs) {
+        if (remoteIds.has(log.id)) continue;
+        await pushRecord('flightLog', log.id, flightLogToJson(log));
+      }
+    }
+  } catch (e) {
+    AppLogger.error('[FlightLogs] refresh failed', e);
+    set({ isLoading: false });
+  }
+}
+
+function beginInterruptedRecovery(set: SetState, get: GetState): Promise<boolean> {
+  if (
+    recoveryOperation !== null ||
+    terminalOperation !== null ||
+    get().isRecording ||
+    get().hasActiveWork
+  ) {
+    return Promise.resolve(false);
+  }
+
+  const operation = enqueuePersistenceOperation(() => recoverInterruptedLogNow(set, get));
+  const tracked = operation.finally(() => {
+    if (recoveryOperation === tracked) recoveryOperation = null;
+  });
+  recoveryOperation = tracked;
+  return tracked;
+}
+
+async function recoverInterruptedLogNow(set: SetState, get: GetState): Promise<boolean> {
+  if (get().isRecording || get().hasActiveWork || terminalOperation !== null) return false;
+  const archive = await readActiveLogArchive();
+  if (!archive) {
+    hasUnresolvedActiveArchive = false;
+    return false;
+  }
+
+  const raw = toJsonMap(archive.log);
+  if (!raw) {
+    await clearActiveLogArchive();
+    hasUnresolvedActiveArchive = false;
+    return false;
+  }
+  const log = flightLogFromJson(raw);
+  if (log.points.length === 0) {
+    await clearActiveLogArchive();
+    hasUnresolvedActiveArchive = false;
+    return false;
+  }
+  // 从这一刻起，除非恢复记录已可靠落库，否则禁止新录制覆盖同一个存档键。
+  hasUnresolvedActiveArchive = true;
+
+  // 恢复检测上下文只为了补齐已存档的落地汇总；
+  // 孤儿存档不重新进入录制态。
+  resetRecordingContext();
+  recordingContext.touchdownPointIndexes = [...(archive.touchdownPointIndexes ?? [])];
+  recordingContext.lastOnGround = archive.lastOnGround;
+
+  const lastPoint = log.points[log.points.length - 1];
+  const archivedEndTime = log.endTime?.getTime();
+  const lastSampleTime = lastPoint.timestamp.getTime();
+  log.endTime = new Date(
+    archivedEndTime === undefined
+      ? lastSampleTime
+      : Math.max(archivedEndTime, lastSampleTime),
+  );
+  log.wasOnGroundAtEnd = lastPoint.onGround ?? log.wasOnGroundAtEnd;
+  log.status = flightLogStatusForEndReason('page_closed');
+  log.endReason = 'page_closed';
+  finalizeLandingAtStop(log);
+  updateFuelUsed(log);
+  await enrichTakeoffLandingMetrics(log);
+  await saveLogDurably(log, set, get);
+
+  resetRecordingContext();
+  await clearActiveLogArchive();
+  hasUnresolvedActiveArchive = false;
+  set({
+    activeLog: null,
+    isRecording: false,
+    isRecordingPaused: false,
+    hasActiveWork: false,
+  });
+  await refreshLogsNow(set);
+  AppLogger.info(`[FlightLogs] finalized interrupted recording: ${log.points.length} points`);
+  return true;
+}
+
+async function deleteLogNow(id: string, set: SetState, get: GetState): Promise<void> {
+  const next = get().logs.filter((log) => log.id !== id);
+  set({
+    logs: next,
+    selectedLog: get().selectedLog?.id === id ? null : get().selectedLog,
+  });
+  await persistLogs(next);
+  await removeRecord('flightLog', id);
+}
+
+async function importLogsNow(
+  imported: FlightLog[],
+  set: SetState,
+  get: GetState,
+): Promise<number> {
+  const byId = new Map(get().logs.map((log) => [log.id, log]));
+  for (const log of imported) byId.set(log.id, log);
+  const next = [...byId.values()].sort(
+    (a, b) => b.startTime.getTime() - a.startTime.getTime(),
+  );
+  set({ logs: next });
+  await persistLogs(next);
+  // 导入的记录同样落到后端，保证「本地文件 → 前端 → 后端」链路完整
+  for (const log of imported) {
+    await pushRecord('flightLog', log.id, flightLogToJson(log));
+  }
+  return imported.length;
+}
+
+async function saveLogDurably(log: FlightLog, set: SetState, get: GetState): Promise<void> {
+  const existing = get().logs.filter((item) => item.id !== log.id);
+  const next = [log, ...existing].sort(
+    (a, b) => b.startTime.getTime() - a.startTime.getTime(),
+  );
+  set({ logs: next });
+  // 本地先落盘保证不丢，再推后端；后端不可达时下次 refreshLogs 会补传
+  await persistLogsDurably(next);
+  await pushRecord('flightLog', log.id, flightLogToJson(log));
+}
+
+function finalizeActiveRecording(
   snapshot: FlightDataSnapshot | undefined,
   reason: RecordingEndReason,
   set: SetState,
   get: GetState,
 ): Promise<boolean> {
+  if (terminalOperation !== null || recoveryOperation !== null) return Promise.resolve(false);
   const state = get();
-  if (!state.isRecording || !state.activeLog) return false;
+  if (!state.activeLog || (!state.isRecording && !state.hasActiveWork)) {
+    return Promise.resolve(false);
+  }
 
-  if (snapshot?.isConnected) captureSnapshot(snapshot, true, set, get);
+  const isFirstTerminalAttempt = state.isRecording;
+  if (isFirstTerminalAttempt && snapshot?.isConnected) {
+    captureSnapshot(snapshot, true, set, get);
+  }
 
   const log = get().activeLog;
-  if (!log) return false;
+  if (!log) return Promise.resolve(false);
 
-  log.endTime = new Date();
-  const lastPoint = log.points[log.points.length - 1];
-  log.wasOnGroundAtEnd =
-    snapshot?.flightData.onGround ?? lastPoint?.onGround ?? log.wasOnGroundAtEnd;
-  finalizeLandingAtStop(log);
+  if (isFirstTerminalAttempt) {
+    log.endTime = new Date();
+    const lastPoint = log.points[log.points.length - 1];
+    log.wasOnGroundAtEnd =
+      snapshot?.flightData.onGround ?? lastPoint?.onGround ?? log.wasOnGroundAtEnd;
+    log.status = flightLogStatusForEndReason(reason);
+    log.endReason = reason;
+    finalizeLandingAtStop(log);
+    updateFuelUsed(log);
+  }
+
+  // 终态在第一个 await 之前就对采样端可见，禁止新采样与竞争收尾。
+  set({
+    isRecording: false,
+    isRecordingPaused: false,
+    activeLog: { ...log },
+    hasActiveWork: log.points.length > 0,
+  });
 
   // 只有真正的空记录可以丢弃；一个有效采样点就是可恢复的用户数据。
   if (log.points.length === 0) {
-    resetRecordingContext();
-    await clearActiveLogArchive();
-    set({
-      isRecording: false,
-      isRecordingPaused: false,
-      activeLog: null,
-      hasActiveWork: false,
-    });
-    AppLogger.info('[FlightLogs] empty recording discarded');
-    return false;
+    return trackTerminalOperation(clearEmptyRecording(set));
   }
 
-  log.status = flightLogStatusForEndReason(reason);
-  log.endReason = reason;
-  updateFuelUsed(log);
-  // 派生指标要在全部采样点都到齐之后才算得出来（抬轮、35ft 俯仰、稳定性
-  // 都要看事件前后的一整段），所以放在收尾这一步而不是采样时。
-  await enrichTakeoffLandingMetrics(log);
-  await get().saveLog(log);
+  return trackTerminalOperation(completeTerminalRecording(log, set, get));
+}
+
+function trackTerminalOperation(operation: Promise<boolean>): Promise<boolean> {
+  const tracked = operation.finally(() => {
+    if (terminalOperation === tracked) terminalOperation = null;
+  });
+  terminalOperation = tracked;
+  return tracked;
+}
+
+async function clearEmptyRecording(set: SetState): Promise<boolean> {
   resetRecordingContext();
-  // 正式记录已落库，存档使命结束；先存后清，中间崩了也只是多留一份存档
   await clearActiveLogArchive();
   set({
     isRecording: false,
@@ -492,8 +587,34 @@ async function finalizeActiveRecording(
     activeLog: null,
     hasActiveWork: false,
   });
-  await get().refreshLogs();
-  return true;
+  AppLogger.info('[FlightLogs] empty recording discarded');
+  return false;
+}
+
+async function completeTerminalRecording(
+  log: FlightLog,
+  set: SetState,
+  get: GetState,
+): Promise<boolean> {
+  // 把最终采样、结束时间和原因强制落进恢复存档，再开始任何慢指标查询。
+  await persistActiveLog(log, true, true);
+  // 派生指标要在全部采样点都到齐之后才算得出来（抬轮、35ft 俯仰、稳定性
+  // 都要看事件前后的一整段），所以放在收尾这一步而不是采样时。
+  await enrichTakeoffLandingMetrics(log);
+  return enqueuePersistenceOperation(async () => {
+    await saveLogDurably(log, set, get);
+    resetRecordingContext();
+    // 正式记录已落库，存档使命结束；先存后清，中间崩了也只是多留一份存档
+    await clearActiveLogArchive();
+    set({
+      isRecording: false,
+      isRecordingPaused: false,
+      activeLog: null,
+      hasActiveWork: false,
+    });
+    await refreshLogsNow(set);
+    return true;
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -848,6 +969,14 @@ function sanitizeSampleInterval(value: number): number {
 
 async function persistLogs(logs: FlightLog[]): Promise<void> {
   await PersistenceService.setModuleData(
+    MODULE_NAME,
+    LOGS_KEY,
+    logs.map(flightLogToJson),
+  );
+}
+
+async function persistLogsDurably(logs: FlightLog[]): Promise<void> {
+  await PersistenceService.setModuleDataDurable(
     MODULE_NAME,
     LOGS_KEY,
     logs.map(flightLogToJson),

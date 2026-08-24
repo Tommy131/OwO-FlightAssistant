@@ -203,6 +203,33 @@ class PersistenceServiceImpl {
 
   /** 写入某模块的命名空间数据 */
   async setModuleData(moduleName: string, key: string, value: JsonValue): Promise<void> {
+    const { bucketKey, bucket } = this.updateModuleData(moduleName, key, value);
+    await this.scheduleSave();
+    // 模块数据整桶同步，保证后端始终是完整快照
+    void pushSetting(bucketKey, bucket);
+  }
+
+  /**
+   * 绕过防抖并把 IndexedDB 失败暴露给调用方。
+   *
+   * 录制收尾不能在「只改了内存」后就清掉唯一的恢复存档，
+   * 所以它们使用这条可验证的强制落盘路径。
+   */
+  async setModuleDataDurable(
+    moduleName: string,
+    key: string,
+    value: JsonValue,
+  ): Promise<void> {
+    const { bucketKey, bucket } = this.updateModuleData(moduleName, key, value);
+    await this.flushDurable();
+    void pushSetting(bucketKey, bucket);
+  }
+
+  private updateModuleData(
+    moduleName: string,
+    key: string,
+    value: JsonValue,
+  ): { bucketKey: string; bucket: Record<string, JsonValue> } {
     const bucketKey = `module:${moduleName}`;
     const existing = this.data[bucketKey];
     const bucket: Record<string, JsonValue> =
@@ -211,9 +238,7 @@ class PersistenceServiceImpl {
         : {};
     bucket[key] = value;
     this.data[bucketKey] = bucket;
-    await this.scheduleSave();
-    // 模块数据整桶同步，保证后端始终是完整快照
-    void pushSetting(bucketKey, bucket);
+    return { bucketKey, bucket };
   }
 
   async removeModuleData(moduleName: string, key: string): Promise<void> {
@@ -323,10 +348,14 @@ class PersistenceServiceImpl {
   /** 立即写盘（页面卸载前调用） */
   async flush(): Promise<void> {
     try {
-      await idbSet(ROOT_KEY, this.data);
+      await this.flushDurable();
     } catch (e) {
       AppLogger.warning(`[Persistence] save failed: ${String(e)}`);
     }
+  }
+
+  private async flushDurable(): Promise<void> {
+    await idbSet(ROOT_KEY, this.data);
   }
 }
 
