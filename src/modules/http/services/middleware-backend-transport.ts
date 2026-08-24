@@ -20,11 +20,13 @@ export const middlewareBackendTransport: BackendTransport = {
 
   async saveRecord(kind: BackendRecordKind, id: string, record: unknown) {
     if (kind === 'flightLog') await MiddlewareHttpService.saveFlightLog(id, record);
+    else if (kind === 'landingReport') await MiddlewareHttpService.saveLandingReport(id, record);
     else await MiddlewareHttpService.saveBriefing(id, record);
   },
 
   async deleteRecord(kind: BackendRecordKind, id: string) {
     if (kind === 'flightLog') await MiddlewareHttpService.deleteFlightLog(id);
+    else if (kind === 'landingReport') await MiddlewareHttpService.deleteLandingReport(id);
     else await MiddlewareHttpService.deleteBriefing(id);
   },
 
@@ -32,7 +34,9 @@ export const middlewareBackendTransport: BackendTransport = {
     const response =
       kind === 'flightLog'
         ? await MiddlewareHttpService.listFlightLogs()
-        : await MiddlewareHttpService.listBriefings();
+        : kind === 'landingReport'
+          ? await MiddlewareHttpService.listLandingReports()
+          : await MiddlewareHttpService.listBriefings();
     const records: unknown = response.objectBody?.records;
     return Array.isArray(records) ? (records as unknown[]) : [];
   },

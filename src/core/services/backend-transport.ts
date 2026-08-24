@@ -28,7 +28,7 @@ export interface BackendTransport {
   setSettingsBulk(entries: Record<string, unknown>): Promise<void>;
 }
 
-export type BackendRecordKind = 'flightLog' | 'briefing';
+export type BackendRecordKind = 'flightLog' | 'landingReport' | 'briefing';
 
 let transport: BackendTransport | null = null;
 

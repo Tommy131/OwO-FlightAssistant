@@ -1,12 +1,12 @@
 import { AppLogger } from '../utils/logger';
 import { toJsonMap, type JsonMap } from '../utils/parse-utils';
-import { getBackendTransport } from './backend-transport';
+import { getBackendTransport, type BackendRecordKind } from './backend-transport';
 
 /**
  * 后端存储同步
  *
- * 飞行日志与简报的落盘策略：
- *   - **后端为准**：中间件把记录写在 `resources/persistent/{flight_logs,briefings}/`，
+ * 飞行日志、简报与落地报告的落盘策略：
+ *   - **后端为准**：中间件把记录写在 `resources/persistent/{flight_logs,briefings,landing_reports}/`，
  *     多个前端实例共享同一份数据
  *   - **IndexedDB 为缓存**：后端不可达时仍能查看与新增，恢复连通后自动补传
  *
@@ -15,7 +15,7 @@ import { getBackendTransport } from './backend-transport';
 
 /** 待补传队列的持久化键（存在 PersistenceService 的模块命名空间下） */
 
-export type SyncKind = 'flightLog' | 'briefing';
+export type SyncKind = BackendRecordKind;
 
 export interface SyncResult {
   /** 后端是否成功接收 */

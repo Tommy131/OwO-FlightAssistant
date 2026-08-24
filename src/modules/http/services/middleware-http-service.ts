@@ -780,7 +780,7 @@ class MiddlewareHttpServiceImpl {
     return this.get('/api/v1/weather/radar/metadata');
   }
 
-  // ── 飞行日志 / 简报的服务端持久化 ──
+  // ── 飞行日志 / 简报 / 落地报告的服务端持久化 ──
 
   listFlightLogs(): Promise<MiddlewareHttpResponse> {
     return this.get('/api/v1/flight-logs/list');
@@ -796,6 +796,17 @@ class MiddlewareHttpServiceImpl {
 
   listBriefings(): Promise<MiddlewareHttpResponse> {
     return this.get('/api/v1/briefings/list');
+  }
+  listLandingReports(): Promise<MiddlewareHttpResponse> {
+    return this.get('/api/v1/landing-reports/list');
+  }
+
+  saveLandingReport(id: string, record: unknown): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/landing-reports/save', { body: { id, record } });
+  }
+
+  deleteLandingReport(id: string): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/landing-reports/delete', { body: { id } });
   }
 
   // ── 应用设置的服务端持久化（存中间件 SQLite）──
