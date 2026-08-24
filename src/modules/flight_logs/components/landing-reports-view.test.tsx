@@ -86,6 +86,99 @@ describe('LandingReportsView', () => {
     expect(screen.getByRole('button', { name: 'Landing report lr-1' })).toHaveFocus();
   });
 
+  it('shows aircraft, airport, touchdown rating, and bounce count in the landing list', () => {
+    render(
+      <LandingReportsView
+        reports={[
+          makeLandingReport({
+            aircraftTitle: 'A320neo',
+            aircraftType: 'A20N',
+            airport: 'EDDM',
+            landing: { ...makeLandingReport().landing!, rating: 'butter', bounceCount: 2 },
+          }),
+        ]}
+        selectedReport={undefined}
+        selectReport={vi.fn()}
+        deleteReport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByText('A320neo · A20N')).toBeVisible();
+    expect(screen.getByText('EDDM')).toBeVisible();
+    expect(screen.getByText('Perfect')).toBeVisible();
+    expect(screen.getByText('2 bounces')).toBeVisible();
+  });
+
+  it('presents exportable, per-sample landing evidence with configuration, weather, and mixed provenance', async () => {
+    const base = makeLandingReport();
+    const configuredTouchdown = {
+      ...base.points[9],
+      radioAltitudeSource: 'agl_fallback' as const,
+      radioAltitude: 8,
+      flapsLabel: 'FULL',
+      gearDown: true,
+      autoBrakeLevel: 3,
+      speedBrakePosition: 1,
+      autopilotEngaged: false,
+      autothrottleEngaged: false,
+      landingLights: true,
+      windSpeed: 12,
+      windGust: 18,
+      windDirection: 270,
+      outsideAirTemperature: 16,
+      baroPressure: 29.88,
+      crosswindComponent: 7,
+    };
+    const touchdownSequence = [
+      configuredTouchdown,
+      { ...base.points[10], radioAltitudeSource: 'radio' as const, radioAltitude: 0 },
+    ];
+    const report = makeLandingReport({
+      aircraftTitle: 'A320neo',
+      aircraftType: 'A20N',
+      airport: 'EDDM',
+      points: [
+        ...base.points.slice(0, 9),
+        configuredTouchdown,
+        ...base.points.slice(10),
+      ],
+      landing: { ...base.landing!, touchdownSequence },
+    });
+    let exportedBlob: Blob | undefined;
+    const createObjectURL = vi.fn((blob: Blob) => {
+      exportedBlob = blob;
+      return 'blob:landing-report';
+    });
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    render(<LandingReportsHarness reports={[report]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Landing report lr-1' }));
+
+    expect(screen.getByTitle('A320neo · A20N')).toBeVisible();
+    expect(screen.getByTitle('EDDM')).toBeVisible();
+    expect(screen.getByTitle('Mixed sources')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Configuration at touchdown' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Weather at touchdown' })).toBeVisible();
+    expect(screen.getByTitle('FULL')).toBeVisible();
+    expect(screen.getByTitle('270° / 12 kt, gust 18')).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Touchdown Sequence' })).toBeVisible();
+    expect(screen.getByText('12:00:09')).toBeVisible();
+    expect(screen.getByText('12:00:10')).toBeVisible();
+    expect(screen.getByRole('columnheader', { name: 'Radio Altitude (ft)' })).toBeVisible();
+    expect(screen.getAllByRole('columnheader', { name: 'Height source' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('AGL fallback').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(exportedBlob).toBeInstanceOf(Blob);
+    const payload: unknown = JSON.parse(await exportedBlob!.text());
+    expect(payload).toMatchObject({ id: 'lr-1', aircraft_title: 'A320neo', airport: 'EDDM' });
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:landing-report');
+  });
+
   it('does not invent touchdown data for a report interrupted before touchdown', () => {
     const report = makeLandingReport({ touchdownAt: undefined, landing: undefined });
     render(<LandingReportsHarness reports={[report]} />);
@@ -302,6 +395,21 @@ describe('LandingReportsView', () => {
     );
     expect(screen.getByRole('button', { name: 'Landing report lr-1' })).toBeVisible();
   });
+
+  it('moves keyboard focus to the next report after a confirmed deletion', async () => {
+    vi.mocked(showAdvancedConfirmDialog).mockResolvedValue(true);
+    const reports = [makeLandingReport(), makeLandingReport({ id: 'lr-2' })];
+    render(<MutableLandingReportsHarness initialReports={reports} />);
+
+    const deleteButton = screen.getByRole('button', { name: 'Delete landing report lr-1' });
+    deleteButton.focus();
+    fireEvent.click(deleteButton);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Landing report lr-1' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Landing report lr-2' })).toHaveFocus();
+  });
 });
 
 function LandingReportsHarness({ reports }: { reports: StoredLandingReport[] }) {
@@ -312,6 +420,19 @@ function LandingReportsHarness({ reports }: { reports: StoredLandingReport[] }) 
       selectedReport={reports.find((report) => report.id === selectedId)}
       selectReport={setSelectedId}
       deleteReport={vi.fn().mockResolvedValue(undefined)}
+    />
+  );
+}
+
+function MutableLandingReportsHarness({ initialReports }: { initialReports: StoredLandingReport[] }) {
+  const [reports, setReports] = useState(initialReports);
+  const [selectedId, setSelectedId] = useState<string>();
+  return (
+    <LandingReportsView
+      reports={reports}
+      selectedReport={reports.find((report) => report.id === selectedId)}
+      selectReport={setSelectedId}
+      deleteReport={async (id) => setReports((current) => current.filter((report) => report.id !== id))}
     />
   );
 }

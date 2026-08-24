@@ -597,6 +597,17 @@ describe('flareHeightFt', () => {
     expect(flareHeightFt(approach, 5)).toBe(80);
   });
 
+  it('excludes a hard-touchdown ground sample even when it has the most-negative sink rate', () => {
+    const hardTouchdown = [
+      point({ t: 0, radioAltitude: 120, verticalSpeed: -700, onGround: false }),
+      point({ t: 1, radioAltitude: 80, verticalSpeed: -800, onGround: false }),
+      point({ t: 2, radioAltitude: 25, verticalSpeed: -400, onGround: false }),
+      point({ t: 3, radioAltitude: 0, verticalSpeed: -1_200, onGround: true }),
+    ];
+
+    expect(flareHeightFt(hardTouchdown, 3)).toBe(80);
+  });
+
   it('搜索上限之外的采样不参与', () => {
     // 200ft 那点垂速更负也不能选，它在 FLARE_SEARCH_AGL_FT 之上
     expect(flareHeightFt(approach, 5)).not.toBe(200);

@@ -17,6 +17,9 @@ import {
 export interface LandingReport {
   id: string;
   simulator: string;
+  aircraftTitle?: string;
+  aircraftType?: string;
+  airport?: string;
   startedAt: number;
   endedAt: number;
   touchdownAt?: number;
@@ -40,6 +43,9 @@ export function serializeLandingReport(report: StoredLandingReport): JsonMap {
   return {
     id: report.id,
     simulator: report.simulator,
+    aircraft_title: report.aircraftTitle ?? null,
+    aircraft_type: report.aircraftType ?? null,
+    airport: report.airport ?? null,
     started_at: report.startedAt,
     ended_at: report.endedAt,
     touchdown_at: report.touchdownAt ?? null,
@@ -56,6 +62,9 @@ export function deserializeLandingReport(json: JsonMap): StoredLandingReport {
   return {
     id: toText(json.id) || crypto.randomUUID(),
     simulator: toText(json.simulator) || 'Unknown',
+    aircraftTitle: optionalText(json.aircraft_title),
+    aircraftType: optionalText(json.aircraft_type),
+    airport: optionalText(json.airport)?.toUpperCase(),
     startedAt: toDouble(json.started_at) ?? 0,
     endedAt: toDouble(json.ended_at) ?? 0,
     touchdownAt: toDouble(json.touchdown_at),
@@ -66,6 +75,11 @@ export function deserializeLandingReport(json: JsonMap): StoredLandingReport {
     createdAt: toDouble(json.created_at) ?? 0,
     updatedAt: toDouble(json.updated_at) ?? 0,
   };
+}
+
+function optionalText(raw: unknown): string | undefined {
+  const value = toText(raw).trim();
+  return value.length > 0 ? value : undefined;
 }
 
 function pointsFromJson(raw: unknown): FlightLogPoint[] {

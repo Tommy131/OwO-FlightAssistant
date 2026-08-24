@@ -1,6 +1,11 @@
 import { AppLogger } from '../utils/logger';
 import { toJsonMap, type JsonMap } from '../utils/parse-utils';
-import { getBackendTransport, type BackendRecordKind } from './backend-transport';
+import {
+  getBackendTransport,
+  type BackendRecordKind,
+  type BackendRecordMutationOptions,
+  type BackendRecordState,
+} from './backend-transport';
 
 /**
  * 后端存储同步
@@ -22,6 +27,10 @@ export interface SyncResult {
   ok: boolean;
   /** 后端不可达时为 true —— 调用方据此决定是否入队补传 */
   offline: boolean;
+  /** Optimistic-concurrency rejection; distinct from an unavailable backend. */
+  conflict?: boolean;
+  revision?: number;
+  deleted?: boolean;
 }
 
 /** 保存一条记录到后端 */
@@ -29,31 +38,94 @@ export async function pushRecord(
   kind: SyncKind,
   id: string,
   record: unknown,
+  options?: BackendRecordMutationOptions,
 ): Promise<SyncResult> {
   const transport = getBackendTransport();
   if (!transport) return { ok: false, offline: true };
   try {
     await transport.init();
-    await transport.saveRecord(kind, id, record);
-    return { ok: true, offline: false };
+    const result = options
+      ? await transport.saveRecord(kind, id, record, options)
+      : await transport.saveRecord(kind, id, record);
+    return {
+      ok: true,
+      offline: false,
+      ...(result?.revision === undefined ? {} : { revision: result.revision }),
+      ...(result?.deleted === undefined ? {} : { deleted: result.deleted }),
+    };
   } catch (e) {
+    const conflict = revisionConflict(e);
+    if (conflict) return conflict;
     AppLogger.warning(`[BackendSync] push ${kind} ${id} failed: ${String(e)}`);
     return { ok: false, offline: true };
   }
 }
 
 /** 从后端删除一条记录 */
-export async function removeRecord(kind: SyncKind, id: string): Promise<SyncResult> {
+export async function removeRecord(
+  kind: SyncKind,
+  id: string,
+  options?: BackendRecordMutationOptions,
+): Promise<SyncResult> {
   const transport = getBackendTransport();
   if (!transport) return { ok: false, offline: true };
   try {
     await transport.init();
-    await transport.deleteRecord(kind, id);
-    return { ok: true, offline: false };
+    const result = options
+      ? await transport.deleteRecord(kind, id, options)
+      : await transport.deleteRecord(kind, id);
+    return {
+      ok: true,
+      offline: false,
+      ...(result?.revision === undefined ? {} : { revision: result.revision }),
+      ...(result?.deleted === undefined ? {} : { deleted: result.deleted }),
+    };
   } catch (e) {
+    const conflict = revisionConflict(e);
+    if (conflict) return conflict;
     AppLogger.warning(`[BackendSync] delete ${kind} ${id} failed: ${String(e)}`);
     return { ok: false, offline: true };
   }
+}
+
+/** Pull revision metadata when available, while retaining old transport support. */
+export async function pullRecordState(
+  kind: SyncKind,
+): Promise<BackendRecordState | null> {
+  const transport = getBackendTransport();
+  if (!transport) return null;
+  try {
+    await transport.init();
+    if (transport.listRecordState) return await transport.listRecordState(kind);
+    return {
+      records: await transport.listRecords(kind),
+      revisions: {},
+      tombstones: [],
+    };
+  } catch (e) {
+    AppLogger.warning(`[BackendSync] pull ${kind} state failed: ${String(e)}`);
+    return null;
+  }
+}
+
+function revisionConflict(error: unknown): SyncResult | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const candidate = error as { statusCode?: unknown; data?: unknown };
+  if (candidate.statusCode !== 409) return undefined;
+  const data = toJsonMap(candidate.data);
+  return {
+    ok: false,
+    offline: false,
+    conflict: true,
+    revision: numericRevision(data?.current_revision),
+    deleted: data?.deleted === true,
+  };
+}
+
+function numericRevision(raw: unknown): number | undefined {
+  return typeof raw === 'number' && Number.isSafeInteger(raw) && raw >= 0
+    ? raw
+    : undefined;
 }
 
 /**

@@ -4,6 +4,7 @@ import type { FlightLogPoint } from '../models/flight-log-models';
 import { FLIGHT_LOG_TEST_START, makeFlightLogPoint } from '../test/flight-log-fixtures';
 import {
   createLandingReportRecorder,
+  type LandingReportCaptureContext,
   type LandingRecorderEvent,
   type LandingReportRecorder,
 } from './landing-report-recorder';
@@ -25,7 +26,11 @@ function point(offsetMs: number, overrides: Partial<FlightLogPoint> = {}): Fligh
 
 function harness(): {
   recorder: LandingReportRecorder;
-  push: (offsetMs: number, overrides?: Partial<FlightLogPoint>) => LandingRecorderEvent[];
+  push: (
+    offsetMs: number,
+    overrides?: Partial<FlightLogPoint>,
+    context?: LandingReportCaptureContext,
+  ) => LandingRecorderEvent[];
   advanceTo: (offsetMs: number) => void;
 } {
   let now = BASE_TIME;
@@ -36,9 +41,9 @@ function harness(): {
   });
   return {
     recorder,
-    push(offsetMs, overrides) {
+    push(offsetMs, overrides, context) {
       now = BASE_TIME + offsetMs;
-      return recorder.push(point(offsetMs, overrides));
+      return recorder.push(point(offsetMs, overrides), context);
     },
     advanceTo(offsetMs) {
       now = BASE_TIME + offsetMs;
@@ -189,6 +194,24 @@ describe('automatic landing report recorder', () => {
     );
 
     expect(nextReport.startedAt).toBe(BASE_TIME + 2_000);
+  });
+
+  it('preserves capture identity on an airborne touch-and-go rollover before another sample', () => {
+    const { recorder, push } = harness();
+    const context = {
+      aircraftTitle: 'Airbus A320neo',
+      aircraftType: 'A20N',
+      airport: 'EDDF',
+    };
+
+    push(0, { radioAltitude: 500 }, context);
+    push(1_000, { onGround: true, radioAltitude: 0 }, context);
+    push(2_000, { onGround: false, radioAltitude: 10 }, context);
+    onlyFinalizedReport(
+      push(12_001, { onGround: false, radioAltitude: 1_000 }, context),
+    );
+
+    expect(recorder.getRecoverableReport()).toMatchObject(context);
   });
 
   it('separates a new touchdown first observed just beyond the airborne cutoff', () => {

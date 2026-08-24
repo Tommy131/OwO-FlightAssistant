@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { installRecordingUnloadGuard } from './recording-lifecycle';
 
+const noSubscription = (): (() => void) => () => undefined;
+
 describe('installRecordingUnloadGuard', () => {
   const cleanups: Array<() => void> = [];
 
@@ -21,6 +23,8 @@ describe('installRecordingUnloadGuard', () => {
         installRecordingUnloadGuard({
           flightActive: () => flightActive,
           landingActive: () => landingActive,
+          subscribeFlightActive: noSubscription,
+          subscribeLandingActive: noSubscription,
           flush,
         }),
       );
@@ -50,6 +54,8 @@ describe('installRecordingUnloadGuard', () => {
       installRecordingUnloadGuard({
         flightActive: () => false,
         landingActive: () => false,
+        subscribeFlightActive: noSubscription,
+        subscribeLandingActive: noSubscription,
         flush,
       }),
     );
@@ -64,11 +70,54 @@ describe('installRecordingUnloadGuard', () => {
     expect(flush).not.toHaveBeenCalled();
   });
 
+  it('installs the unload listener only while either recorder has active work', () => {
+    let flightActive = false;
+    let landingActive = false;
+    let notifyFlight: () => void = () => undefined;
+    let notifyLanding: () => void = () => undefined;
+    const addListener = vi.spyOn(window, 'addEventListener');
+    const removeListener = vi.spyOn(window, 'removeEventListener');
+
+    cleanups.push(
+      installRecordingUnloadGuard({
+        flightActive: () => flightActive,
+        landingActive: () => landingActive,
+        subscribeFlightActive: (listener) => {
+          notifyFlight = listener;
+          return () => undefined;
+        },
+        subscribeLandingActive: (listener) => {
+          notifyLanding = listener;
+          return () => undefined;
+        },
+        flush: vi.fn().mockResolvedValue(undefined),
+      }),
+    );
+
+    expect(addListener).not.toHaveBeenCalledWith('beforeunload', expect.any(Function));
+
+    flightActive = true;
+    notifyFlight();
+    expect(addListener).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+
+    landingActive = true;
+    notifyLanding();
+    flightActive = false;
+    notifyFlight();
+    expect(removeListener).not.toHaveBeenCalledWith('beforeunload', expect.any(Function));
+
+    landingActive = false;
+    notifyLanding();
+    expect(removeListener).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+  });
+
   it('stops guarding after cleanup', () => {
     const flush = vi.fn().mockResolvedValue(undefined);
     const cleanup = installRecordingUnloadGuard({
       flightActive: () => true,
       landingActive: () => false,
+      subscribeFlightActive: noSubscription,
+      subscribeLandingActive: noSubscription,
       flush,
     });
     cleanups.push(cleanup);

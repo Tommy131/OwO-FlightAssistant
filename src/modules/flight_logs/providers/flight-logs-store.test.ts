@@ -195,6 +195,28 @@ describe('manual flight recording finalization', () => {
     vi.useRealTimers();
   });
 
+  it('does not promote an incomplete legacy log to completed while refreshing', async () => {
+    testState.moduleData.set('flight_logs/logs', [{
+      id: 'legacy-incomplete',
+      aircraft: 'A320',
+      departure: 'EDDF',
+      start: START.toISOString(),
+      max_g: 1,
+      min_g: 1,
+      max_alt: 1_000,
+      max_spd: 180,
+      max_gs: 170,
+      ground_start: true,
+      ground_end: false,
+      points: [],
+    }]);
+
+    await useFlightLogsStore.getState().refreshLogs();
+
+    expect(persistedLogs()[0]).not.toHaveProperty('status');
+    expect(flightLogFromJson(persistedLogs()[0]).status).toBeUndefined();
+  });
+
   it('saves a non-empty manual recording shorter than one minute as user-stopped', async () => {
     expect(useFlightLogsStore.getState().startRecording(snapshot(), 'DLH123')).toBe(true);
     await settleInitialArchive();
@@ -753,6 +775,46 @@ describe('manual flight recording finalization', () => {
       isRecording: false,
       hasActiveWork: true,
     });
+  });
+
+  it('cleans up a finalized manual recording after its durable local save without waiting for backend sync', async () => {
+    expect(useFlightLogsStore.getState().startRecording(snapshot())).toBe(true);
+    await settleInitialArchive();
+    const sync = deferred<{ ok: boolean; offline: boolean }>();
+    testState.pushRecord.mockReturnValueOnce(sync.promise);
+
+    const stopping = useFlightLogsStore
+      .getState()
+      .stopRecording(snapshot({ altitude: 222 }), 'user_stopped');
+    for (let turn = 0; turn < 20 && testState.pushRecord.mock.calls.length === 0; turn += 1) {
+      await Promise.resolve();
+    }
+    for (
+      let turn = 0;
+      turn < 20 &&
+      (testState.activeArchives.has(ACTIVE_LOG_IDB_KEY) ||
+        useFlightLogsStore.getState().activeLog !== null);
+      turn += 1
+    ) {
+      await Promise.resolve();
+    }
+    for (let turn = 0; turn < 5; turn += 1) {
+      await Promise.resolve();
+    }
+
+    try {
+      expect(testState.pushRecord).toHaveBeenCalledOnce();
+      expect(persistedLogs()).toHaveLength(1);
+      expect(testState.activeArchives.has(ACTIVE_LOG_IDB_KEY)).toBe(false);
+      expect(useFlightLogsStore.getState()).toMatchObject({
+        activeLog: null,
+        hasActiveWork: false,
+      });
+      expect(useFlightLogsStore.getState().startRecording(snapshot())).toBe(true);
+    } finally {
+      sync.resolve({ ok: true, offline: false });
+      await stopping;
+    }
   });
 
   it('uses the archived final sample time instead of delayed recovery time', async () => {

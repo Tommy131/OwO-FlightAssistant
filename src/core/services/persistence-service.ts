@@ -19,6 +19,8 @@ import { pullSettings, pushSetting, removeSetting, resetSettings } from './setti
 const ROOT_KEY = 'owo-flight-assistant/persistence';
 /** 存放缓存类数据（可被「清除缓存」清空）的键 */
 const CACHE_KEY = 'owo-flight-assistant/cache';
+/** Landing reports moved to their own failure-propagating IndexedDB record store. */
+const LEGACY_REMOTE_LANDING_REPORTS_KEY = 'module:landing_reports';
 
 /**
  * 存储值类型
@@ -90,9 +92,16 @@ class PersistenceServiceImpl {
     try {
       const remote = await pullSettings();
       if (remote !== null) {
-        this.data = { ...this.data, ...remote };
+        // Keep any local legacy landing-report bucket intact until the dedicated
+        // repository migrates it. An older settings snapshot must never erase
+        // offline-only reports before record reconciliation runs.
+        const remoteSettings = { ...remote };
+        delete remoteSettings[LEGACY_REMOTE_LANDING_REPORTS_KEY];
+        this.data = { ...this.data, ...remoteSettings };
         this.backendAvailable = true;
-        AppLogger.info(`[Persistence] merged ${Object.keys(remote).length} keys from backend`);
+        AppLogger.info(
+          `[Persistence] merged ${Object.keys(remoteSettings).length} keys from backend`,
+        );
         // 后端拉到的内容回写本地缓存，供下次离线启动使用
         void this.flush();
       } else {

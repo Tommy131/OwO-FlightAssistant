@@ -1,6 +1,8 @@
 export interface RecordingUnloadGuardDependencies {
   flightActive: () => boolean;
   landingActive: () => boolean;
+  subscribeFlightActive: (listener: () => void) => () => void;
+  subscribeLandingActive: (listener: () => void) => () => void;
   flush: () => Promise<unknown>;
 }
 
@@ -14,8 +16,11 @@ export interface RecordingUnloadGuardDependencies {
 export function installRecordingUnloadGuard({
   flightActive,
   landingActive,
+  subscribeFlightActive,
+  subscribeLandingActive,
   flush,
 }: RecordingUnloadGuardDependencies): () => void {
+  let listenerInstalled = false;
   const onBeforeUnload = (event: BeforeUnloadEvent): void => {
     if (!flightActive() && !landingActive()) return;
 
@@ -24,6 +29,24 @@ export function installRecordingUnloadGuard({
     event.returnValue = '';
   };
 
-  window.addEventListener('beforeunload', onBeforeUnload);
-  return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  const updateListener = (): void => {
+    const active = flightActive() || landingActive();
+    if (active && !listenerInstalled) {
+      window.addEventListener('beforeunload', onBeforeUnload);
+      listenerInstalled = true;
+    } else if (!active && listenerInstalled) {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      listenerInstalled = false;
+    }
+  };
+
+  const unsubscribeFlight = subscribeFlightActive(updateListener);
+  const unsubscribeLanding = subscribeLandingActive(updateListener);
+  updateListener();
+
+  return () => {
+    unsubscribeFlight();
+    unsubscribeLanding();
+    if (listenerInstalled) window.removeEventListener('beforeunload', onBeforeUnload);
+  };
 }

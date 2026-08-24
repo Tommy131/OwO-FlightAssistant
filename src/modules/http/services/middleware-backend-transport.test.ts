@@ -41,4 +41,55 @@ describe('middlewareBackendTransport', () => {
     expect(post).not.toHaveBeenCalledWith('/api/v1/briefings/delete', expect.anything());
     post.mockRestore();
   });
+
+  it('round-trips landing-report revisions and tombstones additively', async () => {
+    const post = vi.spyOn(MiddlewareHttpService, 'post')
+      .mockResolvedValueOnce({ objectBody: { revision: 4 } } as never)
+      .mockResolvedValueOnce({
+        objectBody: { revision: 5, tombstone: true },
+      } as never);
+    const get = vi.spyOn(MiddlewareHttpService, 'get').mockResolvedValue({
+      objectBody: {
+        records: [{ id: 'live' }],
+        revisions: { live: 4 },
+        tombstones: [{ id: 'gone', revision: 2, deleted: true }],
+      },
+    } as never);
+
+    await expect(
+      middlewareBackendTransport.saveRecord(
+        'landingReport',
+        'live',
+        { id: 'live' },
+        { expectedRevision: 3 },
+      ),
+    ).resolves.toEqual({ revision: 4 });
+    await expect(
+      middlewareBackendTransport.deleteRecord(
+        'landingReport',
+        'live',
+        { expectedRevision: 4 },
+      ),
+    ).resolves.toEqual({ revision: 5, deleted: true });
+    await expect(
+      middlewareBackendTransport.listRecordState?.('landingReport'),
+    ).resolves.toEqual({
+      records: [{ id: 'live' }],
+      revisions: { live: 4 },
+      tombstones: [{ id: 'gone', revision: 2, deleted: true }],
+    });
+
+    expect(post).toHaveBeenNthCalledWith(1, '/api/v1/landing-reports/save', {
+      body: {
+        id: 'live',
+        record: { id: 'live' },
+        expected_revision: 3,
+      },
+    });
+    expect(post).toHaveBeenNthCalledWith(2, '/api/v1/landing-reports/delete', {
+      body: { id: 'live', expected_revision: 4 },
+    });
+    post.mockRestore();
+    get.mockRestore();
+  });
 });

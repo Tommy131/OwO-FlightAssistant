@@ -95,25 +95,25 @@ interface SimulatorFixture {
 
 const simulatorFixtures = [
   {
-    name: 'MSFS 2020 through the msfs runtime',
+    name: 'MSFS store-contract fixture with native radio height',
     simulatorType: 'msfs',
     expectedSimulatorLabel: 'MSFS',
     radioAltitudeSource: 'radio',
   },
   {
-    name: 'MSFS 2024 through the msfs runtime',
+    name: 'MSFS store-contract fixture with AGL fallback height',
     simulatorType: 'msfs',
     expectedSimulatorLabel: 'MSFS',
     radioAltitudeSource: 'agl_fallback',
   },
   {
-    name: 'X-Plane 11 through the xplane runtime',
+    name: 'X-Plane store-contract fixture with native radio height',
     simulatorType: 'xplane',
     expectedSimulatorLabel: 'X-Plane',
     radioAltitudeSource: 'radio',
   },
   {
-    name: 'X-Plane 12 through the xplane runtime',
+    name: 'X-Plane store-contract fixture with AGL fallback height',
     simulatorType: 'xplane',
     expectedSimulatorLabel: 'X-Plane',
     radioAltitudeSource: 'agl_fallback',
@@ -127,6 +127,10 @@ class MemoryPersistence
 
   getModuleData<T>(moduleName: string, key: string): T | undefined {
     return persistenceState.moduleData.get(`${moduleName}/${key}`) as T | undefined;
+  }
+
+  getDurableModuleData<T>(moduleName: string, key: string): Promise<T | undefined> {
+    return Promise.resolve(this.getModuleData<T>(moduleName, key));
   }
 
   async setModuleData(moduleName: string, key: string, value: unknown): Promise<void> {
@@ -156,6 +160,13 @@ const archiveStorage: LandingReportsArchiveStorage = {
   get: (key) => Promise.resolve(persistenceState.archives.get(key)),
   set: (key, value) => {
     persistenceState.archives.set(key, value);
+    return Promise.resolve();
+  },
+  update: (key, updater) => {
+    persistenceState.archives.set(
+      key,
+      updater(persistenceState.archives.get(key)),
+    );
     return Promise.resolve();
   },
   remove: (key) => {
@@ -306,7 +317,7 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-describe('manual and automatic recording integration', () => {
+describe('manual and automatic recording store-contract integration', () => {
   it.each(simulatorFixtures)(
     'creates a stable landing report for $name using $radioAltitudeSource height while manual logging continues',
     async (fixture) => {
@@ -432,7 +443,7 @@ describe('manual and automatic recording integration', () => {
     expect(reports[0]).toMatchObject({
       status: 'incomplete',
       endReason: 'page_closed',
-      endedAt: START_TIME + 5_000,
+      endedAt: START_TIME + 500,
     });
     expect(reports[0].points.at(-1)?.radioAltitudeSource).toBe('radio');
     expect(persistenceState.archives.has(ACTIVE_MANUAL_LOG_KEY)).toBe(false);

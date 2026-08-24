@@ -4,6 +4,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import { PersistenceService } from '../../../core/services/persistence-service';
 import { AppLogger } from '../../../core/utils/logger';
 import type { FlightDataSnapshot, SimulatorType } from '../../common/models/common-models';
+import type { MapRunwayGeometry } from '../../map/models/map-models';
 import type {
   FlightLogAlert,
   FlightLogPoint,
@@ -24,9 +25,11 @@ import {
   type LandingReportsRepository,
 } from '../services/landing-reports-repository';
 import {
+  computeLandingMetrics,
   MAX_VALID_LANDING_G,
   MIN_VALID_LANDING_G,
 } from '../services/takeoff-landing-metrics';
+import { lookupRunwayAt } from '../services/runway-lookup';
 
 const SETTINGS_MODULE = 'landing_reports';
 const ENABLED_SETTING_KEY = 'automatic_enabled';
@@ -60,6 +63,10 @@ interface LandingReportsStoreDependencies {
   createRecorder?: (options: LandingReportRecorderOptions) => LandingReportRecorder;
   now?: () => number;
   createId?: () => string;
+  lookupRunway?: (
+    icao: string | undefined,
+    position: { latitude: number; longitude: number },
+  ) => Promise<MapRunwayGeometry | undefined>;
 }
 
 export function createLandingReportsStore(
@@ -76,9 +83,11 @@ function landingReportsStateCreator(
   const now = dependencies.now ?? Date.now;
   const createId = dependencies.createId ?? (() => crypto.randomUUID());
   const createRecorder = dependencies.createRecorder ?? createLandingReportRecorder;
+  const lookupRunway = dependencies.lookupRunway ?? lookupRunwayAt;
 
   let recorder: LandingReportRecorder | undefined;
   let paused = false;
+  let pendingFinalReport: LandingReport | undefined;
   let operationQueue = Promise.resolve();
 
   function enqueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -127,12 +136,17 @@ function landingReportsStateCreator(
     set: (partial: Partial<LandingReportsState>) => void,
     get: () => LandingReportsState,
   ): Promise<void> {
-    // This order is intentional: a network stall must never strand the only
-    // durable copy in the transient recovery archive.
-    await repository.saveLocal(report);
+    pendingFinalReport = report;
+    set({ hasActiveWork: true });
+    // Preserve the exact finalized payload as recovery state before any
+    // enrichment or collection write that can fail.
+    await repository.writeActive(report);
+    const durableReport = await enrichRunway(report, lookupRunway);
+    await repository.saveLocal(durableReport);
     await repository.clearActive();
-    updateReports(set, get, report);
-    startBestEffortSync(report);
+    pendingFinalReport = undefined;
+    updateReports(set, get, durableReport);
+    startBestEffortSync(durableReport);
   }
 
   function startBestEffortSync(report: StoredLandingReport): void {
@@ -154,6 +168,16 @@ function landingReportsStateCreator(
       await persistFinalReport(event.report, set, get);
       if (event.report.endReason !== 'touch_and_go') resetCapture();
     }
+  }
+
+  async function drainPendingFinal(
+    set: (partial: Partial<LandingReportsState>) => void,
+    get: () => LandingReportsState,
+  ): Promise<void> {
+    const pending = pendingFinalReport;
+    if (!pending) return;
+    await persistFinalReport(pending, set, get);
+    if (pending.endReason !== 'touch_and_go') resetCapture();
   }
 
   async function persistActiveDraft(): Promise<void> {
@@ -206,6 +230,7 @@ function landingReportsStateCreator(
 
       setEnabled(enabled) {
         return enqueue(async () => {
+          await drainPendingFinal(set, get);
           if (!enabled) await stopWith((activeRecorder) => activeRecorder.stop());
           else if (!get().enabled) resetCapture();
           set({ enabled });
@@ -219,6 +244,7 @@ function landingReportsStateCreator(
 
       handleFlightSnapshot(snapshot) {
         return enqueue(async () => {
+          await drainPendingFinal(set, get);
           if (!get().enabled) return;
           if (!snapshot.isConnected) {
             await stopWith((activeRecorder) => activeRecorder.disconnect());
@@ -236,7 +262,7 @@ function landingReportsStateCreator(
           paused = false;
 
           const point = snapshotToPoint(snapshot, now());
-          const events = activeRecorder.push(point);
+          const events = activeRecorder.push(point, captureContext(snapshot));
           await persistEvents(events, set, get);
 
           const hasActiveWork = recorder?.hasActiveWork() ?? false;
@@ -279,12 +305,13 @@ function landingReportsStateCreator(
           const timestamp = now();
           const recovered: LandingReport = {
             ...active,
-            endedAt: timestamp,
+            endedAt: recoveredEndTime(active),
             status: 'incomplete',
             endReason: 'page_closed',
             updatedAt: timestamp,
           };
           await persistFinalReport(recovered, set, get);
+          set({ hasActiveWork: false });
           return true;
         });
       },
@@ -304,6 +331,72 @@ function landingReportsStateCreator(
         set({ selectedReport: get().reports.find((report) => report.id === id) });
       },
     };
+  };
+}
+
+function captureContext(snapshot: FlightDataSnapshot): {
+  aircraftTitle?: string;
+  aircraftType?: string;
+  airport?: string;
+} {
+  const data = snapshot.flightData;
+  return {
+    aircraftTitle:
+      normalizeIdentity(snapshot.aircraftTitle) ??
+      normalizeIdentity(data.aircraftDisplayName) ??
+      normalizeIdentity(data.aircraftModel),
+    aircraftType:
+      normalizeIdentity(data.aircraftIcao) ??
+      normalizeIdentity(data.aircraftModel) ??
+      normalizeIdentity(data.aircraftFamily),
+    airport:
+      normalizeIdentity(snapshot.nearestAirport?.icaoCode)?.toUpperCase() ??
+      normalizeIdentity(data.arrivalAirport)?.toUpperCase(),
+  };
+}
+
+function normalizeIdentity(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : undefined;
+}
+
+function recoveredEndTime(report: StoredLandingReport): number {
+  if (Number.isFinite(report.endedAt) && report.endedAt > 0) return report.endedAt;
+  return report.points.at(-1)?.timestamp.getTime() ?? report.startedAt;
+}
+
+async function enrichRunway(
+  report: LandingReport,
+  lookupRunway: (
+    icao: string | undefined,
+    position: { latitude: number; longitude: number },
+  ) => Promise<MapRunwayGeometry | undefined>,
+): Promise<LandingReport> {
+  const landing = report.landing;
+  if (!landing || !report.airport) return report;
+  const runway = await lookupRunway(report.airport, {
+    latitude: landing.latitude,
+    longitude: landing.longitude,
+  });
+  if (!runway) return report;
+  const metrics = computeLandingMetrics(
+    { points: report.points, landingData: landing },
+    runway,
+  );
+  const metricNotes = { ...(landing.metricNotes ?? {}), ...metrics.unavailable };
+  if (metrics.remainingRunwayFt !== undefined) delete metricNotes.remainingRunwayFt;
+  if (metrics.approachStabilityScore !== undefined) {
+    delete metricNotes.approachStabilityScore;
+  }
+  return {
+    ...report,
+    landing: {
+      ...landing,
+      runway: runway.ident,
+      approachStabilityScore: metrics.approachStabilityScore,
+      remainingRunwayFt: metrics.remainingRunwayFt,
+      metricNotes: Object.keys(metricNotes).length > 0 ? metricNotes : undefined,
+    },
   };
 }
 
@@ -340,6 +433,7 @@ function snapshotToPoint(snapshot: FlightDataSnapshot, timestamp: number): Fligh
     rightGearG: data.rightGearG,
     flapsPosition: finiteInteger(data.flapsAngle),
     flapsLabel: data.flapsLabel,
+    autoBrakeLabel: data.autoBrakeLabel,
     windSpeed: data.windSpeed,
     windDirection: data.windDirection,
     windGust: data.windGust,

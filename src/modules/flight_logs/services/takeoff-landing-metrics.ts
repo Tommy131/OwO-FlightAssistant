@@ -611,7 +611,10 @@ export function flareHeightFt(
   let bestHeight: number | undefined;
   let worstSink: number | undefined;
 
-  for (let index = touchdownIndex; index >= 0; index--) {
+  // The touchdown sample is already on the ground and commonly reports 0 ft.
+  // It must never displace the final airborne measurement, even when its
+  // impact vertical speed is the most negative value in the window.
+  for (let index = touchdownIndex - 1; index >= 0; index--) {
     const point = points[index];
     const agl = point.radioAltitude;
     if (agl === undefined || !Number.isFinite(agl) || agl < 0) continue;

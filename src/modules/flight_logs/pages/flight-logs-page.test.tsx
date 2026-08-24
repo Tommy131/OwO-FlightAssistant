@@ -10,6 +10,7 @@ import {
 import { flightLogsTranslations } from '../localization/flight-logs-localization';
 import { useFlightLogsStore } from '../providers/flight-logs-store';
 import { useLandingReportsStore } from '../providers/landing-reports-store';
+import { makeFlightLog, makeFlightLogPoint } from '../test/flight-log-fixtures';
 import { FlightLogsPage } from './flight-logs-page';
 
 beforeAll(() => {
@@ -79,5 +80,25 @@ describe('FlightLogsPage log workspaces', () => {
 
     expect(flightTab).toHaveAttribute('aria-selected', 'true');
     expect(flightTab).toHaveFocus();
+  });
+
+  it('shows a structured incomplete status and exact end reason in the list and detail', () => {
+    const log = makeFlightLog([makeFlightLogPoint(0, { onGround: true })], {
+      departureAirport: 'EDDF',
+      arrivalAirport: 'EGLL',
+      wasOnGroundAtEnd: true,
+      status: 'incomplete',
+      endReason: 'user_stopped',
+    });
+    useFlightLogsStore.setState({ logs: [log] });
+
+    render(<FlightLogsPage />);
+
+    expect(screen.getByTitle('Incomplete')).toBeVisible();
+    expect(screen.getByTitle('Stopped by user')).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /EDDF.*EGLL/ }));
+
+    expect(screen.getByLabelText('Incomplete: Stopped by user')).toBeVisible();
   });
 });

@@ -21,6 +21,7 @@ import {
   type FlightLog,
   type LandingRating,
 } from '../models/flight-log-models';
+import type { RecordingEndReason, RecordingStatus } from '../models/recording-status';
 import { useFlightLogsStore } from '../providers/flight-logs-store';
 import { useLandingReportsStore } from '../providers/landing-reports-store';
 import { AnalysisChart } from './widgets/analysis-chart';
@@ -287,8 +288,8 @@ function FlightLogListItem({ log, onOpen }: { log: FlightLog; onOpen: () => void
   const deleteLog = useFlightLogsStore((s) => s.deleteLog);
   const exportLog = useFlightLogsStore((s) => s.exportLog);
 
-  const completed = flightLogIsCompleted(log);
   const landing = log.landingData;
+  const status = manualLogStatus(log);
 
   const handleDelete = async () => {
     const confirmed = await showAdvancedConfirmDialog({
@@ -315,11 +316,16 @@ function FlightLogListItem({ log, onOpen }: { log: FlightLog; onOpen: () => void
           <span className={`${styles.listIcao} text-mono`}>
             {log.arrivalAirport || t(K.listUnknownAirport)}
           </span>
-          {!completed && (
+          <InfoChip
+            icon={status === 'completed' ? 'check_circle' : 'pending'}
+            label={t(status === 'completed' ? K.landingStatusCompleted : K.landingStatusIncomplete)}
+            color={status === 'completed' ? 'var(--color-success)' : 'var(--color-warning)'}
+          />
+          {log.endReason && (
             <InfoChip
-              icon="pending"
-              label={t(K.listIncompleteFlight)}
-              color="var(--color-warning)"
+              icon="info"
+              label={t(manualEndReasonKey(log.endReason))}
+              color="var(--color-on-surface-a60)"
             />
           )}
         </div>
@@ -401,8 +407,17 @@ function FlightLogDetail({ log, onBack }: { log: FlightLog; onBack: () => void }
           <span className={`${styles.detailRoute} text-mono`}>
             {log.departureAirport} → {log.arrivalAirport ?? '--'}
           </span>
-          <span className={styles.detailSubtitle}>
-            {log.aircraftTitle} · {formatDateTime(log.startTime)}
+          <span
+            className={styles.detailSubtitle}
+            aria-label={`${t(
+              manualLogStatus(log) === 'completed'
+                ? K.landingStatusCompleted
+                : K.landingStatusIncomplete,
+            )}: ${log.endReason ? t(manualEndReasonKey(log.endReason)) : t(K.landingReasonUnavailable)}`}
+          >
+            {log.aircraftTitle} · {formatDateTime(log.startTime)} ·{' '}
+            {t(manualLogStatus(log) === 'completed' ? K.landingStatusCompleted : K.landingStatusIncomplete)}
+            {log.endReason ? ` · ${t(manualEndReasonKey(log.endReason))}` : ''}
           </span>
         </div>
         <div className={styles.toolbarSpacer} />
@@ -450,6 +465,22 @@ function FlightLogDetail({ log, onBack }: { log: FlightLog; onBack: () => void }
       </div>
     </div>
   );
+}
+
+function manualLogStatus(log: FlightLog): RecordingStatus {
+  return log.status ?? (flightLogIsCompleted(log) ? 'completed' : 'incomplete');
+}
+
+function manualEndReasonKey(reason: RecordingEndReason): string {
+  const keys: Record<RecordingEndReason, string> = {
+    stable_landing: K.landingReasonStableLanding,
+    touch_and_go: K.landingReasonTouchAndGo,
+    user_stopped: K.landingReasonUserStopped,
+    simulator_disconnected: K.landingReasonSimulatorDisconnected,
+    page_closed: K.landingReasonPageClosed,
+    interrupted: K.landingReasonInterrupted,
+  };
+  return keys[reason];
 }
 
 // ──────────────────────────────────────────────────────────────────────────

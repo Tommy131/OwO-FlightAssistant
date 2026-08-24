@@ -71,7 +71,19 @@ describe('flightDataFromDataset', () => {
     expect(data.groundSpeed).toBeUndefined();
   });
 
-  it('parses radio-height value and source', () => {
+  it('feeds landing logic from the additive resolved height instead of the legacy radio field', () => {
+    const parsed = flightDataFromDataset({
+      radio_altitude_ft: 99,
+      radio_altitude_source: 'radio',
+      resolved_landing_height_ft: 18.5,
+      resolved_landing_height_source: 'agl_fallback',
+    });
+
+    expect(parsed.radioAltitude).toBe(18.5);
+    expect(parsed.radioAltitudeSource).toBe('agl_fallback');
+  });
+
+  it('still parses pre-1.3 resolved height payloads during a rolling upgrade', () => {
     const parsed = flightDataFromDataset({
       radio_altitude_ft: 18.5,
       radio_altitude_source: 'agl_fallback',

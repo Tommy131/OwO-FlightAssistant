@@ -17,9 +17,22 @@ export interface BackendTransport {
   /** 确保连接参数已就绪；重复调用应当是幂等的 */
   init(): Promise<void>;
 
-  saveRecord(kind: BackendRecordKind, id: string, record: unknown): Promise<void>;
-  deleteRecord(kind: BackendRecordKind, id: string): Promise<void>;
+  saveRecord(
+    kind: BackendRecordKind,
+    id: string,
+    record: unknown,
+    options?: BackendRecordMutationOptions,
+  ): Promise<BackendRecordMutationResult | void>;
+  deleteRecord(
+    kind: BackendRecordKind,
+    id: string,
+    options?: BackendRecordMutationOptions,
+  ): Promise<BackendRecordMutationResult | void>;
   listRecords(kind: BackendRecordKind): Promise<unknown[]>;
+  /** Additive state API; old transports may continue to implement listRecords only. */
+  listRecordState?(
+    kind: BackendRecordKind,
+  ): Promise<BackendRecordState>;
 
   getAllSettings(): Promise<Record<string, unknown>>;
   setSetting(key: string, value: unknown): Promise<void>;
@@ -29,6 +42,27 @@ export interface BackendTransport {
 }
 
 export type BackendRecordKind = 'flightLog' | 'landingReport' | 'briefing';
+
+export interface BackendRecordMutationOptions {
+  expectedRevision?: number;
+}
+
+export interface BackendRecordMutationResult {
+  revision?: number;
+  deleted?: boolean;
+}
+
+export interface BackendRecordTombstone {
+  id: string;
+  revision: number;
+  deleted: true;
+}
+
+export interface BackendRecordState {
+  records: unknown[];
+  revisions: Record<string, number>;
+  tombstones: BackendRecordTombstone[];
+}
 
 let transport: BackendTransport | null = null;
 

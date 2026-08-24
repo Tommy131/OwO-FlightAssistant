@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import { useTranslate } from '../../../core/localization/use-translate';
+import { LocalizationKeys as CoreK } from '../../../core/localization/localization-keys';
 import { Button, IconButton } from '../../../core/widgets/common/controls';
 import { showAdvancedConfirmDialog } from '../../../core/widgets/common/dialog';
 import { MaterialIcon } from '../../../core/widgets/common/icon';
@@ -14,11 +15,14 @@ import {
 } from '../../../core/widgets/common/surfaces';
 import { FlightLogsLocalizationKeys as K } from '../localization/flight-logs-localization';
 import type { FlightLog, FlightLogPoint, LandingData } from '../models/flight-log-models';
-import type { StoredLandingReport } from '../models/landing-report-models';
+import {
+  serializeLandingReport,
+  type StoredLandingReport,
+} from '../models/landing-report-models';
 import type { RecordingEndReason, RecordingStatus } from '../models/recording-status';
 import styles from '../pages/flight-logs-page.module.css';
 import { AnalysisChart } from '../pages/widgets/analysis-chart';
-import { LANDING_RATING_COLOR } from '../pages/widgets/analysis-widgets';
+import { AnalysisBlackBox, LANDING_RATING_COLOR } from '../pages/widgets/analysis-widgets';
 import { LandingFlareAnalysis } from '../pages/widgets/landing-flare-analysis';
 import { MetricCard } from '../pages/widgets/metric-card';
 
@@ -64,8 +68,11 @@ export function LandingReportsView({
   const pendingDeleteIds = useRef(new Set<string>());
   const [deleteError, setDeleteError] = useState<string>();
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
+  const emptyStateRef = useRef<HTMLDivElement>(null);
   const reportButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const restoreFocusId = useRef<string | undefined>(undefined);
+  const deletionFocusTarget = useRef<string | undefined>(undefined);
+  const focusEmptyAfterDeletion = useRef(false);
 
   useEffect(() => {
     if (selectedReport) {
@@ -74,10 +81,21 @@ export function LandingReportsView({
     }
 
     const reportId = restoreFocusId.current;
-    if (!reportId) return;
-    reportButtonRefs.current.get(reportId)?.focus();
-    restoreFocusId.current = undefined;
-  }, [selectedReport]);
+    if (reportId) {
+      reportButtonRefs.current.get(reportId)?.focus();
+      restoreFocusId.current = undefined;
+    }
+
+    const target = deletionFocusTarget.current;
+    if (focusEmptyAfterDeletion.current && reports.length === 0) {
+      emptyStateRef.current?.focus();
+      deletionFocusTarget.current = undefined;
+      focusEmptyAfterDeletion.current = false;
+    } else if (target && reports.some((report) => report.id === target)) {
+      reportButtonRefs.current.get(target)?.focus();
+      deletionFocusTarget.current = undefined;
+    }
+  }, [reports, selectedReport]);
 
   const handleDelete = async (report: StoredLandingReport) => {
     if (pendingDeleteIds.current.has(report.id)) return;
@@ -96,9 +114,14 @@ export function LandingReportsView({
       if (confirmed !== true) return;
 
       setDeleteError(undefined);
+      const index = reports.findIndex((candidate) => candidate.id === report.id);
+      deletionFocusTarget.current = reports[index + 1]?.id ?? reports[index - 1]?.id;
+      focusEmptyAfterDeletion.current = deletionFocusTarget.current === undefined;
       await deleteReport(report.id);
       SnackBarHelper.showSuccess(t(K.landingDeleteSuccess));
     } catch {
+      deletionFocusTarget.current = undefined;
+      focusEmptyAfterDeletion.current = false;
       const message = t(K.landingDeleteError);
       setDeleteError(message);
       SnackBarHelper.showError(message);
@@ -154,7 +177,7 @@ export function LandingReportsView({
 
   if (reports.length === 0) {
     return (
-      <div className={styles.landingState}>
+      <div ref={emptyStateRef} className={styles.landingState} tabIndex={-1}>
         <EmptyState
           icon="flight_land"
           title={t(K.landingReportsEmptyTitle)}
@@ -243,10 +266,18 @@ function LandingReportListItem({
           />
         </div>
         <span className={styles.landingReason}>{t(reasonKey(report.endReason))}</span>
+        <span className={styles.landingListIdentity}>
+          <span>{aircraftLabel(report)}</span>
+          <span>{report.airport ?? '--'}</span>
+        </span>
         <span className={styles.landingListMetrics}>
           <span>{landing ? `${landing.verticalSpeed.toFixed(0)} fpm` : '-- fpm'}</span>
           <span>{landing ? `${landing.gForce.toFixed(2)} G` : '-- G'}</span>
           <span>{landing ? `${landing.airspeed.toFixed(0)} kt` : '-- kt'}</span>
+          <span>{landing ? t(landingRatingKey(landing.rating)) : '--'}</span>
+          <span>
+            {landing ? t(K.landingReportBounces, { count: landing.bounceCount ?? 0 }) : '--'}
+          </span>
         </span>
       </button>
 
@@ -277,6 +308,7 @@ function LandingReportDetail({
       ? t(K.landingReportTouchdownUnavailable)
       : formatDateTime(touchdownAt);
   const landing = report.landing;
+  const touchdownPoint = landing?.touchdownSequence[0] ?? report.points.at(-1);
 
   return (
     <article className={styles.landingDetail}>
@@ -294,6 +326,9 @@ function LandingReportDetail({
           label={t(STATUS_KEYS[report.status])}
           tone={report.status === 'completed' ? 'success' : 'warning'}
         />
+        <Button variant="tonal" size="sm" icon="download" onClick={() => exportLandingReport(report)}>
+          {t(K.landingReportExportJson)}
+        </Button>
       </header>
 
       <div className={styles.landingDetailBody}>
@@ -308,6 +343,8 @@ function LandingReportDetail({
             value={simulatorLabel(report.simulator, t)}
             icon="flight"
           />
+          <DataCard label={t(K.landingReportAircraft)} value={aircraftLabel(report)} icon="flight" />
+          <DataCard label={t(K.landingReportAirport)} value={report.airport ?? '--'} icon="location_on" />
           <DataCard
             label={t(K.landingReportStatus)}
             value={t(STATUS_KEYS[report.status])}
@@ -326,10 +363,80 @@ function LandingReportDetail({
         </section>
 
         <LandingMetrics landing={landing} />
+        <LandingConfiguration point={touchdownPoint} />
+        <LandingWeather point={touchdownPoint} />
+        <TouchdownSequence points={landing?.touchdownSequence ?? []} />
         <LandingFlareAnalysis log={log} />
         <AnalysisChart log={log} />
+        <AnalysisBlackBox log={log} />
       </div>
     </article>
+  );
+}
+
+function LandingConfiguration({ point }: { point: FlightLogPoint | undefined }) {
+  const t = useTranslate();
+  return (
+    <SectionCard title={t(K.landingReportConfiguration)} icon="tune">
+      <div className={styles.reportMetrics}>
+        <DataCard label={t(K.landingReportFlaps)} value={point?.flapsLabel ?? formatMetric(point?.flapsPosition, 0)} />
+        <DataCard label={t(K.landingReportGear)} value={onOff(point?.gearDown, t)} />
+        <DataCard
+          label={t(K.landingReportAutobrake)}
+          value={point?.autoBrakeLabel ?? formatMetric(point?.autoBrakeLevel, 0)}
+        />
+        <DataCard label={t(K.landingReportSpoilers)} value={formatMetric(point?.speedBrakePosition, 0)} />
+        <DataCard label={t(K.landingReportAutopilot)} value={onOff(point?.autopilotEngaged, t)} />
+        <DataCard label={t(K.landingReportAutothrottle)} value={onOff(point?.autothrottleEngaged, t)} />
+        <DataCard label={t(K.landingReportLandingLights)} value={onOff(point?.landingLights, t)} />
+      </div>
+    </SectionCard>
+  );
+}
+
+function LandingWeather({ point }: { point: FlightLogPoint | undefined }) {
+  const t = useTranslate();
+  return (
+    <SectionCard title={t(K.landingReportWeather)} icon="air">
+      <div className={styles.reportMetrics}>
+        <DataCard label={t(K.landingReportWind)} value={windLabel(point, t)} />
+        <DataCard label={t(K.landingReportTemperature)} value={formatMetric(point?.outsideAirTemperature, 0)} unit="°C" />
+        <DataCard label={t(K.landingReportPressure)} value={formatMetric(point?.baroPressure, 2)} unit="inHg" />
+        <DataCard label={t(K.landingReportCrosswind)} value={formatMetric(point?.crosswindComponent, 0)} unit="kt" />
+      </div>
+    </SectionCard>
+  );
+}
+
+function TouchdownSequence({ points }: { points: FlightLogPoint[] }) {
+  const t = useTranslate();
+  return (
+    <SectionCard title={t(K.landingTouchdownSequence)} icon="format_list_numbered">
+      {points.length === 0 ? (
+        <span className={styles.landingSequenceEmpty}>--</span>
+      ) : (
+        <div className={styles.landingSequenceWrap}>
+          <table className={styles.landingSequenceTable}>
+            <thead><tr>
+              <th>{t(K.landingReportTouchdownSequenceTime)}</th>
+              <th>{t(K.landingReportTouchdownSequenceG)}</th>
+              <th>{t(K.landingReportTouchdownSequenceSink)}</th>
+              <th>{t(K.landingReportTouchdownSequenceHeight)}</th>
+              <th>{t(K.landingReportHeightSource)}</th>
+            </tr></thead>
+            <tbody>{points.map((point, index) => (
+              <tr key={`${point.timestamp.getTime()}-${index}`}>
+                <td>{formatTime(point.timestamp.getTime())}</td>
+                <td>{point.gForce.toFixed(2)} G</td>
+                <td>{point.verticalSpeed.toFixed(0)} fpm</td>
+                <td>{formatMetric(point.radioAltitude, 0)} ft</td>
+                <td>{t(singleHeightSourceKey(point.radioAltitudeSource))}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </SectionCard>
   );
 }
 
@@ -452,12 +559,57 @@ function touchdownTimestamp(report: StoredLandingReport): number | undefined {
 }
 
 function heightSourceKey(points: FlightLogPoint[]): string {
-  const point = [...points]
-    .reverse()
-    .find((item) => item.radioAltitude !== undefined && item.radioAltitudeSource !== undefined);
-  if (point?.radioAltitudeSource === 'radio') return K.landingHeightSourceRadio;
-  if (point?.radioAltitudeSource === 'agl_fallback') return K.landingHeightSourceAglFallback;
+  const sources = new Set(
+    points
+      .filter((point) => point.radioAltitude !== undefined)
+      .map((point) => point.radioAltitudeSource)
+      .filter((source): source is NonNullable<FlightLogPoint['radioAltitudeSource']> => source !== undefined),
+  );
+  if (sources.size > 1) return K.landingReportMixedSources;
+  return singleHeightSourceKey(sources.values().next().value);
+}
+
+function singleHeightSourceKey(source: FlightLogPoint['radioAltitudeSource']): string {
+  if (source === 'radio') return K.landingHeightSourceRadio;
+  if (source === 'agl_fallback') return K.landingHeightSourceAglFallback;
   return K.landingHeightSourceUnavailable;
+}
+
+function aircraftLabel(report: StoredLandingReport): string {
+  const title = report.aircraftTitle?.trim();
+  const type = report.aircraftType?.trim();
+  if (title && type) return `${title} · ${type}`;
+  return title ?? type ?? '--';
+}
+
+function onOff(value: boolean | undefined, t: (key: string) => string): string {
+  if (value === undefined) return '--';
+  return value ? t(CoreK.enabled) : t(CoreK.disabled);
+}
+
+function windLabel(
+  point: FlightLogPoint | undefined,
+  t: ReturnType<typeof useTranslate>,
+): string {
+  if (point?.windDirection === undefined || point.windSpeed === undefined) return '--';
+  const gust = point.windGust === undefined
+    ? ''
+    : `, ${t(K.landingReportGust, { value: point.windGust.toFixed(0) })}`;
+  return `${point.windDirection.toFixed(0)}° / ${point.windSpeed.toFixed(0)} kt${gust}`;
+}
+
+function exportLandingReport(report: StoredLandingReport): void {
+  const blob = new Blob([JSON.stringify(serializeLandingReport(report), null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `landing-report-${report.id}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 function simulatorLabel(simulator: string, t: (key: string) => string): string {

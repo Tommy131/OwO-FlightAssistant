@@ -218,6 +218,14 @@ export class CommonModule implements ModuleRegistrar {
         const removeUnloadGuard = installRecordingUnloadGuard({
           flightActive: () => useFlightLogsStore.getState().hasActiveWork,
           landingActive: () => useLandingReportsStore.getState().hasActiveWork,
+          subscribeFlightActive: (listener) =>
+            useFlightLogsStore.subscribe((state, previous) => {
+              if (state.hasActiveWork !== previous.hasActiveWork) listener();
+            }),
+          subscribeLandingActive: (listener) =>
+            useLandingReportsStore.subscribe((state, previous) => {
+              if (state.hasActiveWork !== previous.hasActiveWork) listener();
+            }),
           flush: () =>
             settleRecordingOperations('recording unload flush', [
               () => useFlightLogsStore.getState().flushActiveLog(),

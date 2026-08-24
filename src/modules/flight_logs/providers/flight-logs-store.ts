@@ -476,7 +476,7 @@ async function recoverInterruptedLogNow(set: SetState, get: GetState): Promise<b
       isRecordingPaused: false,
       hasActiveWork: false,
     });
-    await pushRecord('flightLog', durableWinner.id, flightLogToJson(durableWinner));
+    syncLogInBackground(durableWinner);
     AppLogger.info(`[FlightLogs] cleared stale finalized archive: ${log.id}`);
     return true;
   }
@@ -508,7 +508,6 @@ async function recoverInterruptedLogNow(set: SetState, get: GetState): Promise<b
     isRecordingPaused: false,
     hasActiveWork: false,
   });
-  await refreshLogsNow(set);
   AppLogger.info(`[FlightLogs] finalized interrupted recording: ${log.points.length} points`);
   return true;
 }
@@ -583,9 +582,15 @@ async function saveLogDurably(log: FlightLog, set: SetState, get: GetState): Pro
     (a, b) => b.startTime.getTime() - a.startTime.getTime(),
   );
   set({ logs: next });
-  // 本地先落盘保证不丢，再推后端；后端不可达时下次 refreshLogs 会补传
+  // 本地先落盘保证不丢；同步不得延迟清理终态存档或解锁下一次录制。
   await persistLogsDurably(next);
-  await pushRecord('flightLog', log.id, flightLogToJson(log));
+  syncLogInBackground(log);
+}
+
+function syncLogInBackground(log: FlightLog): void {
+  void pushRecord('flightLog', log.id, flightLogToJson(log)).catch((error: unknown) => {
+    AppLogger.warning(`[FlightLogs] background sync failed for ${log.id}: ${String(error)}`);
+  });
 }
 
 function finalizeActiveRecording(
@@ -677,7 +682,6 @@ async function completeTerminalRecording(
       activeLog: null,
       hasActiveWork: false,
     });
-    await refreshLogsNow(set);
     return true;
   });
 }
@@ -742,6 +746,7 @@ function captureSnapshot(
     leftGearG: data.leftGearG,
     rightGearG: data.rightGearG,
     flapsLabel: data.flapsLabel,
+    autoBrakeLabel: data.autoBrakeLabel,
     windSpeed: data.windSpeed,
     windDirection: data.windDirection,
     windGust: data.windGust,

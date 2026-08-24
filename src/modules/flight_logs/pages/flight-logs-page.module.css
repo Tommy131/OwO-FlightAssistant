@@ -422,6 +422,19 @@
   font-weight: 600;
 }
 
+.landingListIdentity {
+  display: flex;
+  gap: var(--space-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.landingListIdentity span + span {
+  padding-left: var(--space-sm);
+  border-left: 1px solid var(--color-border);
+  font-family: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+}
+
 .landingListMetrics {
   display: flex;
   gap: var(--space-md);
@@ -483,6 +496,39 @@
   gap: 8px;
 }
 
+.landingSequenceWrap {
+  overflow-x: auto;
+}
+
+.landingSequenceTable {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  color: var(--color-text-primary);
+  font-family: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.landingSequenceTable th,
+.landingSequenceTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.landingSequenceTable th {
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.landingSequenceEmpty {
+  color: var(--color-text-secondary);
+}
+
 @media (max-width: 649px) {
   .landingErrorBanner {
     margin: var(--space-md) var(--space-md) 0;
@@ -499,6 +545,10 @@
 
   .landingListMetrics {
     gap: 8px 12px;
+  }
+
+  .landingListIdentity {
+    gap: 6px;
   }
 
   .landingDetailHeader {

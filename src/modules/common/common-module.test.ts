@@ -36,6 +36,7 @@ const doubles = vi.hoisted(() => {
     automatic,
     createAdapter: vi.fn(),
     flightDataSubscribe: vi.fn<SnapshotSubscriber>(),
+    landingSubscribe: vi.fn(),
     manual,
     resumeSession: vi.fn(),
     workflowSubscribe: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock('../flight_logs/providers/flight-logs-store', () => ({
 vi.mock('../flight_logs/providers/landing-reports-store', () => ({
   useLandingReportsStore: Object.assign(vi.fn(), {
     getState: () => doubles.automatic,
+    subscribe: doubles.landingSubscribe,
   }),
 }));
 
@@ -122,6 +124,8 @@ describe('CommonModule recording lifecycle', () => {
       emitSnapshot = listener;
       return vi.fn();
     });
+    doubles.workflowSubscribe.mockReturnValue(vi.fn());
+    doubles.landingSubscribe.mockReturnValue(vi.fn());
   });
 
   afterEach(() => {

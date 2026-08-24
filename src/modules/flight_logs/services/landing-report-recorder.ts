@@ -21,13 +21,22 @@ export interface LandingRecorderEvent {
 }
 
 export interface LandingReportRecorder {
-  push(point: FlightLogPoint): LandingRecorderEvent[];
+  push(
+    point: FlightLogPoint,
+    context?: LandingReportCaptureContext,
+  ): LandingRecorderEvent[];
   pause(): void;
   resume(): void;
   disconnect(): LandingRecorderEvent[];
   stop(): LandingRecorderEvent[];
   hasActiveWork(): boolean;
   getRecoverableReport(): LandingReport | undefined;
+}
+
+export interface LandingReportCaptureContext {
+  aircraftTitle?: string;
+  aircraftType?: string;
+  airport?: string;
 }
 
 export interface LandingReportRecorderOptions {
@@ -54,6 +63,7 @@ export function createLandingReportRecorder(
   let pausedAt: number | undefined;
   let activeReportId: string | undefined;
   let activeReportCreatedAt: number | undefined;
+  let activeContext: LandingReportCaptureContext = {};
 
   function reset(): void {
     state = 'idle';
@@ -66,6 +76,7 @@ export function createLandingReportRecorder(
     pausedAt = undefined;
     activeReportId = undefined;
     activeReportCreatedAt = undefined;
+    activeContext = {};
   }
 
   function trimRollingBuffer(referenceTime: number): void {
@@ -110,6 +121,7 @@ export function createLandingReportRecorder(
     return {
       id: activeReportId!,
       simulator: options.simulator ?? 'Unknown',
+      ...activeContext,
       startedAt: points[0].timestamp.getTime(),
       endedAt:
         endAt === 'now' ? updatedAt : points[points.length - 1].timestamp.getTime(),
@@ -138,8 +150,12 @@ export function createLandingReportRecorder(
     return [{ type: 'finalize', report }];
   }
 
-  function restartAfterTouchAndGo(nextPoints: FlightLogPoint[]): void {
+  function restartAfterTouchAndGo(
+    nextPoints: FlightLogPoint[],
+    context: LandingReportCaptureContext,
+  ): void {
     points = nextPoints;
+    activeContext = context;
     touchdownIndexes = [];
     lastOnGround = false;
     finalTouchdownAt = undefined;
@@ -151,8 +167,12 @@ export function createLandingReportRecorder(
     if (state === 'armed') ensureActiveIdentity();
   }
 
-  function push(point: FlightLogPoint): LandingRecorderEvent[] {
+  function push(
+    point: FlightLogPoint,
+    context?: LandingReportCaptureContext,
+  ): LandingRecorderEvent[] {
     if (pausedAt !== undefined) return [];
+    activeContext = mergeContext(activeContext, context);
     const timestamp = point.timestamp.getTime();
 
     if (state === 'idle') {
@@ -199,10 +219,11 @@ export function createLandingReportRecorder(
       hasElapsedMoreThan(airborneSince, timestamp, TOUCH_AND_GO_MS)
     ) {
       const nextPoints = points.slice(airborneStartIndex ?? points.length - 1, -1);
+      const rolloverContext = activeContext;
       points.pop();
       const events = finalize('completed', 'touch_and_go', 'now');
-      restartAfterTouchAndGo(nextPoints);
-      return [...events, ...push(point)];
+      restartAfterTouchAndGo(nextPoints, rolloverContext);
+      return [...events, ...push(point, context)];
     }
 
     if (point.onGround === false) {
@@ -213,8 +234,9 @@ export function createLandingReportRecorder(
       state = 'touchdown_candidate';
       if (hasElapsedMoreThan(airborneSince, timestamp, TOUCH_AND_GO_MS)) {
         const nextPoints = points.slice(airborneStartIndex ?? points.length - 1);
+        const rolloverContext = activeContext;
         const events = finalize('completed', 'touch_and_go');
-        restartAfterTouchAndGo(nextPoints);
+        restartAfterTouchAndGo(nextPoints, rolloverContext);
         return events;
       }
       return [];
@@ -270,4 +292,21 @@ export function createLandingReportRecorder(
         ? buildReport('incomplete', 'interrupted', 'last_point')
         : undefined,
   };
+}
+
+function mergeContext(
+  current: LandingReportCaptureContext,
+  update: LandingReportCaptureContext | undefined,
+): LandingReportCaptureContext {
+  if (!update) return current;
+  return {
+    aircraftTitle: normalizedText(update.aircraftTitle) ?? current.aircraftTitle,
+    aircraftType: normalizedText(update.aircraftType) ?? current.aircraftType,
+    airport: normalizedText(update.airport)?.toUpperCase() ?? current.airport,
+  };
+}
+
+function normalizedText(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : undefined;
 }

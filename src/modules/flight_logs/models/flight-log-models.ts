@@ -137,6 +137,7 @@ export interface FlightLogPoint {
   beacon?: boolean;
   strobes?: boolean;
   autoBrakeLevel?: number;
+  autoBrakeLabel?: string;
   speedBrakePosition?: number;
   aileronInput?: number;
   elevatorInput?: number;
@@ -205,6 +206,7 @@ export function flightLogPointToJson(point: FlightLogPoint): JsonMap {
     strob: point.strobes ?? null,
     grnd: point.onGround ?? null,
     ab: point.autoBrakeLevel ?? null,
+    ab_lbl: point.autoBrakeLabel ?? null,
     sb: point.speedBrakePosition ?? null,
     ail: point.aileronInput ?? null,
     ele: point.elevatorInput ?? null,
@@ -280,6 +282,7 @@ export function flightLogPointFromJson(json: JsonMap): FlightLogPoint {
     beacon: toBool(json.beac),
     strobes: toBool(json.strob),
     autoBrakeLevel: toInt(json.ab),
+    autoBrakeLabel: toStringOrUndefined(json.ab_lbl),
     speedBrakePosition: toDouble(json.sb),
     aileronInput: toDouble(json.ail),
     elevatorInput: toDouble(json.ele),
@@ -442,6 +445,7 @@ export function flightLogLastPoint(log: FlightLog): FlightLogPoint | undefined {
 
 /** 是否算作一次完整飞行：有到达机场且最终在地面 */
 export function flightLogIsCompleted(log: FlightLog): boolean {
+  if (log.status !== undefined) return log.status === 'completed';
   const finalPoint = flightLogLastPoint(log);
   if (!finalPoint) return false;
   const hasArrival = (log.arrivalAirport ?? '').trim().length > 0;
@@ -470,7 +474,7 @@ export function flightLogToJson(log: FlightLog): JsonMap {
     ground_end: log.wasOnGroundAtEnd,
     takeoff: log.takeoffData ? takeoffToJson(log.takeoffData) : null,
     landing: log.landingData ? landingDataToJson(log.landingData) : null,
-    status: log.status ?? 'completed',
+    ...(log.status === undefined ? {} : { status: log.status }),
     end_reason: log.endReason ?? null,
     points: log.points.map(flightLogPointToJson),
   };
@@ -505,7 +509,7 @@ export function flightLogFromJson(json: JsonMap): FlightLog {
     wasOnGroundAtEnd: toBool(json.ground_end) ?? false,
     takeoffData: takeoffFromJson(toJsonMap(json.takeoff)),
     landingData: landingDataFromJson(toJsonMap(json.landing)),
-    status: recordingStatusFromRaw(json.status),
+    status: Object.hasOwn(json, 'status') ? recordingStatusFromRaw(json.status) : undefined,
     endReason: recordingEndReasonFromRaw(json.end_reason),
   };
 }

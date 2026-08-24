@@ -801,12 +801,34 @@ class MiddlewareHttpServiceImpl {
     return this.get('/api/v1/landing-reports/list');
   }
 
-  saveLandingReport(id: string, record: unknown): Promise<MiddlewareHttpResponse> {
-    return this.post('/api/v1/landing-reports/save', { body: { id, record } });
+  saveLandingReport(
+    id: string,
+    record: unknown,
+    expectedRevision?: number,
+  ): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/landing-reports/save', {
+      body: {
+        id,
+        record,
+        ...(expectedRevision === undefined
+          ? {}
+          : { expected_revision: expectedRevision }),
+      },
+    });
   }
 
-  deleteLandingReport(id: string): Promise<MiddlewareHttpResponse> {
-    return this.post('/api/v1/landing-reports/delete', { body: { id } });
+  deleteLandingReport(
+    id: string,
+    expectedRevision?: number,
+  ): Promise<MiddlewareHttpResponse> {
+    return this.post('/api/v1/landing-reports/delete', {
+      body: {
+        id,
+        ...(expectedRevision === undefined
+          ? {}
+          : { expected_revision: expectedRevision }),
+      },
+    });
   }
 
   // ── 应用设置的服务端持久化（存中间件 SQLite）──

@@ -140,7 +140,7 @@ describe('landing reports store', () => {
     expect(reports.saveLocal).toHaveBeenCalledWith(expect.objectContaining({
       status: 'incomplete',
       endReason: 'page_closed',
-      endedAt: 9_000,
+      endedAt: active.endedAt,
       updatedAt: 9_000,
     }));
     expect(order).toEqual(['save-local', 'clear-active', 'sync']);
@@ -200,6 +200,33 @@ describe('landing reports store', () => {
     expect(store.getState().reports).toEqual([finalized]);
   });
 
+  it('keeps the recovery archive and blocks new capture after a rejected final save', async () => {
+    const finalized = report();
+    const reports = repository({
+      saveLocal: vi.fn().mockRejectedValue(new Error('IndexedDB unavailable')),
+    });
+    const push = vi.fn().mockReturnValue([
+      { type: 'finalize', report: finalized } satisfies LandingRecorderEvent,
+    ]);
+    const fakeRecorder = recorder({ push });
+    const store = createLandingReportsStore({
+      repository: reports,
+      settings: settings(),
+      createRecorder: () => fakeRecorder,
+    });
+
+    await expect(store.getState().handleFlightSnapshot(snapshot())).rejects.toThrow(
+      'IndexedDB unavailable',
+    );
+    await expect(store.getState().handleFlightSnapshot(snapshot())).rejects.toThrow(
+      'IndexedDB unavailable',
+    );
+
+    expect(reports.clearActive).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledOnce();
+    expect(store.getState().hasActiveWork).toBe(true);
+  });
+
   it('writes the active archive after every armed sample with height provenance', async () => {
     let now = 1_000;
     const reports = repository();
@@ -221,6 +248,94 @@ describe('landing reports store', () => {
       expect.objectContaining({ radioAltitude: 80, radioAltitudeSource: 'radio' }),
     );
     expect(store.getState().hasActiveWork).toBe(true);
+  });
+
+  it('captures available aircraft and touchdown-airport identity', async () => {
+    let now = 0;
+    const reports = repository();
+    const store = createLandingReportsStore({
+      repository: reports,
+      settings: settings(),
+      now: () => now,
+      createId: () => 'identity-report',
+      lookupRunway: vi.fn().mockResolvedValue(undefined),
+    });
+    const identity = {
+      aircraftTitle: 'Airbus A320neo',
+      nearestAirport: {
+        icaoCode: 'EDDF',
+        iataCode: 'FRA',
+        name: 'Frankfurt',
+        nameChinese: '法兰克福',
+        latitude: 50.03,
+        longitude: 8.57,
+      },
+    } satisfies Partial<FlightDataSnapshot>;
+
+    await store.getState().handleFlightSnapshot(
+      snapshot({ aircraftIcao: 'A20N' }, identity),
+    );
+    now = 100;
+    await store.getState().handleFlightSnapshot(
+      snapshot({ aircraftIcao: 'A20N', onGround: true, radioAltitude: 0 }, identity),
+    );
+    now = 15_100;
+    await store.getState().handleFlightSnapshot(
+      snapshot({ aircraftIcao: 'A20N', onGround: true, radioAltitude: 0 }, identity),
+    );
+
+    expect(reports.saveLocal).toHaveBeenCalledWith(expect.objectContaining({
+      aircraftTitle: 'Airbus A320neo',
+      aircraftType: 'A20N',
+      airport: 'EDDF',
+    }));
+  });
+
+  it('uses touchdown airport identity to enrich the final report with runway geometry', async () => {
+    let now = 0;
+    const reports = repository();
+    const lookupRunway = vi.fn().mockResolvedValue({
+      ident: '09/27',
+      start: { latitude: 40, longitude: 115.99 },
+      end: { latitude: 40, longitude: 116.02 },
+      lengthM: 2_560,
+    });
+    const store = createLandingReportsStore({
+      repository: reports,
+      settings: settings(),
+      now: () => now,
+      createId: () => 'runway-report',
+      lookupRunway,
+    });
+    const airport = {
+      nearestAirport: {
+        icaoCode: 'ZBAA',
+        iataCode: 'PEK',
+        name: 'Beijing Capital',
+        nameChinese: '北京首都',
+        latitude: 40,
+        longitude: 116,
+      },
+    } satisfies Partial<FlightDataSnapshot>;
+
+    await store.getState().handleFlightSnapshot(snapshot({}, airport));
+    now = 100;
+    await store.getState().handleFlightSnapshot(
+      snapshot({ onGround: true, radioAltitude: 0 }, airport),
+    );
+    now = 15_100;
+    await store.getState().handleFlightSnapshot(
+      snapshot({ onGround: true, radioAltitude: 0 }, airport),
+    );
+
+    expect(lookupRunway).toHaveBeenCalledWith('ZBAA', {
+      latitude: 40,
+      longitude: 116,
+    });
+    const saved = vi.mocked(reports.saveLocal).mock.calls[0]?.[0];
+    expect(saved?.airport).toBe('ZBAA');
+    expect(saved?.landing?.runway).toBe('09/27');
+    expect(typeof saved?.landing?.remainingRunwayFt).toBe('number');
   });
 
   it('archives the recorder-exact pre-touchdown window after old-point trimming', async () => {

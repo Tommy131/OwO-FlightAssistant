@@ -88,8 +88,12 @@ export function flightDataFromDataset(dataset: JsonMap): FlightData {
     gustDelta: toDouble(dataset.gust_delta_kt),
     gustFactorRate: toDouble(dataset.gust_factor_rate),
     crosswindComponent: toDouble(dataset.crosswind_component_kt),
-    radioAltitude: toDouble(dataset.radio_altitude_ft),
-    radioAltitudeSource: parseRadioAltitudeSource(dataset.radio_altitude_source),
+    radioAltitude: toDouble(
+      dataset.resolved_landing_height_ft ?? dataset.radio_altitude_ft,
+    ),
+    radioAltitudeSource: parseRadioAltitudeSource(
+      dataset.resolved_landing_height_source ?? dataset.radio_altitude_source,
+    ),
     baroPressure: toDouble(dataset.baro_pressure_inhg),
     baroPressureUnit: asText(dataset.baro_pressure_unit),
     visibility: toDouble(dataset.visibility_m),

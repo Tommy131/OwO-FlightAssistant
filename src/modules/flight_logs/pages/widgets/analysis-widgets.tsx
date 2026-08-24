@@ -423,7 +423,7 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
 /** 表格列：桌面版展示的核心字段子集 */
 const BLACK_BOX_COLUMNS: {
   labelKey: string;
-  select: (point: FlightLog['points'][number]) => string;
+  select: (point: FlightLog['points'][number], t: (key: string) => string) => string;
 }[] = [
   { labelKey: K.chartAltitude, select: (p) => p.altitude.toFixed(0) },
   { labelKey: K.chartSpeed, select: (p) => p.groundSpeed.toFixed(0) },
@@ -431,6 +431,15 @@ const BLACK_BOX_COLUMNS: {
   { labelKey: K.chartGForce, select: (p) => p.gForce.toFixed(2) },
   { labelKey: K.chartPitch, select: (p) => p.pitch.toFixed(1) },
   { labelKey: K.chartBaro, select: (p) => (p.baroPressure ?? 29.92).toFixed(2) },
+  { labelKey: K.chartRadioAltitude, select: (p) => p.radioAltitude?.toFixed(0) ?? '--' },
+  {
+    labelKey: K.landingReportHeightSource,
+    select: (p, t) => {
+      if (p.radioAltitudeSource === 'radio') return t(K.landingHeightSourceRadio);
+      if (p.radioAltitudeSource === 'agl_fallback') return t(K.landingHeightSourceAglFallback);
+      return t(K.landingHeightSourceUnavailable);
+    },
+  },
 ];
 
 /** 每页行数，与桌面版的分页粒度一致 */
@@ -520,7 +529,7 @@ export function AnalysisBlackBox({ log }: { log: FlightLog }) {
                     </td>
                     {BLACK_BOX_COLUMNS.map((column) => (
                       <td key={column.labelKey} className="text-mono">
-                        {column.select(point)}
+                        {column.select(point, t)}
                       </td>
                     ))}
                     <td>

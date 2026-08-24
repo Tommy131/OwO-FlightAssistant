@@ -13,6 +13,9 @@ function fixtureLandingReport(overrides: Partial<LandingReport> = {}): LandingRe
   return {
     id: 'landing-report-1',
     simulator: 'MSFS',
+    aircraftTitle: 'Airbus A320neo',
+    aircraftType: 'A20N',
+    airport: 'EDDF',
     startedAt: 1_000,
     endedAt: 2_000,
     touchdownAt: 1_500,
@@ -50,6 +53,16 @@ describe('landing report codec', () => {
     expect(deserializeLandingReport(serializeLandingReport(report))).toEqual(report);
   });
 
+  it('round-trips aircraft and touchdown-airport identity', () => {
+    const decoded = deserializeLandingReport(serializeLandingReport(fixtureLandingReport()));
+
+    expect(decoded).toMatchObject({
+      aircraftTitle: 'Airbus A320neo',
+      aircraftType: 'A20N',
+      airport: 'EDDF',
+    });
+  });
+
   it('persists radio altitude source with the compact ras key', () => {
     const encoded = serializeLandingReport(fixtureLandingReport());
 
@@ -57,6 +70,21 @@ describe('landing report codec', () => {
     expect((encoded.landing as { seq: unknown[] }).seq).toEqual([
       expect.objectContaining({ ras: 'radio' }),
     ]);
+  });
+
+  it('round-trips the simulator autobrake label used by touchdown configuration', () => {
+    const base = fixtureLandingReport();
+    const point = { ...base.points[0], autoBrakeLabel: 'MED' };
+    const decoded = deserializeLandingReport(serializeLandingReport({
+      ...base,
+      points: [point],
+      landing: base.landing ? { ...base.landing, touchdownSequence: [point] } : undefined,
+    }));
+
+    expect(decoded.points[0]).toMatchObject({ autoBrakeLabel: 'MED' });
+    expect(decoded.landing?.touchdownSequence[0]).toMatchObject({
+      autoBrakeLabel: 'MED',
+    });
   });
 
   it('omits radio altitude source when it is absent', () => {
