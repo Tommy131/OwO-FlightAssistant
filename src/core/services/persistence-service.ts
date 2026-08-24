@@ -201,6 +201,22 @@ class PersistenceServiceImpl {
     return (bucket as Record<string, JsonValue>)[key] as T | undefined;
   }
 
+  /**
+   * 直接读取 IndexedDB 中最后一次成功写入的模块值。
+   *
+   * 强制落盘失败时内存快照可能比磁盘新；恢复流程用这条路径判断一条
+   * 同 ID 日志是否真的已经持久化，避免把仅存在于内存的写入当成可靠副本。
+   */
+  async getDurableModuleData<T = JsonValue>(
+    moduleName: string,
+    key: string,
+  ): Promise<T | undefined> {
+    const stored = await idbGet<Record<string, JsonValue>>(ROOT_KEY);
+    const bucket = stored?.[`module:${moduleName}`];
+    if (!bucket || typeof bucket !== 'object' || Array.isArray(bucket)) return undefined;
+    return (bucket as Record<string, JsonValue>)[key] as T | undefined;
+  }
+
   /** 写入某模块的命名空间数据 */
   async setModuleData(moduleName: string, key: string, value: JsonValue): Promise<void> {
     const { bucketKey, bucket } = this.updateModuleData(moduleName, key, value);

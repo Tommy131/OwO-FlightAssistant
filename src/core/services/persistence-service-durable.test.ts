@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const storage = vi.hoisted(() => ({
+  get: vi.fn<(key: string) => Promise<unknown>>(),
   set: vi.fn<(key: string, value: unknown) => Promise<void>>(),
 }));
 
 vi.mock('idb-keyval', () => ({
   clear: vi.fn().mockResolvedValue(undefined),
   del: vi.fn().mockResolvedValue(undefined),
-  get: vi.fn().mockResolvedValue(undefined),
+  get: storage.get,
   set: storage.set,
 }));
 
@@ -22,6 +23,7 @@ import { PersistenceService } from './persistence-service';
 
 describe('durable module persistence', () => {
   beforeEach(() => {
+    storage.get.mockReset().mockResolvedValue(undefined);
     storage.set.mockReset().mockResolvedValue(undefined);
   });
 
@@ -44,5 +46,17 @@ describe('durable module persistence', () => {
         logs: [{ id: 'flight-2' }],
       },
     });
+  });
+
+  it('reads the last durable module value directly from IndexedDB', async () => {
+    storage.get.mockResolvedValueOnce({
+      'module:flight_logs': {
+        logs: [{ id: 'durable-flight' }],
+      },
+    });
+
+    await expect(
+      PersistenceService.getDurableModuleData('flight_logs', 'logs'),
+    ).resolves.toEqual([{ id: 'durable-flight' }]);
   });
 });

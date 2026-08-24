@@ -17,6 +17,7 @@ const testState = vi.hoisted(() => ({
   lookupRunwayAt: vi.fn(),
   pullRecords: vi.fn(),
   pushRecord: vi.fn(),
+  getDurableModuleData: vi.fn(),
   setModuleDataDurable: vi.fn(),
 }));
 
@@ -42,6 +43,7 @@ vi.mock('../../../core/services/persistence-service', () => ({
     getModuleData: vi.fn((moduleName: string, key: string) =>
       testState.moduleData.get(`${moduleName}/${key}`),
     ),
+    getDurableModuleData: testState.getDurableModuleData,
     setModuleData: vi.fn((moduleName: string, key: string, value: unknown) => {
       testState.moduleData.set(`${moduleName}/${key}`, value);
       return Promise.resolve();
@@ -169,6 +171,10 @@ describe('manual flight recording finalization', () => {
     testState.lookupRunwayAt.mockReset().mockResolvedValue(undefined);
     testState.pullRecords.mockReset().mockResolvedValue(null);
     testState.pushRecord.mockReset().mockResolvedValue({ ok: true, offline: false });
+    testState.getDurableModuleData.mockReset().mockImplementation(
+      (moduleName: string, key: string) =>
+        Promise.resolve(testState.moduleData.get(`${moduleName}/${key}`)),
+    );
     testState.setModuleDataDurable.mockReset().mockImplementation(
       (moduleName: string, key: string, value: unknown) => {
         testState.moduleData.set(`${moduleName}/${key}`, value);
@@ -274,6 +280,136 @@ describe('manual flight recording finalization', () => {
         ],
       }),
     ]);
+    expect(testState.activeArchives.has(ACTIVE_LOG_IDB_KEY)).toBe(false);
+  });
+
+  it('treats an unmarked legacy interrupted archive with an end time as in progress', async () => {
+    const lastSampleTime = new Date(START.getTime() + 500);
+    testState.activeArchives.set(ACTIVE_LOG_IDB_KEY, {
+      log: flightLogToJson(activeLog({
+        endTime: lastSampleTime,
+        points: [point(), point({ timestamp: lastSampleTime })],
+        status: 'incomplete',
+        endReason: 'interrupted',
+      })),
+      touchdownPointIndexes: [],
+      lastOnGround: false,
+    });
+
+    expect(await useFlightLogsStore.getState().recoverInterruptedLog()).toBe(true);
+
+    expect(persistedLogs()[0]).toMatchObject({
+      status: 'incomplete',
+      end_reason: 'page_closed',
+      end: lastSampleTime.toISOString(),
+    });
+  });
+
+  it('preserves a user-stopped terminal checkpoint after a crash before final save', async () => {
+    const endTime = new Date(START.getTime() + 750);
+    testState.activeArchives.set(ACTIVE_LOG_IDB_KEY, {
+      log: flightLogToJson(activeLog({
+        endTime,
+        points: [point(), point({ altitude: 222, timestamp: endTime })],
+        status: 'incomplete',
+        endReason: 'user_stopped',
+      })),
+      touchdownPointIndexes: [],
+      lastOnGround: false,
+    });
+
+    expect(await useFlightLogsStore.getState().recoverInterruptedLog()).toBe(true);
+
+    expect(persistedLogs()[0]).toMatchObject({
+      status: 'incomplete',
+      end_reason: 'user_stopped',
+      end: endTime.toISOString(),
+      points: [expect.any(Object), expect.objectContaining({ alt: 222 })],
+    });
+  });
+
+  it('preserves a stable-landing terminal checkpoint after a crash', async () => {
+    const endTime = new Date(START.getTime() + 900);
+    testState.activeArchives.set(ACTIVE_LOG_IDB_KEY, {
+      log: flightLogToJson(activeLog({
+        endTime,
+        points: [point(), point({ onGround: true, timestamp: endTime })],
+        status: 'completed',
+        endReason: 'stable_landing',
+        wasOnGroundAtEnd: true,
+      })),
+      touchdownPointIndexes: [],
+      lastOnGround: true,
+    });
+
+    expect(await useFlightLogsStore.getState().recoverInterruptedLog()).toBe(true);
+
+    expect(persistedLogs()[0]).toMatchObject({
+      status: 'completed',
+      end_reason: 'stable_landing',
+      end: endTime.toISOString(),
+    });
+  });
+
+  it('preserves an explicitly interrupted terminal checkpoint', async () => {
+    const endTime = new Date(START.getTime() + 600);
+    testState.activeArchives.set(ACTIVE_LOG_IDB_KEY, {
+      lifecycle: 'terminal',
+      log: flightLogToJson(activeLog({
+        endTime,
+        status: 'incomplete',
+        endReason: 'interrupted',
+      })),
+      touchdownPointIndexes: [],
+      lastOnGround: false,
+    });
+
+    expect(await useFlightLogsStore.getState().recoverInterruptedLog()).toBe(true);
+
+    expect(persistedLogs()[0]).toMatchObject({
+      status: 'incomplete',
+      end_reason: 'interrupted',
+      end: endTime.toISOString(),
+    });
+  });
+
+  it('keeps equal durable finalized data after a crash before archive clear', async () => {
+    const endTime = new Date(START.getTime() + 750);
+    const takeoffData = {
+      latitude: 50.03,
+      longitude: 8.57,
+      airspeed: 140,
+      groundSpeed: 137,
+      verticalSpeed: 300,
+      pitch: 8,
+      heading: 250,
+      timestamp: START,
+    };
+    const checkpoint = activeLog({
+      endTime,
+      points: [point(), point({ altitude: 222, timestamp: endTime })],
+      status: 'incomplete',
+      endReason: 'user_stopped',
+      takeoffData,
+    });
+    const durable = activeLog({
+      ...checkpoint,
+      takeoffData: { ...takeoffData, rotationSpeedKt: 155 },
+    });
+    testState.moduleData.set('flight_logs/logs', [flightLogToJson(durable)]);
+    await useFlightLogsStore.getState().refreshLogs();
+    testState.activeArchives.set(ACTIVE_LOG_IDB_KEY, {
+      log: flightLogToJson(checkpoint),
+      touchdownPointIndexes: [],
+      lastOnGround: false,
+    });
+
+    expect(await useFlightLogsStore.getState().recoverInterruptedLog()).toBe(true);
+
+    const recovered = flightLogFromJson(persistedLogs()[0]);
+    expect(recovered.endReason).toBe('user_stopped');
+    expect(recovered.endTime).toEqual(endTime);
+    expect(recovered.takeoffData?.rotationSpeedKt).toBe(155);
     expect(testState.activeArchives.has(ACTIVE_LOG_IDB_KEY)).toBe(false);
   });
 
@@ -543,6 +679,9 @@ describe('manual flight recording finalization', () => {
       status: 'incomplete',
       end_reason: 'user_stopped',
       points: [expect.any(Object), expect.objectContaining({ alt: 222 })],
+    });
+    expect(testState.activeArchives.get(ACTIVE_LOG_IDB_KEY)).toMatchObject({
+      lifecycle: 'terminal',
     });
     lookup.resolve(undefined);
     await stopping;

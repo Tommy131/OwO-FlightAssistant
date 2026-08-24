@@ -139,6 +139,8 @@ function resetRecordingContext(): void {
 
 /** 存档结构：日志本体 + 恢复时要接着用的检测上下文 */
 interface ActiveLogArchive {
+  /** Missing on legacy archives; terminal checkpoints are explicit going forward. */
+  lifecycle?: 'recording' | 'terminal';
   log: unknown;
   touchdownPointIndexes: number[];
   lastOnGround?: boolean;
@@ -149,6 +151,7 @@ async function persistActiveLog(
   log: FlightLog,
   force = false,
   strict = false,
+  lifecycle: ActiveLogArchive['lifecycle'] = 'recording',
 ): Promise<void> {
   const now = Date.now();
   if (
@@ -161,6 +164,7 @@ async function persistActiveLog(
   recordingContext.lastActiveLogPersistAt = now;
   try {
     const archive: ActiveLogArchive = {
+      lifecycle,
       log: flightLogToJson(log),
       touchdownPointIndexes: [...recordingContext.touchdownPointIndexes],
       lastOnGround: recordingContext.lastOnGround,
@@ -447,23 +451,49 @@ async function recoverInterruptedLogNow(set: SetState, get: GetState): Promise<b
   // 从这一刻起，除非恢复记录已可靠落库，否则禁止新录制覆盖同一个存档键。
   hasUnresolvedActiveArchive = true;
 
+  const terminalCheckpoint = isTerminalArchiveCheckpoint(archive, log);
+  const recoveryEndTime = terminalCheckpoint
+    ? log.endTime!
+    : interruptedRecoveryEndTime(log);
+  const durableLogs = await readDurableFlightLogs();
+  const durableWinner = durableLogs.find(
+    (item) =>
+      item.id === log.id &&
+      item.endTime !== undefined &&
+      item.endTime.getTime() >= recoveryEndTime.getTime(),
+  );
+  if (durableWinner) {
+    const logs = mergeById(durableLogs, get().logs).sort(
+      (a, b) => b.startTime.getTime() - a.startTime.getTime(),
+    );
+    await clearActiveLogArchive();
+    hasUnresolvedActiveArchive = false;
+    resetRecordingContext();
+    set({
+      logs,
+      activeLog: null,
+      isRecording: false,
+      isRecordingPaused: false,
+      hasActiveWork: false,
+    });
+    await pushRecord('flightLog', durableWinner.id, flightLogToJson(durableWinner));
+    AppLogger.info(`[FlightLogs] cleared stale finalized archive: ${log.id}`);
+    return true;
+  }
+
   // 恢复检测上下文只为了补齐已存档的落地汇总；
   // 孤儿存档不重新进入录制态。
   resetRecordingContext();
   recordingContext.touchdownPointIndexes = [...(archive.touchdownPointIndexes ?? [])];
   recordingContext.lastOnGround = archive.lastOnGround;
 
-  const lastPoint = log.points[log.points.length - 1];
-  const archivedEndTime = log.endTime?.getTime();
-  const lastSampleTime = lastPoint.timestamp.getTime();
-  log.endTime = new Date(
-    archivedEndTime === undefined
-      ? lastSampleTime
-      : Math.max(archivedEndTime, lastSampleTime),
-  );
-  log.wasOnGroundAtEnd = lastPoint.onGround ?? log.wasOnGroundAtEnd;
-  log.status = flightLogStatusForEndReason('page_closed');
-  log.endReason = 'page_closed';
+  if (!terminalCheckpoint) {
+    const lastPoint = log.points[log.points.length - 1];
+    log.endTime = recoveryEndTime;
+    log.wasOnGroundAtEnd = lastPoint.onGround ?? log.wasOnGroundAtEnd;
+    log.status = flightLogStatusForEndReason('page_closed');
+    log.endReason = 'page_closed';
+  }
   finalizeLandingAtStop(log);
   updateFuelUsed(log);
   await enrichTakeoffLandingMetrics(log);
@@ -481,6 +511,41 @@ async function recoverInterruptedLogNow(set: SetState, get: GetState): Promise<b
   await refreshLogsNow(set);
   AppLogger.info(`[FlightLogs] finalized interrupted recording: ${log.points.length} points`);
   return true;
+}
+
+function isTerminalArchiveCheckpoint(archive: ActiveLogArchive, log: FlightLog): boolean {
+  if (archive.lifecycle === 'terminal') return true;
+  if (archive.lifecycle === 'recording') return false;
+  // Round-1/legacy archives have no marker. Their live checkpoints updated
+  // `endTime` on every capture but kept `interrupted`, so that reason remains
+  // the compatibility signal for an in-progress archive.
+  return (
+    log.endTime !== undefined &&
+    log.endReason !== undefined &&
+    log.endReason !== 'interrupted'
+  );
+}
+
+function interruptedRecoveryEndTime(log: FlightLog): Date {
+  const lastSampleTime = log.points[log.points.length - 1].timestamp.getTime();
+  const archivedEndTime = log.endTime?.getTime();
+  return new Date(
+    archivedEndTime === undefined
+      ? lastSampleTime
+      : Math.max(archivedEndTime, lastSampleTime),
+  );
+}
+
+async function readDurableFlightLogs(): Promise<FlightLog[]> {
+  const stored = await PersistenceService.getDurableModuleData<unknown[]>(
+    MODULE_NAME,
+    LOGS_KEY,
+  );
+  if (!Array.isArray(stored)) return [];
+  return stored
+    .map((item) => toJsonMap(item))
+    .filter((item): item is Record<string, unknown> => item !== null)
+    .map(flightLogFromJson);
 }
 
 async function deleteLogNow(id: string, set: SetState, get: GetState): Promise<void> {
@@ -597,7 +662,7 @@ async function completeTerminalRecording(
   get: GetState,
 ): Promise<boolean> {
   // 把最终采样、结束时间和原因强制落进恢复存档，再开始任何慢指标查询。
-  await persistActiveLog(log, true, true);
+  await persistActiveLog(log, true, true, 'terminal');
   // 派生指标要在全部采样点都到齐之后才算得出来（抬轮、35ft 俯仰、稳定性
   // 都要看事件前后的一整段），所以放在收尾这一步而不是采样时。
   await enrichTakeoffLandingMetrics(log);
