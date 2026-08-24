@@ -5,6 +5,7 @@ import type { ModuleRegistrar } from '../../core/module-registry/clearable';
 import { createNavigationGroup } from '../../core/module-registry/navigation/navigation-group';
 import { registerModuleTranslations, translate } from '../../core/services/localization-service';
 import { useFlightLogsStore } from '../flight_logs/providers/flight-logs-store';
+import { useLandingReportsStore } from '../flight_logs/providers/landing-reports-store';
 import {
   commonModuleTranslations,
   navigationModuleTranslations,
@@ -19,8 +20,27 @@ import { useAppModeStore } from './providers/app-mode-store';
 import { createDefaultFlightDataAdapter, useFlightDataStore } from './providers/flight-data-store';
 import { usePlannedRouteStore } from './providers/planned-route-store';
 import { useWorkflowStore } from './providers/workflow-store';
+import { installRecordingUnloadGuard } from './services/recording-lifecycle';
 import { createAppModeAction } from './widgets/app-mode-action';
 import { createWorkflowAction } from './widgets/workflow-action';
+
+type RecordingOperation = () => unknown;
+
+async function invokeRecordingOperation(operation: RecordingOperation): Promise<unknown> {
+  return operation();
+}
+
+async function settleRecordingOperations(
+  stage: string,
+  operations: RecordingOperation[],
+): Promise<void> {
+  const results = await Promise.allSettled(operations.map(invokeRecordingOperation));
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      AppLogger.warning(`[Common] ${stage} failed: ${String(result.reason)}`);
+    }
+  }
+}
 
 /**
  * 公共模块注册器
@@ -101,41 +121,65 @@ export class CommonModule implements ModuleRegistrar {
       }),
     );
 
-    // ── store 绑定：飞行快照 → 飞行日志（等价于 ChangeNotifierProxyProvider）──
+    // ── 录制生命周期：初始化/恢复、快照扇出、断连收尾与关页保护 ──
     ModuleRegistry.providers.register({
-      id: 'flight_logs_from_flight_data',
+      id: 'recording_lifecycle',
       setup: () => {
-        void useFlightLogsStore.getState().refreshLogs();
-        return useFlightDataStore.subscribe((state, previous) => {
-          if (state.snapshot === previous.snapshot) return;
-          useFlightLogsStore.getState().handleFlightSnapshot(state.snapshot);
-        });
-      },
-    });
+        let disposed = false;
+        const startup = (async () => {
+          await settleRecordingOperations('recording initialization', [
+            () => useFlightLogsStore.getState().refreshLogs(),
+            () => useLandingReportsStore.getState().initialize(),
+          ]);
 
-    // ── 刷新页面后的会话与录制恢复 ──
-    //
-    // 顺序有讲究：**先接回连接、再恢复录制**。反过来的话，录制恢复完成的瞬间
-    // 快照还是「未连接」，既有的自动收尾逻辑会立刻把这段录制收掉存档，
-    // 用户看到的就是「刷新一下，录制自己停了」。
-    ModuleRegistry.providers.register({
-      id: 'session_recovery',
-      setup: () => {
-        void (async () => {
+          // The resumed snapshot is queued by the subscription below and is
+          // released only after both independent recovery passes have run.
           try {
             await useFlightDataStore.getState().resumeSession();
-            await useFlightLogsStore.getState().recoverActiveLog();
-          } catch (e) {
-            AppLogger.warning(`[Common] session recovery failed: ${String(e)}`);
+          } catch (error) {
+            AppLogger.warning(`[Common] session resume failed: ${String(error)}`);
           }
+
+          await settleRecordingOperations('recording recovery', [
+            () => useFlightLogsStore.getState().recoverInterruptedLog(),
+            () => useLandingReportsStore.getState().recoverInterruptedReport(),
+          ]);
         })();
 
-        // 主动刷新/关页时补一次写盘，补上节流窗口里的最后几秒
-        const flush = () => {
-          void useFlightLogsStore.getState().flushActiveLog();
+        const unsubscribeFlightData = useFlightDataStore.subscribe((state, previous) => {
+          if (state.snapshot === previous.snapshot) return;
+          const snapshot = state.snapshot;
+          const disconnected = previous.snapshot.isConnected && !snapshot.isConnected;
+
+          void startup.then(() => {
+            if (disposed) return;
+            return disconnected
+              ? settleRecordingOperations('recording disconnect', [
+                  () => useFlightLogsStore.getState().handleDisconnect(),
+                  () => useLandingReportsStore.getState().handleDisconnect(),
+                ])
+              : settleRecordingOperations('recording telemetry', [
+                  () => useFlightLogsStore.getState().handleFlightSnapshot(snapshot),
+                  () => useLandingReportsStore.getState().handleFlightSnapshot(snapshot),
+                ]);
+          });
+        });
+
+        const removeUnloadGuard = installRecordingUnloadGuard({
+          flightActive: () => useFlightLogsStore.getState().hasActiveWork,
+          landingActive: () => useLandingReportsStore.getState().hasActiveWork,
+          flush: () =>
+            settleRecordingOperations('recording unload flush', [
+              () => useFlightLogsStore.getState().flushActiveLog(),
+              () => useLandingReportsStore.getState().flushActiveReport(),
+            ]),
+        });
+
+        return () => {
+          disposed = true;
+          unsubscribeFlightData();
+          removeUnloadGuard();
         };
-        window.addEventListener('beforeunload', flush);
-        return () => window.removeEventListener('beforeunload', flush);
       },
     });
 
