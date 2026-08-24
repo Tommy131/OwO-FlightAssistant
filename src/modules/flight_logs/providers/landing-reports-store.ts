@@ -12,7 +12,6 @@ import type {
 import type { LandingReport } from '../models/landing-report-models';
 import {
   createLandingReportRecorder,
-  PRE_TOUCHDOWN_MS,
   type LandingRecorderEvent,
   type LandingReportRecorder,
   type LandingReportRecorderOptions,
@@ -76,10 +75,6 @@ function landingReportsStateCreator(
   const createRecorder = dependencies.createRecorder ?? createLandingReportRecorder;
 
   let recorder: LandingReportRecorder | undefined;
-  let recorderSimulator = 'Unknown';
-  let reportId: string | undefined;
-  let capturePoints: FlightLogPoint[] = [];
-  let activeDraft: LandingReport | undefined;
   let paused = false;
   let operationQueue = Promise.resolve();
 
@@ -94,25 +89,14 @@ function landingReportsStateCreator(
 
   function resetCapture(): void {
     recorder = undefined;
-    recorderSimulator = 'Unknown';
-    reportId = undefined;
-    capturePoints = [];
-    activeDraft = undefined;
     paused = false;
   }
 
   function ensureRecorder(simulator: string): LandingReportRecorder {
-    if (
-      recorder === undefined ||
-      (capturePoints.length === 0 &&
-        !recorder.hasActiveWork() &&
-        recorderSimulator !== simulator)
-    ) {
-      recorderSimulator = simulator;
-      reportId = createId();
+    if (recorder === undefined) {
       recorder = createRecorder({
         now,
-        createId: () => reportId ?? createId(),
+        createId,
         simulator,
       });
     }
@@ -145,33 +129,17 @@ function landingReportsStateCreator(
     await repository.saveLocal(report);
     await repository.clearActive();
     updateReports(set, get, report);
-    await repository.sync(report);
+    startBestEffortSync(report);
   }
 
-  function keepNextTouchAndGoBuffer(finalized: LandingReport): void {
-    const cutoff = finalized.touchdownAt ?? finalized.endedAt;
-    capturePoints = capturePoints.filter(
-      (point) => point.timestamp.getTime() > cutoff,
-    );
-    activeDraft = undefined;
-    reportId = createId();
-  }
-
-  function buildActiveDraft(): LandingReport | undefined {
-    if (capturePoints.length === 0 || reportId === undefined) return undefined;
-    const timestamp = now();
-    const createdAt = activeDraft?.createdAt ?? timestamp;
-    return {
-      id: reportId,
-      simulator: recorderSimulator,
-      startedAt: capturePoints[0].timestamp.getTime(),
-      endedAt: capturePoints[capturePoints.length - 1].timestamp.getTime(),
-      status: 'incomplete',
-      endReason: 'interrupted',
-      points: [...capturePoints],
-      createdAt,
-      updatedAt: timestamp,
-    };
+  function startBestEffortSync(report: LandingReport): void {
+    try {
+      void repository.sync(report).catch((error: unknown) => {
+        AppLogger.warning(`[LandingReports] sync ${report.id} failed: ${String(error)}`);
+      });
+    } catch (error) {
+      AppLogger.warning(`[LandingReports] sync ${report.id} failed: ${String(error)}`);
+    }
   }
 
   async function persistEvents(
@@ -181,18 +149,13 @@ function landingReportsStateCreator(
   ): Promise<void> {
     for (const event of events) {
       await persistFinalReport(event.report, set, get);
-      if (event.report.endReason === 'touch_and_go') {
-        keepNextTouchAndGoBuffer(event.report);
-      } else {
-        resetCapture();
-      }
+      if (event.report.endReason !== 'touch_and_go') resetCapture();
     }
   }
 
   async function persistActiveDraft(): Promise<void> {
-    const next = buildActiveDraft();
+    const next = recorder?.getRecoverableReport();
     if (!next) return;
-    activeDraft = next;
     try {
       await repository.writeActive(next);
     } catch (error) {
@@ -261,11 +224,7 @@ function landingReportsStateCreator(
           if (paused) activeRecorder.resume();
           paused = false;
 
-          const wasActive = activeRecorder.hasActiveWork();
           const point = snapshotToPoint(snapshot, now());
-          capturePoints.push(point);
-          if (!wasActive) trimPreTouchdownBuffer(capturePoints, point.timestamp.getTime());
-
           const events = activeRecorder.push(point);
           await persistEvents(events, set, get);
 
@@ -299,6 +258,13 @@ function landingReportsStateCreator(
             if (active) await repository.clearActive();
             return false;
           }
+          const existing = await repository.get(active.id);
+          if (existing && existing.updatedAt >= active.updatedAt) {
+            await repository.clearActive();
+            updateReports(set, get, existing);
+            startBestEffortSync(existing);
+            return false;
+          }
           const timestamp = now();
           const recovered: LandingReport = {
             ...active,
@@ -328,11 +294,6 @@ function landingReportsStateCreator(
       },
     };
   };
-}
-
-function trimPreTouchdownBuffer(points: FlightLogPoint[], timestamp: number): void {
-  const cutoff = timestamp - PRE_TOUCHDOWN_MS;
-  while (points.length > 0 && points[0].timestamp.getTime() < cutoff) points.shift();
 }
 
 function snapshotToPoint(snapshot: FlightDataSnapshot, timestamp: number): FlightLogPoint {

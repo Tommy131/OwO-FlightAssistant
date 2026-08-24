@@ -94,6 +94,7 @@ function recorder(overrides: Partial<LandingReportRecorder> = {}): LandingReport
     disconnect: vi.fn().mockReturnValue([]),
     stop: vi.fn().mockReturnValue([]),
     hasActiveWork: vi.fn().mockReturnValue(false),
+    getRecoverableReport: vi.fn().mockReturnValue(undefined),
     ...overrides,
   };
 }
@@ -143,6 +144,29 @@ describe('landing reports store', () => {
       updatedAt: 9_000,
     }));
     expect(order).toEqual(['save-local', 'clear-active', 'sync']);
+  });
+
+  it('clears a stale active archive without overwriting a newer completed local report', async () => {
+    const active = report({ updatedAt: 4_000, status: 'incomplete', endReason: 'interrupted' });
+    const completed = report({ updatedAt: 5_000, status: 'completed', endReason: 'stable_landing' });
+    const reports = repository({
+      list: vi.fn().mockResolvedValue([completed]),
+      get: vi.fn().mockResolvedValue(completed),
+      readActive: vi.fn().mockResolvedValue(active),
+    });
+    const store = createLandingReportsStore({
+      repository: reports,
+      settings: settings(),
+      now: () => 9_000,
+    });
+    await store.getState().initialize();
+
+    expect(await store.getState().recoverInterruptedReport()).toBe(false);
+
+    expect(reports.saveLocal).not.toHaveBeenCalled();
+    expect(reports.clearActive).toHaveBeenCalledOnce();
+    expect(reports.sync).toHaveBeenCalledWith(completed);
+    expect(store.getState().reports).toEqual([completed]);
   });
 
   it('persists finalized reports locally, clears the archive, then syncs', async () => {
@@ -197,6 +221,127 @@ describe('landing reports store', () => {
       expect.objectContaining({ radioAltitude: 80, radioAltitudeSource: 'radio' }),
     );
     expect(store.getState().hasActiveWork).toBe(true);
+  });
+
+  it('archives the recorder-exact pre-touchdown window after old-point trimming', async () => {
+    let now = 0;
+    const reports = repository();
+    const store = createLandingReportsStore({
+      repository: reports,
+      settings: settings(),
+      now: () => now,
+    });
+    await store.getState().handleFlightSnapshot(snapshot({ radioAltitude: 12_000 }));
+    now = 10_000;
+    await store.getState().handleFlightSnapshot(snapshot({ radioAltitude: 8_000 }));
+    now = 70_000;
+    await store.getState().handleFlightSnapshot(snapshot({ radioAltitude: 2_500 }));
+
+    const archived = vi.mocked(reports.writeActive).mock.calls.at(-1)?.[0];
+    expect(archived?.points.map((point) => point.timestamp.getTime())).toEqual([
+      10_000,
+      70_000,
+    ]);
+  });
+
+  it('does not archive buffering samples discarded by a ground reset', async () => {
+    let now = 0;
+    const reports = repository();
+    const store = createLandingReportsStore({
+      repository: reports,
+      settings: settings(),
+      now: () => now,
+    });
+    await store.getState().handleFlightSnapshot(snapshot({ radioAltitude: 12_000 }));
+    now = 1_000;
+    await store.getState().handleFlightSnapshot(
+      snapshot({ onGround: true, radioAltitude: 0 }),
+    );
+    now = 2_000;
+    await store.getState().handleFlightSnapshot(snapshot({ radioAltitude: 8_000 }));
+    now = 3_000;
+    await store.getState().handleFlightSnapshot(snapshot({ radioAltitude: 2_500 }));
+
+    const archived = vi.mocked(reports.writeActive).mock.calls.at(-1)?.[0];
+    expect(archived?.points.map((point) => point.timestamp.getTime())).toEqual([
+      2_000,
+      3_000,
+    ]);
+  });
+
+  it('archives exactly the recorder rollover after a touch-and-go boundary', async () => {
+    let now = 0;
+    const ids = ['first-report', 'second-report'];
+    const reports = repository();
+    const store = createLandingReportsStore({
+      repository: reports,
+      settings: settings(),
+      now: () => now,
+      createId: () => ids.shift() ?? 'unexpected-report',
+    });
+    await store.getState().handleFlightSnapshot(snapshot({ radioAltitude: 100 }));
+    now = 100;
+    await store.getState().handleFlightSnapshot(snapshot({ onGround: true, radioAltitude: 0 }));
+    now = 200;
+    await store.getState().handleFlightSnapshot(snapshot({ onGround: false, radioAltitude: 20 }));
+    now = 10_201;
+    await store.getState().handleFlightSnapshot(snapshot({ onGround: true, radioAltitude: 0 }));
+
+    expect(reports.saveLocal).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'first-report',
+      endReason: 'touch_and_go',
+    }));
+    const archived = vi.mocked(reports.writeActive).mock.calls.at(-1)?.[0];
+    expect(archived?.id).toBe('second-report');
+    expect(archived?.points.map((point) => point.timestamp.getTime())).toEqual([
+      200,
+      10_201,
+    ]);
+  });
+
+  it('does not block later telemetry while best-effort backend sync is pending', async () => {
+    let now = 0;
+    let releaseSync: (() => void) | undefined;
+    let markSyncStarted: (() => void) | undefined;
+    const syncStarted = new Promise<void>((resolve) => {
+      markSyncStarted = resolve;
+    });
+    const pendingSync = new Promise<void>((resolve) => {
+      releaseSync = resolve;
+    });
+    const reports = repository({
+      sync: vi.fn(() => {
+        markSyncStarted?.();
+        return pendingSync;
+      }),
+    });
+    const store = createLandingReportsStore({
+      repository: reports,
+      settings: settings(),
+      now: () => now,
+    });
+    await store.getState().handleFlightSnapshot(snapshot({ radioAltitude: 100 }));
+    now = 100;
+    await store.getState().handleFlightSnapshot(snapshot({ onGround: true, radioAltitude: 0 }));
+    now = 15_100;
+    const finalizing = store.getState().handleFlightSnapshot(
+      snapshot({ onGround: true, radioAltitude: 0 }),
+    );
+    await syncStarted;
+
+    now = 20_000;
+    const laterTelemetry = store.getState().handleFlightSnapshot(snapshot({ radioAltitude: 100 }));
+    let progressed = false;
+    void laterTelemetry.then(() => {
+      progressed = true;
+    });
+    for (let turn = 0; turn < 20 && !progressed; turn += 1) await Promise.resolve();
+
+    releaseSync?.();
+    await Promise.all([finalizing, laterTelemetry]);
+    expect(progressed).toBe(true);
+    const archived = vi.mocked(reports.writeActive).mock.calls.at(-1)?.[0];
+    expect(archived?.points.map((point) => point.timestamp.getTime())).toEqual([20_000]);
   });
 
   it('flushes the latest armed draft without finalizing it', async () => {

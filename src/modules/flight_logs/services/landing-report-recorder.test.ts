@@ -92,6 +92,35 @@ describe('automatic landing report recorder', () => {
     expect(recorder.stop()).toEqual([]);
   });
 
+  it('exposes no recoverable report for buffering discarded by a ground reset', () => {
+    const { recorder, push } = harness();
+
+    push(0, { onGround: false, radioAltitude: 12_000 });
+    expect(recorder.getRecoverableReport()).toBeUndefined();
+    push(1_000, { onGround: true, radioAltitude: 0 });
+
+    expect(recorder.getRecoverableReport()).toBeUndefined();
+  });
+
+  it('exposes the exact trimmed recoverable points with the final report identity', () => {
+    const { recorder, push } = harness();
+
+    push(0, { radioAltitude: 12_000 });
+    push(10_000, { radioAltitude: 8_000 });
+    push(70_000, { radioAltitude: 2_500 });
+
+    const active = recorder.getRecoverableReport();
+    expect(active?.id).toBe('landing-report-test');
+    expect(active?.points.map((item) => item.timestamp.getTime())).toEqual([
+      BASE_TIME + 10_000,
+      BASE_TIME + 70_000,
+    ]);
+
+    const finalized = onlyFinalizedReport(recorder.stop());
+    expect(finalized.id).toBe(active?.id);
+    expect(finalized.createdAt).toBe(active?.createdAt);
+  });
+
   it('keeps exactly the rolling minute before touchdown and fifteen seconds after touchdown', () => {
     const { push } = harness();
 

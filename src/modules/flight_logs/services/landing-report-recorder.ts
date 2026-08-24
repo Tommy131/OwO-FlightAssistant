@@ -27,6 +27,7 @@ export interface LandingReportRecorder {
   disconnect(): LandingRecorderEvent[];
   stop(): LandingRecorderEvent[];
   hasActiveWork(): boolean;
+  getRecoverableReport(): LandingReport | undefined;
 }
 
 export interface LandingReportRecorderOptions {
@@ -51,6 +52,8 @@ export function createLandingReportRecorder(
   let airborneSince: number | undefined;
   let airborneStartIndex: number | undefined;
   let pausedAt: number | undefined;
+  let activeReportId: string | undefined;
+  let activeReportCreatedAt: number | undefined;
 
   function reset(): void {
     state = 'idle';
@@ -61,6 +64,8 @@ export function createLandingReportRecorder(
     airborneSince = undefined;
     airborneStartIndex = undefined;
     pausedAt = undefined;
+    activeReportId = undefined;
+    activeReportCreatedAt = undefined;
   }
 
   function trimRollingBuffer(referenceTime: number): void {
@@ -85,6 +90,39 @@ export function createLandingReportRecorder(
     return point.onGround === false && (lowEnough || point.gearDown === true);
   }
 
+  function ensureActiveIdentity(): void {
+    activeReportId ??= options.createId?.() ?? crypto.randomUUID();
+    activeReportCreatedAt ??= options.now();
+  }
+
+  function hasActiveWork(): boolean {
+    return state === 'armed' || state === 'touchdown_candidate' || state === 'post_touchdown';
+  }
+
+  function buildReport(
+    status: LandingReport['status'],
+    endReason: RecordingEndReason,
+    endAt: 'last_point' | 'now',
+  ): LandingReport {
+    ensureActiveIdentity();
+    const updatedAt = options.now();
+    const landing = buildLandingDataFromTouchdowns(points, touchdownIndexes);
+    return {
+      id: activeReportId!,
+      simulator: options.simulator ?? 'Unknown',
+      startedAt: points[0].timestamp.getTime(),
+      endedAt:
+        endAt === 'now' ? updatedAt : points[points.length - 1].timestamp.getTime(),
+      touchdownAt: landing?.timestamp.getTime(),
+      status,
+      endReason,
+      points: [...points],
+      landing,
+      createdAt: activeReportCreatedAt!,
+      updatedAt,
+    };
+  }
+
   function finalize(
     status: LandingReport['status'],
     endReason: RecordingEndReason,
@@ -95,22 +133,7 @@ export function createLandingReportRecorder(
       return [];
     }
 
-    const createdAt = options.now();
-    const landing = buildLandingDataFromTouchdowns(points, touchdownIndexes);
-    const report: LandingReport = {
-      id: options.createId?.() ?? crypto.randomUUID(),
-      simulator: options.simulator ?? 'Unknown',
-      startedAt: points[0].timestamp.getTime(),
-      endedAt:
-        endAt === 'now' ? createdAt : points[points.length - 1].timestamp.getTime(),
-      touchdownAt: landing?.timestamp.getTime(),
-      status,
-      endReason,
-      points: [...points],
-      landing,
-      createdAt,
-      updatedAt: createdAt,
-    };
+    const report = buildReport(status, endReason, endAt);
     reset();
     return [{ type: 'finalize', report }];
   }
@@ -125,6 +148,7 @@ export function createLandingReportRecorder(
     const latest = points[points.length - 1];
     trimRollingBuffer(latest.timestamp.getTime());
     state = points.some(canArm) ? 'armed' : 'buffering';
+    if (state === 'armed') ensureActiveIdentity();
   }
 
   function push(point: FlightLogPoint): LandingRecorderEvent[] {
@@ -136,6 +160,7 @@ export function createLandingReportRecorder(
       points = [point];
       lastOnGround = false;
       state = canArm(point) ? 'armed' : 'buffering';
+      if (state === 'armed') ensureActiveIdentity();
       trimRollingBuffer(timestamp);
       return [];
     }
@@ -152,7 +177,10 @@ export function createLandingReportRecorder(
         reset();
         return [];
       }
-      if (canArm(point)) state = 'armed';
+      if (canArm(point)) {
+        state = 'armed';
+        ensureActiveIdentity();
+      }
       return [];
     }
 
@@ -236,7 +264,10 @@ export function createLandingReportRecorder(
     resume,
     disconnect: () => interrupt('simulator_disconnected'),
     stop: () => interrupt('user_stopped'),
-    hasActiveWork: () =>
-      state === 'armed' || state === 'touchdown_candidate' || state === 'post_touchdown',
+    hasActiveWork,
+    getRecoverableReport: () =>
+      hasActiveWork() && points.length > 0
+        ? buildReport('incomplete', 'interrupted', 'last_point')
+        : undefined,
   };
 }
