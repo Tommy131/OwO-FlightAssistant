@@ -280,3 +280,237 @@
   grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
   gap: 8px;
 }
+
+/* ── 自动落地报告 ── */
+
+.landingReportsView,
+.landingDetail {
+  min-height: 100%;
+}
+
+.landingState {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  padding: var(--space-lg);
+}
+
+.landingErrorBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-lg) var(--space-lg) 0;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 42%, var(--color-border));
+  border-radius: var(--radius-sm);
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface));
+}
+
+.landingErrorBanner > span:nth-child(2) {
+  flex: 1;
+}
+
+.landingList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--space-lg);
+}
+
+.landingListItem {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 40px;
+  align-items: stretch;
+  min-height: 100px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition:
+    border-color var(--anim-duration) ease,
+    box-shadow var(--anim-duration) ease;
+}
+
+.landingListItem:hover {
+  border-color: var(--color-primary-a30);
+  box-shadow: var(--shadow-sm);
+}
+
+.touchdownRail {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  background: var(--color-primary-a10);
+  font-family: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.touchdownRail::before,
+.touchdownRail::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 1px;
+  height: calc(50% - 14px);
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--color-primary) 0,
+    var(--color-primary) 3px,
+    transparent 3px,
+    transparent 7px
+  );
+}
+
+.touchdownRail::before {
+  top: 0;
+}
+
+.touchdownRail::after {
+  bottom: 0;
+}
+
+.touchdownRail span {
+  position: relative;
+  z-index: 1;
+  padding: 3px 4px;
+  border: 1px solid var(--color-primary-a30);
+  border-radius: 4px;
+  background: var(--color-surface);
+}
+
+.touchdownRail i {
+  position: absolute;
+  left: calc(50% - 3px);
+  top: calc(50% - 3px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.landingListMain {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px var(--space-md);
+  text-align: left;
+}
+
+.landingListHeadline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.landingListHeadline time {
+  color: var(--color-text-primary);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.landingReason {
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.landingListMetrics {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  color: var(--color-text-secondary);
+  font-family: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.landingListItem > button:last-child {
+  align-self: center;
+}
+
+.landingDetailHeader {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 10px var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.landingDetailTitle {
+  flex: 1;
+  min-width: 0;
+}
+
+.landingDetailTitle h2 {
+  color: var(--color-text-primary);
+  font-family: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.landingDetailEyebrow {
+  display: block;
+  color: var(--color-primary);
+  font-family: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.landingDetailBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+}
+
+.landingFacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 649px) {
+  .landingErrorBanner {
+    margin: var(--space-md) var(--space-md) 0;
+  }
+
+  .landingList,
+  .landingDetailBody {
+    padding: var(--space-md);
+  }
+
+  .landingListItem {
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+  }
+
+  .landingListMetrics {
+    gap: 8px 12px;
+  }
+
+  .landingDetailHeader {
+    gap: 8px;
+    padding: 8px var(--space-sm);
+  }
+
+  .landingDetailTitle h2 {
+    font-size: 13px;
+  }
+
+  .landingFacts {
+    grid-template-columns: 1fr;
+  }
+}

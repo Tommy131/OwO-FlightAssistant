@@ -12,6 +12,7 @@ import {
   StatusBadge,
 } from '../../../core/widgets/common/surfaces';
 import { useFlightDataStore } from '../../common/providers/flight-data-store';
+import { LandingReportsView } from '../components/landing-reports-view';
 import { FlightLogsLocalizationKeys as K } from '../localization/flight-logs-localization';
 import {
   flightLogAirborneDurationMs,
@@ -21,6 +22,7 @@ import {
   type LandingRating,
 } from '../models/flight-log-models';
 import { useFlightLogsStore } from '../providers/flight-logs-store';
+import { useLandingReportsStore } from '../providers/landing-reports-store';
 import { AnalysisChart } from './widgets/analysis-chart';
 import { LandingFlareAnalysis } from './widgets/landing-flare-analysis';
 import {
@@ -40,11 +42,22 @@ import styles from './flight-logs-page.module.css';
  */
 export function FlightLogsPage() {
   const t = useTranslate();
+  const [logsTab, setLogsTab] = useState<LogsTab>('flightLogs');
+  const flightTabRef = useRef<HTMLButtonElement>(null);
+  const landingTabRef = useRef<HTMLButtonElement>(null);
   const logs = useFlightLogsStore((s) => s.logs);
   const isLoading = useFlightLogsStore((s) => s.isLoading);
   const selectedLog = useFlightLogsStore((s) => s.selectedLog);
   const selectLog = useFlightLogsStore((s) => s.selectLog);
   const refreshLogs = useFlightLogsStore((s) => s.refreshLogs);
+  const landingReports = useLandingReportsStore((s) => s.reports);
+  const selectedReport = useLandingReportsStore((s) => s.selectedReport);
+  const selectReport = useLandingReportsStore((s) => s.selectReport);
+  const deleteReport = useLandingReportsStore((s) => s.deleteReport);
+  const initializeLandingReports = useLandingReportsStore((s) => s.initialize);
+  const [landingLoadState, setLandingLoadState] = useState<'idle' | 'loading' | 'ready' | 'error'>(
+    'idle',
+  );
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -53,43 +66,135 @@ export function FlightLogsPage() {
     void refreshLogs();
   }, [refreshLogs]);
 
+  const loadLandingReports = async () => {
+    setLandingLoadState('loading');
+    try {
+      await initializeLandingReports();
+      setLandingLoadState('ready');
+    } catch {
+      setLandingLoadState('error');
+    }
+  };
+
+  const selectLogsTab = (nextTab: LogsTab) => {
+    setLogsTab(nextTab);
+    if (nextTab === 'landingReports' && landingLoadState === 'idle') {
+      void loadLandingReports();
+    }
+  };
+
+  const handleLogsTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    let nextTab: LogsTab | undefined;
+    if (event.key === 'ArrowRight') {
+      nextTab = logsTab === 'flightLogs' ? 'landingReports' : 'flightLogs';
+    }
+    if (event.key === 'ArrowLeft') {
+      nextTab = logsTab === 'landingReports' ? 'flightLogs' : 'landingReports';
+    }
+    if (event.key === 'End') nextTab = 'landingReports';
+    if (event.key === 'Home') nextTab = 'flightLogs';
+    if (!nextTab) return;
+    event.preventDefault();
+    selectLogsTab(nextTab);
+    (nextTab === 'flightLogs' ? flightTabRef : landingTabRef).current?.focus();
+  };
+
   if (selectedLog) {
     return <FlightLogDetail log={selectedLog} onBack={() => selectLog(null)} />;
   }
 
   return (
     <div className={styles.page}>
-      <FlightLogsToolbar />
+      <FlightLogsToolbar showManualControls={logsTab === 'flightLogs'} />
 
-      <div className={`${styles.scroll} scroll-area`}>
-        {isLoading ? (
-          <div className={styles.centered}>
-            {/* motion-essential：加载转圈同理，见 global.css 的说明 */}
-            <div className={`${styles.spinner} motion-essential`} />
-          </div>
-        ) : logs.length === 0 ? (
-          <EmptyState
-            icon="receipt_long"
-            title={t(K.emptyTitle)}
-            description={t(K.emptySubtitle)}
-          />
-        ) : (
-          <div className={styles.list}>
-            {logs.map((log) => (
-              <FlightLogListItem key={log.id} log={log} onOpen={() => selectLog(log)} />
-            ))}
-          </div>
-        )}
+      <div className={styles.detailTabs} role="tablist" aria-label={t(K.logsTabsLabel)}>
+        <button
+          ref={flightTabRef}
+          id="logs-tab-flight-logs"
+          type="button"
+          role="tab"
+          aria-selected={logsTab === 'flightLogs'}
+          aria-controls="logs-panel-flight-logs"
+          tabIndex={logsTab === 'flightLogs' ? 0 : -1}
+          className={`${styles.detailTab}${logsTab === 'flightLogs' ? ` ${styles.detailTabActive}` : ''}`}
+          onClick={() => selectLogsTab('flightLogs')}
+          onKeyDown={handleLogsTabKeyDown}
+        >
+          {t(K.logsFlightTab)}
+        </button>
+        <button
+          ref={landingTabRef}
+          id="logs-tab-landing-reports"
+          type="button"
+          role="tab"
+          aria-selected={logsTab === 'landingReports'}
+          aria-controls="logs-panel-landing-reports"
+          tabIndex={logsTab === 'landingReports' ? 0 : -1}
+          className={`${styles.detailTab}${logsTab === 'landingReports' ? ` ${styles.detailTabActive}` : ''}`}
+          onClick={() => selectLogsTab('landingReports')}
+          onKeyDown={handleLogsTabKeyDown}
+        >
+          {t(K.logsLandingReportsTab)}
+        </button>
       </div>
+
+      {logsTab === 'flightLogs' ? (
+        <div
+          id="logs-panel-flight-logs"
+          role="tabpanel"
+          aria-labelledby="logs-tab-flight-logs"
+          className={`${styles.scroll} scroll-area`}
+        >
+          {isLoading ? (
+            <div className={styles.centered}>
+              {/* motion-essential：加载转圈同理，见 global.css 的说明 */}
+              <div className={`${styles.spinner} motion-essential`} />
+            </div>
+          ) : logs.length === 0 ? (
+            <EmptyState
+              icon="receipt_long"
+              title={t(K.emptyTitle)}
+              description={t(K.emptySubtitle)}
+            />
+          ) : (
+            <div className={styles.list}>
+              {logs.map((log) => (
+                <FlightLogListItem key={log.id} log={log} onOpen={() => selectLog(log)} />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          id="logs-panel-landing-reports"
+          role="tabpanel"
+          aria-labelledby="logs-tab-landing-reports"
+          className={`${styles.scroll} scroll-area`}
+        >
+          <LandingReportsView
+            reports={landingReports}
+            selectedReport={selectedReport}
+            selectReport={selectReport}
+            deleteReport={deleteReport}
+            isLoading={landingLoadState === 'loading'}
+            loadError={
+              landingLoadState === 'error' ? t(K.landingReportsLoadError) : undefined
+            }
+            retryLoad={() => void loadLandingReports()}
+          />
+        </div>
+      )}
     </div>
   );
 }
+
+type LogsTab = 'flightLogs' | 'landingReports';
 
 // ──────────────────────────────────────────────────────────────────────────
 // 工具栏：录制控制 + 导入
 // ──────────────────────────────────────────────────────────────────────────
 
-function FlightLogsToolbar() {
+function FlightLogsToolbar({ showManualControls }: { showManualControls: boolean }) {
   const t = useTranslate();
   const isRecording = useFlightLogsStore((s) => s.isRecording);
   const isRecordingPaused = useFlightLogsStore((s) => s.isRecordingPaused);
@@ -128,7 +233,7 @@ function FlightLogsToolbar() {
     <div className={styles.toolbar}>
       <h2 className={styles.pageTitle}>{t(K.pageTitle)}</h2>
 
-      {isRecording && (
+      {showManualControls && isRecording && (
         <StatusBadge
           label={isRecordingPaused ? t(K.startRecordStarted) : t(K.stopRecord)}
           tone={isRecordingPaused ? 'warning' : 'danger'}
@@ -138,32 +243,36 @@ function FlightLogsToolbar() {
 
       <div className={styles.toolbarSpacer} />
 
-      <Button
-        variant={isRecording ? 'danger' : 'elevated'}
-        size="sm"
-        icon={isRecording ? 'stop_circle' : 'fiber_manual_record'}
-        onClick={() => void handleToggleRecording()}
-      >
-        {isRecording ? t(K.stopRecord) : t(K.startRecord)}
-      </Button>
+      {showManualControls && (
+        <>
+          <Button
+            variant={isRecording ? 'danger' : 'elevated'}
+            size="sm"
+            icon={isRecording ? 'stop_circle' : 'fiber_manual_record'}
+            onClick={() => void handleToggleRecording()}
+          >
+            {isRecording ? t(K.stopRecord) : t(K.startRecord)}
+          </Button>
 
-      <IconButton
-        icon="upload_file"
-        label={t(K.importLog)}
-        onClick={() => fileInputRef.current?.click()}
-      />
+          <IconButton
+            icon="upload_file"
+            label={t(K.importLog)}
+            onClick={() => fileInputRef.current?.click()}
+          />
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json"
-        className="sr-only"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          event.target.value = '';
-          if (file) void handleImport(file);
-        }}
-      />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) void handleImport(file);
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

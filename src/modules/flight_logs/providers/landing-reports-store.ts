@@ -40,15 +40,15 @@ export interface LandingReportsState {
   selectedReport: LandingReport | undefined;
   hasActiveWork: boolean;
 
-  initialize(): Promise<void>;
-  setEnabled(enabled: boolean): Promise<void>;
-  handleFlightSnapshot(snapshot: FlightDataSnapshot): Promise<void>;
-  handleDisconnect(): Promise<void>;
-  stopAutomaticRecording(): Promise<void>;
-  flushActiveReport(): Promise<void>;
-  recoverInterruptedReport(): Promise<boolean>;
-  deleteReport(id: string): Promise<void>;
-  selectReport(id: string | undefined): void;
+  initialize: () => Promise<void>;
+  setEnabled: (enabled: boolean) => Promise<void>;
+  handleFlightSnapshot: (snapshot: FlightDataSnapshot) => Promise<void>;
+  handleDisconnect: () => Promise<void>;
+  stopAutomaticRecording: () => Promise<void>;
+  flushActiveReport: () => Promise<void>;
+  recoverInterruptedReport: () => Promise<boolean>;
+  deleteReport: (id: string) => Promise<void>;
+  selectReport: (id: string | undefined) => void;
 }
 
 interface LandingReportsStoreDependencies {
