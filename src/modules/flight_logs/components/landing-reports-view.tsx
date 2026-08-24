@@ -20,6 +20,7 @@ import styles from '../pages/flight-logs-page.module.css';
 import { AnalysisChart } from '../pages/widgets/analysis-chart';
 import { LANDING_RATING_COLOR } from '../pages/widgets/analysis-widgets';
 import { LandingFlareAnalysis } from '../pages/widgets/landing-flare-analysis';
+import { MetricCard } from '../pages/widgets/metric-card';
 
 export interface LandingReportsViewProps {
   reports: LandingReport[];
@@ -55,7 +56,8 @@ export function LandingReportsView({
   retryLoad,
 }: LandingReportsViewProps) {
   const t = useTranslate();
-  const [deletingId, setDeletingId] = useState<string>();
+  const [deletingIds, setDeletingIds] = useState<ReadonlySet<string>>(() => new Set());
+  const pendingDeleteIds = useRef(new Set<string>());
   const [deleteError, setDeleteError] = useState<string>();
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
   const reportButtonRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -74,19 +76,22 @@ export function LandingReportsView({
   }, [selectedReport]);
 
   const handleDelete = async (report: LandingReport) => {
-    const confirmed = await showAdvancedConfirmDialog({
-      title: t(K.landingDeleteConfirmTitle),
-      content: t(K.landingDeleteConfirmContent),
-      icon: 'delete',
-      confirmColor: 'var(--color-danger)',
-      confirmText: t(K.landingDeleteConfirm),
-      cancelText: t(K.cancel),
-    });
-    if (confirmed !== true) return;
+    if (pendingDeleteIds.current.has(report.id)) return;
+    pendingDeleteIds.current.add(report.id);
+    setDeletingIds(new Set(pendingDeleteIds.current));
 
-    setDeleteError(undefined);
-    setDeletingId(report.id);
     try {
+      const confirmed = await showAdvancedConfirmDialog({
+        title: t(K.landingDeleteConfirmTitle),
+        content: t(K.landingDeleteConfirmContent),
+        icon: 'delete',
+        confirmColor: 'var(--color-danger)',
+        confirmText: t(K.landingDeleteConfirm),
+        cancelText: t(K.cancel),
+      });
+      if (confirmed !== true) return;
+
+      setDeleteError(undefined);
       await deleteReport(report.id);
       SnackBarHelper.showSuccess(t(K.landingDeleteSuccess));
     } catch {
@@ -94,7 +99,8 @@ export function LandingReportsView({
       setDeleteError(message);
       SnackBarHelper.showError(message);
     } finally {
-      setDeletingId(undefined);
+      pendingDeleteIds.current.delete(report.id);
+      setDeletingIds(new Set(pendingDeleteIds.current));
     }
   };
 
@@ -173,7 +179,7 @@ export function LandingReportsView({
           <LandingReportListItem
             key={report.id}
             report={report}
-            deleting={deletingId === report.id}
+            deleting={deletingIds.has(report.id)}
             onOpen={() => selectReport(report.id)}
             onDelete={() => void handleDelete(report)}
             openButtonRef={(element) => {
@@ -219,9 +225,13 @@ function LandingReportListItem({
         onClick={onOpen}
       >
         <div className={styles.landingListHeadline}>
-          <time className="text-mono" dateTime={new Date(touchdownAt).toISOString()}>
-            {formatTime(touchdownAt)}
-          </time>
+          {touchdownAt === undefined ? (
+            <span className="text-mono">{t(K.landingReportTouchdownUnavailable)}</span>
+          ) : (
+            <time className="text-mono" dateTime={new Date(touchdownAt).toISOString()}>
+              {formatTime(touchdownAt)}
+            </time>
+          )}
           <InfoChip label={simulatorLabel(report.simulator, t)} />
           <StatusBadge
             label={t(STATUS_KEYS[report.status])}
@@ -258,6 +268,10 @@ function LandingReportDetail({
   const t = useTranslate();
   const log = landingReportAsFlightLog(report);
   const touchdownAt = touchdownTimestamp(report);
+  const touchdownLabel =
+    touchdownAt === undefined
+      ? t(K.landingReportTouchdownUnavailable)
+      : formatDateTime(touchdownAt);
   const landing = report.landing;
 
   return (
@@ -269,7 +283,7 @@ function LandingReportDetail({
         <div className={styles.landingDetailTitle}>
           <span className={styles.landingDetailEyebrow}>TD / {report.id}</span>
           <h2 ref={headingRef} tabIndex={-1}>
-            {formatDateTime(touchdownAt)}
+            {touchdownLabel}
           </h2>
         </div>
         <StatusBadge
@@ -282,7 +296,7 @@ function LandingReportDetail({
         <section className={styles.landingFacts} aria-label={t(K.landingReportOverview)}>
           <DataCard
             label={t(K.landingReportTouchdownTime)}
-            value={formatDateTime(touchdownAt)}
+            value={touchdownLabel}
             icon="schedule"
           />
           <DataCard
@@ -332,6 +346,7 @@ function LandingMetrics({ landing }: { landing: LandingData | undefined }) {
       }
     >
       <div className={styles.reportMetrics}>
+        <DataCard label={t(K.runway)} value={landing?.runway ?? '--'} />
         <DataCard label={t(K.gForce)} value={formatMetric(landing?.gForce, 2)} unit="G" />
         <DataCard
           label={t(K.verticalSpeed)}
@@ -346,9 +361,12 @@ function LandingMetrics({ landing }: { landing: LandingData | undefined }) {
         />
         <DataCard label={t(K.pitch)} value={formatMetric(landing?.pitch, 1)} unit="°" />
         <DataCard label={t(K.landingRoll)} value={formatMetric(landing?.roll, 1)} unit="°" />
-        <DataCard
+        <MetricCard
           label={t(K.approachStability)}
-          value={formatMetric(landing?.approachStabilityScore, 0)}
+          value={landing?.approachStabilityScore}
+          digits={0}
+          notes={landing?.metricNotes}
+          field="approachStabilityScore"
         />
         <DataCard
           label={t(K.flareHeight)}
@@ -367,7 +385,20 @@ function LandingMetrics({ landing }: { landing: LandingData | undefined }) {
         />
         <DataCard
           label={t(K.bounceCount)}
-          value={formatMetric(landing?.bounceCount ?? 0, 0)}
+          value={formatMetric(landing ? (landing.bounceCount ?? 0) : undefined, 0)}
+        />
+        <MetricCard
+          label={t(K.remainingRunway)}
+          value={landing?.remainingRunwayFt}
+          digits={0}
+          unit="ft"
+          notes={landing?.metricNotes}
+          field="remainingRunwayFt"
+          accentColor={
+            landing?.remainingRunwayFt !== undefined && landing.remainingRunwayFt < 1500
+              ? 'var(--color-warning)'
+              : undefined
+          }
         />
         <DataCard
           label={t(K.landingTouchdownSequence)}
@@ -409,8 +440,11 @@ function landingReportAsFlightLog(report: LandingReport): FlightLog {
   };
 }
 
-function touchdownTimestamp(report: LandingReport): number {
-  return report.touchdownAt ?? report.landing?.timestamp.getTime() ?? report.endedAt;
+function touchdownTimestamp(report: LandingReport): number | undefined {
+  const explicit = report.touchdownAt;
+  if (explicit !== undefined && Number.isFinite(explicit)) return explicit;
+  const derived = report.landing?.timestamp.getTime();
+  return derived !== undefined && Number.isFinite(derived) ? derived : undefined;
 }
 
 function heightSourceKey(points: FlightLogPoint[]): string {

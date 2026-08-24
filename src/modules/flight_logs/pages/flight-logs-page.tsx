@@ -25,6 +25,7 @@ import { useFlightLogsStore } from '../providers/flight-logs-store';
 import { useLandingReportsStore } from '../providers/landing-reports-store';
 import { AnalysisChart } from './widgets/analysis-chart';
 import { LandingFlareAnalysis } from './widgets/landing-flare-analysis';
+import { MetricCard } from './widgets/metric-card';
 import {
   AnalysisBlackBox,
   AnalysisSummaryCard,
@@ -619,58 +620,4 @@ function TakeoffLandingReport({ log }: { log: FlightLog }) {
 function formatDateTime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-
-// ──────────────────────────────────────────────────────────────────────────
-// 派生指标卡片
-// ──────────────────────────────────────────────────────────────────────────
-
-/** 原因码 → 文案 key */
-const METRIC_REASON_KEY: Record<string, string> = {
-  no_takeoff: K.metricUnavailableNoTakeoff,
-  no_landing: K.metricUnavailableNoLanding,
-  no_rotation: K.metricUnavailableNoRotation,
-  no_agl: K.metricUnavailableNoAgl,
-  insufficient_samples: K.metricUnavailableFewSamples,
-  no_runway_geometry: K.metricUnavailableNoRunway,
-};
-
-/**
- * 派生指标卡片：取不到值时**说明原因**，而不是统一一个 `--`。
- *
- * 「这架飞机不提供离地高度」和「这次飞行压根没走完这个阶段」，
- * 对用户该做什么是完全不同的两件事 —— 都显示 `--` 等于什么都没说。
- */
-function MetricCard({
-  label,
-  value,
-  digits,
-  unit,
-  notes,
-  field,
-  accentColor,
-}: {
-  label: string;
-  value: number | undefined;
-  digits: number;
-  unit?: string;
-  notes: Record<string, string> | undefined;
-  field: string;
-  accentColor?: string;
-}) {
-  const t = useTranslate();
-  if (value !== undefined && Number.isFinite(value)) {
-    return (
-      <DataCard
-        label={label}
-        value={value.toFixed(digits)}
-        unit={unit}
-        accentColor={accentColor}
-      />
-    );
-  }
-  const reason = notes?.[field];
-  const reasonKey = reason ? METRIC_REASON_KEY[reason] : undefined;
-  return <DataCard label={label} value="--" hint={reasonKey ? t(reasonKey) : undefined} />;
 }

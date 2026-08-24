@@ -86,6 +86,45 @@ describe('LandingReportsView', () => {
     expect(screen.getByRole('button', { name: 'Landing report lr-1' })).toHaveFocus();
   });
 
+  it('does not invent touchdown data for a report interrupted before touchdown', () => {
+    const report = makeLandingReport({ touchdownAt: undefined, landing: undefined });
+    render(<LandingReportsHarness reports={[report]} />);
+
+    expect(screen.getByText('No touchdown recorded')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Landing report lr-1' }));
+
+    expect(screen.getByRole('heading', { level: 2, name: 'No touchdown recorded' })).toBeVisible();
+    const overview = screen.getByRole('region', { name: 'Landing report overview' });
+    expect(within(overview).getByTitle('No touchdown recorded')).toBeVisible();
+    const bounceLabel = screen.getByTitle('Bounce Count');
+    const bounceCard = bounceLabel.parentElement?.parentElement;
+    expect(bounceCard).not.toBeNull();
+    expect(within(bounceCard as HTMLElement).getByTitle('--')).toBeVisible();
+  });
+
+  it('uses established landing metric notes for unavailable values', () => {
+    const base = makeLandingReport();
+    const report = makeLandingReport({
+      landing: {
+        ...base.landing!,
+        runway: '27',
+        approachStabilityScore: undefined,
+        remainingRunwayFt: undefined,
+        metricNotes: {
+          approachStabilityScore: 'insufficient_samples',
+          remainingRunwayFt: 'no_runway_geometry',
+        },
+      },
+    });
+    render(<LandingReportsHarness reports={[report]} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Landing report lr-1' }));
+
+    expect(screen.getByTitle('27')).toBeVisible();
+    expect(screen.getByText('Too few samples to score')).toBeVisible();
+    expect(screen.getByText('Runway could not be identified')).toBeVisible();
+  });
+
   it('renders every recording end reason in English and Chinese', () => {
     const reasons: RecordingEndReason[] = [
       'stable_landing',
@@ -191,6 +230,32 @@ describe('LandingReportsView', () => {
 
     await waitFor(() => expect(deleteReport).toHaveBeenCalledWith('lr-1'));
     expect(selectReport).not.toHaveBeenCalled();
+  });
+
+  it('guards a report against duplicate deletion while confirmation is pending', async () => {
+    let resolveConfirmation: (confirmed: boolean) => void = () => undefined;
+    const confirmation = new Promise<boolean>((resolve) => {
+      resolveConfirmation = resolve;
+    });
+    vi.mocked(showAdvancedConfirmDialog).mockReturnValue(confirmation);
+    render(
+      <LandingReportsView
+        reports={[makeLandingReport()]}
+        selectedReport={undefined}
+        selectReport={vi.fn()}
+        deleteReport={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    const deleteButton = screen.getByRole('button', { name: 'Delete landing report lr-1' });
+    fireEvent.click(deleteButton);
+
+    expect(deleteButton).toBeDisabled();
+    fireEvent.click(deleteButton);
+    expect(showAdvancedConfirmDialog).toHaveBeenCalledOnce();
+
+    resolveConfirmation(false);
+    await waitFor(() => expect(deleteButton).toBeEnabled());
   });
 
   it('keeps the report available and explains a delete failure', async () => {
