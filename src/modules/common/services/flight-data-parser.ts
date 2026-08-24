@@ -24,10 +24,14 @@ import {
   type AirportInfo,
   type FlightAlert,
   type FlightData,
+  type RadioAltitudeSource,
 } from '../models/common-models';
 
+function parseRadioAltitudeSource(value: unknown): RadioAltitudeSource | undefined {
+  return value === 'radio' || value === 'agl_fallback' ? value : undefined;
+}
 
-/** 从中间件数据集构建 FlightData（96 字段，键名与桌面版逐一对齐） */
+/** 从中间件数据集构建 FlightData（97 字段，键名与桌面版逐一对齐） */
 export function flightDataFromDataset(dataset: JsonMap): FlightData {
   const noseGearDown = toDouble(dataset.nose_gear_down);
   const leftGearDown = toDouble(dataset.left_gear_down);
@@ -85,6 +89,7 @@ export function flightDataFromDataset(dataset: JsonMap): FlightData {
     gustFactorRate: toDouble(dataset.gust_factor_rate),
     crosswindComponent: toDouble(dataset.crosswind_component_kt),
     radioAltitude: toDouble(dataset.radio_altitude_ft),
+    radioAltitudeSource: parseRadioAltitudeSource(dataset.radio_altitude_source),
     baroPressure: toDouble(dataset.baro_pressure_inhg),
     baroPressureUnit: asText(dataset.baro_pressure_unit),
     visibility: toDouble(dataset.visibility_m),

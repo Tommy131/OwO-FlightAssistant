@@ -71,6 +71,25 @@ describe('flightDataFromDataset', () => {
     expect(data.groundSpeed).toBeUndefined();
   });
 
+  it('parses radio-height value and source', () => {
+    const parsed = flightDataFromDataset({
+      radio_altitude_ft: 18.5,
+      radio_altitude_source: 'agl_fallback',
+    });
+
+    expect(parsed.radioAltitude).toBe(18.5);
+    expect(parsed.radioAltitudeSource).toBe('agl_fallback');
+  });
+
+  it('accepts only known radio-height sources', () => {
+    expect(
+      flightDataFromDataset({ radio_altitude_source: 'radio' }).radioAltitudeSource,
+    ).toBe('radio');
+    expect(
+      flightDataFromDataset({ radio_altitude_source: 'gps' }).radioAltitudeSource,
+    ).toBeUndefined();
+  });
+
   it('起落架状态由三个比例推断', () => {
     const down = flightDataFromDataset({
       nose_gear_down: 1,

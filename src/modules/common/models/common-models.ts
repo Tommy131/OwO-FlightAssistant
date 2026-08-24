@@ -56,10 +56,12 @@ export interface AIAircraftState {
   readonly onGround?: boolean;
 }
 
+export type RadioAltitudeSource = 'radio' | 'agl_fallback';
+
 /**
  * 实时飞行数据快照（来自模拟器）
  *
- * 与桌面版一致的 96 个字段，按功能分组排列。
+ * 与桌面版一致的 97 个字段，按功能分组排列。
  */
 export interface FlightData {
   // ── 主飞行参数 ──
@@ -71,6 +73,7 @@ export interface FlightData {
   groundSpeed?: number;
   trueAirspeed?: number;
   radioAltitude?: number;
+  radioAltitudeSource?: RadioAltitudeSource;
 
   // ── 姿态与载荷 ──
   gForce?: number;
