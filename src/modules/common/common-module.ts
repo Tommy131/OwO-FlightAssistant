@@ -1,4 +1,5 @@
 import { AppConstants } from '../../core/constants/app-constants';
+import { setAutomaticLandingReportsSettings } from '../../core/services/automatic-landing-reports-settings';
 import { AppLogger } from '../../core/utils/logger';
 import { ModuleRegistry } from '../../core/module-registry/module-registry';
 import type { ModuleRegistrar } from '../../core/module-registry/clearable';
@@ -69,6 +70,15 @@ export class CommonModule implements ModuleRegistrar {
   readonly moduleName = 'common';
 
   register(): void {
+    setAutomaticLandingReportsSettings({
+      getEnabled: () => useLandingReportsStore.getState().enabled,
+      setEnabled: (enabled) => useLandingReportsStore.getState().setEnabled(enabled),
+      subscribe: (listener) =>
+        useLandingReportsStore.subscribe((state, previous) => {
+          if (state.enabled !== previous.enabled) listener();
+        }),
+    });
+
     // ── 全局飞行数据适配器 ──
     const adapter = createDefaultFlightDataAdapter();
     ModuleRegistry.registerCleanup(async () => {

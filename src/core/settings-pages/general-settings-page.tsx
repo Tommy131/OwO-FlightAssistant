@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react';
 import { LocalizationKeys } from '../localization/localization-keys';
 import { useTranslate } from '../localization/use-translate';
 import { AppInitializationService } from '../services/app-initialization-service';
+import {
+  getAutomaticLandingReportsEnabled,
+  subscribeToAutomaticLandingReportsSettings,
+  updateAutomaticLandingReportsEnabled,
+} from '../services/automatic-landing-reports-settings';
 import { supportedLanguages, useLocalizationStore } from '../services/localization-service';
 import { PersistenceService } from '../services/persistence-service';
 import { isBackendSettingsReachable } from '../services/settings-sync';
@@ -26,6 +31,9 @@ export function GeneralSettingsPage() {
   const t = useTranslate();
   const locale = useLocalizationStore((s) => s.locale);
   const setLocale = useLocalizationStore((s) => s.setLocale);
+  const [landingReportsEnabled, setLandingReportsEnabled] = useState(
+    getAutomaticLandingReportsEnabled,
+  );
 
   const logSettings = AppLogger.loadSettings();
   const [logEnabled, setLogEnabled] = useState(logSettings.enabled);
@@ -35,6 +43,14 @@ export function GeneralSettingsPage() {
   useEffect(() => {
     void PersistenceService.getCacheSize().then(setCacheSize);
   }, []);
+
+  useEffect(
+    () =>
+      subscribeToAutomaticLandingReportsSettings(() => {
+        setLandingReportsEnabled(getAutomaticLandingReportsEnabled());
+      }),
+    [],
+  );
 
   const backendBacked = isBackendSettingsReachable();
 
@@ -95,6 +111,25 @@ export function GeneralSettingsPage() {
               </button>
             );
           })}
+        </div>
+      </SectionCard>
+
+      {/* ── 自动落地报告 ── */}
+      <SectionCard title={t(LocalizationKeys.settingsAutomaticLandingReports)} icon="flight_land">
+        <div className={styles.settingRow}>
+          <div className={styles.settingText}>
+            <span className={styles.settingLabel}>
+              {t(LocalizationKeys.settingsAutomaticLandingReports)}
+            </span>
+            <span className={styles.settingHint}>
+              {t(LocalizationKeys.settingsAutomaticLandingReportsDesc)}
+            </span>
+          </div>
+          <Switch
+            checked={landingReportsEnabled}
+            onChange={(enabled) => void updateAutomaticLandingReportsEnabled(enabled)}
+            label={t(LocalizationKeys.settingsAutomaticLandingReports)}
+          />
         </div>
       </SectionCard>
 

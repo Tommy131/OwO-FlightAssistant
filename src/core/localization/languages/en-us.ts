@@ -17,6 +17,9 @@ export const enUS: Record<string, string> = {
   [K.savingAndExiting]: 'Saving and Exiting...',
   [K.save]: 'Save',
   [K.generalSettings]: 'General Settings',
+  [K.settingsAutomaticLandingReports]: 'Automatically record landing reports',
+  [K.settingsAutomaticLandingReportsDesc]:
+    'Landing reports are recorded only while this web app is open and remain separate from manual flight-log recording.',
   [K.storageLocation]: 'App Storage',
   [K.storageLocationDesc]: 'Set the location to store application data',
   [K.storageLocationChangeConfirm]:

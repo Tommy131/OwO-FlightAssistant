@@ -20,6 +20,8 @@ export const LocalizationKeys = {
   savingAndExiting: 'saving_and_exiting',
   save: 'save',
   generalSettings: 'general_settings',
+  settingsAutomaticLandingReports: 'settings_automatic_landing_reports',
+  settingsAutomaticLandingReportsDesc: 'settings_automatic_landing_reports_desc',
   storageLocation: 'storage_location',
   storageLocationDesc: 'storage_location_desc',
   storageLocationChangeConfirm: 'storage_location_change_confirm',

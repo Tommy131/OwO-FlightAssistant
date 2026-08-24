@@ -17,6 +17,9 @@ export const zhCN: Record<string, string> = {
   [K.savingAndExiting]: '保存并退出中...',
   [K.save]: '保存',
   [K.generalSettings]: '常规设置',
+  [K.settingsAutomaticLandingReports]: '自动生成落地报告',
+  [K.settingsAutomaticLandingReportsDesc]:
+    '仅在此 Web 应用保持打开时自动收集落地报告，且与手动飞行日志记录相互独立。',
   [K.storageLocation]: '应用存储',
   [K.storageLocationDesc]: '设置应用数据的保存位置',
   [K.storageLocationChangeConfirm]: '更改存储路径会将应用数据迁移到新位置，是否继续？',
