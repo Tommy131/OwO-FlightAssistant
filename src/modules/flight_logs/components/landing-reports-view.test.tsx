@@ -59,9 +59,12 @@ describe('LandingReportsView', () => {
   it('opens landing detail inline and returns to the landing list', () => {
     render(<LandingReportsHarness reports={[makeLandingReport()]} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Landing report lr-1' }));
+    const reportButton = screen.getByRole('button', { name: 'Landing report lr-1' });
+    reportButton.focus();
+    fireEvent.click(reportButton);
 
     expect(screen.queryByRole('list', { name: 'Landing Reports' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2 })).toHaveFocus();
     const overview = screen.getByRole('region', { name: 'Landing report overview' });
     expect(within(overview).getByTitle('Simulator disconnected')).toBeVisible();
     expect(within(overview).getByTitle('MSFS')).toBeVisible();
@@ -80,6 +83,7 @@ describe('LandingReportsView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(screen.getByRole('list', { name: 'Landing Reports' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Landing report lr-1' })).toHaveFocus();
   });
 
   it('renders every recording end reason in English and Chinese', () => {

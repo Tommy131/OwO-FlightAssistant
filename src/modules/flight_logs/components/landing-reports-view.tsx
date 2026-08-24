@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import { useTranslate } from '../../../core/localization/use-translate';
 import { Button, IconButton } from '../../../core/widgets/common/controls';
@@ -57,6 +57,21 @@ export function LandingReportsView({
   const t = useTranslate();
   const [deletingId, setDeletingId] = useState<string>();
   const [deleteError, setDeleteError] = useState<string>();
+  const detailHeadingRef = useRef<HTMLHeadingElement>(null);
+  const reportButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const restoreFocusId = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (selectedReport) {
+      detailHeadingRef.current?.focus();
+      return;
+    }
+
+    const reportId = restoreFocusId.current;
+    if (!reportId) return;
+    reportButtonRefs.current.get(reportId)?.focus();
+    restoreFocusId.current = undefined;
+  }, [selectedReport]);
 
   const handleDelete = async (report: LandingReport) => {
     const confirmed = await showAdvancedConfirmDialog({
@@ -116,7 +131,14 @@ export function LandingReportsView({
 
   if (selectedReport) {
     return (
-      <LandingReportDetail report={selectedReport} onBack={() => selectReport(undefined)} />
+      <LandingReportDetail
+        report={selectedReport}
+        headingRef={detailHeadingRef}
+        onBack={() => {
+          restoreFocusId.current = selectedReport.id;
+          selectReport(undefined);
+        }}
+      />
     );
   }
 
@@ -154,6 +176,10 @@ export function LandingReportsView({
             deleting={deletingId === report.id}
             onOpen={() => selectReport(report.id)}
             onDelete={() => void handleDelete(report)}
+            openButtonRef={(element) => {
+              if (element) reportButtonRefs.current.set(report.id, element);
+              else reportButtonRefs.current.delete(report.id);
+            }}
           />
         ))}
       </ul>
@@ -166,11 +192,13 @@ function LandingReportListItem({
   deleting,
   onOpen,
   onDelete,
+  openButtonRef,
 }: {
   report: LandingReport;
   deleting: boolean;
   onOpen: () => void;
   onDelete: () => void;
+  openButtonRef: (element: HTMLButtonElement | null) => void;
 }) {
   const t = useTranslate();
   const landing = report.landing;
@@ -184,6 +212,7 @@ function LandingReportListItem({
       </div>
 
       <button
+        ref={openButtonRef}
         type="button"
         className={styles.landingListMain}
         aria-label={t(K.landingReportOpen, { id: report.id })}
@@ -217,7 +246,15 @@ function LandingReportListItem({
   );
 }
 
-function LandingReportDetail({ report, onBack }: { report: LandingReport; onBack: () => void }) {
+function LandingReportDetail({
+  report,
+  headingRef,
+  onBack,
+}: {
+  report: LandingReport;
+  headingRef: RefObject<HTMLHeadingElement | null>;
+  onBack: () => void;
+}) {
   const t = useTranslate();
   const log = landingReportAsFlightLog(report);
   const touchdownAt = touchdownTimestamp(report);
@@ -231,7 +268,9 @@ function LandingReportDetail({ report, onBack }: { report: LandingReport; onBack
         </Button>
         <div className={styles.landingDetailTitle}>
           <span className={styles.landingDetailEyebrow}>TD / {report.id}</span>
-          <h2>{formatDateTime(touchdownAt)}</h2>
+          <h2 ref={headingRef} tabIndex={-1}>
+            {formatDateTime(touchdownAt)}
+          </h2>
         </div>
         <StatusBadge
           label={t(STATUS_KEYS[report.status])}
