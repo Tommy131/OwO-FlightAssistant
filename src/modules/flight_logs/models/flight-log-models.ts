@@ -1,4 +1,11 @@
 import { toBool, toDouble, toInt, toJsonMap, toStringOrUndefined, toText, type JsonMap } from '../../../core/utils/parse-utils';
+import type { RadioAltitudeSource } from '../../common/models/common-models';
+import {
+  recordingEndReasonFromRaw,
+  recordingStatusFromRaw,
+  type RecordingEndReason,
+  type RecordingStatus,
+} from './recording-status';
 
 /**
  * 飞行日志（黑匣子）数据模型
@@ -22,6 +29,11 @@ export function landingGSourceFromRaw(raw: string | undefined): LandingGSource {
   if (value === 'gear') return 'gear';
   if (value === 'body') return 'body';
   return 'fallback';
+}
+
+function radioAltitudeSourceFromRaw(raw: unknown): RadioAltitudeSource | undefined {
+  if (raw === 'radio' || raw === 'agl_fallback') return raw;
+  return undefined;
 }
 
 /** 落地评级 */
@@ -107,6 +119,7 @@ export interface FlightLogPoint {
   gustFactorRate?: number;
   crosswindComponent?: number;
   radioAltitude?: number;
+  radioAltitudeSource?: RadioAltitudeSource;
   outsideAirTemperature?: number;
   baroPressure?: number;
   masterWarning?: boolean;
@@ -173,6 +186,7 @@ export function flightLogPointToJson(point: FlightLogPoint): JsonMap {
     gust_rate: point.gustFactorRate ?? null,
     xw: point.crosswindComponent ?? null,
     ra: point.radioAltitude ?? null,
+    ...(point.radioAltitudeSource === undefined ? {} : { ras: point.radioAltitudeSource }),
     oat: point.outsideAirTemperature ?? null,
     baro: point.baroPressure ?? null,
     mw: point.masterWarning ?? null,
@@ -248,6 +262,7 @@ export function flightLogPointFromJson(json: JsonMap): FlightLogPoint {
     gustFactorRate: toDouble(json.gust_rate),
     crosswindComponent: toDouble(json.xw),
     radioAltitude: toDouble(json.ra),
+    radioAltitudeSource: radioAltitudeSourceFromRaw(json.ras),
     outsideAirTemperature: toDouble(json.oat),
     baroPressure: toDouble(json.baro),
     masterWarning: toBool(json.mw),
@@ -376,6 +391,8 @@ export interface FlightLog {
   wasOnGroundAtEnd: boolean;
   takeoffData?: TakeoffData;
   landingData?: LandingData;
+  status?: RecordingStatus;
+  endReason?: RecordingEndReason;
 }
 
 /** 记录总时长（毫秒），负值归零 */
@@ -447,7 +464,9 @@ export function flightLogToJson(log: FlightLog): JsonMap {
     ground_start: log.wasOnGroundAtStart,
     ground_end: log.wasOnGroundAtEnd,
     takeoff: log.takeoffData ? takeoffToJson(log.takeoffData) : null,
-    landing: log.landingData ? landingToJson(log.landingData) : null,
+    landing: log.landingData ? landingDataToJson(log.landingData) : null,
+    status: log.status ?? 'completed',
+    end_reason: log.endReason ?? null,
     points: log.points.map(flightLogPointToJson),
   };
 }
@@ -480,7 +499,9 @@ export function flightLogFromJson(json: JsonMap): FlightLog {
     wasOnGroundAtStart: toBool(json.ground_start) ?? false,
     wasOnGroundAtEnd: toBool(json.ground_end) ?? false,
     takeoffData: takeoffFromJson(toJsonMap(json.takeoff)),
-    landingData: landingFromJson(toJsonMap(json.landing)),
+    landingData: landingDataFromJson(toJsonMap(json.landing)),
+    status: recordingStatusFromRaw(json.status),
+    endReason: recordingEndReasonFromRaw(json.end_reason),
   };
 }
 
@@ -538,7 +559,7 @@ function takeoffFromJson(json: JsonMap | null): TakeoffData | undefined {
   };
 }
 
-function landingToJson(data: LandingData): JsonMap {
+export function landingDataToJson(data: LandingData): JsonMap {
   return {
     lat: data.latitude,
     lon: data.longitude,
@@ -564,7 +585,7 @@ function landingToJson(data: LandingData): JsonMap {
   };
 }
 
-function landingFromJson(json: JsonMap | null): LandingData | undefined {
+export function landingDataFromJson(json: JsonMap | null): LandingData | undefined {
   if (!json) return undefined;
   const gForce = toDouble(json.g) ?? 1;
   const ratingRaw = toText(json.rating);
@@ -607,4 +628,3 @@ function landingFromJson(json: JsonMap | null): LandingData | undefined {
     metricNotes: metricNotesFromJson(json.notes),
   };
 }
-
