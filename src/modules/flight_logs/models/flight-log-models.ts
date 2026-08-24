@@ -395,6 +395,11 @@ export interface FlightLog {
   endReason?: RecordingEndReason;
 }
 
+/** Manual logs are complete only when finalized by the stable-landing path. */
+export function flightLogStatusForEndReason(reason: RecordingEndReason): RecordingStatus {
+  return reason === 'stable_landing' ? 'completed' : 'incomplete';
+}
+
 /** 记录总时长（毫秒），负值归零 */
 export function flightLogDurationMs(log: FlightLog): number {
   const end = log.endTime ?? new Date();

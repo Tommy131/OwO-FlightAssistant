@@ -21,20 +21,21 @@ import {
   MIN_VALID_LANDING_G,
 } from '../services/takeoff-landing-metrics';
 import {
-  flightLogDurationMs,
   flightLogFromJson,
+  flightLogStatusForEndReason,
   flightLogToJson,
   type FlightLog,
   type FlightLogAlert,
   type FlightLogPoint,
   type LandingGSource,
 } from '../models/flight-log-models';
+import type { RecordingEndReason } from '../models/recording-status';
 
 /**
  * 飞行日志 store
  *
  * 对应 Flutter 版 `modules/flight_logs/providers/flight_logs_provider.dart`（1356 行）。
- * 保留桌面版的采样节流、起飞/落地检测、燃油统计与最短记录时长约束。
+ * 保留桌面版的采样节流、起飞/落地检测与燃油统计。
  *
  * ── Web 降级说明 ──
  * 桌面版把每条日志写成 `<dataRoot>/flight_logs/flight_log_<id>.json`；
@@ -68,26 +69,26 @@ const ACTIVE_LOG_IDB_KEY = 'owo-flight-assistant/flight-logs/active';
  */
 const ACTIVE_LOG_PERSIST_INTERVAL_MS = 3_000;
 
-/** 短于 1 分钟的记录直接丢弃（与桌面版一致） */
-const MINIMUM_RECORD_DURATION_MS = 60_000;
 /** 接地后需连续 2 秒在地面才判定落地完成 */
 const LANDING_STABLE_DURATION_MS = 2_000;
 
-interface FlightLogsState {
+export interface FlightLogsState {
   logs: FlightLog[];
   isLoading: boolean;
   selectedLog: FlightLog | null;
   isRecording: boolean;
   isRecordingPaused: boolean;
   activeLog: FlightLog | null;
+  hasActiveWork: boolean;
   sampleIntervalMs: number;
 
   refreshLogs: () => Promise<void>;
   /**
-   * 恢复上次未收尾的录制（刷新页面 / 崩溃后）。
-   * 返回 true 表示接上了，此时 `isRecording` 已置位、`activeLog` 已带上此前的采样点。
+   * 兼容旧调用方：恢复存档会收尾为 page_closed，不会继续录制。
    */
   recoverActiveLog: () => Promise<boolean>;
+  /** 把启动时发现的孤儿存档收尾为 page_closed */
+  recoverInterruptedLog: () => Promise<boolean>;
   /** 把录制中的日志立刻写盘（页面卸载前调用，补上节流窗口里的那几秒） */
   flushActiveLog: () => Promise<void>;
   setSampleIntervalMs: (milliseconds: number) => Promise<void>;
@@ -95,8 +96,12 @@ interface FlightLogsState {
 
   /** 由飞行数据 store 驱动（等价于桌面版 ChangeNotifierProxyProvider 的 update） */
   handleFlightSnapshot: (snapshot: FlightDataSnapshot) => void;
+  handleDisconnect: () => Promise<boolean>;
   startRecording: (snapshot: FlightDataSnapshot, flightNumber?: string) => boolean;
-  stopRecording: (snapshot: FlightDataSnapshot) => Promise<boolean>;
+  stopRecording: (
+    snapshot: FlightDataSnapshot,
+    reason?: RecordingEndReason,
+  ) => Promise<boolean>;
 
   deleteLog: (id: string) => Promise<void>;
   saveLog: (log: FlightLog) => Promise<void>;
@@ -183,6 +188,7 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
   isRecording: false,
   isRecordingPaused: false,
   activeLog: null,
+  hasActiveWork: false,
   sampleIntervalMs: DEFAULT_SAMPLE_INTERVAL_MS,
 
   async refreshLogs() {
@@ -234,6 +240,10 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
   },
 
   async recoverActiveLog() {
+    return get().recoverInterruptedLog();
+  },
+
+  async recoverInterruptedLog() {
     if (get().isRecording) return false;
     const archive = await readActiveLogArchive();
     if (!archive) return false;
@@ -249,17 +259,32 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
       return false;
     }
 
-    // 把检测上下文一并接回来：不接的话落地检测会以为这是一段全新的空中飞行，
-    // 已经收集到的接地序列会全部作废。
+    // 恢复检测上下文只为了补齐已存档的落地汇总；
+    // 孤儿存档不重新进入录制态。
     resetRecordingContext();
     recordingContext.touchdownPointIndexes = [...(archive.touchdownPointIndexes ?? [])];
     recordingContext.lastOnGround = archive.lastOnGround;
-    recordingContext.lastActiveLogPersistAt = Date.now();
 
-    set({ activeLog: log, isRecording: true, isRecordingPaused: false });
-    AppLogger.info(`[FlightLogs] recovered in-progress recording: ${log.points.length} points`);
-    // 接不回模拟器时，下一帧 isConnected=false 的快照会走既有的自动收尾逻辑，
-    // 把这段录制正常保存下来 —— 不需要在这里另写一套收尾。
+    const lastPoint = log.points[log.points.length - 1];
+    log.endTime = new Date();
+    log.wasOnGroundAtEnd = lastPoint.onGround ?? log.wasOnGroundAtEnd;
+    log.status = flightLogStatusForEndReason('page_closed');
+    log.endReason = 'page_closed';
+    finalizeLandingAtStop(log);
+    updateFuelUsed(log);
+    await enrichTakeoffLandingMetrics(log);
+    await get().saveLog(log);
+
+    resetRecordingContext();
+    await clearActiveLogArchive();
+    set({
+      activeLog: null,
+      isRecording: false,
+      isRecordingPaused: false,
+      hasActiveWork: false,
+    });
+    await get().refreshLogs();
+    AppLogger.info(`[FlightLogs] finalized interrupted recording: ${log.points.length} points`);
     return true;
   },
 
@@ -279,13 +304,7 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
 
     // 模拟器断开：自动收尾保存
     if (!snapshot.isConnected) {
-      if (recordingContext.autoStopping) return;
-      recordingContext.autoStopping = true;
-      void get()
-        .stopRecording(snapshot)
-        .finally(() => {
-          recordingContext.autoStopping = false;
-        });
+      void get().handleDisconnect();
       return;
     }
 
@@ -329,6 +348,8 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
       maxGroundSpeed: 0,
       wasOnGroundAtStart: data.onGround ?? false,
       wasOnGroundAtEnd: false,
+      status: 'incomplete',
+      endReason: 'interrupted',
     };
 
     resetRecordingContext();
@@ -336,45 +357,30 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
       activeLog,
       isRecording: true,
       isRecordingPaused: snapshot.isPaused === true,
+      hasActiveWork: false,
     });
-    void persistActiveLog(activeLog, true);
+    // 先采样再写首份存档，否则 3 秒节流窗口内只会留下空存档。
     captureSnapshot(snapshot, true, set, get);
     return true;
   },
 
-  async stopRecording(snapshot) {
-    const state = get();
-    if (!state.isRecording || !state.activeLog) return false;
-
-    if (snapshot.isConnected) captureSnapshot(snapshot, true, set, get);
-
-    const log = get().activeLog;
-    if (!log) return false;
-
-    log.endTime = new Date();
-    log.wasOnGroundAtEnd = snapshot.flightData.onGround ?? false;
-    finalizeLandingAtStop(log);
-
-    // 空记录或过短记录直接丢弃
-    if (log.points.length === 0 || flightLogDurationMs(log) < MINIMUM_RECORD_DURATION_MS) {
-      resetRecordingContext();
-      await clearActiveLogArchive();
-      set({ isRecording: false, isRecordingPaused: false, activeLog: null });
-      AppLogger.info('[FlightLogs] recording discarded (too short)');
-      return false;
+  async handleDisconnect() {
+    if (recordingContext.autoStopping) return false;
+    recordingContext.autoStopping = true;
+    try {
+      return await finalizeActiveRecording(
+        undefined,
+        'simulator_disconnected',
+        set,
+        get,
+      );
+    } finally {
+      recordingContext.autoStopping = false;
     }
+  },
 
-    updateFuelUsed(log);
-    // 派生指标要在全部采样点都到齐之后才算得出来（抬轮、35ft 俯仰、稳定性
-    // 都要看事件前后的一整段），所以放在收尾这一步而不是采样时。
-    await enrichTakeoffLandingMetrics(log);
-    await get().saveLog(log);
-    resetRecordingContext();
-    // 正式记录已落库，存档使命结束；先存后清，中间崩了也只是多留一份存档
-    await clearActiveLogArchive();
-    set({ isRecording: false, isRecordingPaused: false, activeLog: null });
-    await get().refreshLogs();
-    return true;
+  async stopRecording(snapshot, reason = 'user_stopped') {
+    return finalizeActiveRecording(snapshot, reason, set, get);
   },
 
   async saveLog(log) {
@@ -435,6 +441,60 @@ export const useFlightLogsStore = create<FlightLogsState>((set, get) => ({
     return imported.length;
   },
 }));
+
+async function finalizeActiveRecording(
+  snapshot: FlightDataSnapshot | undefined,
+  reason: RecordingEndReason,
+  set: SetState,
+  get: GetState,
+): Promise<boolean> {
+  const state = get();
+  if (!state.isRecording || !state.activeLog) return false;
+
+  if (snapshot?.isConnected) captureSnapshot(snapshot, true, set, get);
+
+  const log = get().activeLog;
+  if (!log) return false;
+
+  log.endTime = new Date();
+  const lastPoint = log.points[log.points.length - 1];
+  log.wasOnGroundAtEnd =
+    snapshot?.flightData.onGround ?? lastPoint?.onGround ?? log.wasOnGroundAtEnd;
+  finalizeLandingAtStop(log);
+
+  // 只有真正的空记录可以丢弃；一个有效采样点就是可恢复的用户数据。
+  if (log.points.length === 0) {
+    resetRecordingContext();
+    await clearActiveLogArchive();
+    set({
+      isRecording: false,
+      isRecordingPaused: false,
+      activeLog: null,
+      hasActiveWork: false,
+    });
+    AppLogger.info('[FlightLogs] empty recording discarded');
+    return false;
+  }
+
+  log.status = flightLogStatusForEndReason(reason);
+  log.endReason = reason;
+  updateFuelUsed(log);
+  // 派生指标要在全部采样点都到齐之后才算得出来（抬轮、35ft 俯仰、稳定性
+  // 都要看事件前后的一整段），所以放在收尾这一步而不是采样时。
+  await enrichTakeoffLandingMetrics(log);
+  await get().saveLog(log);
+  resetRecordingContext();
+  // 正式记录已落库，存档使命结束；先存后清，中间崩了也只是多留一份存档
+  await clearActiveLogArchive();
+  set({
+    isRecording: false,
+    isRecordingPaused: false,
+    activeLog: null,
+    hasActiveWork: false,
+  });
+  await get().refreshLogs();
+  return true;
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // 采样
@@ -503,6 +563,7 @@ function captureSnapshot(
     gustFactorRate: data.gustFactorRate,
     crosswindComponent: data.crosswindComponent,
     radioAltitude: data.radioAltitude,
+    radioAltitudeSource: data.radioAltitudeSource,
     outsideAirTemperature: data.outsideAirTemperature,
     baroPressure: data.baroPressure,
     masterWarning: data.masterWarning,
@@ -581,7 +642,7 @@ function captureSnapshot(
   void persistActiveLog(log);
 
   // 触发订阅者更新（activeLog 为同一引用，故用计数字段驱动）
-  set({ activeLog: { ...log } });
+  set({ activeLog: { ...log }, hasActiveWork: true });
 }
 
 function updateArrivalAirportAtTouchdown(

@@ -145,6 +145,7 @@ describe('flight log identity', () => {
       isRecording: false,
       isRecordingPaused: false,
       activeLog: null,
+      hasActiveWork: false,
       logs: [],
     });
   });
@@ -157,7 +158,11 @@ describe('flight log identity', () => {
       expect(useFlightLogsStore.getState().startRecording(snapshot)).toBe(true);
       const firstId = useFlightLogsStore.getState().activeLog?.id;
 
-      useFlightLogsStore.setState({ isRecording: false, activeLog: null });
+      useFlightLogsStore.setState({
+        isRecording: false,
+        activeLog: null,
+        hasActiveWork: false,
+      });
       expect(useFlightLogsStore.getState().startRecording(snapshot)).toBe(true);
       const secondId = useFlightLogsStore.getState().activeLog?.id;
 
@@ -217,6 +222,7 @@ describe('recoverActiveLog', () => {
       isRecording: false,
       isRecordingPaused: false,
       activeLog: null,
+      hasActiveWork: false,
       logs: [],
     });
     await idbDel(ACTIVE_LOG_IDB_KEY);
@@ -226,24 +232,6 @@ describe('recoverActiveLog', () => {
     const recovered = await useFlightLogsStore.getState().recoverActiveLog();
     expect(recovered).toBe(false);
     expect(useFlightLogsStore.getState().isRecording).toBe(false);
-  });
-
-  // 核心验收：刷新后已录的航迹点一个不少
-  it('有存档时接回录制，采样点一个不少', async () => {
-    const log = makeLog({
-      points: Array.from({ length: 137 }, (_, i) =>
-        makePoint({ altitude: 1000 + i, timestamp: new Date(START.getTime() + i * 100) }),
-      ),
-    });
-    await seedArchive(log);
-
-    const recovered = await useFlightLogsStore.getState().recoverActiveLog();
-
-    expect(recovered).toBe(true);
-    const state = useFlightLogsStore.getState();
-    expect(state.isRecording).toBe(true);
-    expect(state.activeLog?.points).toHaveLength(137);
-    expect(state.activeLog?.points[136].altitude).toBe(1136);
   });
 
   it('已经在录制时不覆盖当前录制', async () => {
@@ -270,16 +258,6 @@ describe('recoverActiveLog', () => {
     expect(await idbGet(ACTIVE_LOG_IDB_KEY)).toBeUndefined();
   });
 
-  // 不接回接地序列的话，落地检测会以为这是一段全新的空中飞行
-  it('接地序列上下文一并恢复', async () => {
-    const log = makeLog();
-    await seedArchive(log, { touchdownPointIndexes: [12, 34], lastOnGround: false });
-
-    expect(await useFlightLogsStore.getState().recoverActiveLog()).toBe(true);
-    // 恢复后继续采样不应把已有接地点抹掉
-    useFlightLogsStore.getState().handleFlightSnapshot(connectedSnapshot());
-    expect(useFlightLogsStore.getState().activeLog?.points.length).toBeGreaterThanOrEqual(1);
-  });
 });
 
 describe('录制中增量落盘', () => {
@@ -289,6 +267,7 @@ describe('录制中增量落盘', () => {
       isRecording: false,
       isRecordingPaused: false,
       activeLog: null,
+      hasActiveWork: false,
       logs: [],
     });
     await idbDel(ACTIVE_LOG_IDB_KEY);
@@ -300,7 +279,8 @@ describe('录制中增量落盘', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(await idbGet(ACTIVE_LOG_IDB_KEY)).toBeDefined();
+    const archive = await idbGet<{ log: { points: unknown[] } }>(ACTIVE_LOG_IDB_KEY);
+    expect(archive?.log.points).toHaveLength(1);
   });
 
   it('flushActiveLog 在未录制时是空操作', async () => {
@@ -336,22 +316,17 @@ describe('录制中增量落盘', () => {
     }
   });
 
-  it('录制过短被丢弃时同时清掉存档', async () => {
-    // startTime 必须取「刚刚」：写死一个过去的时间点，收尾时算出来的时长
-    // 是「现在 - 那个时间点」，早就超过 1 分钟下限，走不到丢弃分支。
-    const justNow = new Date();
+  it('空录制中断时只清掉存档', async () => {
     useFlightLogsStore.setState({
       isRecording: true,
       activeLog: makeLog({
-        startTime: justNow,
-        points: [makePoint({ timestamp: justNow })],
+        points: [],
       }),
     });
     await useFlightLogsStore.getState().flushActiveLog();
     expect(await idbGet(ACTIVE_LOG_IDB_KEY)).toBeDefined();
 
-    // 只有一个点、时长为 0 → 走「过短丢弃」分支
-    const saved = await useFlightLogsStore.getState().stopRecording(connectedSnapshot());
+    const saved = await useFlightLogsStore.getState().handleDisconnect();
 
     expect(saved).toBe(false);
     expect(await idbGet(ACTIVE_LOG_IDB_KEY)).toBeUndefined();
