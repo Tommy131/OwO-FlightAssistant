@@ -12,17 +12,18 @@ import { toJsonMap, toText } from '../../../core/utils/parse-utils';
 import type { FlightDataSnapshot, SimulatorType } from '../../common/models/common-models';
 import { lookupRunwayAt } from '../services/runway-lookup';
 import {
+  buildLandingDataFromTouchdowns,
   computeLandingMetrics,
   computeTakeoffMetrics,
-  flareHeightFt,
-  peakTouchdownG,
-  touchdownSinkRateFpm,
+  hasElapsedAtLeast,
+  isTouchdownTransition,
+  MAX_VALID_LANDING_G,
+  MIN_VALID_LANDING_G,
 } from '../services/takeoff-landing-metrics';
 import {
   flightLogDurationMs,
   flightLogFromJson,
   flightLogToJson,
-  resolveLandingRating,
   type FlightLog,
   type FlightLogAlert,
   type FlightLogPoint,
@@ -71,9 +72,6 @@ const ACTIVE_LOG_PERSIST_INTERVAL_MS = 3_000;
 const MINIMUM_RECORD_DURATION_MS = 60_000;
 /** 接地后需连续 2 秒在地面才判定落地完成 */
 const LANDING_STABLE_DURATION_MS = 2_000;
-/** 有效落地 G 值区间，超出视为数据异常 */
-const MIN_VALID_LANDING_G = 0.3;
-const MAX_VALID_LANDING_G = 8.0;
 
 interface FlightLogsState {
   logs: FlightLog[];
@@ -612,7 +610,7 @@ function trackLandingState(log: FlightLog, onGround: boolean, now: number): void
     return;
   }
 
-  if (wasOnGround === false) {
+  if (isTouchdownTransition(wasOnGround, onGround)) {
     // 空中 → 地面：记录接地点
     recordingContext.touchdownPointIndexes.push(log.points.length - 1);
     recordingContext.stableGroundSince = now;
@@ -621,8 +619,11 @@ function trackLandingState(log: FlightLog, onGround: boolean, now: number): void
   }
 
   if (
-    recordingContext.stableGroundSince !== null &&
-    now - recordingContext.stableGroundSince >= LANDING_STABLE_DURATION_MS &&
+    hasElapsedAtLeast(
+      recordingContext.stableGroundSince ?? undefined,
+      now,
+      LANDING_STABLE_DURATION_MS,
+    ) &&
     recordingContext.touchdownPointIndexes.length > 0
   ) {
     updateLandingDataFromTouchdowns(log);
@@ -631,63 +632,13 @@ function trackLandingState(log: FlightLog, onGround: boolean, now: number): void
 
 /** 由接地序列汇总落地数据与评级 */
 function updateLandingDataFromTouchdowns(log: FlightLog): void {
-  const indexes = recordingContext.touchdownPointIndexes;
-  if (indexes.length === 0) return;
-
-  const sequence = indexes
-    .map((index) => log.points[index])
-    .filter((item): item is FlightLogPoint => item !== undefined);
-  if (sequence.length === 0) return;
-
-  /*
-   * 每次接地都在**触地之后**的窗口里取 G 峰值，而不是读触地那一个采样点。
-   *
-   * 触地瞬间减震支柱还没压缩，机身过载仍接近 1；峰值要晚 100–300ms 才出现。
-   * 原来只读翻转点，于是无论落得多重都只报 1.0 出头（模拟器自报 3.36，
-   * 这里显示 1.12）。取窗口极值才是真正砸下去的那一下。
-   */
-  const gForces = indexes
-    .map((index) =>
-      peakTouchdownG(log.points, index, {
-        minValidG: MIN_VALID_LANDING_G,
-        maxValidG: MAX_VALID_LANDING_G,
-      }),
-    )
-    .filter((value): value is number => value !== undefined);
-
-  const primary = sequence[0];
-  // 取接地序列中的峰值 G 作为落地评级依据
-  const peakG = gForces.length > 0 ? Math.max(...gForces) : primary.gForce;
-
-  // 下沉率反过来要往前看：翻转点的垂速已经被起落架吃掉一截
-  const touchdownSink = touchdownSinkRateFpm(log.points, indexes[0]);
-
-  log.landingData = {
-    latitude: primary.latitude,
-    longitude: primary.longitude,
-    gForce: peakG,
-    gForceSource: primary.gForceSource,
-    verticalSpeed: touchdownSink ?? primary.verticalSpeed,
-    airspeed: primary.airspeed,
-    groundSpeed: primary.groundSpeed,
-    pitch: primary.pitch,
-    roll: primary.roll,
-    rating: resolveLandingRating(peakG),
-    timestamp: primary.timestamp,
-    touchdownSequence: sequence,
-    touchdownGForces: gForces,
-    runway: runwayIdentFromHeading(primary.heading),
-    crosswindAtTouchdownKt: primary.crosswindComponent,
-    // 首次接地之后的额外接地次数即为弹跳次数
-    bounceCount: Math.max(0, sequence.length - 1),
-    sinkRateAt50FtFpm: findSinkRateAt50Ft(log.points, primary.timestamp),
-    /*
-     * 拉平高度要在接地**之前**找，不能读 latestPoint —— 那是「连续在地 2 秒」
-     * 之后定稿时的采样点，飞机早停在跑道上了，无线电高度恒为 0。
-     * 界面上「拉平高度 0 ft」就是这么来的。
-     */
-    flareHeightFt: flareHeightFt(log.points, indexes[0]),
-  };
+  const landing = buildLandingDataFromTouchdowns(
+    log.points,
+    recordingContext.touchdownPointIndexes,
+  );
+  if (!landing) return;
+  landing.runway = runwayIdentFromHeading(landing.touchdownSequence[0].heading);
+  log.landingData = landing;
 }
 
 /**
@@ -739,19 +690,6 @@ function finalizeLandingAtStop(log: FlightLog): void {
   if (recordingContext.touchdownPointIndexes.length === 0) return;
   if (log.points.length === 0) return;
   updateLandingDataFromTouchdowns(log);
-}
-
-/** 回溯接地前最后一次无线电高度 ≈ 50ft 时的下降率 */
-function findSinkRateAt50Ft(points: FlightLogPoint[], touchdownAt: Date): number | undefined {
-  for (let i = points.length - 1; i >= 0; i--) {
-    const point = points[i];
-    if (point.timestamp.getTime() > touchdownAt.getTime()) continue;
-    const radioAltitude = point.radioAltitude;
-    if (radioAltitude === undefined) continue;
-    if (radioAltitude >= 40 && radioAltitude <= 60) return point.verticalSpeed;
-    if (radioAltitude > 200) break;
-  }
-  return undefined;
 }
 
 /**

@@ -1,6 +1,11 @@
 import type { MapRunwayGeometry } from '../../map/models/map-models';
 import { projectOntoRunway } from '../../map/services/runway-occupancy';
-import type { FlightLog, FlightLogPoint } from '../models/flight-log-models';
+import {
+  resolveLandingRating,
+  type FlightLog,
+  type FlightLogPoint,
+  type LandingData,
+} from '../models/flight-log-models';
 
 /**
  * 起飞 / 落地派生指标（纯计算）
@@ -55,6 +60,32 @@ export const TOUCHDOWN_IMPACT_WINDOW_MS = 1_500;
  * 真正要的是触地**前**最后的空中读数。
  */
 export const TOUCHDOWN_SINK_LOOKBACK_MS = 1_200;
+
+/** Simulator landing-G values outside this range are treated as invalid telemetry. */
+export const MIN_VALID_LANDING_G = 0.3;
+export const MAX_VALID_LANDING_G = 8;
+
+/** Shared air-to-ground edge used by both landing recorders. */
+export function isTouchdownTransition(
+  previousOnGround: boolean | undefined,
+  onGround: boolean | undefined,
+): boolean {
+  return previousOnGround === false && onGround === true;
+}
+
+/** Inclusive elapsed-time boundary used for stable-ground capture. */
+export function hasElapsedAtLeast(since: number | undefined, at: number, duration: number): boolean {
+  return since !== undefined && at - since >= duration;
+}
+
+/** Exclusive elapsed-time boundary used for the “more than ten seconds” cutoff. */
+export function hasElapsedMoreThan(
+  since: number | undefined,
+  at: number,
+  duration: number,
+): boolean {
+  return since !== undefined && at - since > duration;
+}
 
 /** 起飞稳定性扣分上限：航向偏差 / 坡度 / 俯仰抖动 */
 const TAKEOFF_HEADING_PENALTY_CAP = 40;
@@ -394,6 +425,89 @@ export function scoreApproachStability(window: readonly FlightLogPoint[]): numbe
 // ──────────────────────────────────────────────────────────────────────────
 
 /**
+ * Build the shared landing summary for a detected touchdown sequence.
+ *
+ * Detection remains the caller's responsibility. Keeping the summary here lets
+ * the manual and automatic recorders use the same G, sink-rate, flare, rating,
+ * and approach-stability formulas.
+ */
+export function buildLandingDataFromTouchdowns(
+  points: readonly FlightLogPoint[],
+  touchdownIndexes: readonly number[],
+): LandingData | undefined {
+  const sequence = touchdownIndexes
+    .map((index) => points[index])
+    .filter((item): item is FlightLogPoint => item !== undefined);
+  if (sequence.length === 0) return undefined;
+
+  const touchdownGForces = touchdownIndexes
+    .map((index) =>
+      peakTouchdownG(points, index, {
+        minValidG: MIN_VALID_LANDING_G,
+        maxValidG: MAX_VALID_LANDING_G,
+      }),
+    )
+    .filter((value): value is number => value !== undefined);
+
+  const primary = sequence[0];
+  const peakG =
+    touchdownGForces.length > 0 ? Math.max(...touchdownGForces) : primary.gForce;
+  const touchdownSink = touchdownSinkRateFpm(points, touchdownIndexes[0] ?? -1);
+  const landing: LandingData = {
+    latitude: primary.latitude,
+    longitude: primary.longitude,
+    gForce: peakG,
+    gForceSource: primary.gForceSource,
+    verticalSpeed: touchdownSink ?? primary.verticalSpeed,
+    airspeed: primary.airspeed,
+    groundSpeed: primary.groundSpeed,
+    pitch: primary.pitch,
+    roll: primary.roll,
+    rating: resolveLandingRating(peakG),
+    timestamp: primary.timestamp,
+    touchdownSequence: sequence,
+    touchdownGForces,
+    crosswindAtTouchdownKt: primary.crosswindComponent,
+    bounceCount: Math.max(0, sequence.length - 1),
+    sinkRateAt50FtFpm: sinkRateAtHeightFpm(points, primary.timestamp, 50),
+    flareHeightFt: flareHeightFt(points, touchdownIndexes[0] ?? -1),
+  };
+
+  const metrics = computeLandingMetrics({ points: [...points], landingData: landing });
+  landing.approachStabilityScore = metrics.approachStabilityScore;
+  landing.remainingRunwayFt = metrics.remainingRunwayFt;
+  landing.metricNotes =
+    Object.keys(metrics.unavailable).length > 0 ? { ...metrics.unavailable } : undefined;
+  return landing;
+}
+
+/** Find the latest valid resolved-height sample around a target before touchdown. */
+export function sinkRateAtHeightFpm(
+  points: readonly FlightLogPoint[],
+  touchdownAt: Date,
+  targetHeightFt: number,
+  toleranceFt = 10,
+): number | undefined {
+  const minimum = targetHeightFt - toleranceFt;
+  const maximum = targetHeightFt + toleranceFt;
+  for (let index = points.length - 1; index >= 0; index--) {
+    const point = points[index];
+    if (point.timestamp.getTime() > touchdownAt.getTime()) continue;
+    const resolvedHeight = point.radioAltitude;
+    if (
+      resolvedHeight === undefined ||
+      !Number.isFinite(resolvedHeight) ||
+      resolvedHeight < 0
+    ) {
+      continue;
+    }
+    if (resolvedHeight >= minimum && resolvedHeight <= maximum) return point.verticalSpeed;
+    if (resolvedHeight > Math.max(200, maximum)) break;
+  }
+  return undefined;
+}
+
+/**
  * 取一次接地的冲击 G 峰值。
  *
  * ── 为什么不能只读接地那一点 ──
@@ -500,7 +614,7 @@ export function flareHeightFt(
   for (let index = touchdownIndex; index >= 0; index--) {
     const point = points[index];
     const agl = point.radioAltitude;
-    if (agl === undefined || !Number.isFinite(agl)) continue;
+    if (agl === undefined || !Number.isFinite(agl) || agl < 0) continue;
     if (agl > FLARE_SEARCH_AGL_FT) break;
     if (!Number.isFinite(point.verticalSpeed)) continue;
     // 只看下降的采样；接地后的正垂速（回弹）不参与

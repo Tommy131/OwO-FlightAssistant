@@ -623,4 +623,14 @@ describe('flareHeightFt', () => {
     expect(flareHeightFt([], 0)).toBeUndefined();
     expect(flareHeightFt(approach, 99)).toBeUndefined();
   });
+
+  it('忽略接地前无效的负数对地高度', () => {
+    const points = [
+      point({ t: 0, radioAltitude: 100, verticalSpeed: -500 }),
+      point({ t: 1, radioAltitude: -2, verticalSpeed: -900 }),
+      point({ t: 2, radioAltitude: 0, verticalSpeed: -50, onGround: true }),
+    ];
+
+    expect(flareHeightFt(points, 2)).toBe(100);
+  });
 });
