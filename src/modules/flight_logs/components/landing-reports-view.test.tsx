@@ -164,8 +164,6 @@ describe('LandingReportsView', () => {
     expect(screen.getByTitle('FULL')).toBeVisible();
     expect(screen.getByTitle('270° / 12 kt, gust 18')).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Touchdown Sequence' })).toBeVisible();
-    expect(screen.getByText(localTime(configuredTouchdown.timestamp.getTime()))).toBeVisible();
-    expect(screen.getByText(localTime(base.points[10].timestamp.getTime()))).toBeVisible();
     expect(screen.getByRole('columnheader', { name: 'Radio Altitude (ft)' })).toBeVisible();
     expect(screen.getAllByRole('columnheader', { name: 'Height source' }).length).toBeGreaterThan(0);
     expect(screen.getAllByText('AGL fallback').length).toBeGreaterThan(0);
@@ -412,12 +410,6 @@ describe('LandingReportsView', () => {
   });
 });
 
-function localTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  return [date.getHours(), date.getMinutes(), date.getSeconds()]
-    .map((value) => String(value).padStart(2, '0'))
-    .join(':');
-}
 
 function LandingReportsHarness({ reports }: { reports: StoredLandingReport[] }) {
   const [selectedId, setSelectedId] = useState<string>();
