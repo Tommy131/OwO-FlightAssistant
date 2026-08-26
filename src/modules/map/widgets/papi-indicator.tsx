@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react';
 import { useTranslate } from '../../../core/localization/use-translate';
 import { MapLocalizationKeys as K } from '../localization/map-localization';
+import type { MapSelectedAirportDetail } from '../models/map-models';
 import { useMapStore } from '../providers/map-store';
+import { fetchPapiAirportDetail } from '../services/papi-airport-detail';
 import { computePapiGuidance, type PapiVerdict } from '../services/papi-guidance';
 import styles from './papi-indicator.module.css';
 
@@ -23,9 +26,31 @@ const VERDICT_STYLE: Record<PapiVerdict, { key: string; color: string }> = {
 export function PapiIndicator() {
   const t = useTranslate();
   const aircraft = useMapStore((s) => s.aircraft);
-  const detail = useMapStore((s) => s.selectedAirport);
+  const selectedAirport = useMapStore((s) => s.selectedAirport);
+  const nearestIcao = useMapStore((s) => s.currentNearestAirportIcao);
+  const [nearestAirport, setNearestAirport] = useState<MapSelectedAirportDetail | null>(null);
 
-  const guidance = computePapiGuidance(aircraft, detail);
+  useEffect(() => {
+    let active = true;
+    if (!nearestIcao) {
+      setNearestAirport(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    void fetchPapiAirportDetail(nearestIcao).then((detail) => {
+      if (active) setNearestAirport(detail);
+    });
+    return () => {
+      active = false;
+    };
+  }, [nearestIcao]);
+
+  // 手动机场确实匹配当前进近时优先；否则不让旧选择挡住最近机场的 PAPI。
+  const guidance =
+    computePapiGuidance(aircraft, selectedAirport) ??
+    computePapiGuidance(aircraft, nearestAirport);
   if (!guidance) return null;
 
   const style = VERDICT_STYLE[guidance.verdict];
