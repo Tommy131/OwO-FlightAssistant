@@ -7,7 +7,7 @@ import { LeafletMap } from './leaflet-map';
 const leafletMocks = vi.hoisted(() => ({
   invalidateSize: vi.fn(),
   remove: vi.fn(),
-  tileAddTo: vi.fn(),
+  tileLayer: vi.fn((_url: string, _options: Record<string, unknown>) => ({ addTo: vi.fn() })),
 }));
 
 vi.mock('leaflet', () => ({
@@ -16,7 +16,7 @@ vi.mock('leaflet', () => ({
       invalidateSize: leafletMocks.invalidateSize,
       remove: leafletMocks.remove,
     })),
-    tileLayer: vi.fn(() => ({ addTo: leafletMocks.tileAddTo })),
+    tileLayer: leafletMocks.tileLayer,
   },
 }));
 
@@ -59,5 +59,35 @@ describe('LeafletMap', () => {
     resizeCallback([], {} as ResizeObserver);
 
     expect(leafletMocks.invalidateSize).toHaveBeenCalledOnce();
+  });
+
+  it('默认深色底图无需 API key，并叠加独立注记层', () => {
+    render(<LeafletMap />);
+
+    const firstCall = leafletMocks.tileLayer.mock.calls[0];
+    const secondCall = leafletMocks.tileLayer.mock.calls[1];
+    expect(firstCall?.[0]).toBe(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    );
+    expect(firstCall?.[1].attribution).toContain('Esri');
+    expect(secondCall?.[0]).toBe(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    );
+    expect(firstCall?.[0]).not.toContain('cartocdn');
+  });
+
+  it('浅色底图使用配对的 Esri 画布和注记层', () => {
+    render(<LeafletMap tileLayer="esriLight" />);
+
+    const firstCall = leafletMocks.tileLayer.mock.calls[0];
+    const secondCall = leafletMocks.tileLayer.mock.calls[1];
+    expect(firstCall?.[0]).toBe(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    );
+    expect(firstCall?.[1].attribution).toContain('Esri');
+    expect(secondCall?.[0]).toBe(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    );
+    expect(firstCall?.[0]).not.toContain('cartocdn');
   });
 });

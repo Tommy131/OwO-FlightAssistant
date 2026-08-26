@@ -38,7 +38,9 @@ export function mapTileUrl(style: MapLayerStyle): string {
       // 滑行道几何与 ref 注记）的免费栅格源
       return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     case 'dark':
-      return 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+      // CARTO 自 2026-08 起要求 API key；匿名瓦片会返回带水印的 200 图片。
+      // Esri 深灰画布与项目既有卫星底图使用同一公共服务，无需把密钥下发到浏览器。
+      return 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
   }
 }
 
@@ -68,6 +70,9 @@ export function mapReferenceOverlayUrl(style: MapLayerStyle): string | null {
   if (style === 'satellite') {
     return 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
   }
+  if (style === 'dark') {
+    return 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
+  }
   return null;
 }
 
@@ -85,7 +90,7 @@ export function mapTileAttribution(style: MapLayerStyle): string {
     case 'taxiway':
       return '© OpenStreetMap contributors';
     default:
-      return '© OpenStreetMap contributors © CARTO';
+      return '© Esri, HERE, Garmin, OpenStreetMap contributors, GIS user community';
   }
 }
 

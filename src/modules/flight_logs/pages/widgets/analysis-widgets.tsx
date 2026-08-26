@@ -329,7 +329,7 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
 
           {/*
             底图跟着主题走：深色主题配深色瓦片，浅色主题配浅色瓦片。
-            写死 cartoDark 的话，浅色主题下整块地图是一坨黑，
+            写死深色底图的话，浅色主题下整块地图是一坨黑，
             和周围的卡片完全脱节。
 
             外面套一层 flex:1 的壳把剩余高度全吃掉，地图再填满这层壳 ——
@@ -339,7 +339,7 @@ export function AnalysisTrackMap({ log }: { log: FlightLog }) {
             <LeafletMap
               center={track[0]}
               zoom={8}
-              tileLayer={isDark ? 'cartoDark' : 'cartoLight'}
+              tileLayer={isDark ? 'esriDark' : 'esriLight'}
               fill
               onReady={handleReady}
             />

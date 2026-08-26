@@ -3,10 +3,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
   isBrightMapBackground,
-  mapReferenceOverlayUrl,
-  mapTileAttribution,
-  mapTileMaxNativeZoom,
-  mapTileUrl,
   type MapAirportMarker,
   type MapCoordinate,
   type MapProcedure,
@@ -44,6 +40,7 @@ import { renderTaxiRoute } from './layers/taxi-route-layer';
 import { AIRSPACE_SEVERITY_COLOR } from './layers/layer-style';
 import { buildTerrainCells, type TerrainBand } from '../services/terrain-model';
 import { COMPASS_BASE_SIZE, compassRingHtml } from '../services/compass-ring';
+import { installMapBasemap } from '../services/map-basemap-layer';
 
 /**
  * 地图画布
@@ -54,7 +51,7 @@ import { COMPASS_BASE_SIZE, compassRingHtml } from '../services/compass-ring';
  * 图层用命令式 Leaflet API 增量更新（而非每帧重建），
  * 这是高频遥测下保持流畅的关键 —— 与桌面版 flutter_map 的图层复用策略一致。
  */
-/** 地图允许的最大缩放级别；底图（Carto / Esri / OSM）都能到 19 */
+/** 地图允许的最大缩放级别；底图（Esri / OSM）都能到 19 */
 const MAP_MAX_ZOOM = 19;
 
 /**
@@ -410,28 +407,10 @@ export function MapCanvas({
     const map = mapRef.current;
     if (!map) return;
     layersRef.current.base?.remove();
-    layersRef.current.base = L.tileLayer(mapTileUrl(layerStyle), {
-      attribution: mapTileAttribution(layerStyle),
-      maxZoom: MAP_MAX_ZOOM,
-      // 超出覆盖范围的源要放大最后一级，否则会拿到「无数据」占位图
-      maxNativeZoom: mapTileMaxNativeZoom(layerStyle),
-      // {s} 子域轮询。Carto 有 a–d 四个，OpenTopoMap 只有 a–c
-      // （给它 'd' 会 404，整层随机缺瓦片）；不含 {s} 的源会忽略这个选项。
-      subdomains: layerStyle === 'terrain' ? 'abc' : 'abcd',
-    }).addTo(map);
-    // 底图必须压在所有叠加层下面
-    layersRef.current.base.setZIndex(1);
-
-    // 卫星影像没有文字，补一层地名/边界注记
     layersRef.current.reference?.remove();
-    layersRef.current.reference = undefined;
-    const referenceUrl = mapReferenceOverlayUrl(layerStyle);
-    if (referenceUrl) {
-      layersRef.current.reference = L.tileLayer(referenceUrl, {
-        maxZoom: MAP_MAX_ZOOM,
-      }).addTo(map);
-      layersRef.current.reference.setZIndex(2);
-    }
+    const basemap = installMapBasemap(map, layerStyle, MAP_MAX_ZOOM);
+    layersRef.current.base = basemap.base;
+    layersRef.current.reference = basemap.reference;
 
     // 换底图后标记描边色要跟着明暗变，重画一次
     renderAirportDetail(map, layersRef.current.airportDetailGroup);

@@ -31,15 +31,19 @@ export const MAP_TILE_LAYERS = {
     maxZoom: 13,
     bright: true,
   },
-  cartoDark: {
-    url: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '© OpenStreetMap contributors © CARTO',
+  esriDark: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    referenceUrl:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© Esri, HERE, Garmin, OpenStreetMap contributors, GIS user community',
     maxZoom: 20,
     bright: false,
   },
-  cartoLight: {
-    url: 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    attribution: '© OpenStreetMap contributors © CARTO',
+  esriLight: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    referenceUrl:
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© Esri, HERE, Garmin, OpenStreetMap contributors, GIS user community',
     maxZoom: 20,
     bright: true,
   },
@@ -65,7 +69,7 @@ export interface LeafletMapProps {
 export function LeafletMap({
   center = [39.9, 116.4],
   zoom = 6,
-  tileLayer = 'cartoDark',
+  tileLayer = 'esriDark',
   height = 320,
   fill = false,
   className,
@@ -99,6 +103,9 @@ export function LeafletMap({
       attribution: layer.attribution,
       maxZoom: layer.maxZoom,
     }).addTo(map);
+    if ('referenceUrl' in layer) {
+      L.tileLayer(layer.referenceUrl, { maxZoom: layer.maxZoom }).addTo(map);
+    }
 
     const cleanup = onReadyRef.current?.(map);
 
