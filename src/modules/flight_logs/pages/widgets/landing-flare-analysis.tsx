@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { useTranslate } from '../../../../core/localization/use-translate';
+import { Switch } from '../../../../core/widgets/common/controls';
 import { MaterialIcon } from '../../../../core/widgets/common/icon';
 import { EmptyState } from '../../../../core/widgets/common/surfaces';
 import { FlightLogsLocalizationKeys as K } from '../../localization/flight-logs-localization';
@@ -18,6 +19,7 @@ const PLOT = { left: 72, right: 22, top: 20, bottom: 38 } as const;
 export function LandingFlareAnalysis({ log }: { log: FlightLog }) {
   const t = useTranslate();
   const samples = useMemo(() => buildLandingFlareProfile(log), [log]);
+  const [zeroAtBottom, setZeroAtBottom] = useState(false);
 
   if (samples.length === 0) {
     return (
@@ -65,7 +67,15 @@ export function LandingFlareAnalysis({ log }: { log: FlightLog }) {
       </header>
 
       <div className={styles.chartWrap}>
-        <FlareCurve samples={samples} />
+        <div className={styles.chartControls}>
+          <span>{t(K.flareAxisZeroAtBottom)}</span>
+          <Switch
+            checked={zeroAtBottom}
+            onChange={setZeroAtBottom}
+            label={t(K.flareAxisZeroAtBottom)}
+          />
+        </div>
+        <FlareCurve samples={samples} zeroAtBottom={zeroAtBottom} />
       </div>
 
       <div className={styles.recorderStrip} aria-hidden="true">
@@ -135,7 +145,13 @@ export function LandingFlareAnalysis({ log }: { log: FlightLog }) {
   );
 }
 
-function FlareCurve({ samples }: { samples: readonly LandingFlareSample[] }) {
+function FlareCurve({
+  samples,
+  zeroAtBottom,
+}: {
+  samples: readonly LandingFlareSample[];
+  zeroAtBottom: boolean;
+}) {
   const t = useTranslate();
   const [activeIndex, setActiveIndex] = useState<number>();
   const values = samples
@@ -152,7 +168,9 @@ function FlareCurve({ samples }: { samples: readonly LandingFlareSample[] }) {
   const plotWidth = CHART_WIDTH - PLOT.left - PLOT.right;
   const plotHeight = CHART_HEIGHT - PLOT.top - PLOT.bottom;
   const xAt = (index: number) => PLOT.left + (index / (samples.length - 1)) * plotWidth;
-  const yAt = (value: number) => PLOT.top + ((maximum - value) / range) * plotHeight;
+  const yAt = (value: number) => zeroAtBottom
+    ? PLOT.top + ((value - minimum) / range) * plotHeight
+    : PLOT.top + ((maximum - value) / range) * plotHeight;
   const gridValues = Array.from({ length: 5 }, (_, index) => maximum - (range * index) / 4);
   const activeSample = activeIndex === undefined ? undefined : samples[activeIndex];
   const activeValue = activeSample?.verticalSpeed;

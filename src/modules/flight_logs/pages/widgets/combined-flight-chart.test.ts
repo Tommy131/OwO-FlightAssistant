@@ -109,7 +109,7 @@ describe('buildCombinedFlightChartOption', () => {
     ]);
   });
 
-  it('uses deterministic offsets for simultaneous event markers', () => {
+  it('keeps event markers on their exact time while separating simultaneous events vertically', () => {
     const first = buildCombinedFlightChartOption(
       inputWithSimultaneousEvents(),
     );
@@ -123,8 +123,11 @@ describe('buildCombinedFlightChartOption', () => {
       .filter((series) => series.type === 'scatter')
       .map((series) => series.symbolOffset);
 
+    expect(firstOffsets.every((offset) => (
+      Array.isArray(offset) && offset[0] === 0
+    ))).toBe(true);
     expect(new Set(firstOffsets.map((offset) => JSON.stringify(offset))).size)
-      .toBe(FLIGHT_CHART_EVENT_TYPES.length);
+      .toBeGreaterThan(1);
     expect(secondOffsets).toEqual(firstOffsets);
   });
 

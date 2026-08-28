@@ -27,15 +27,18 @@ export const FLIGHT_CHART_EVENT_COLORS = {
 >;
 
 const EVENT_SYMBOL_OFFSETS = {
-  takeoff: [-32, -18],
-  flapsDeploy: [-24, -34],
-  flapsRetract: [-16, -18],
-  autopilotLateral: [-8, -34],
+  // Keep the horizontal offset at zero: the marker must remain on the exact
+  // event time selected by the axis tooltip. Separate simultaneous events
+  // vertically instead, otherwise their icons appear beside the hover line.
+  takeoff: [0, -18],
+  flapsDeploy: [0, -34],
+  flapsRetract: [0, -18],
+  autopilotLateral: [0, -34],
   autopilotVertical: [0, -18],
-  gearDown: [8, -34],
-  gearUp: [16, -18],
-  touchdown: [24, -34],
-  finalTouchdown: [32, -18],
+  gearDown: [0, -34],
+  gearUp: [0, -18],
+  touchdown: [0, -34],
+  finalTouchdown: [0, -18],
 } as const satisfies Record<FlightChartEventType, readonly [number, number]>;
 
 export interface CombinedFlightChartLabels {

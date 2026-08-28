@@ -72,6 +72,22 @@ function chartWithViewport(width = 1_000) {
 }
 
 describe('LandingFlareAnalysis curve readout', () => {
+  it('defaults to zero at the top and reverses the vertical axis from the shared switch', () => {
+    const chart = chartWithViewport();
+    const firstPoint = chart.querySelector('circle');
+    const toggle = screen.getByRole('switch', {
+      name: 'Place zero baseline at bottom',
+    });
+
+    expect(toggle).not.toBeChecked();
+    expect(Number(firstPoint?.getAttribute('cy'))).toBeGreaterThan(100);
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toBeChecked();
+    expect(Number(firstPoint?.getAttribute('cy'))).toBeLessThan(100);
+  });
+
   it('shows the nearest sample time and actual sink rate while the cursor moves over the plot', () => {
     const chart = chartWithViewport();
 
