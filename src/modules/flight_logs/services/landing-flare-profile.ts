@@ -51,6 +51,9 @@ export function buildLandingFlareProfile(log: FlareProfileLog): LandingFlareSamp
       sample.roll = finiteOrUndefined(landing.roll);
       sample.gForce = finiteOrUndefined(landing.gForce);
       sample.onGround = true;
+      // The landing event proves surface contact. Historical reports may still
+      // contain a small aircraft-specific radio-altimeter installation offset.
+      sample.radioAltitude = 0;
     }
 
     return sample;

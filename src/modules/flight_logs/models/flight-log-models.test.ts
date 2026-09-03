@@ -8,6 +8,26 @@ import {
 import { makeFlightLog, makeFlightLogPoint } from '../test/flight-log-fixtures';
 
 describe('flight log recording status codec', () => {
+  it('normalizes legacy positive radio height to zero for an on-ground point', () => {
+    const log = flightLogFromJson({
+      id: 'legacy-ground-radio-offset',
+      aircraft: 'A320',
+      start: '2026-09-03T10:00:00.000Z',
+      points: [{
+        ts: '2026-09-03T10:01:00.000Z',
+        ra: 4,
+        ras: 'radio',
+        grnd: true,
+      }],
+    });
+
+    expect(log.points[0]).toMatchObject({
+      radioAltitude: 0,
+      radioAltitudeSource: 'radio',
+      onGround: true,
+    });
+  });
+
   it('uses the legacy arrival-and-ground heuristic only when structured status is absent', () => {
     const legacyFlightLogJson = {
       id: 'legacy-flight-log',

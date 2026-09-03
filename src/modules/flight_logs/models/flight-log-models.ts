@@ -224,6 +224,8 @@ export function flightLogPointToJson(point: FlightLogPoint): JsonMap {
 
 export function flightLogPointFromJson(json: JsonMap): FlightLogPoint {
   const airspeed = toDouble(json.spd) ?? 0;
+  const onGround = toBool(json.grnd);
+  const storedRadioAltitude = toDouble(json.ra);
   return {
     latitude: toDouble(json.lat) ?? 0,
     longitude: toDouble(json.lon) ?? 0,
@@ -263,7 +265,12 @@ export function flightLogPointFromJson(json: JsonMap): FlightLogPoint {
     gustDelta: toDouble(json.gust),
     gustFactorRate: toDouble(json.gust_rate),
     crosswindComponent: toDouble(json.xw),
-    radioAltitude: toDouble(json.ra),
+    // Normalize legacy records that persisted the aircraft-specific radar
+    // altimeter offset at touchdown instead of the operational ground height.
+    radioAltitude:
+      onGround === true && storedRadioAltitude !== undefined
+        ? 0
+        : storedRadioAltitude,
     radioAltitudeSource: radioAltitudeSourceFromRaw(json.ras),
     outsideAirTemperature: toDouble(json.oat),
     baroPressure: toDouble(json.baro),
@@ -290,7 +297,7 @@ export function flightLogPointFromJson(json: JsonMap): FlightLogPoint {
     aileronTrim: toDouble(json.atr),
     elevatorTrim: toDouble(json.etr),
     rudderTrim: toDouble(json.rtr),
-    onGround: toBool(json.grnd),
+    onGround,
     anomalyAlerts: parseAlerts(json.alerts),
   };
 }

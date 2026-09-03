@@ -70,6 +70,7 @@ describe('landing flare profile', () => {
     expect(profile.at(-1)).toMatchObject({
       secondsBeforeTouchdown: 0,
       verticalSpeed: -180,
+      radioAltitude: 0,
       airspeed: 130,
       pitch: 5,
     });

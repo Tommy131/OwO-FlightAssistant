@@ -102,6 +102,19 @@ describe('flightDataFromDataset', () => {
     ).toBeUndefined();
   });
 
+  it('normalizes a positive radio-altimeter installation offset to zero on ground', () => {
+    const parsed = flightDataFromDataset({
+      on_ground: true,
+      radio_altitude_ft: 4,
+      resolved_landing_height_ft: 4,
+      resolved_landing_height_source: 'radio',
+    });
+
+    expect(parsed.onGround).toBe(true);
+    expect(parsed.radioAltitude).toBe(0);
+    expect(parsed.radioAltitudeSource).toBe('radio');
+  });
+
   it('起落架状态由三个比例推断', () => {
     const down = flightDataFromDataset({
       nose_gear_down: 1,

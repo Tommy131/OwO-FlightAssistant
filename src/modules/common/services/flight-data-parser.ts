@@ -36,6 +36,10 @@ export function flightDataFromDataset(dataset: JsonMap): FlightData {
   const noseGearDown = toDouble(dataset.nose_gear_down);
   const leftGearDown = toDouble(dataset.left_gear_down);
   const rightGearDown = toDouble(dataset.right_gear_down);
+  const onGround = toBool(dataset.on_ground);
+  const resolvedLandingHeight = toDouble(
+    dataset.resolved_landing_height_ft ?? dataset.radio_altitude_ft,
+  );
 
   return {
     airspeed: toDouble(dataset.ias_kt ?? dataset.airspeed_kt),
@@ -88,9 +92,12 @@ export function flightDataFromDataset(dataset: JsonMap): FlightData {
     gustDelta: toDouble(dataset.gust_delta_kt),
     gustFactorRate: toDouble(dataset.gust_factor_rate),
     crosswindComponent: toDouble(dataset.crosswind_component_kt),
-    radioAltitude: toDouble(
-      dataset.resolved_landing_height_ft ?? dataset.radio_altitude_ft,
-    ),
+    // Older middleware versions can expose the radio-altimeter installation
+    // offset after wheel contact. Ground state is authoritative for reports.
+    radioAltitude:
+      onGround === true && resolvedLandingHeight !== undefined
+        ? 0
+        : resolvedLandingHeight,
     radioAltitudeSource: parseRadioAltitudeSource(
       dataset.resolved_landing_height_source ?? dataset.radio_altitude_source,
     ),
@@ -126,7 +133,7 @@ export function flightDataFromDataset(dataset: JsonMap): FlightData {
     taxiLights: toBool(dataset.taxi_lights),
     runwayTurnoffLights: toBool(dataset.runway_turnoff_lights),
     wheelWellLights: toBool(dataset.wheel_well_lights),
-    onGround: toBool(dataset.on_ground),
+    onGround,
     parkingBrake: toBool(dataset.parking_brake),
     speedBrake: toBool(dataset.speed_brake_active),
     speedBrakeLabel: buildSpeedBrakeLabel(dataset),
