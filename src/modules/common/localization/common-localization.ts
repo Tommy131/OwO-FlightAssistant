@@ -17,6 +17,22 @@ export const CommonLocalizationKeys = {
   backendUnavailableContent: 'common.backend.unavailable_content',
   goToSettings: 'common.backend.go_to_settings',
 
+  // ── 模拟器意外断连 ──
+  simLostTitle: 'common.sim.lost_title',
+  simLostAck: 'common.sim.lost_ack',
+  simLostReasonUnknown: 'common.sim.lost_reason.unknown',
+  simLostReasonSessionExpired: 'common.sim.lost_reason.session_expired',
+  simLostReasonInvalidToken: 'common.sim.lost_reason.invalid_token',
+  simLostReasonServiceStopped: 'common.sim.lost_reason.service_stopped',
+  simLostReasonNoPackets: 'common.sim.lost_reason.no_packets',
+  simLostReasonNoPacketsEver: 'common.sim.lost_reason.no_packets_ever',
+  simLostReasonSimulatorQuit: 'common.sim.lost_reason.simulator_quit',
+  simLostReasonSimconnectLost: 'common.sim.lost_reason.simconnect_lost',
+  simLostReasonSimconnectError: 'common.sim.lost_reason.simconnect_error',
+  simLostReasonLinkTimeout: 'common.sim.lost_reason.link_timeout',
+  simLostReasonWsClosed: 'common.sim.lost_reason.ws_closed',
+  simLostDetailSuffix: 'common.sim.lost_detail_suffix',
+
   // ── 机场导航选择 ──
   navDeparture: 'common.nav.departure',
   navDestination: 'common.nav.destination',
@@ -82,6 +98,25 @@ export const commonModuleTranslations: ModuleTranslations = {
     [K.backendUnavailableContent]:
       '当前无法与已配置的后端 HTTP 接口通信，请启动中间件服务，或检查网络代理与后端地址配置是否正确。',
     [K.goToSettings]: '前往设置',
+    [K.simLostTitle]: '模拟器连接已断开',
+    [K.simLostAck]: '知道了',
+    [K.simLostReasonUnknown]: '模拟器连接意外中断，原因未知。请确认模拟器仍在运行后重新连接。',
+    [K.simLostReasonSessionExpired]:
+      '会话已过期（长时间无活动）。中间件已清理访问令牌，请重新连接模拟器。',
+    [K.simLostReasonInvalidToken]: '访问令牌已失效，请重新连接模拟器。',
+    [K.simLostReasonServiceStopped]: '中间件已停止模拟器数据服务，请重新连接。',
+    [K.simLostReasonNoPackets]:
+      '长时间未收到 X-Plane 遥测数据包。请确认 X-Plane 仍在飞行场景中，且网络/UDP 端口未被占用。',
+    [K.simLostReasonNoPacketsEver]:
+      '未收到任何模拟器数据包。请确认模拟器已进入飞行，且中间件地址/端口配置正确。',
+    [K.simLostReasonSimulatorQuit]: '检测到模拟器已退出或离开飞行场景。',
+    [K.simLostReasonSimconnectLost]:
+      '与 MSFS 的 SimConnect 链路中断。请确认 MSFS 仍在运行并处于飞行中，然后重新连接。',
+    [K.simLostReasonSimconnectError]: 'SimConnect 报错后链路未能恢复，请重新连接模拟器。',
+    [K.simLostReasonLinkTimeout]:
+      '模拟器链路在宽限期内未能恢复。可能是模拟器卡顿、切场景或后台被挂起。',
+    [K.simLostReasonWsClosed]: '实时数据通道关闭且未能自动恢复，请重新连接。',
+    [K.simLostDetailSuffix]: '技术细节：{detail}',
     [K.appModeLive]: '训练模式',
     [K.appModeReview]: '复盘模式',
     [K.appModeTooltip]: '当前：{mode}',
@@ -130,6 +165,29 @@ export const commonModuleTranslations: ModuleTranslations = {
     [K.backendUnavailableContent]:
       'Cannot communicate with the configured backend HTTP endpoint. Start the middleware service or verify proxy and endpoint settings.',
     [K.goToSettings]: 'Open Settings',
+    [K.simLostTitle]: 'Simulator connection lost',
+    [K.simLostAck]: 'OK',
+    [K.simLostReasonUnknown]:
+      'The simulator link dropped unexpectedly for an unknown reason. Confirm the sim is still running, then reconnect.',
+    [K.simLostReasonSessionExpired]:
+      'The session expired after a long idle period. The middleware cleared the access token — reconnect the simulator.',
+    [K.simLostReasonInvalidToken]: 'The access token is no longer valid. Reconnect the simulator.',
+    [K.simLostReasonServiceStopped]:
+      'The middleware stopped the simulator data service. Reconnect to resume.',
+    [K.simLostReasonNoPackets]:
+      'No X-Plane telemetry packets for a long time. Confirm X-Plane is in a flight session and the UDP port is free.',
+    [K.simLostReasonNoPacketsEver]:
+      'No simulator packets were received. Confirm the sim is in flight and the middleware address/port are correct.',
+    [K.simLostReasonSimulatorQuit]: 'The simulator quit or left the flight session.',
+    [K.simLostReasonSimconnectLost]:
+      'The MSFS SimConnect link was lost. Confirm MSFS is running in flight, then reconnect.',
+    [K.simLostReasonSimconnectError]:
+      'SimConnect reported an error and the link did not recover. Reconnect the simulator.',
+    [K.simLostReasonLinkTimeout]:
+      'The simulator link did not recover within the grace period. The sim may be stalled, loading, or suspended.',
+    [K.simLostReasonWsClosed]:
+      'The live data channel closed and could not be restored automatically. Reconnect.',
+    [K.simLostDetailSuffix]: 'Technical detail: {detail}',
     [K.appModeLive]: 'Training mode',
     [K.appModeReview]: 'Review mode',
     [K.appModeTooltip]: 'Current: {mode}',

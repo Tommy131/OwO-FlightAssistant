@@ -6,6 +6,7 @@ import { showAdvancedConfirmDialog } from '../../../core/widgets/common/dialog';
 import { MaterialIcon } from '../../../core/widgets/common/icon';
 import { CommonLocalizationKeys } from '../../common/localization/common-localization';
 import { useFlightDataStore } from '../../common/providers/flight-data-store';
+import { simulatorDisconnectReasonKey } from '../../common/services/simulator-disconnect-reason';
 import { HomeLocalizationKeys as K } from '../localization/home-localization';
 import { FlightDataDashboard } from './widgets/flight-data-dashboard';
 import {
@@ -41,6 +42,9 @@ export function HomePage() {
   /** 已处理的后端中断版本号，防止重复弹窗 */
   const handledOutageVersion = useRef(snapshot.backendOutageVersion);
   const backendDialogVisible = useRef(false);
+  /** 已处理的模拟器意外断连版本号 */
+  const handledSimOutageVersion = useRef(snapshot.simulatorOutageVersion);
+  const simLostDialogVisible = useRef(false);
 
   const checkBackendAvailability = async (showDialogWhenUnavailable: boolean) => {
     if (isRetryingBackend) return;
@@ -107,6 +111,37 @@ export function HomePage() {
     setGlassMaskOpacity(0);
     setShowGlassMask(false);
   }, [snapshot.isConnected]);
+
+  // 模拟器意外断连：标明原因（用户主动断开不会递增 simulatorOutageVersion）
+  useEffect(() => {
+    if (snapshot.simulatorOutageVersion <= handledSimOutageVersion.current) return;
+    handledSimOutageVersion.current = snapshot.simulatorOutageVersion;
+    if (simLostDialogVisible.current) return;
+    simLostDialogVisible.current = true;
+    const reasonText = t(simulatorDisconnectReasonKey(snapshot.disconnectReason));
+    const detail = snapshot.disconnectDetail?.trim() ?? '';
+    const content =
+      detail.length > 0
+        ? `${reasonText}\n\n${t(CommonLocalizationKeys.simLostDetailSuffix, { detail })}`
+        : reasonText;
+    void showAdvancedConfirmDialog({
+      title: t(CommonLocalizationKeys.simLostTitle),
+      content,
+      icon: 'link_off',
+      confirmColor: 'var(--color-error)',
+      confirmText: t(CommonLocalizationKeys.simLostAck),
+      cancelText: '',
+      contentTextAlign: 'left',
+      dialogWidth: 440,
+    }).finally(() => {
+      simLostDialogVisible.current = false;
+    });
+  }, [
+    snapshot.simulatorOutageVersion,
+    snapshot.disconnectReason,
+    snapshot.disconnectDetail,
+    t,
+  ]);
 
   const shouldBlockInteraction = showConnectionHelpCard || glassMaskOpacity > 0.01;
 

@@ -210,6 +210,15 @@ export interface FlightDataSnapshot {
   readonly isBackendReachable: boolean;
   /** 后端中断版本号，自增用于触发一次性提示 */
   readonly backendOutageVersion: number;
+  /**
+   * 模拟器意外断连版本号，自增用于触发一次性弹窗。
+   * 用户主动断开不会递增。
+   */
+  readonly simulatorOutageVersion: number;
+  /** 最近一次意外断连的机器可读原因码（见中间件 DisconnectReason） */
+  readonly disconnectReason?: string;
+  /** 断连补充说明（如 SimConnect 原始错误），可空 */
+  readonly disconnectDetail?: string;
   readonly simulatorType: SimulatorType;
   readonly errorMessage?: string;
   readonly aircraftTitle?: string;
@@ -237,6 +246,7 @@ export function emptyFlightDataSnapshot(): FlightDataSnapshot {
     isConnected: false,
     isBackendReachable: false,
     backendOutageVersion: 0,
+    simulatorOutageVersion: 0,
     simulatorType: 'none',
     flightData: emptyFlightData(),
     suggestedAirports: [],

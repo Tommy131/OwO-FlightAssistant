@@ -40,6 +40,7 @@
 | 编号 | 需求 | 实现位置 |
 |---|---|---|
 | FR-1 | 与中间件建立 HTTP + WebSocket 链路，实时接收模拟器遥测 | `modules/http/`、`modules/common/` |
+| FR-1a | 模拟器意外断连时弹窗标明原因；短暂链路抖动宽限恢复 | `middleware-flight-data-adapter.ts`、`home-page.tsx` |
 | FR-2 | 地图显示本机、AI 机、航迹、机场与跑道/停机位/滑行道 | `modules/map/` |
 | FR-3 | 气象叠加：雷达回波、降水、风、气压、温度，各带图例色标 | `modules/map/models/map-legends.ts` |
 | FR-4 | 跑道进近设施展示：ILS 类别、航向台频率/航道、下滑角、DME | `modules/map/`（数据源 `earth_nav.dat`） |

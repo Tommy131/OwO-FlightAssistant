@@ -15,6 +15,7 @@ import {
 import {
   extractErrorMessage,
   isConnectionLostError,
+  MiddlewareHttpException,
 } from '../../http/models/http-models';
 import { MiddlewareHttpService } from '../../http/services/middleware-http-service';
 import {
@@ -53,13 +54,25 @@ const BACKEND_DISCONNECT_GRACE_PERIOD_MS = 10_000;
 const POLL_INTERVAL_MS_KEY = 'middleware_flight_data_interval_ms';
 
 /**
+ * 模拟器链路宽限期。
+ *
+ * MSFS 会在 SimConnect 抖动时短暂 Connected=false 再重连；
+ * X-Plane 加载场景/暂停菜单时也可能停发 RREF 数十秒。
+ * 宽限期内保持会话，避免录制被误收尾、UI 突然变「未连接」。
+ * 须长于中间件 X-Plane 无包判定（30s）。
+ */
+const SIMULATOR_LINK_GRACE_PERIOD_MS = 45_000;
+const WS_RECONNECT_BASE_DELAY_MS = 1_000;
+const WS_RECONNECT_MAX_DELAY_MS = 8_000;
+
+/**
  * 会话持久化
  *
  * 刷新页面前，token 只活在这个类的内存字段里 —— 刷新后前端一律按「未连接」
  * 初始化，用户必须重新点连接，**而后端其实还连着模拟器**。
  * 正在录制时这一下就把已录的数据全丢了（见 flight-logs-store 的 recoverActiveLog）。
  *
- * 后端会话的空闲 TTL 是 10 分钟（见中间件 `sessionIdleTTL`），刷新只需几秒，
+ * 后端会话的空闲 TTL 是 30 分钟（见中间件 `sessionIdleTTL`），刷新只需几秒，
  * 所以存下 token 后完全来得及原样接上。
  */
 const SESSION_MODULE = 'common';
@@ -132,6 +145,22 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
   private backendDisconnectHandled = false;
   private lastBackendReachableAt: number | null = null;
   private backendOutageVersion = 0;
+  private simulatorOutageVersion = 0;
+  private disconnectReason?: string;
+  private disconnectDetail?: string;
+  /** 用户主动 disconnect 时为 true，避免误弹「意外断连」窗 */
+  private intentionalDisconnect = false;
+  /** 链路丢失起始时间；null 表示当前链路正常 */
+  private linkLostSince: number | null = null;
+  private pendingDisconnectReason?: string;
+  private pendingDisconnectDetail?: string;
+  private linkGraceTimer: ReturnType<typeof setTimeout> | null = null;
+  private wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private wsReconnectAttempt = 0;
+  /** 正在建立 WS，防止 close 回调与重连互相踩 */
+  private wsConnecting = false;
+  /** 主动 close 时压制 close 回调，避免误触发重连/轮询 */
+  private suppressWsCloseHandler = false;
 
   // ──────────────────────────────────────────────────────────────────────────
   // 订阅
@@ -152,6 +181,8 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
     await MiddlewareHttpService.init();
     await this.loadPollIntervalFromStorage();
     this.errorMessage = undefined;
+    this.disconnectReason = undefined;
+    this.disconnectDetail = undefined;
 
     if (type === 'none') {
       this.errorMessage = 'invalid_simulator_type';
@@ -180,6 +211,8 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
         return false;
       }
 
+      this.intentionalDisconnect = false;
+      this.clearLinkGrace();
       this.token = token;
       this.simulatorType = type;
       this.isConnected = true;
@@ -221,10 +254,14 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
         await this.clearStoredSession();
         return false;
       }
+      this.intentionalDisconnect = false;
+      this.clearLinkGrace();
       this.token = stored.token;
       this.simulatorType = stored.type;
       this.isConnected = true;
       this.errorMessage = undefined;
+      this.disconnectReason = undefined;
+      this.disconnectDetail = undefined;
       this.applySimulatorResponseBody(response.objectBody);
       await this.startRealtimeUpdates(stored.token);
       this.emitSnapshot();
@@ -273,6 +310,9 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
   }
 
   async disconnect(): Promise<void> {
+    this.intentionalDisconnect = true;
+    this.clearLinkGrace();
+    this.cancelWsReconnect();
     const token = this.token;
     this.token = null;
     await this.clearStoredSession();
@@ -292,6 +332,8 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
     this.transponderState = undefined;
     this.transponderCode = undefined;
     this.errorMessage = undefined;
+    this.disconnectReason = undefined;
+    this.disconnectDetail = undefined;
     this.flightData = emptyFlightData();
     this.metarRefreshingIcaos.clear();
     this.metarLastAutoFetchAt.clear();
@@ -303,6 +345,9 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
 
   dispose(): void {
     this.disposed = true;
+    this.intentionalDisconnect = true;
+    this.clearLinkGrace();
+    this.cancelWsReconnect();
     this.stopBackendHealthMonitor();
     this.closeWebSocket();
     this.stopPolling();
@@ -566,6 +611,8 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
   }
 
   private async connectWebSocket(token: string): Promise<boolean> {
+    if (this.disposed || this.wsConnecting) return false;
+    this.wsConnecting = true;
     try {
       const wsUri = await MiddlewareHttpService.resolveSimulatorWebSocketUri(token);
       AppLogger.info(`Connecting to WebSocket: ${wsUri}`);
@@ -597,9 +644,9 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
         );
       });
 
-      if (!opened) {
+      if (!opened || this.ws !== socket) {
         AppLogger.warning('WebSocket handshake failed, falling back to polling');
-        this.closeWebSocket();
+        if (this.ws === socket) this.closeWebSocket();
         return false;
       }
 
@@ -613,11 +660,14 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
         this.handleWebSocketClosed();
       });
 
+      this.wsReconnectAttempt = 0;
       AppLogger.info('WebSocket connection established');
       return true;
     } catch (e) {
       AppLogger.error('FlightData websocket connect failed', e);
       return false;
+    } finally {
+      this.wsConnecting = false;
     }
   }
 
@@ -626,11 +676,43 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
     try {
       const payload = toJsonMap(JSON.parse(data));
       if (!payload) return;
+
       if (payload.error !== null && payload.error !== undefined) {
-        this.errorMessage = extractErrorMessage(payload.error);
+        const errorCode = extractErrorMessage(payload.error);
+        this.errorMessage = errorCode;
+        const reason =
+          pickString(payload, ['disconnect_reason']) ??
+          (errorCode === 'invalid_token' ? 'invalid_token' : errorCode);
+        if (errorCode === 'invalid_token' || reason === 'session_expired') {
+          void this.finalizeUnexpectedDisconnect(reason, pickString(payload, ['disconnect_detail']));
+          return;
+        }
+        // 旧中间件仍可能推 simulator_not_connected 错误帧；按软断链处理。
+        if (errorCode === 'simulator_not_connected') {
+          this.noteSimulatorLinkLost(
+            pickString(payload, ['disconnect_reason']) ?? 'link_timeout',
+            pickString(payload, ['disconnect_detail']),
+          );
+          this.emitSnapshot();
+          return;
+        }
         this.emitSnapshot();
         return;
       }
+
+      // 中间件在链路中断时发 type=status 的软断连帧，会话与 WS 都还活着。
+      if (toText(payload.type).toLowerCase() === 'status' || payload.connected === false) {
+        const linked = toBool(payload.connected);
+        if (linked === false) {
+          this.noteSimulatorLinkLost(
+            pickString(payload, ['disconnect_reason']) ?? 'link_timeout',
+            pickString(payload, ['disconnect_detail']),
+          );
+          this.emitSnapshot();
+          return;
+        }
+      }
+
       const { body, needsResync } = this.deltaAssembler.accept(payload);
       if (needsResync) {
         // 丢帧了：宁可要一帧全量，也不要把状态硬合并成半新半旧。
@@ -657,22 +739,65 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
   }
 
   private handleWebSocketClosed(): void {
-    if (this.token && this.token.length > 0 && !this.disposed) {
-      this.startPolling(1000);
+    if (this.suppressWsCloseHandler) return;
+    if (this.disposed || this.intentionalDisconnect) return;
+    const token = this.token;
+    if (!token || token.length === 0) return;
+    // 先用轮询顶住，再指数退避重连 WS，避免长航线中途通道挂掉后只剩静默轮询。
+    this.startPolling(1000);
+    this.scheduleWsReconnect(token);
+  }
+
+  private scheduleWsReconnect(token: string): void {
+    if (this.disposed || this.intentionalDisconnect) return;
+    if (this.wsReconnectTimer !== null) return;
+    const attempt = this.wsReconnectAttempt;
+    const delay = Math.min(
+      WS_RECONNECT_BASE_DELAY_MS * 2 ** Math.min(attempt, 3),
+      WS_RECONNECT_MAX_DELAY_MS,
+    );
+    this.wsReconnectTimer = setTimeout(() => {
+      this.wsReconnectTimer = null;
+      void this.attemptWsReconnect(token);
+    }, delay);
+  }
+
+  private async attemptWsReconnect(token: string): Promise<void> {
+    if (this.disposed || this.intentionalDisconnect) return;
+    if (this.token !== token) return;
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+    this.wsReconnectAttempt += 1;
+    AppLogger.info(`WebSocket reconnect attempt #${this.wsReconnectAttempt}`);
+    const ok = await this.connectWebSocket(token);
+    if (ok) {
+      this.stopPolling();
+      return;
     }
+    this.scheduleWsReconnect(token);
+  }
+
+  private cancelWsReconnect(): void {
+    if (this.wsReconnectTimer !== null) {
+      clearTimeout(this.wsReconnectTimer);
+      this.wsReconnectTimer = null;
+    }
+    this.wsReconnectAttempt = 0;
   }
 
   private closeWebSocket(): void {
     const socket = this.ws;
     this.ws = null;
     if (!socket) return;
+    this.suppressWsCloseHandler = true;
     try {
-      // 先摘掉监听器，避免主动关闭触发回退轮询
-      socket.onclose = null;
-      socket.onerror = null;
       socket.close();
     } catch {
       /* 忽略关闭异常 */
+    } finally {
+      // close 事件可能异步到达；短延迟后恢复，避免压住真断连
+      setTimeout(() => {
+        this.suppressWsCloseHandler = false;
+      }, 0);
     }
   }
 
@@ -706,13 +831,21 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
     } catch (e) {
       this.errorMessage = extractErrorMessage(e);
       if (isConnectionLostError(e)) {
-        this.isConnected = false;
-        this.simulatorType = 'none';
-        this.token = null;
-        this.stopPolling();
+        // 401 = 会话真死了；409 兼容旧中间件的 simulator_not_connected。
+        const status =
+          e instanceof MiddlewareHttpException ? e.statusCode : undefined;
+        if (status === 401) {
+          void this.finalizeUnexpectedDisconnect(
+            extractErrorMessage(e) === 'invalid_token' ? 'invalid_token' : 'session_expired',
+          );
+        } else if (status === 409) {
+          this.noteSimulatorLinkLost('link_timeout');
+          this.emitSnapshot();
+        }
+      } else {
+        AppLogger.error('FlightData simulator polling failed', e);
+        this.emitSnapshot();
       }
-      AppLogger.error('FlightData simulator polling failed', e);
-      this.emitSnapshot();
     } finally {
       this.polling = false;
     }
@@ -723,15 +856,39 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
   // ──────────────────────────────────────────────────────────────────────────
 
   private applySimulatorResponseBody(body: JsonMap): void {
+    const topLevelConnected = toBool(body.connected);
     const clientMap = toJsonMap(body.client_dataset);
     const rawMap = toJsonMap(body.raw_dataset);
+
+    // Soft disconnect：会话仍在，链路暂时掉了。不要清 token / 不要立刻 isConnected=false。
+    if (topLevelConnected === false || (clientMap && toBool(clientMap.connected) === false && !rawMap)) {
+      this.noteSimulatorLinkLost(
+        pickString(body, ['disconnect_reason']) ?? 'link_timeout',
+        pickString(body, ['disconnect_detail']),
+      );
+      this.emitSnapshot();
+      return;
+    }
+
     if (!clientMap && !rawMap) return;
 
     // client_dataset 覆盖 raw_dataset（与桌面版展开顺序一致）
     const dataset: JsonMap = { ...(rawMap ?? {}), ...(clientMap ?? {}) };
+    const live = toBool(dataset.connected);
+    if (live === false) {
+      this.noteSimulatorLinkLost(
+        pickString(body, ['disconnect_reason']) ?? 'link_timeout',
+        pickString(body, ['disconnect_detail']),
+      );
+      this.emitSnapshot();
+      return;
+    }
 
+    this.clearLinkGrace();
     this.errorMessage = undefined;
-    this.isConnected = toBool(dataset.connected) ?? true;
+    this.disconnectReason = undefined;
+    this.disconnectDetail = undefined;
+    this.isConnected = true;
     this.isPaused = toBool(dataset.is_paused);
     this.transponderState = pickString(dataset, ['transponder_state']);
     this.transponderCode = pickString(dataset, ['transponder_code']);
@@ -755,6 +912,86 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
     }
 
     this.ensureCurrentAirportMetar();
+    this.emitSnapshot();
+  }
+
+  /**
+   * 记录链路丢失并启动宽限期。宽限期内会话与 isConnected 保持，
+   * 遥测恢复则取消；超时则按意外断连收尾并弹出原因。
+   */
+  private noteSimulatorLinkLost(reason: string, detail?: string | null): void {
+    if (this.disposed || this.intentionalDisconnect) return;
+    if (!this.token) return;
+
+    this.pendingDisconnectReason = reason.trim() || 'link_timeout';
+    this.pendingDisconnectDetail = detail?.trim() || undefined;
+    this.errorMessage = this.pendingDisconnectReason;
+
+    if (this.linkLostSince !== null) {
+      return;
+    }
+    this.linkLostSince = Date.now();
+    AppLogger.warning(
+      `Simulator link degraded reason=${this.pendingDisconnectReason} grace=${SIMULATOR_LINK_GRACE_PERIOD_MS}ms`,
+    );
+    this.linkGraceTimer = setTimeout(() => {
+      this.linkGraceTimer = null;
+      if (this.linkLostSince === null) return;
+      void this.finalizeUnexpectedDisconnect(
+        this.pendingDisconnectReason ?? 'link_timeout',
+        this.pendingDisconnectDetail,
+      );
+    }, SIMULATOR_LINK_GRACE_PERIOD_MS);
+  }
+
+  private clearLinkGrace(): void {
+    this.linkLostSince = null;
+    this.pendingDisconnectReason = undefined;
+    this.pendingDisconnectDetail = undefined;
+    if (this.linkGraceTimer !== null) {
+      clearTimeout(this.linkGraceTimer);
+      this.linkGraceTimer = null;
+    }
+  }
+
+  /** 意外断连：清会话、递增 outage 版本（首页弹窗订阅它）、保留原因码 */
+  private async finalizeUnexpectedDisconnect(
+    reason: string,
+    detail?: string | null,
+  ): Promise<void> {
+    if (this.disposed || this.intentionalDisconnect) return;
+    if (!this.isConnected && !this.token) return;
+
+    const token = this.token;
+    AppLogger.error(
+      `Simulator connection lost unexpectedly reason=${reason}${detail ? ` detail=${detail}` : ''}`,
+    );
+
+    this.clearLinkGrace();
+    this.cancelWsReconnect();
+    this.token = null;
+    await this.clearStoredSession();
+    this.closeWebSocket();
+    this.stopPolling();
+    if (token && token.length > 0) {
+      try {
+        await MiddlewareHttpService.disconnectSimulator(token);
+      } catch {
+        /* 后端会话可能已过期 */
+      }
+    }
+
+    this.isConnected = false;
+    this.simulatorType = 'none';
+    this.aircraftTitle = undefined;
+    this.isPaused = undefined;
+    this.transponderState = undefined;
+    this.transponderCode = undefined;
+    this.flightData = emptyFlightData();
+    this.errorMessage = reason;
+    this.disconnectReason = reason.trim() || 'unknown';
+    this.disconnectDetail = detail?.trim() || undefined;
+    this.simulatorOutageVersion += 1;
     this.emitSnapshot();
   }
 
@@ -885,6 +1122,9 @@ export class MiddlewareFlightDataAdapter implements FlightDataAdapter {
       isConnected: this.isConnected,
       isBackendReachable: this.backendReachable,
       backendOutageVersion: this.backendOutageVersion,
+      simulatorOutageVersion: this.simulatorOutageVersion,
+      disconnectReason: this.disconnectReason,
+      disconnectDetail: this.disconnectDetail,
       simulatorType: this.simulatorType,
       errorMessage: this.errorMessage,
       aircraftTitle: this.aircraftTitle,
